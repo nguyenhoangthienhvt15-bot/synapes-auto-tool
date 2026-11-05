@@ -2,8 +2,8 @@ import { Project, EngineerSheetRow, Skill, AIProviderConfig } from '../types';
 
 export const INITIAL_USER: { code: string; name: string; email: string; isDefaultPassword: boolean } = {
   code: 'VIP-001',
-  name: 'Nguyễn Văn A (Tech Reviewer)',
-  email: 'nguyenhoangthien.hvt.15@gmail.com',
+  name: 'Anh Hoàng Nam (Studio Media Tech)',
+  email: 'hoangnam.media@gmail.com',
   isDefaultPassword: false,
 };
 

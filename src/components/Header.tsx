@@ -1,6 +1,6 @@
 import React from 'react';
 import { UserAccount } from '../types';
-import { Bell, KeyRound, LogOut, Mail, ExternalLink, Shield } from 'lucide-react';
+import { Bell, KeyRound, LogOut, Shield } from 'lucide-react';
 
 interface HeaderProps {
   currentUser: UserAccount | null;
@@ -21,10 +21,6 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenChangePass,
   onOpenLogin,
 }) => {
-  const developerEmail = 'nguyenhoangthien.hvt.15@gmail.com';
-  const mailSubject = encodeURIComponent('LIÊN HỆ NHÀ PHÁT TRIỂN');
-  const gmailDirectUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${developerEmail}&su=${mailSubject}`;
-
   return (
     <header className="h-14 px-4 sm:px-6 apple-header flex items-center justify-between sticky top-0 z-40 select-none">
       {/* Left: Synapes Brand Logo & Tagline */}
@@ -91,21 +87,8 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Right: Developer Contact & User Controls */}
+      {/* Right: User Controls */}
       <div className="flex items-center gap-2">
-        {/* Nút Liên hệ Nhà phát triển */}
-        <a
-          href={gmailDirectUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-zinc-50 text-zinc-800 text-xs font-medium border border-black/[0.08] shadow-xs transition apple-btn-tap"
-          title="Gửi email trao đổi trực tiếp với Kỹ sư Nguyễn Hoàng Thiện"
-        >
-          <Mail className="w-3.5 h-3.5 text-[#0071E3]" />
-          <span className="hidden sm:inline">Liên Hệ Dev</span>
-          <ExternalLink className="w-3 h-3 text-zinc-400" />
-        </a>
-
         {/* Chuông Thông Báo */}
         <button
           onClick={() => onSelectView('pending-approval')}
@@ -148,7 +131,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="pl-2 border-l border-black/[0.08]">
             <button
               onClick={onOpenLogin}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-semibold shadow-xs transition apple-btn-tap"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-semibold shadow-xs transition apple-btn-tap"
               title="Đăng nhập tài khoản Studio"
             >
               <Shield className="w-3.5 h-3.5" />
