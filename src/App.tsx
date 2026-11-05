@@ -393,9 +393,23 @@ export function App() {
             />
           )}
 
-          {/* VIEW: KÊNH LIÊN KẾT */}
-          {activeView === 'channels' && (
-            <SocialChannelsView onBack={() => setActiveView('pending-approval')} />
+          {/* VIEW: KÊNH LIÊN KẾT & ĐĂNG NHẬP OAUTH (YOUTUBE, TIKTOK, FACEBOOK) */}
+          {(activeView === 'channels' ||
+            activeView === 'connect-youtube' ||
+            activeView === 'connect-tiktok' ||
+            activeView === 'connect-facebook') && (
+            <SocialChannelsView
+              initialPlatform={
+                activeView === 'connect-youtube'
+                  ? 'youtube'
+                  : activeView === 'connect-tiktok'
+                  ? 'tiktok'
+                  : activeView === 'connect-facebook'
+                  ? 'facebook'
+                  : 'all'
+              }
+              onBack={() => setActiveView('pending-approval')}
+            />
           )}
 
           {/* VIEW: GOOGLE DRIVE BACKUP */}
