@@ -56,13 +56,20 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
           </ul>
         </div>
 
-        {/* Cột 2: Hệ Sinh Thái Tích Hợp */}
+        {/* Cột 2: Hạ Tầng Tích Hợp (AI Models & Nền Tảng) */}
         <div className="space-y-3">
           <div className="text-zinc-900 font-semibold text-xs tracking-tight uppercase font-mono">
             Hạ Tầng Tích Hợp
           </div>
-          <div className="space-y-1.5 text-zinc-600">
-            <p className="flex items-center gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1.5 text-zinc-600">
+            {/* 1. Google Gemini */}
+            <a
+              href="https://gemini.google.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-zinc-950 transition group cursor-pointer"
+              title="Truy cập trang chủ Google Gemini"
+            >
               <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
                 <path d="M12 0C12 6.627 6.627 12 0 12C6.627 12 12 17.373 12 24C12 17.373 17.373 12 24 12C17.373 12 12 6.627 12 0Z" fill="url(#gemini-footer-grad)" />
                 <defs>
@@ -73,36 +80,125 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
                   </linearGradient>
                 </defs>
               </svg>
-              <span>Google Gemini 2.0</span>
-            </p>
-            <p className="flex items-center gap-2">
+              <span className="group-hover:underline">Google Gemini</span>
+            </a>
+
+            {/* 2. OpenAI GPT */}
+            <a
+              href="https://openai.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-zinc-950 transition group cursor-pointer"
+              title="Truy cập trang chủ OpenAI (ChatGPT / GPT)"
+            >
+              <svg className="w-3.5 h-3.5 flex-shrink-0 text-[#10A37F]" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.6667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/>
+              </svg>
+              <span className="group-hover:underline">OpenAI GPT</span>
+            </a>
+
+            {/* 3. Anthropic Claude */}
+            <a
+              href="https://claude.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-zinc-950 transition group cursor-pointer"
+              title="Truy cập trang chủ Anthropic Claude"
+            >
+              <svg className="w-3.5 h-3.5 flex-shrink-0 text-[#D97706]" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 1.5l1.6 6.8 6.8 1.6-6.8 1.6L12 18.3l-1.6-6.8L3.6 9.9l6.8-1.6L12 1.5zm6.5 13.5l.8 3.4 3.4.8-3.4.8-.8 3.4-.8-3.4-3.4-.8 3.4-.8.8-3.4z"/>
+              </svg>
+              <span className="group-hover:underline">Anthropic Claude</span>
+            </a>
+
+            {/* 4. DeepSeek AI */}
+            <a
+              href="https://www.deepseek.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-zinc-950 transition group cursor-pointer"
+              title="Truy cập trang chủ DeepSeek AI"
+            >
+              <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                <path d="M3.5 14.5C3.5 9.5 7.5 5.5 12.5 5.5C17.5 5.5 21.5 9 21.5 14C21.5 17 19.5 19.5 16.5 19.5C13.5 19.5 12 17.5 10 17.5C8 17.5 6.5 19 4.5 18C3.8 17 3.5 15.8 3.5 14.5Z" fill="#1E6FFF"/>
+                <circle cx="8" cy="12" r="1.5" fill="#FFFFFF"/>
+              </svg>
+              <span className="group-hover:underline">DeepSeek AI</span>
+            </a>
+
+            {/* 5. xAI Grok */}
+            <a
+              href="https://x.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-zinc-950 transition group cursor-pointer"
+              title="Truy cập trang chủ xAI Grok"
+            >
+              <svg className="w-3.5 h-3.5 flex-shrink-0 text-black" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+              </svg>
+              <span className="group-hover:underline">xAI Grok</span>
+            </a>
+
+            {/* 6. YouTube Data API */}
+            <a
+              href="https://developers.google.com/youtube/v3"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-zinc-950 transition group cursor-pointer"
+              title="Truy cập YouTube Data API"
+            >
               <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24">
                 <path fill="#FF0000" d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814z" />
                 <path fill="#FFFFFF" d="m9.545 15.568 6.273-3.568-6.273-3.568z" />
               </svg>
-              <span>YouTube Data API v3</span>
-            </p>
-            <p className="flex items-center gap-2">
+              <span className="group-hover:underline">YouTube Data API</span>
+            </a>
+
+            {/* 7. TikTok Posting API */}
+            <a
+              href="https://developers.tiktok.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-zinc-950 transition group cursor-pointer"
+              title="Truy cập TikTok for Developers"
+            >
               <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="#000000">
                 <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.86.12V9.4a6.33 6.33 0 0 0-.86-.06A6.34 6.34 0 0 0 3.1 15.68a6.34 6.34 0 0 0 10.74 4.54 6.29 6.29 0 0 0 1.93-4.55V8.87a8.28 8.28 0 0 0 4.82 1.54V6.96a4.85 4.85 0 0 1-1-.27z" />
               </svg>
-              <span>TikTok Posting API</span>
-            </p>
-            <p className="flex items-center gap-2">
+              <span className="group-hover:underline">TikTok Posting API</span>
+            </a>
+
+            {/* 8. Meta Graph API */}
+            <a
+              href="https://developers.facebook.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-zinc-950 transition group cursor-pointer"
+              title="Truy cập Meta for Developers"
+            >
               <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="#0081FB">
                 <path d="M16.92 5.08c-2.17 0-3.9 1.4-4.92 2.92-1.02-1.52-2.75-2.92-4.92-2.92C3.12 5.08 0 8.35 0 12.38c0 4.02 3.12 7.29 7.08 7.29 2.17 0 3.9-1.4 4.92-2.92 1.02 1.52 2.75 2.92 4.92 2.92 3.96 0 7.08-3.27 7.08-7.29 0-4.03-3.12-7.3-7.08-7.3zm-9.84 12.1c-2.6 0-4.61-2.1-4.61-4.8 0-2.7 2.01-4.8 4.61-4.8 1.83 0 3.2 1.15 4.06 2.54-.86 1.39-2.23 2.54-4.06 2.54zm9.84 0c-1.83 0-3.2-1.15-4.06-2.54.86-1.39 2.23-2.54 4.06-2.54 2.6 0 4.61 2.1 4.61 4.8 0 2.7-2.01 4.8-4.61 4.8z" />
               </svg>
-              <span>Meta Graph API</span>
-            </p>
-            <p className="flex items-center gap-2">
+              <span className="group-hover:underline">Meta Graph API</span>
+            </a>
+
+            {/* 9. Google Drive API */}
+            <a
+              href="https://developers.google.com/drive"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-zinc-950 transition group cursor-pointer"
+              title="Truy cập Google Drive API"
+            >
               <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 87 78">
                 <path d="m6.6 66.8 17.1-29.6 13.8 23.9H13.8c-3.8 0-6.3-1.6-7.2-4.3z" fill="#0066DA" />
                 <path d="M43.7 25 29.9 1.2C28.5.4 27 0 25.4 0h-1.6l27.5 47.6 13.8-23.9z" fill="#00AC47" />
                 <path d="M59.8 53H27.5L13.8 76.8c1.4.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.2-.4 4.5-1.2z" fill="#2684FC" />
                 <path d="m73.4 26.5-12.7-22C59.4 2.3 56.9 0 53 0L36.8 28.1l16.2 28h27.5c0-1.6-.4-3.1-1.2-4.5z" fill="#FFBA00" />
               </svg>
-              <span>Google Drive API</span>
-            </p>
+              <span className="group-hover:underline">Google Drive API</span>
+            </a>
           </div>
         </div>
 
