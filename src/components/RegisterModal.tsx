@@ -292,7 +292,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Ví dụ: Nguyễn Hoàng Thiện"
+                    placeholder="Ví dụ: Nguyễn Văn A"
                     className="w-full bg-white border border-zinc-200 rounded-lg pl-8 pr-3 py-2 text-xs text-zinc-950 focus:outline-none focus:border-zinc-900 transition"
                   />
                 </div>
