@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserAccount, EngineerSheetRow } from '../types';
-import { Lock, User, KeyRound, Shield, AlertCircle, ArrowRight, CheckCircle2, X, RefreshCw, ExternalLink } from 'lucide-react';
-import { GOOGLE_SHEET_URL } from '../services/googleSheetService';
+import { Lock, User, KeyRound, Shield, AlertCircle, ArrowRight, CheckCircle2, X, RefreshCw } from 'lucide-react';
 
 interface AuthModalProps {
   currentUser: UserAccount | null;
@@ -11,9 +10,6 @@ interface AuthModalProps {
   onForceChangePassword: (newPass: string) => void;
   onCloseChangePass?: () => void;
   onClose?: () => void;
-  onSyncSheet?: () => Promise<void>;
-  isSyncingSheet?: boolean;
-  lastSyncTime?: string | null;
   onUpdateSheetRow: (rows: EngineerSheetRow[]) => void;
   onSendTempPasswordEmail: (email: string, code: string, tempPass: string) => void;
 }
@@ -25,9 +21,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onForceChangePassword,
   onCloseChangePass,
   onClose,
-  onSyncSheet,
-  isSyncingSheet = false,
-  lastSyncTime,
   onUpdateSheetRow,
   onSendTempPasswordEmail,
 }) => {
@@ -48,7 +41,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [forgotSuccessData, setForgotSuccessData] = useState<{ tempPass: string; email: string } | null>(null);
   const [forgotError, setForgotError] = useState<string | null>(null);
 
-  // Đóng modal an toàn (hỗ trợ cả ESC key)
+  // Đóng modal an toàn (hỗ trợ cả phím Esc)
   const handleClose = () => {
     setInternalVisible(false);
     if (onClose) {
@@ -73,7 +66,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       const ok = await onLogin(loginCode.trim(), loginPass);
       if (!ok) {
-        setLoginError('Mã Code hoặc Mật khẩu không chính xác. Đã đối soát trực tiếp với Google Sheet nhưng không trùng khớp. Vui lòng kiểm tra lại với Kỹ sư.');
+        setLoginError('Mã Code hoặc Mật khẩu không chính xác. Vui lòng kiểm tra lại thông tin đăng nhập của bạn.');
       }
     } catch {
       setLoginError('Đã xảy ra lỗi khi kiểm tra đăng nhập. Vui lòng thử lại.');
@@ -104,7 +97,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const codeClean = forgotCode.trim().toUpperCase();
     const targetRow = sheetRows.find((r) => r.code === codeClean);
     if (!targetRow) {
-      setForgotError('Không tìm thấy Mã Code trong hệ thống quản trị của Kỹ sư.');
+      setForgotError('Không tìm thấy Mã Code khách hàng trong hệ thống.');
       return;
     }
 
@@ -119,7 +112,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           currentTempPassword: tempPass,
           lastIssuedTime: timeString,
           accountStatus: 'temp_password_active' as const,
-          engineerNotes: `${item.engineerNotes} | [${timeString}] Khách quên pass -> Tự động cấp pass mới & gửi Gmail.`,
+          engineerNotes: `${item.engineerNotes} | [${timeString}] Khách yêu cầu cấp lại pass qua WebApp.`,
         };
       }
       return item;
@@ -132,7 +125,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const isForcedReset = currentUser?.isLoggedIn && currentUser.isDefaultPassword;
 
-  // Nếu đã bấm tắt thì không render
+  // Nếu người dùng đã đóng modal thì không hiển thị
   if (!internalVisible) {
     return null;
   }
@@ -178,7 +171,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <Shield className="w-5 h-5" />
               </div>
               <h2 className="text-lg font-bold text-[#1D1D1F] tracking-tight">Đăng Nhập Studio</h2>
-              <p className="text-zinc-500 text-xs">Mã Code & Mật khẩu được đồng bộ trực tiếp từ Google Sheet Kỹ sư</p>
+              <p className="text-zinc-500 text-xs">Nhập Mã Code và Mật khẩu được cấp để truy cập hệ thống</p>
             </div>
 
             {loginError && (
@@ -188,7 +181,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
             )}
 
-            <form onSubmit={handleLoginSubmit} className="space-y-3 text-xs">
+            <form onSubmit={handleLoginSubmit} className="space-y-3.5 text-xs">
               <div>
                 <label className="text-zinc-700 font-medium block mb-1">Mã Code Khách Hàng</label>
                 <div className="relative">
@@ -198,7 +191,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     required
                     value={loginCode}
                     onChange={(e) => setLoginCode(e.target.value)}
-                    placeholder="VD: FYER-051126 hoặc VIP-001"
+                    placeholder="Nhập mã code của bạn"
                     className="w-full bg-[#FAF9F5] border border-black/[0.1] rounded-xl pl-8 pr-3 py-2 text-xs text-[#0071E3] font-mono font-semibold uppercase focus:outline-none focus:bg-white focus:border-[#0071E3] transition"
                   />
                 </div>
@@ -233,39 +226,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               </div>
 
-              {/* Tài khoản mẫu / Điền nhanh */}
-              <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80 text-[11px] text-amber-900 space-y-1.5">
-                <div className="font-semibold text-amber-950 flex items-center justify-between">
-                  <span>Tài khoản trên Sheet (Click để điền nhanh):</span>
-                </div>
-                <div className="grid grid-cols-2 gap-1.5 pt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoginCode('FYER-051126');
-                      setLoginPass('Auto-219564');
-                    }}
-                    className="text-left p-1.5 rounded-lg bg-white/90 hover:bg-white border border-amber-200 text-amber-900 font-mono text-[10px] transition shadow-2xs cursor-pointer"
-                  >
-                    <strong>FYER-051126</strong>
-                    <div className="text-[9px] text-zinc-500">Pass: Auto-219564</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoginCode('VIP-001');
-                      setLoginPass('AutoPass@8912');
-                    }}
-                    className="text-left p-1.5 rounded-lg bg-white/90 hover:bg-white border border-amber-200 text-amber-900 font-mono text-[10px] transition shadow-2xs cursor-pointer"
-                  >
-                    <strong>VIP-001</strong>
-                    <div className="text-[9px] text-zinc-500">Pass: AutoPass@8912</div>
-                  </button>
-                </div>
-              </div>
-
               {/* HÀNG NÚT BẤM: NÚT HỦY/THOÁT VÀ NÚT ĐĂNG NHẬP */}
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex items-center gap-2 pt-2">
                 <button
                   type="button"
                   onClick={handleClose}
@@ -282,7 +244,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   {isLoggingIn ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Đang đối soát Sheet...</span>
+                      <span>Đang kiểm tra...</span>
                     </>
                   ) : (
                     <>
@@ -293,42 +255,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </button>
               </div>
             </form>
-
-            {/* Thanh đồng bộ Google Sheet trực tiếp */}
-            <div className="pt-2.5 border-t border-black/[0.06] flex items-center justify-between text-[11px] text-zinc-500">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Google Sheet: <strong>{sheetRows.length} tài khoản</strong></span>
-              </div>
-              <div className="flex items-center gap-2">
-                {onSyncSheet && (
-                  <button
-                    type="button"
-                    onClick={onSyncSheet}
-                    disabled={isSyncingSheet}
-                    className="inline-flex items-center gap-1 text-[#0071E3] hover:underline font-medium cursor-pointer"
-                    title="Đồng bộ ngay dữ liệu mới nhất vừa thêm trên Google Sheet"
-                  >
-                    <RefreshCw className={`w-3 h-3 ${isSyncingSheet ? 'animate-spin' : ''}`} />
-                    <span>{isSyncingSheet ? 'Đang tải...' : 'Đồng bộ ngay'}</span>
-                  </button>
-                )}
-                <a
-                  href={GOOGLE_SHEET_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-zinc-400 hover:text-zinc-600"
-                  title="Mở Google Sheet trên tab mới"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-            </div>
-            {lastSyncTime && (
-              <div className="text-[10px] text-zinc-400 text-center -mt-2">
-                Đồng bộ lần cuối: {lastSyncTime}
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -398,7 +324,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-900 leading-relaxed">
-                Mật khẩu riêng được mã hóa an toàn. Sheet kỹ sư sẽ chuyển sang <strong className="text-emerald-700">Khách đã đổi pass riêng</strong>.
+                Mật khẩu riêng được mã hóa an toàn để bảo vệ tài khoản Studio của bạn.
               </div>
 
               <div className="flex items-center gap-2 pt-2 border-t border-black/[0.06]">
@@ -451,7 +377,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             {!forgotSuccessData ? (
               <form onSubmit={handleForgotSubmit} className="space-y-3 text-xs">
                 <p className="text-zinc-600 text-xs leading-relaxed">
-                  Nhập <strong>Mã Code</strong> của bạn. Hệ thống sẽ sinh mật khẩu tạm mới, cập nhật lên Sheet Kỹ Sư và tự động gửi thông báo về Gmail của bạn.
+                  Nhập <strong>Mã Code</strong> của bạn. Hệ thống sẽ tạo mật khẩu tạm thời mới và tự động gửi về địa chỉ Gmail đã đăng ký của bạn.
                 </p>
 
                 {forgotError && (
@@ -465,7 +391,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <input
                     type="text"
                     required
-                    placeholder="VIP-001"
+                    placeholder="Nhập mã code của bạn"
                     value={forgotCode}
                     onChange={(e) => setForgotCode(e.target.value)}
                     className="w-full bg-[#FAF9F5] border border-black/[0.1] rounded-xl px-3 py-2 text-xs text-[#0071E3] font-mono font-semibold uppercase focus:outline-none focus:bg-white focus:border-[#0071E3]"
@@ -498,7 +424,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     Đã gửi đến Gmail: <strong className="text-emerald-950 font-mono">{forgotSuccessData.email}</strong>
                   </p>
                   <div className="p-2 bg-white rounded border border-emerald-200">
-                    <div className="text-[10px] text-zinc-500">Mật khẩu tạm (đã lưu trên Sheet):</div>
+                    <div className="text-[10px] text-zinc-500">Mật khẩu tạm thời:</div>
                     <div className="text-[#FF9500] font-mono font-bold mt-0.5">{forgotSuccessData.tempPass}</div>
                   </div>
                 </div>

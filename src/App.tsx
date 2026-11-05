@@ -446,9 +446,6 @@ export function App() {
               setCurrentUser({ ...currentUser, isDefaultPassword: false });
             }
           }}
-          onSyncSheet={() => handleSyncSheet(false)}
-          isSyncingSheet={isSyncingSheet}
-          lastSyncTime={lastSyncTime}
           onUpdateSheetRow={setSheetRows}
           onSendTempPasswordEmail={handleSendTempPasswordEmail}
         />

@@ -1,19 +1,14 @@
 import React from 'react';
-import { Mail, ExternalLink, Headphones, ShieldCheck, CheckCircle2, Cpu, FileText } from 'lucide-react';
+import { Headphones, ShieldCheck, CheckCircle2, FileText } from 'lucide-react';
 
 interface FooterProps {
   onOpenPolicyModal?: (policyType: string) => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
-  const developerEmail = 'nguyenhoangthien.hvt.15@gmail.com';
-  const mailSubject = encodeURIComponent('LIÊN HỆ NHÀ PHÁT TRIỂN');
-  const gmailDirectUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${developerEmail}&su=${mailSubject}`;
-  const mailtoUrl = `mailto:${developerEmail}?subject=${mailSubject}`;
-
   return (
     <footer className="w-full bg-[#FFFFFF] text-zinc-600 text-xs border-t border-black/[0.08] pt-8 pb-8 px-5 lg:px-10 mt-14 select-none">
-      {/* Top Banner: Apple Connected Developer & SLA Ribbon */}
+      {/* Top Banner: Enterprise Overview */}
       <div className="max-w-7xl mx-auto mb-7 pb-5 border-b border-black/[0.06] flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-black/[0.04] border border-black/[0.06] flex items-center justify-center text-[#0071E3]">
@@ -21,7 +16,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
           </div>
           <div>
             <h4 className="text-[#1D1D1F] font-semibold text-xs tracking-tight">
-              SYNAPES Auto Tool — Trung Tâm Điều Hành & Duyệt Xuất Bản Video Đa Nền Tảng
+              SYNAPES Auto Tool — Hệ Thống Sản Xuất & Tự Động Hóa Video Đa Nền Tảng
             </h4>
             <p className="text-zinc-500 text-[11px]">
               Tự động hóa kịch bản đa phong cách • Ghép clip 5-10 phút • Phê duyệt trực quan trước khi phát sóng
@@ -29,27 +24,11 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
           </div>
         </div>
 
-        {/* Nút bấm Liên hệ Nhà phát triển chuẩn Apple */}
         <div className="flex items-center gap-2">
-          <a
-            href={gmailDirectUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Mở trình soạn thư Gmail gửi trực tiếp đến Kỹ sư phát triển"
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-medium shadow-xs transition active:scale-[0.98]"
-          >
-            <Mail className="w-3.5 h-3.5" />
-            <span>LIÊN HỆ NHÀ PHÁT TRIỂN</span>
-            <ExternalLink className="w-3 h-3 opacity-80" />
-          </a>
-
-          <a
-            href={mailtoUrl}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/[0.04] hover:bg-black/[0.08] text-zinc-700 text-xs border border-black/[0.06] transition"
-            title="Mở ứng dụng Mail mặc định"
-          >
-            <span>Mailto</span>
-          </a>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>Hệ Thống Đang Vận Hành Ổn Định</span>
+          </span>
         </div>
       </div>
 
@@ -65,7 +44,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
             <li>
               <button
                 onClick={() => onOpenPolicyModal?.('terms')}
-                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5"
+                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5 cursor-pointer"
               >
                 <FileText className="w-3 h-3 text-zinc-400" />
                 <span>Điều khoản sử dụng phần mềm</span>
@@ -74,7 +53,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
             <li>
               <button
                 onClick={() => onOpenPolicyModal?.('privacy')}
-                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5"
+                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5 cursor-pointer"
               >
                 <ShieldCheck className="w-3 h-3 text-[#34C759]" />
                 <span>Bảo mật dữ liệu & Token API</span>
@@ -83,7 +62,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
             <li>
               <button
                 onClick={() => onOpenPolicyModal?.('copyright')}
-                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5"
+                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5 cursor-pointer"
               >
                 <CheckCircle2 className="w-3 h-3 text-[#0071E3]" />
                 <span>Quyền sở hữu trí tuệ kịch bản</span>
@@ -92,7 +71,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
             <li>
               <button
                 onClick={() => onOpenPolicyModal?.('disclaimer')}
-                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5"
+                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5 cursor-pointer"
               >
                 <span className="text-zinc-400 font-mono">•</span>
                 <span>Cơ chế phê duyệt & Miễn trừ trách nhiệm</span>
@@ -130,22 +109,22 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
           </div>
         </div>
 
-        {/* Cột 3: Website Cùng Nhà Phát Triển */}
+        {/* Cột 3: Website Cùng Hệ Sinh Thái */}
         <div className="space-y-3">
           <div className="text-[#1D1D1F] font-bold text-xs tracking-tight uppercase flex items-center justify-between">
-            <span>Website cùng nhà phát triển</span>
+            <span>Hệ sinh thái liên kết</span>
             <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-blue-50 text-[#0071E3] font-semibold border border-blue-200">
-              SYNAPES ECOSYSTEM
+              SYNAPES SUITE
             </span>
           </div>
 
-          {/* Logo SYNAPES AUDIT (Bấm vào điều hướng trực tiếp đến trang web) */}
+          {/* Logo SYNAPES EDUCHECK */}
           <div className="pt-0.5">
             <a
               href="https://synapeseducheck.onrender.com/"
               target="_blank"
               rel="noopener noreferrer"
-              title="Truy cập SYNAPES AUDIT (synapeseducheck.onrender.com)"
+              title="Truy cập SYNAPES AUDIT"
               className="inline-flex items-center justify-center p-2 rounded-2xl bg-white hover:bg-zinc-50 border border-black/[0.08] hover:border-[#0071E3]/50 shadow-2xs hover:shadow-xs transition-all duration-200 active:scale-95 group"
             >
               <img
@@ -159,7 +138,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
             </a>
           </div>
 
-          {/* Huy hiệu pháp lý Bộ Công Thương & Bản quyền */}
+          {/* Huy hiệu pháp lý Bộ Công Thương & Bản quyền DMCA */}
           <div className="pt-2 flex items-center flex-wrap gap-3">
             {/* Logo Đã Thông Báo Bộ Công Thương */}
             <a
@@ -210,23 +189,27 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
 
       </div>
 
-      {/* Bottom Bar: Bản quyền & Giao diện Apple */}
+      {/* Bottom Bar: Bản quyền Doanh Nghiệp Chuẩn Mực */}
       <div className="max-w-7xl mx-auto pt-4 border-t border-black/[0.06] flex flex-col sm:flex-row items-center justify-between gap-2 text-zinc-500 text-[10px]">
         <div>
-          © 2026 SYNAPES Auto Tool • Kỹ sư Nguyễn Hoàng Thiện
+          © 2026 SYNAPES Auto Tool. All rights reserved.
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => onOpenPolicyModal?.('terms')} className="hover:text-zinc-800 transition">
+          <button onClick={() => onOpenPolicyModal?.('terms')} className="hover:text-zinc-800 transition cursor-pointer">
             Điều khoản dịch vụ
           </button>
           <span>•</span>
-          <button onClick={() => onOpenPolicyModal?.('privacy')} className="hover:text-zinc-800 transition">
+          <button onClick={() => onOpenPolicyModal?.('privacy')} className="hover:text-zinc-800 transition cursor-pointer">
             Bảo mật API
           </button>
           <span>•</span>
-          <a href={gmailDirectUrl} target="_blank" rel="noopener noreferrer" className="text-[#0071E3] font-numeric font-medium hover:underline">
-            {developerEmail}
-          </a>
+          <button onClick={() => onOpenPolicyModal?.('copyright')} className="hover:text-zinc-800 transition cursor-pointer">
+            Bản quyền kịch bản
+          </button>
+          <span>•</span>
+          <button onClick={() => onOpenPolicyModal?.('disclaimer')} className="hover:text-zinc-800 transition cursor-pointer">
+            Miễn trừ trách nhiệm
+          </button>
         </div>
       </div>
     </footer>
