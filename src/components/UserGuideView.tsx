@@ -1365,10 +1365,11 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
             Vào Bàn Làm Việc Studio
           </button>
           <a
-            href="https://t.me"
+            href="https://mail.google.com/mail/?view=cm&fs=1&to=nguyenhoangthien.hvt.15@gmail.com&su=LI%C3%8AN%20H%E1%BB%86%20NH%C3%80%20PH%C3%81T%20TRI%E1%BB%82N"
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             className="btn-secondary text-xs flex items-center gap-1.5"
+            title="Soạn thư Gmail gửi nguyenhoangthien.hvt.15@gmail.com với chủ đề: LIÊN HỆ NHÀ PHÁT TRIỂN"
           >
             <span>Liên Hệ Kỹ Sư Trực 24/7</span>
             <ExternalLink className="w-3 h-3 text-zinc-400" />

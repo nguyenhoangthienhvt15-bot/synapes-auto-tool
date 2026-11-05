@@ -207,6 +207,16 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
           <button onClick={() => onOpenPolicyModal?.('disclaimer')} className="hover:text-zinc-800 transition cursor-pointer">
             Miễn trừ trách nhiệm
           </button>
+          <span>•</span>
+          <a
+            href="https://mail.google.com/mail/?view=cm&fs=1&to=nguyenhoangthien.hvt.15@gmail.com&su=LI%C3%8AN%20H%E1%BB%86%20NH%C3%80%20PH%C3%81T%20TRI%E1%BB%82N"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-zinc-900 font-medium transition"
+            title="Gửi Gmail đến nguyenhoangthien.hvt.15@gmail.com"
+          >
+            Liên hệ nhà phát triển
+          </a>
         </div>
       </div>
     </footer>
