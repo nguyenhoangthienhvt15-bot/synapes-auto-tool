@@ -163,3 +163,37 @@ export interface StitcherClip {
   transition: 'cut' | 'fade' | 'dissolve';
 }
 
+export interface UserRegistrationData {
+  id?: string;
+  fullName: string;
+  dob: string; // DD/MM/YYYY
+  gender?: string; // Nam / Nữ / Khác
+  email: string; // Gmail
+  phone: string;
+  addressType: 'gps' | 'manual';
+  address: string;
+  coords?: { lat: number; lng: number };
+  termsAccepted: boolean;
+  registeredAt: string;
+  isApproved?: boolean;
+  assignedCode?: string;
+  assignedPassword?: string;
+  status?: 'pending' | 'approved';
+}
+
+export interface UserRegistrationSheetRow {
+  stt: number;
+  registeredAt: string;
+  fullName: string;
+  dob: string;
+  gender: string;
+  email: string;
+  phone: string;
+  address: string;
+  isApproved: boolean;
+  code: string;
+  password: string;
+  emailStatus: string;
+  notes: string;
+}
+

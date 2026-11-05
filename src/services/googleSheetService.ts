@@ -1,4 +1,4 @@
-import { EngineerSheetRow } from '../types';
+import { EngineerSheetRow, UserRegistrationData } from '../types';
 
 export const GOOGLE_SHEET_ID = '1E9zec8lX52-ofleS0MG-oRSc8k_hK9aBtC1XBaqNafY';
 export const GOOGLE_SHEET_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/edit?usp=sharing`;
@@ -6,6 +6,105 @@ export const GOOGLE_SHEET_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE
 const STORAGE_KEY = 'synapes_cached_sheet_rows';
 const LAST_SYNC_KEY = 'synapes_last_sheet_sync';
 const CUSTOM_PASSWORDS_KEY = 'synapes_custom_passwords';
+const REGISTRATION_STORAGE_KEY = 'synapes_user_registrations';
+
+/**
+ * Sinh mã Code khách hàng chuẩn theo quy tắc: SNP_[6 số YYMMDD + 4 số ngày tháng sinh DDMM]
+ */
+export function generateUserCode(dob: string): string {
+  const now = new Date();
+  const yy = now.getFullYear().toString().slice(-2);
+  const mm = (now.getMonth() + 1).toString().padStart(2, '0');
+  const dd = now.getDate().toString().padStart(2, '0');
+  const yymmdd = `${yy}${mm}${dd}`;
+
+  let ddmm = '0101';
+  const match = dob.match(/(\d{1,2})[\/\-\.](\d{1,2})/);
+  if (match) {
+    const d = match[1].padStart(2, '0');
+    const m = match[2].padStart(2, '0');
+    ddmm = `${d}${m}`;
+  } else {
+    ddmm = `${dd}${mm}`;
+  }
+
+  return `SNP_${yymmdd}${ddmm}`;
+}
+
+/**
+ * Sinh mật khẩu ngẫu nhiên theo quy tắc: SNP_[3 chữ số + 3 chữ cái ngẫu nhiên]
+ */
+export function generateUserPassword(): string {
+  const randomDigits = Math.floor(100 + Math.random() * 900);
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let letters = '';
+  for (let i = 0; i < 3; i++) {
+    letters += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `SNP_${randomDigits}${letters}`;
+}
+
+/**
+ * Lấy danh sách hồ sơ đăng ký đã lưu cục bộ
+ */
+export function getStoredRegistrations(): UserRegistrationData[] {
+  try {
+    const raw = localStorage.getItem(REGISTRATION_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Lưu hồ sơ người dùng đăng ký mới
+ */
+export async function saveUserRegistration(data: UserRegistrationData): Promise<{ success: boolean; message: string }> {
+  try {
+    const current = getStoredRegistrations();
+    if (!data.id) {
+      data.id = `reg_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    }
+    if (data.isApproved === undefined) {
+      data.isApproved = false;
+      data.status = 'pending';
+    }
+    current.unshift(data);
+    localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(current));
+    return { success: true, message: 'Hồ sơ đã được lưu thành công' };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Lỗi khi lưu hồ sơ' };
+  }
+}
+
+/**
+ * Phê duyệt hồ sơ đăng ký cục bộ và sinh Code + Mật khẩu
+ */
+export function approveStoredRegistration(id: string): {
+  success: boolean;
+  code?: string;
+  password?: string;
+  registration?: UserRegistrationData;
+} {
+  try {
+    const list = getStoredRegistrations();
+    const item = list.find((r) => r.id === id);
+    if (!item) return { success: false };
+
+    const code = item.assignedCode || generateUserCode(item.dob);
+    const password = item.assignedPassword || generateUserPassword();
+
+    item.isApproved = true;
+    item.assignedCode = code;
+    item.assignedPassword = password;
+    item.status = 'approved';
+
+    localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(list));
+    return { success: true, code, password, registration: item };
+  } catch {
+    return { success: false };
+  }
+}
 
 /**
  * Lấy danh sách mật khẩu riêng đã đổi lưu trên trình duyệt
