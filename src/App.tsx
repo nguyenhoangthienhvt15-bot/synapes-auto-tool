@@ -104,26 +104,26 @@ export function App() {
     const codeClean = code.trim().toUpperCase();
     const passClean = pass.trim();
 
-    // 1. Kiểm tra đối soát với bộ nhớ hiện tại
-    let row = sheetRows.find((r) => r.code.toUpperCase() === codeClean);
-
-    // 2. Nếu chưa có hoặc mật khẩu không khớp, tự động tải trực tiếp từ Google Sheet để bắt kịp tài khoản mới tạo trên Sheet
-    if (!row || (row.currentTempPassword !== passClean && passClean !== 'Password123' && passClean !== '123456')) {
-      try {
-        const liveRows = await fetchGoogleSheetLive();
-        if (liveRows && liveRows.length > 0) {
-          setSheetRows(liveRows);
-          setLastSyncTime(getLastSyncTime());
-          row = liveRows.find((r) => r.code.toUpperCase() === codeClean);
-        }
-      } catch (err) {
-        console.warn('Auto live sync error during login', err);
+    // 1. Luôn ưu tiên tải trực tiếp từ Google Sheet để đảm bảo đồng bộ tức thì các tài khoản & mật khẩu mới
+    let currentRows = sheetRows;
+    try {
+      const liveRows = await fetchGoogleSheetLive();
+      if (liveRows && liveRows.length > 0) {
+        setSheetRows(liveRows);
+        setLastSyncTime(getLastSyncTime());
+        currentRows = liveRows;
       }
+    } catch (err) {
+      console.warn('Auto live sync error during login', err);
     }
 
-    if (!row) return false;
+    const row = currentRows.find((r) => r.code.toUpperCase() === codeClean);
+    if (!row) {
+      return false;
+    }
 
-    const isTemp = row.currentTempPassword === passClean;
+    const rowPass = (row.currentTempPassword || '').trim();
+    const isTemp = rowPass === passClean;
     const isCustom = passClean === 'Password123' || passClean === '123456' || isTemp;
 
     if (!isTemp && !isCustom) {

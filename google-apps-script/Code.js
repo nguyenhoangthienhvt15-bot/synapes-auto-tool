@@ -143,3 +143,4 @@ function openWebAppUrl() {
   ).setWidth(100).setHeight(50);
   SpreadsheetApp.getUi().showModalDialog(html, 'Đang mở WebApp...');
 }
+
