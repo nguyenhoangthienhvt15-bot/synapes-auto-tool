@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserAccount } from '../types';
-import { Bell, KeyRound, LogOut, Shield, ChevronRight } from 'lucide-react';
+import { Bell, KeyRound, LogOut, Shield, ChevronRight, BookOpen } from 'lucide-react';
 
 interface HeaderProps {
   currentUser: UserAccount | null;
@@ -108,6 +108,19 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             Lịch Phát Sóng
+          </button>
+
+          <button
+            onClick={() => onSelectView('user-guide')}
+            className={`studio-segmented-item flex items-center gap-1.5 cursor-pointer ${
+              activeView === 'user-guide' ? 'active' : ''
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5 text-zinc-500" />
+            <span>Hướng Dẫn Sử Dụng</span>
+            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold">
+              A-Z
+            </span>
           </button>
         </nav>
       </div>

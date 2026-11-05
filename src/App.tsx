@@ -25,6 +25,7 @@ import { CalendarView } from './components/CalendarView';
 import { SocialChannelsView } from './components/SocialChannelsView';
 import { DriveBackupView } from './components/DriveBackupView';
 import { PolicyModal } from './components/PolicyModal';
+import { UserGuideView } from './components/UserGuideView';
 
 // Icons
 import { CheckCircle2, Plus } from 'lucide-react';
@@ -417,6 +418,16 @@ export function App() {
             <DriveBackupView
               projects={projects}
               onBack={() => setActiveView('pending-approval')}
+            />
+          )}
+
+          {/* VIEW: HƯỚNG DẪN SỬ DỤNG TỪ A-Z */}
+          {activeView === 'user-guide' && (
+            <UserGuideView
+              onBack={() => setActiveView('pending-approval')}
+              onNavigateView={(view) => setActiveView(view)}
+              onOpenCreateModal={() => setIsCreateModalOpen(true)}
+              onOpenPolicyModal={(type) => setPolicyModalType(type)}
             />
           )}
 
