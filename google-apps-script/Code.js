@@ -321,7 +321,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
     '</style></head><body>' +
     '<div class="header">' +
     '  <div class="h-left"><b>HỆ THỐNG CÔNG NGHỆ SYNAPES</b><br>BAN CHUYỂN ĐỔI SỐ & AI<br><small>Số: 05/2026/HĐĐT-SYNAPES</small></div>' +
-    '  <div class="h-right"><b>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br>Độc lập - Tự do - Hạnh phúc<br><i>Hà Nội, ngày ' + day + ' tháng ' + month + ' năm ' + year + '</i></div>' +
+    '  <div class="h-right"><b>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br>Độc lập - Tự do - Hạnh phúc<br><i>Thành phố Hồ Chí Minh, ngày ' + day + ' tháng ' + month + ' năm ' + year + '</i></div>' +
     '</div>' +
     '<div class="title">' +
     '  <h1>HỢP ĐỒNG ĐIỆN TỬ CUNG CẤP & SỬ DỤNG DỊCH VỤ PHẦN MỀM</h1>' +
