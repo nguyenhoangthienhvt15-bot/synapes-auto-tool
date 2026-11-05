@@ -1,6 +1,6 @@
 import React from 'react';
 import { UserAccount } from '../types';
-import { Bell, KeyRound, LogOut, Mail, ExternalLink } from 'lucide-react';
+import { Bell, KeyRound, LogOut, Mail, ExternalLink, Shield } from 'lucide-react';
 
 interface HeaderProps {
   currentUser: UserAccount | null;
@@ -9,6 +9,7 @@ interface HeaderProps {
   onSelectView: (view: string) => void;
   onLogout: () => void;
   onOpenChangePass: () => void;
+  onOpenLogin?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectView,
   onLogout,
   onOpenChangePass,
+  onOpenLogin,
 }) => {
   const developerEmail = 'nguyenhoangthien.hvt.15@gmail.com';
   const mailSubject = encodeURIComponent('LIÊN HỆ NHÀ PHÁT TRIỂN');
@@ -117,7 +119,7 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         {/* User Account Controls */}
-        {currentUser && (
+        {currentUser && currentUser.isLoggedIn ? (
           <div className="flex items-center gap-1.5 pl-2 border-l border-black/[0.08]">
             <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-full bg-white border border-black/[0.06] shadow-2xs">
               <span className="w-2 h-2 rounded-full bg-[#34C759]"></span>
@@ -140,6 +142,17 @@ export const Header: React.FC<HeaderProps> = ({
               title="Đăng xuất"
             >
               <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <div className="pl-2 border-l border-black/[0.08]">
+            <button
+              onClick={onOpenLogin}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-semibold shadow-xs transition apple-btn-tap"
+              title="Đăng nhập tài khoản Studio"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Đăng Nhập</span>
             </button>
           </div>
         )}
