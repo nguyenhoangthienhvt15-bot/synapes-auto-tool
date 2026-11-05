@@ -535,23 +535,23 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
               </div>
 
               {/* Khung nội dung pháp lý cuộn */}
-              <div className="h-56 overflow-y-auto p-4 bg-zinc-50 border border-zinc-200 rounded-xl leading-relaxed text-zinc-700 text-xs font-serif space-y-3 shadow-inner">
+              <div className="h-56 overflow-y-auto p-4 bg-zinc-50 border border-zinc-200 rounded-xl leading-relaxed text-zinc-700 text-xs font-sans space-y-3 shadow-inner">
                 {activePolicyTab === 'terms' && (
                   <div>
                     <h4 className="font-bold text-zinc-950 text-xs uppercase mb-1 font-sans">
                       QUY CHẾ VÀ ĐIỀU KHOẢN SỬ DỤNG DỊCH VỤ PHẦN MỀM (SỐ: 01/2026/QĐ-SYNAPES)
                     </h4>
                     <p className="italic text-zinc-500 mb-2">
-                      Căn cứ Bộ luật Dân sự 2015, Luật Giao dịch điện tử 2023, Luật CNTT 2006, Nghị định 147/2024/NĐ-CP.
+                      Căn cứ Bộ luật Dân sự 2015, Luật Giao dịch điện tử 2023, Luật Công nghệ thông tin 2006, Nghị định 147/2024/NĐ-CP.
                     </p>
                     <p>
-                      1. Bên Cung Cấp SYNAPES Studio cung cấp giải pháp tự động hóa nội dung số dạng dịch vụ (SaaS). Sau khi được phê duyệt, Khách Hàng nhận Mã Code cá nhân duy nhất (dạng <code>SNP_...</code>) và mật khẩu tạm để đăng nhập.
+                      1. Bên Cung Cấp SYNAPES Studio cung cấp giải pháp tự động hóa nội dung số dưới dạng dịch vụ phần mềm (SaaS). Sau khi hồ sơ được phê duyệt, Khách Hàng được cấp Mã Code cá nhân duy nhất (dạng <code>SNP_...</code>) và mật khẩu để đăng nhập hệ thống.
                     </p>
                     <p>
-                      2. Khách Hàng cam kết bảo mật mật khẩu, thực hiện đổi mật khẩu riêng trong phiên đầu tiên. Hệ thống áp dụng băm mật khẩu một chiều bcrypt, không bên thứ ba nào có thể đọc được mật khẩu của bạn.
+                      2. Khách Hàng cam kết bảo mật thông tin đăng nhập, chủ động đổi mật khẩu riêng ngay trong phiên đăng nhập đầu tiên. Hệ thống áp dụng thuật toán băm mã hóa một chiều bcrypt an toàn, không bên thứ ba nào có thể đọc được mật khẩu của bạn.
                     </p>
                     <p>
-                      3. Quy chuẩn video: Video dài YouTube tối ưu 5-10 phút; Video ngắn TikTok/Reels dưới 60 giây, tỷ lệ 9:16. Nghiêm cấm mọi hành vi tấn công DDoS, can thiệp mã nguồn hoặc cố tình gây quá tải hệ thống máy chủ.
+                      3. Quy chuẩn nội dung video: Video dài YouTube tối ưu thời lượng 5-10 phút; Video ngắn TikTok/Reels dưới 60 giây, khung hình 9:16. Nghiêm cấm mọi hành vi tấn công mạng, can thiệp mã nguồn hoặc cố tình gây quá tải hệ thống máy chủ.
                     </p>
                   </div>
                 )}
@@ -565,10 +565,10 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                       Căn cứ Nghị định số 13/2023/NĐ-CP, Luật An toàn thông tin mạng 2015, Luật An ninh mạng 2018.
                     </p>
                     <p>
-                      1. Toàn bộ thông tin cá nhân và dữ liệu dự án của Khách Hàng được mã hóa theo tiêu chuẩn quân sự AES-256-GCM.
+                      1. Toàn bộ thông tin cá nhân và dữ liệu dự án của Khách Hàng được mã hóa theo tiêu chuẩn bảo mật quân sự AES-256-GCM.
                     </p>
                     <p>
-                      2. Khóa API (OpenAI GPT, Claude, DeepSeek, Grok, Gemini, YouTube, TikTok, Meta, Drive) được bảo vệ tuyệt đối trong môi trường Sandbox cô lập. SYNAPES Studio tuyệt đối không chuyển giao, mua bán hay chia sẻ token của bạn cho bất kỳ đối tác nào.
+                      2. Khóa API các dịch vụ (OpenAI GPT, Claude, DeepSeek, Grok, Gemini, YouTube, TikTok, Meta, Google Drive) được lưu trữ cô lập trong môi trường Sandbox bảo mật. SYNAPES Studio cam kết tuyệt đối không chuyển giao, mua bán hay chia sẻ token API của Khách Hàng cho bất kỳ bên thứ ba nào.
                     </p>
                   </div>
                 )}
@@ -579,13 +579,13 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                       QUY ĐỊNH BẢO HỘ QUYỀN SỞ HỮU TRÍ TUỆ KỊCH BẢN & NỘI DUNG (SỐ: 03/2026/SHTT-SYNAPES)
                     </h4>
                     <p className="italic text-zinc-500 mb-2">
-                      Căn cứ Luật Sở hữu trí tuệ 2005 (sửa đổi 2022), Nghị định 17/2023/NĐ-CP, Công ước Berne.
+                      Căn cứ Luật Sở hữu trí tuệ 2005 (sửa đổi, bổ sung 2022), Nghị định 17/2023/NĐ-CP, Công ước Berne.
                     </p>
                     <p>
-                      1. Khách Hàng là chủ sở hữu quyền tác giả duy nhất và toàn vẹn 100% đối với mọi kịch bản, lời bình, âm thanh và thành phẩm video xuất bản từ phần mềm.
+                      1. Khách Hàng là chủ sở hữu quyền tác giả duy nhất và toàn vẹn 100% đối với toàn bộ kịch bản, lời bình, âm thanh và video thành phẩm được xuất bản từ phần mềm.
                     </p>
                     <p>
-                      2. SYNAPES Studio không đòi hỏi bất kỳ bản quyền thương mại hay quyền chia sẻ doanh thu nào từ các kênh phát sóng do Khách Hàng xây dựng.
+                      2. SYNAPES Studio không đòi hỏi bất kỳ quyền sở hữu thương mại hay yêu cầu phân chia doanh thu nào từ các kênh phát sóng và sản phẩm do Khách Hàng tạo dựng.
                     </p>
                   </div>
                 )}
@@ -596,13 +596,13 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                       QUY CHẾ PHÊ DUYỆT KIỂM SOÁT NỘI DUNG & MIỄN TRỪ TRÁCH NHIỆM (SỐ: 04/2026/QC-SYNAPES)
                     </h4>
                     <p className="italic text-zinc-500 mb-2">
-                      Căn cứ Luật An ninh mạng 2018 (Điều 8 & 16), Nghị định 147/2024/NĐ-CP, Tiêu chuẩn cộng đồng MXH.
+                      Căn cứ Luật An ninh mạng 2018 (Điều 8 & Điều 16), Nghị định 147/2024/NĐ-CP, Tiêu chuẩn cộng đồng mạng xã hội.
                     </p>
                     <p>
-                      1. Cơ chế Human-in-the-loop: Khách Hàng là người trực tiếp xem duyệt kịch bản và quyết định bấm duyệt xuất bản video.
+                      1. Cơ chế phê duyệt kiểm soát (Human-in-the-loop): Khách Hàng là người trực tiếp kiểm duyệt nội dung kịch bản và quyết định bấm duyệt xuất bản video.
                     </p>
                     <p>
-                      2. Khách Hàng cam kết tự chịu hoàn toàn trách nhiệm trước pháp luật về tính chân thực và bản quyền nội dung. SYNAPES Studio được miễn trừ hoàn toàn trách nhiệm liên đới đối với các tranh chấp nội dung do Khách Hàng tạo dựng.
+                      2. Khách Hàng cam kết tự chịu hoàn toàn trách nhiệm trước pháp luật về tính chân thực và bản quyền nội dung. SYNAPES Studio được miễn trừ toàn bộ trách nhiệm pháp lý liên đới đối với các tranh chấp nội dung do Khách Hàng tạo dựng và phát hành.
                     </p>
                   </div>
                 )}
@@ -740,3 +740,4 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     </div>
   );
 };
+

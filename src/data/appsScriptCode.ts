@@ -499,3 +499,4 @@ function openWebAppUrl() {
   SpreadsheetApp.getUi().showModalDialog(html, 'Đang mở WebApp Studio...');
 }
 `;
+

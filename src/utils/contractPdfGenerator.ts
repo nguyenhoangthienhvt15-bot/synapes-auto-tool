@@ -358,3 +358,4 @@ export function printPersonalizedContractPdf(data: UserRegistrationData): void {
     }, 400);
   }
 }
+
