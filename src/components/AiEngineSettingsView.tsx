@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { AIProviderConfig, AIProviderId } from '../types';
+import { AIProviderConfig, AIProviderId, UserAccount } from '../types';
 import {
   Cpu, Key, Globe, CheckCircle2, Sparkles, RefreshCw,
-  ExternalLink, Eye, EyeOff, ShieldCheck, Check, ArrowLeft, Radio
+  ExternalLink, Eye, EyeOff, ShieldCheck, Check, ArrowLeft, Radio, AlertCircle, LogIn
 } from 'lucide-react';
 
 interface AiEngineSettingsViewProps {
+  currentUser?: UserAccount | null;
   config: AIProviderConfig;
   onUpdateConfig: (cfg: AIProviderConfig) => void;
+  onOpenLogin?: () => void;
   onBack?: () => void;
   initialProvider?: string;
 }
@@ -140,8 +142,10 @@ const PROVIDERS: ProviderMeta[] = [
 ];
 
 export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
+  currentUser,
   config,
   onUpdateConfig,
+  onOpenLogin,
   onBack,
   initialProvider,
 }) => {
@@ -158,6 +162,17 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
     grok: config.grok?.apiKey || '',
     plugin: config.plugin?.apiToken || '',
   });
+
+  useEffect(() => {
+    setKeys({
+      gemini: config.gemini?.apiKey || '',
+      openai: config.openai?.apiKey || '',
+      claude: config.claude?.apiKey || '',
+      deepseek: config.deepseek?.apiKey || '',
+      grok: config.grok?.apiKey || '',
+      plugin: config.plugin?.apiToken || '',
+    });
+  }, [config]);
 
   const [models, setModels] = useState<Record<string, string>>({
     gemini: config.gemini?.model || 'gemini-2.0-flash',
@@ -200,6 +215,12 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser || !currentUser.isLoggedIn) {
+      setTestResult('⚠️ Bạn cần đăng nhập tài khoản Studio của mình để lưu và kích hoạt API Keys.');
+      if (onOpenLogin) onOpenLogin();
+      return;
+    }
+
     const updated: AIProviderConfig = {
       ...config,
       mode: activeProvider,
@@ -272,6 +293,30 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in select-none text-zinc-900 max-w-6xl mx-auto pb-10">
+      {/* Cảnh báo khi chưa đăng nhập */}
+      {(!currentUser || !currentUser.isLoggedIn) && (
+        <div className="p-4 rounded-xl bg-amber-50/90 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-950 shadow-2xs animate-in fade-in">
+          <div className="flex items-start sm:items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5 sm:mt-0" />
+            <div>
+              <div className="text-xs font-bold">Chưa Đăng Nhập Tài Khoản Studio</div>
+              <div className="text-[11px] text-amber-800 mt-0.5">
+                Các API Keys AI Module cá nhân chỉ hiển thị và lưu trữ an toàn khi bạn đăng nhập tài khoản của mình.
+              </div>
+            </div>
+          </div>
+          {onOpenLogin && (
+            <button
+              onClick={onOpenLogin}
+              className="btn-primary flex items-center gap-1.5 px-3.5 py-1.5 text-xs flex-shrink-0 cursor-pointer self-start sm:self-auto"
+            >
+              <LogIn className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Đăng Nhập Ngay</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Header bar */}
       <div className="studio-card p-5 sm:p-6 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-black/5 pb-4">

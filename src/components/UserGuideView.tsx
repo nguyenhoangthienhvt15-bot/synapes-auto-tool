@@ -70,7 +70,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
         {
           number: 2,
           title: 'Điền Mã Code Khách Hàng được cấp',
-          description: 'Nhập mã Code như VIP-001, PRO-002, DEV-001... Hệ thống đã đồng bộ danh bạ từ Google Sheet kỹ sư theo thời gian thực.',
+          description: 'Nhập mã Code được cấp sau khi ký hợp đồng (dạng SNP_... hoặc mã do kỹ sư cấp). Hệ thống sẽ tự động đồng bộ danh bạ từ Google Sheet quản trị theo thời gian thực.',
         },
         {
           number: 3,
@@ -479,7 +479,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
               <div>
                 <label className="text-[11px] text-zinc-500 block mb-0.5">Mã Code Khách Hàng</label>
                 <div className="px-2.5 py-1.5 rounded bg-zinc-50 border border-black/10 font-mono text-zinc-800 flex items-center justify-between">
-                  <span>VIP-001 (Doanh Nghiệp Media)</span>
+                  <span>SNP_2611051508 (Tài khoản Studio)</span>
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                 </div>
               </div>

@@ -3,9 +3,13 @@ import {
   Share2, ShieldCheck, CheckCircle2, ExternalLink, RefreshCw, Key, ArrowLeft,
   LogIn, LogOut, UploadCloud, Check, AlertCircle, X, Sparkles, Video, Play
 } from 'lucide-react';
-import { ConnectedChannelAccount } from '../types';
+import { ConnectedChannelAccount, UserAccount } from '../types';
 
 interface SocialChannelsViewProps {
+  currentUser?: UserAccount | null;
+  channels?: ConnectedChannelAccount[];
+  onUpdateChannels?: (channels: ConnectedChannelAccount[]) => void;
+  onOpenLogin?: () => void;
   onBack?: () => void;
   initialPlatform?: 'all' | 'youtube' | 'tiktok' | 'facebook' | 'drive';
 }
@@ -84,10 +88,15 @@ const DEFAULT_CHANNELS: ConnectedChannelAccount[] = [
 ];
 
 export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
+  currentUser,
+  channels: propsChannels,
+  onUpdateChannels,
+  onOpenLogin,
   onBack,
   initialPlatform = 'all',
 }) => {
   const [channels, setChannels] = useState<ConnectedChannelAccount[]>(() => {
+    if (propsChannels && propsChannels.length > 0) return propsChannels;
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -111,13 +120,12 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isTestingUpload, setIsTestingUpload] = useState<string | null>(null);
 
+  // Đồng bộ khi propsChannels thay đổi từ App (theo phiên người dùng đăng nhập)
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(channels));
-    } catch (e) {
-      console.warn('Could not save channels', e);
+    if (propsChannels) {
+      setChannels(propsChannels);
     }
-  }, [channels]);
+  }, [propsChannels]);
 
   useEffect(() => {
     if (initialPlatform) {
@@ -131,6 +139,11 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
   };
 
   const handleOpenLoginModal = (platform: 'youtube' | 'tiktok' | 'facebook' | 'drive') => {
+    if (!currentUser || !currentUser.isLoggedIn) {
+      showToast('⚠️ Vui lòng đăng nhập tài khoản Studio của bạn trước khi liên kết kênh.');
+      if (onOpenLogin) onOpenLogin();
+      return;
+    }
     setLoginModalPlatform(platform);
     if (platform === 'youtube') {
       setInputChannelName('Kênh Studio Official');
@@ -191,11 +204,18 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
     });
 
     setChannels(updated);
+    onUpdateChannels?.(updated);
     showToast(`Đã đăng nhập và liên kết tài khoản ${inputChannelName} thành công! Quyền xuất bản đã sẵn sàng.`);
     setLoginModalPlatform(null);
   };
 
   const handleDisconnect = (channelId: string, name: string) => {
+    if (!currentUser || !currentUser.isLoggedIn) {
+      showToast('⚠️ Vui lòng đăng nhập tài khoản Studio của bạn.');
+      if (onOpenLogin) onOpenLogin();
+      return;
+    }
+
     if (!confirm(`Bạn có chắc chắn muốn ngắt kết nối tài khoản [${name}]? Bạn sẽ cần đăng nhập lại khi xuất bản video.`)) {
       return;
     }
@@ -211,6 +231,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
     });
 
     setChannels(updated);
+    onUpdateChannels?.(updated);
     showToast(`Đã ngắt kết nối tài khoản ${name}.`);
   };
 
@@ -238,6 +259,30 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
         <div className="fixed top-5 right-5 z-50 bg-zinc-900 text-white px-4 py-2.5 rounded-lg shadow-xl flex items-center gap-2 text-xs font-medium animate-slide-in">
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Cảnh báo khi chưa đăng nhập */}
+      {(!currentUser || !currentUser.isLoggedIn) && (
+        <div className="p-4 rounded-xl bg-amber-50/90 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-950 shadow-2xs animate-in fade-in">
+          <div className="flex items-start sm:items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5 sm:mt-0" />
+            <div>
+              <div className="text-xs font-bold">Chưa Đăng Nhập Tài Khoản Studio</div>
+              <div className="text-[11px] text-amber-800 mt-0.5">
+                Các kênh mạng xã hội đang ở trạng thái chưa liên kết. Vui lòng đăng nhập tài khoản được cấp để xem và đồng bộ dữ liệu kênh của riêng bạn.
+              </div>
+            </div>
+          </div>
+          {onOpenLogin && (
+            <button
+              onClick={onOpenLogin}
+              className="btn-primary flex items-center gap-1.5 px-3.5 py-1.5 text-xs flex-shrink-0 cursor-pointer self-start sm:self-auto"
+            >
+              <LogIn className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Đăng Nhập Ngay</span>
+            </button>
+          )}
         </div>
       )}
 

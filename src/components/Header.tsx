@@ -10,6 +10,7 @@ interface HeaderProps {
   onLogout: () => void;
   onOpenChangePass: () => void;
   onOpenLogin?: () => void;
+  onOpenRegister?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -20,6 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
   onOpenChangePass,
   onOpenLogin,
+  onOpenRegister,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
 
@@ -159,12 +161,20 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </div>
         ) : (
-          <div className="pl-2 border-l border-zinc-200">
+          <div className="pl-2 border-l border-zinc-200 flex items-center gap-2">
+            {onOpenRegister && (
+              <button
+                onClick={onOpenRegister}
+                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-black/10 text-xs font-medium text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 transition cursor-pointer"
+              >
+                <span>Đăng Ký</span>
+              </button>
+            )}
             <button
               onClick={onOpenLogin}
-              className="btn-primary cursor-pointer"
+              className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer"
             >
-              <Shield className="w-3.5 h-3.5" />
+              <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
               <span>Đăng Nhập</span>
             </button>
           </div>
