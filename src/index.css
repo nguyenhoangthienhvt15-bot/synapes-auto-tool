@@ -25,7 +25,6 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-variant-numeric: tabular-nums;
-    font-feature-settings: "zero" 0, "tnum" 1, "cv02" 1, "cv03" 1, "cv04" 1;
     letter-spacing: -0.015em;
   }
 }
