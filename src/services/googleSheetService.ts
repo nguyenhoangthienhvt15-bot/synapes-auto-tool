@@ -11,6 +11,25 @@ const CUSTOM_PASSWORDS_KEY = 'synapes_custom_passwords';
 const REGISTRATION_STORAGE_KEY = 'synapes_user_registrations';
 const WEBHOOK_STORAGE_KEY = 'synapes_apps_script_webhook';
 const PENDING_WEBHOOK_QUEUE_KEY = 'synapes_pending_webhook_queue';
+const SYNCED_REG_HASH_KEY = 'synapes_synced_reg_hashes';
+
+// Danh sách ID lỗi 404 (chưa deploy Web App) cần tự động loại bỏ khỏi bộ nhớ đệm
+const BROKEN_WEBHOOK_IDS = [
+  'AKfycbwjCX3IJpWA7xOxloT9YuYVGE1DI_LePFobI9TOaLYj9k2vivQ',
+];
+
+export function isValidWebhookUrl(url: string | null | undefined): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const clean = url.trim();
+  if (!clean) return false;
+  for (const brokenId of BROKEN_WEBHOOK_IDS) {
+    if (clean.includes(brokenId)) return false;
+  }
+  return (
+    clean.includes('docs.google.com/forms/') ||
+    clean.includes('script.google.com/macros/s/')
+  );
+}
 
 /**
  * Chuẩn hóa ngày sinh về định dạng DD/MM/YYYY
@@ -84,16 +103,22 @@ export function generateUserPassword(): string {
 }
 
 /**
- * Lấy hoặc cập nhật URL Google Apps Script Webhook (https://script.google.com/macros/s/.../exec)
+ * Lấy hoặc cập nhật URL Cầu nối Google Sheet (Hỗ trợ cả Google Form Auto-Bridge và Google Apps Script Web App)
  */
 export function getAppsScriptWebhookUrl(): string {
   try {
     const envUrl = (import.meta as any).env?.VITE_APPS_SCRIPT_WEBHOOK_URL;
-    if (envUrl && typeof envUrl === 'string' && envUrl.includes('script.google.com')) {
+    if (envUrl && typeof envUrl === 'string' && isValidWebhookUrl(envUrl)) {
       return envUrl.trim();
     }
     const stored = localStorage.getItem(WEBHOOK_STORAGE_KEY);
-    return stored ? stored.trim() : '';
+    if (stored && isValidWebhookUrl(stored)) {
+      return stored.trim();
+    }
+    if (stored && !isValidWebhookUrl(stored)) {
+      localStorage.removeItem(WEBHOOK_STORAGE_KEY);
+    }
+    return '';
   } catch {
     return '';
   }
@@ -102,9 +127,9 @@ export function getAppsScriptWebhookUrl(): string {
 export function setAppsScriptWebhookUrl(url: string): void {
   try {
     const clean = url.trim();
-    if (clean) {
+    if (clean && isValidWebhookUrl(clean)) {
       localStorage.setItem(WEBHOOK_STORAGE_KEY, clean);
-      // Ngay khi có URL Webhook, đẩy toàn bộ hàng đợi chưa đồng bộ lên Sheet
+      // Ngay khi có URL hợp lệ, đẩy toàn bộ hàng đợi chưa đồng bộ lên Sheet
       flushPendingWebhookQueue(clean).catch(() => {});
     } else {
       localStorage.removeItem(WEBHOOK_STORAGE_KEY);
@@ -115,29 +140,54 @@ export function setAppsScriptWebhookUrl(url: string): void {
 }
 
 /**
- * Tự động quét tìm URL Apps Script Web App được lưu trong các ô của Google Sheet (ví dụ N1 hoặc J4)
+ * Tự động quét tìm URL Cầu nối (Google Form Bridge hoặc Apps Script Web App) được lưu trong ô N1 hoặc J4 của Google Sheet
  */
 function extractWebhookUrlFromRawText(rawText: string): string | null {
   if (!rawText) return null;
-  const match = rawText.match(/https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec/);
-  if (match && match[0]) {
-    const foundUrl = match[0].trim();
-    const current = getAppsScriptWebhookUrl();
-    if (current !== foundUrl) {
+
+  // Ưu tiên 1: Cầu nối tự động Google Form Bridge (https://docs.google.com/forms/d/e/.../formResponse?entry.XXXX=)
+  const formMatch = rawText.match(
+    /https:\/\/docs\.google\.com\/forms\/[^\s"'\\<>]+formResponse\?entry\.\d+=/
+  );
+  if (formMatch && formMatch[0] && isValidWebhookUrl(formMatch[0])) {
+    const foundFormUrl = formMatch[0].trim();
+    if (getAppsScriptWebhookUrl() !== foundFormUrl) {
       try {
-        localStorage.setItem(WEBHOOK_STORAGE_KEY, foundUrl);
+        localStorage.setItem(WEBHOOK_STORAGE_KEY, foundFormUrl);
       } catch {
         // ignore
       }
     }
-    return foundUrl;
+    return foundFormUrl;
   }
+
+  // Ưu tiên 2: Google Apps Script Web App URL (https://script.google.com/macros/s/.../exec)
+  const gasMatches = rawText.match(
+    /https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec/g
+  );
+  if (gasMatches) {
+    for (const candidate of gasMatches) {
+      if (isValidWebhookUrl(candidate)) {
+        const foundUrl = candidate.trim();
+        if (getAppsScriptWebhookUrl() !== foundUrl) {
+          try {
+            localStorage.setItem(WEBHOOK_STORAGE_KEY, foundUrl);
+          } catch {
+            // ignore
+          }
+        }
+        return foundUrl;
+      }
+    }
+  }
+
   return null;
 }
 
 /**
- * Gửi dữ liệu tới Google Apps Script Webhook bằng cơ chế kép (JSONP GET + Fetch POST text/plain)
- * Đảm bảo vượt qua 100% rào cản CORS và 302 Redirect của Google Apps Script trên mọi trình duyệt.
+ * Gửi dữ liệu tới Google Sheet bằng 2 cơ chế:
+ * 1. Cầu nối Google Form Auto-Bridge (POST application/x-www-form-urlencoded no-cors — hoạt động 100% không cần Deploy Web App)
+ * 2. Google Apps Script Web App (POST text/plain + JSONP GET)
  */
 export async function callAppsScriptWebhook(payload: Record<string, any>): Promise<{
   sent: boolean;
@@ -156,12 +206,38 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
     requestId: payload.requestId || `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
   };
 
-  if (!webhookUrl || !webhookUrl.includes('script.google.com')) {
+  if (!isValidWebhookUrl(webhookUrl)) {
     enqueuePendingWebhookPayload(enrichedPayload);
     return { sent: false, webhookUrl: '' };
   }
 
-  // Kênh 1: Gửi POST với Content-Type text/plain;charset=utf-8 (CORS-safelisted cho no-cors)
+  // CƠ CHẾ A: Gửi qua Cầu nối tự động Google Form Bridge (docs.google.com/forms/.../formResponse?entry.XXXX=)
+  if (webhookUrl.includes('docs.google.com/forms')) {
+    try {
+      const [formActionUrl, queryPart] = webhookUrl.split('?');
+      const entryMatch = (queryPart || '').match(/entry\.\d+/);
+      if (formActionUrl && entryMatch) {
+        const entryKey = entryMatch[0];
+        const jsonStr = JSON.stringify(enrichedPayload);
+        const bodyStr = `${encodeURIComponent(entryKey)}=${encodeURIComponent(jsonStr)}&submit=Submit`;
+
+        await fetch(formActionUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+          },
+          body: bodyStr,
+        });
+        return { sent: true, webhookUrl };
+      }
+    } catch {
+      enqueuePendingWebhookPayload(enrichedPayload);
+      return { sent: false, webhookUrl };
+    }
+  }
+
+  // CƠ CHẾ B: Gửi tới Apps Script Web App (/exec) bằng cả POST text/plain và JSONP GET
   try {
     fetch(webhookUrl, {
       method: 'POST',
@@ -173,7 +249,6 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
     // ignore
   }
 
-  // Kênh 2: Gửi qua JSONP (doGet) để vừa đảm bảo vượt qua 302 redirect, vừa nhận phản hồi trực tiếp
   return new Promise((resolve) => {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
       resolve({ sent: true, webhookUrl });
@@ -236,7 +311,7 @@ function enqueuePendingWebhookPayload(payload: Record<string, any>): void {
 
 export async function flushPendingWebhookQueue(webhookUrlOverride?: string): Promise<void> {
   const url = webhookUrlOverride || getAppsScriptWebhookUrl();
-  if (!url || !url.includes('script.google.com')) return;
+  if (!isValidWebhookUrl(url)) return;
 
   try {
     const raw = localStorage.getItem(PENDING_WEBHOOK_QUEUE_KEY);
@@ -826,9 +901,9 @@ export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): P
     ]);
 
     const accountRows = accountsJson ? parseGvizResponse(accountsJson) : [];
-    const { approvedRows } = usersJson
+    const { registrations: sheetRegistrations, approvedRows } = usersJson
       ? parseUsersSheetGvizResponse(usersJson)
-      : { approvedRows: [] };
+      : { registrations: [], approvedRows: [] };
 
     // Gộp danh sách tài khoản từ cả 2 tab (ưu tiên thông tin mới nhất)
     const mergedMap = new Map<string, EngineerSheetRow>();
@@ -853,10 +928,44 @@ export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): P
       cacheSheetRows(finalRows);
     }
 
-    // Nếu phát hiện được Webhook URL thì tự động đẩy hàng đợi đang chờ lên Google Sheet
+    // Nếu phát hiện được Cầu nối hợp lệ (Google Form Bridge hoặc Apps Script Web App):
+    // 1. Đẩy hàng đợi đang chờ lên Google Sheet
+    // 2. Tự động đồng bộ bù các hồ sơ đăng ký đã lưu trong trình duyệt nhưng chưa xuất hiện trên Sheet
     const webhookUrl = getAppsScriptWebhookUrl();
-    if (webhookUrl) {
+    if (isValidWebhookUrl(webhookUrl)) {
       flushPendingWebhookQueue(webhookUrl).catch(() => {});
+
+      try {
+        const localRegs = getStoredRegistrations();
+        const syncedRaw = localStorage.getItem(SYNCED_REG_HASH_KEY);
+        const syncedMap: Record<string, number> = syncedRaw ? JSON.parse(syncedRaw) : {};
+        const nowMs = Date.now();
+
+        for (const localReg of localRegs) {
+          if (!localReg.email || !localReg.fullName) continue;
+          const emailKey = localReg.email.trim().toLowerCase();
+          const onSheet = sheetRegistrations.find(
+            (sr) => sr.email && sr.email.trim().toLowerCase() === emailKey
+          );
+
+          const needsSync =
+            !onSheet || (localReg.termsAccepted && !onSheet.termsAccepted);
+          const syncHash = `${emailKey}_${localReg.termsAccepted ? 'signed' : 'draft'}_${webhookUrl.slice(-16)}`;
+          const lastAttempt = syncedMap[syncHash] || 0;
+
+          if (needsSync && nowMs - lastAttempt > 45000) {
+            syncedMap[syncHash] = nowMs;
+            localStorage.setItem(SYNCED_REG_HASH_KEY, JSON.stringify(syncedMap));
+            callAppsScriptWebhook({
+              action: 'register',
+              requestId: `autosync_${emailKey}_${localReg.termsAccepted ? 'signed' : 'draft'}`,
+              ...localReg,
+            }).catch(() => {});
+          }
+        }
+      } catch {
+        // ignore
+      }
     }
 
     if (finalRows.length > 0) {
