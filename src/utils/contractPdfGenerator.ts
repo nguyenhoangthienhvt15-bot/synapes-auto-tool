@@ -1,4 +1,6 @@
 import { UserRegistrationData } from '../types';
+import { STAMP_BASE64 } from '../data/stampBase64';
+import html2pdf from 'html2pdf.js';
 
 /**
  * Trình tạo văn bản Hợp Đồng Điện Tử Tổng Quát SYNAPES Studio
@@ -208,7 +210,7 @@ export function generateContractHtml(data: UserRegistrationData): string {
       <div class="title-org">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
       <div class="title-sub">Độc lập - Tự do - Hạnh phúc</div>
       <div class="line-decor"></div>
-      <div class="title-code"><i>Hà Nội, ngày ${day} tháng ${month} năm ${year}</i></div>
+      <div class="title-code"><i>Thành phố Hồ Chí Minh, ngày ${day} tháng ${month} năm ${year}</i></div>
     </div>
   </div>
 
@@ -318,7 +320,7 @@ export function generateContractHtml(data: UserRegistrationData): string {
       <div class="signature-sub-signed"><i>(Ký, đóng dấu điện tử)</i></div>
 
       <div class="stamp-container">
-        <img class="stamp-img" src="/stamp-truong-ban.png" alt="Con dấu Trưởng ban" />
+        <img class="stamp-img" src="${STAMP_BASE64}" alt="Con dấu Trưởng ban" />
       </div>
 
       <div class="signature-name">KS. NGUYỄN HOÀNG THIỆN</div>
@@ -327,6 +329,44 @@ export function generateContractHtml(data: UserRegistrationData): string {
   </div>
 </body>
 </html>`;
+}
+
+/**
+ * Tự động tạo và tải xuống file PDF hợp đồng hoàn chỉnh đã điền đầy đủ thông tin người dùng
+ */
+export async function downloadPersonalizedContractPdf(data: UserRegistrationData): Promise<void> {
+  const htmlContent = generateContractHtml(data);
+  const cleanName = (data.fullName || 'SYNAPES').replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '_');
+
+  // Tạo phần tử tạm để render
+  const container = document.createElement('div');
+  container.innerHTML = htmlContent;
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  container.style.width = '210mm';
+  container.style.backgroundColor = '#ffffff';
+  document.body.appendChild(container);
+
+  const opt = {
+    margin: [10, 12, 10, 12],
+    filename: `HOP_DONG_DICH_VU_SYNAPES_${cleanName}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+
+  try {
+    // Gọi html2pdf để sinh file PDF thực tế
+    await (html2pdf as any)().set(opt).from(container).save();
+  } catch (err) {
+    console.warn('Lỗi html2pdf, chuyển hướng sang cửa sổ in ấn PDF chuẩn:', err);
+    printPersonalizedContractPdf(data);
+  } finally {
+    if (container.parentNode) {
+      container.parentNode.removeChild(container);
+    }
+  }
 }
 
 /**

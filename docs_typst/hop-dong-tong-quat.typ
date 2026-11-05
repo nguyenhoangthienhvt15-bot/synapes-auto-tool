@@ -40,7 +40,7 @@
     #text(size: 10pt)[*Độc lập - Tự do - Hạnh phúc*] \
     #line(length: 50%, stroke: 0.8pt)
     #v(1pt)
-    #text(size: 8.5pt, style: "italic")[Hà Nội, ngày 05 tháng 11 năm 2026]
+    #text(size: 8.5pt, style: "italic")[Thành phố Hồ Chí Minh, ngày 05 tháng 11 năm 2026]
   ]
 )
 

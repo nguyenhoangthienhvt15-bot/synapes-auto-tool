@@ -69,8 +69,34 @@ export async function saveUserRegistration(data: UserRegistrationData): Promise<
       data.isApproved = false;
       data.status = 'pending';
     }
-    current.unshift(data);
+
+    // Nếu email hoặc ID đã tồn tại thì cập nhật thay vì tạo trùng lặp
+    const existingIndex = current.findIndex(
+      (r) => (data.email && r.email === data.email) || (data.id && r.id === data.id)
+    );
+    if (existingIndex >= 0) {
+      current[existingIndex] = { ...current[existingIndex], ...data };
+    } else {
+      current.unshift(data);
+    }
+
     localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(current));
+
+    // Đồng bộ gửi thông tin đến Google Apps Script Webhook nếu có cấu hình
+    try {
+      const webhookUrl = localStorage.getItem('synapes_apps_script_webhook');
+      if (webhookUrl) {
+        fetch(webhookUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        }).catch(() => {});
+      }
+    } catch {
+      // ignore network errors for offline resiliency
+    }
+
     return { success: true, message: 'Hồ sơ đã được lưu thành công' };
   } catch (err: any) {
     return { success: false, message: err?.message || 'Lỗi khi lưu hồ sơ' };

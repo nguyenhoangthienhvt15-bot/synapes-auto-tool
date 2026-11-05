@@ -197,3 +197,5 @@ export interface UserRegistrationSheetRow {
   notes: string;
 }
 
+declare module 'html2pdf.js';
+

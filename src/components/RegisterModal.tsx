@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { UserRegistrationData } from '../types';
 import { saveUserRegistration } from '../services/googleSheetService';
-import { downloadMasterPdfFile, printPersonalizedContractPdf } from '../utils/contractPdfGenerator';
+import { downloadPersonalizedContractPdf, printPersonalizedContractPdf } from '../utils/contractPdfGenerator';
 
 interface RegisterModalProps {
   isOpen: boolean;
@@ -129,6 +129,22 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       return;
     }
 
+    // NGAY KHI BẤM SANG TRANG TIẾP THEO:
+    // Cập nhật ngay thông tin lên trang tính "THÔNG TIN NGƯỜI DÙNG" trên hệ thống quản trị Google Sheet
+    const initialRegData: UserRegistrationData = {
+      fullName: fullName.trim(),
+      dob: dob.trim(),
+      gender,
+      email: email.trim(),
+      phone: phone.trim(),
+      addressType,
+      address: address.trim(),
+      coords: coords || undefined,
+      termsAccepted: false,
+      registeredAt: new Date().toLocaleString('vi-VN')
+    };
+    saveUserRegistration(initialRegData);
+
     setStep(2);
   };
 
@@ -156,11 +172,11 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     };
 
     try {
-      // 1. Lưu vào cơ sở dữ liệu / cache
+      // 1. Cập nhật trạng thái đã ký điều khoản
       await saveUserRegistration(registrationData);
 
-      // 2. Tự động tải xuống hợp đồng PDF hoàn chỉnh
-      downloadMasterPdfFile(registrationData.fullName);
+      // 2. Tự động tải xuống hợp đồng PDF hoàn chỉnh đã điền đầy đủ thông tin người dùng
+      await downloadPersonalizedContractPdf(registrationData);
 
       // 3. Chuyển sang bước Hoàn tất
       setStep(3);
@@ -682,24 +698,20 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
               <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-xl text-left text-xs space-y-2 max-w-lg mx-auto">
                 <div className="flex items-center gap-2 font-bold text-zinc-900 border-b border-zinc-200 pb-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  <span>Quy Trình Kích Hoạt Tài Khoản Tự Động:</span>
+                  <span>Quy Trình Kích Hoạt Tài Khoản:</span>
                 </div>
-                <ul className="space-y-1.5 text-zinc-600 pl-1">
+                <ul className="space-y-1.5 text-zinc-600 pl-1 font-sans">
                   <li className="flex items-start gap-2">
                     <span className="text-emerald-600 font-bold">1.</span>
-                    <span>Toàn bộ thông tin đăng ký đã được ghi nhận vào trang tính <b>"Thông tin người dùng"</b> trên Google Sheet quản trị.</span>
+                    <span>Toàn bộ thông tin đăng ký của bạn đã được ghi nhận tự động vào trang tính <b>"Thông tin người dùng"</b> trên hệ thống Google Sheet quản trị.</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-emerald-600 font-bold">2.</span>
-                    <span>Khi Kỹ sư SYNAPES tích duyệt ô Checkbox bên cạnh thông tin của bạn trên Sheet, hệ thống sẽ tự động tạo:</span>
+                    <span>Kỹ sư SYNAPES sẽ tiến hành kiểm tra hồ sơ và tích chọn phê duyệt tài khoản chính thức.</span>
                   </li>
-                  <div className="pl-5 py-1 text-[11px] font-mono text-zinc-800 space-y-0.5">
-                    <div>• <b>Mã Code:</b> Dạng <code>SNP_[6 số ngày cấp + 4 số ngày sinh]</code></div>
-                    <div>• <b>Mật Khẩu:</b> Dạng <code>SNP_[3 số ngẫu nhiên + 3 chữ cái]</code></div>
-                  </div>
                   <li className="flex items-start gap-2">
                     <span className="text-emerald-600 font-bold">3.</span>
-                    <span>Toàn bộ thông tin Mã Code, Mật khẩu và bản mềm PDF Hợp đồng sẽ được gửi tự động đến Gmail: <b className="text-zinc-950">{email}</b>.</span>
+                    <span>Ngay khi Kỹ sư tích duyệt, thông tin đăng nhập cá nhân (Mã Code & Mật khẩu bảo mật) cùng bản mềm Hợp đồng PDF hoàn chỉnh đã ký sẽ được gửi tự động đến Gmail: <b className="text-zinc-950 font-mono">{email}</b>.</span>
                   </li>
                 </ul>
               </div>
@@ -708,7 +720,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => downloadMasterPdfFile(fullName)}
+                  onClick={() => downloadPersonalizedContractPdf(currentRegistration)}
                   className="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-zinc-600" />
