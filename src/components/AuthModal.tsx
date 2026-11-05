@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { UserAccount, EngineerSheetRow } from '../types';
-import { Lock, User, KeyRound, Shield, AlertCircle, ArrowRight, CheckCircle2, X, RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { Lock, User, KeyRound, Shield, AlertCircle, ArrowRight, CheckCircle2, X, RefreshCw, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import { RegisterModal } from './RegisterModal';
+import { generateUserPassword, generateUserCode, getStoredRegistrations, saveCustomPassword } from '../services/googleSheetService';
 
 interface AuthModalProps {
   currentUser: UserAccount | null;
@@ -42,9 +43,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   // Quên mật khẩu popup
   const [showForgotModal, setShowForgotModal] = useState(false);
-  const [forgotCode, setForgotCode] = useState('');
-  const [forgotSuccessData, setForgotSuccessData] = useState<{ tempPass: string; email: string } | null>(null);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotPhone, setForgotPhone] = useState('');
+  const [forgotAttempts, setForgotAttempts] = useState<number>(() => {
+    try {
+      return Number(localStorage.getItem('synapes_forgot_attempts') || '0');
+    } catch {
+      return 0;
+    }
+  });
+  const [isForgotLocked, setIsForgotLocked] = useState<boolean>(() => {
+    try {
+      return Number(localStorage.getItem('synapes_forgot_attempts') || '0') >= 5;
+    } catch {
+      return false;
+    }
+  });
+  const [forgotSuccessData, setForgotSuccessData] = useState<{ tempPass: string; email: string; code: string } | null>(null);
   const [forgotError, setForgotError] = useState<string | null>(null);
+  const [isSubmittingForgot, setIsSubmittingForgot] = useState(false);
 
   // Đóng modal an toàn (hỗ trợ cả phím Esc)
   const handleClose = () => {
@@ -94,38 +111,101 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     onForceChangePassword(newPassword);
   };
 
-  const handleForgotSubmit = (e: React.FormEvent) => {
+  const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setForgotError(null);
     setForgotSuccessData(null);
 
-    const codeClean = forgotCode.trim().toUpperCase();
-    const targetRow = sheetRows.find((r) => r.code === codeClean);
-    if (!targetRow) {
-      setForgotError('Không tìm thấy Mã Code khách hàng trong hệ thống.');
+    if (forgotAttempts >= 5 || isForgotLocked) {
+      setIsForgotLocked(true);
+      setForgotError('🚫 TÍNH NĂNG ĐÃ BỊ KHÓA: Bạn đã nhập sai quá 5 lần liên tiếp. Để bảo đảm an toàn, vui lòng liên hệ Kỹ sư qua Gmail: nguyenhoangthien.hvt.15@gmail.com.');
       return;
     }
 
-    const tempPass = `Auto-${Math.floor(100000 + Math.random() * 900000)}`;
-    const now = new Date();
-    const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} - ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+    const emailClean = forgotEmail.trim().toLowerCase();
+    const phoneClean = forgotPhone.trim().replace(/\D/g, '');
 
-    const updated = sheetRows.map((item) => {
-      if (item.code === targetRow.code) {
-        return {
-          ...item,
-          currentTempPassword: tempPass,
-          lastIssuedTime: timeString,
-          accountStatus: 'temp_password_active' as const,
-          engineerNotes: `${item.engineerNotes} | [${timeString}] Khách yêu cầu cấp lại pass qua WebApp.`,
-        };
+    if (!emailClean || !phoneClean) {
+      setForgotError('Vui lòng nhập đầy đủ Gmail và Số điện thoại đã đăng ký.');
+      return;
+    }
+
+    setIsSubmittingForgot(true);
+
+    try {
+      // 1. Kiểm tra đối soát với hồ sơ đăng ký người dùng
+      const storedRegs = getStoredRegistrations();
+      const regMatch = storedRegs.find((r) => {
+        const rEmail = (r.email || '').trim().toLowerCase();
+        const rPhone = (r.phone || '').trim().replace(/\D/g, '');
+        return rEmail === emailClean && (rPhone === phoneClean || (phoneClean.length >= 9 && rPhone.includes(phoneClean)));
+      });
+
+      // 2. Kiểm tra với danh bạ Sheet
+      const sheetMatch = sheetRows.find((r) => {
+        const rEmail = (r.registeredGmail || '').trim().toLowerCase();
+        const notesPhone = (r.engineerNotes || '').replace(/\D/g, '');
+        return rEmail === emailClean && (notesPhone.includes(phoneClean) || regMatch);
+      });
+
+      const matched = regMatch || sheetMatch;
+
+      if (!matched) {
+        const newAttempts = forgotAttempts + 1;
+        setForgotAttempts(newAttempts);
+        try {
+          localStorage.setItem('synapes_forgot_attempts', String(newAttempts));
+        } catch {}
+
+        if (newAttempts >= 5) {
+          setIsForgotLocked(true);
+          setForgotError('🚫 Bạn đã nhập sai thông tin 5 lần liên tiếp! Tính năng Quên mật khẩu đã bị đóng để bảo mật tài khoản. Vui lòng liên hệ Kỹ sư qua Gmail: nguyenhoangthien.hvt.15@gmail.com để được hỗ trợ mở khóa.');
+        } else {
+          setForgotError(`⚠️ Gmail hoặc Số điện thoại không trùng khớp với hồ sơ đăng ký trên Google Sheet. Bạn còn ${5 - newAttempts} lần thử.`);
+        }
+        return;
       }
-      return item;
-    });
 
-    onUpdateSheetRow(updated);
-    onSendTempPasswordEmail(targetRow.registeredGmail, targetRow.code, tempPass);
-    setForgotSuccessData({ tempPass, email: targetRow.registeredGmail });
+      // 3. Nếu đúng thông tin: Tạo lại mật khẩu mặc định mới dạng SNP_[3 số + 3 chữ]
+      const newDefaultPass = generateUserPassword();
+      const matchedCode = regMatch?.assignedCode || (sheetMatch as any)?.code || generateUserCode(regMatch?.dob || '01/01/2000');
+      const now = new Date();
+      const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} - ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+
+      // Cập nhật vào danh sách Sheet
+      const updatedRows = sheetRows.map((item) => {
+        if (item.code === matchedCode || item.registeredGmail.toLowerCase() === emailClean) {
+          return {
+            ...item,
+            currentTempPassword: newDefaultPass,
+            lastIssuedTime: timeString,
+            accountStatus: 'temp_password_active' as const,
+            engineerNotes: `${item.engineerNotes} | [${timeString}] Hệ thống cấp lại pass mặc định qua Quên mật khẩu.`,
+          };
+        }
+        return item;
+      });
+
+      onUpdateSheetRow(updatedRows);
+      saveCustomPassword(matchedCode, newDefaultPass);
+
+      // Gửi email chứa mật khẩu mới
+      onSendTempPasswordEmail(emailClean, matchedCode, newDefaultPass);
+
+      // Xóa số lần nhập sai khi đã thành công
+      setForgotAttempts(0);
+      try {
+        localStorage.removeItem('synapes_forgot_attempts');
+      } catch {}
+
+      setForgotSuccessData({
+        tempPass: newDefaultPass,
+        email: emailClean,
+        code: matchedCode,
+      });
+    } finally {
+      setIsSubmittingForgot(false);
+    }
   };
 
   const isForcedReset = currentUser?.isLoggedIn && currentUser.isDefaultPassword;
@@ -195,7 +275,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setForgotCode(loginCode);
                       setShowForgotModal(true);
                       setForgotSuccessData(null);
                       setForgotError(null);
@@ -404,31 +483,80 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </button>
 
             <div className="flex items-center justify-between pb-2 border-b border-black/[0.06]">
-              <h3 className="text-zinc-950 font-bold text-sm">Bạn Quên Mật Khẩu?</h3>
+              <h3 className="text-zinc-950 font-bold text-sm">Lấy Lại Mật Khẩu Đăng Nhập</h3>
             </div>
 
-            {!forgotSuccessData ? (
+            {isForgotLocked ? (
+              <div className="space-y-3 text-xs">
+                <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 space-y-2">
+                  <div className="font-bold flex items-center gap-1.5 text-red-800">
+                    <Lock className="w-4 h-4 text-red-600 flex-shrink-0" />
+                    <span>Tính Năng Đã Bị Khóa An Toàn</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    Bạn đã nhập sai thông tin đối soát quá 5 lần liên tiếp. Hệ thống đã tự động đóng tính năng quên mật khẩu để bảo vệ tài khoản của bạn.
+                  </p>
+                  <div className="pt-1">
+                    <a
+                      href="https://mail.google.com/mail/?view=cm&fs=1&to=nguyenhoangthien.hvt.15@gmail.com&su=LI%C3%8AN%20H%E1%BB%86%20NH%C3%80%20PH%C3%81T%20TRI%E1%BB%82N&body=K%C3%ADnh%20g%E1%BB%ADi%20K%E1%BB%B9%20s%C6%B0%20Nguy%E1%BB%85n%20Ho%C3%A0ng%20Thi%E1%BB%87n,%20t%C3%B4i%20c%E1%BA%A7n%20h%E1%BB%97%20tr%E1%BB%A3%20m%E1%BB%9F%20kh%C3%B3a%20v%C3%A0%20c%E1%BA%A5p%20l%E1%BA%A1i%20m%E1%BA%ADt%20kh%E1%BA%A9u%20t%C3%A0i%20kho%E1%BA%A3n%20SYNAPES%20Studio."
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-red-800 hover:text-red-950 underline cursor-pointer"
+                    >
+                      <span>Gửi Gmail liên hệ Kỹ sư mở khóa</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotModal(false)}
+                    className="btn-secondary w-full py-2 cursor-pointer"
+                  >
+                    Đóng
+                  </button>
+                </div>
+              </div>
+            ) : !forgotSuccessData ? (
               <form onSubmit={handleForgotSubmit} className="space-y-3 text-xs">
                 <p className="text-zinc-600 text-xs leading-relaxed">
-                  Nhập <strong>Mã Code</strong> của bạn. Hệ thống sẽ tạo mật khẩu tạm thời mới và tự động gửi về địa chỉ Gmail đã đăng ký của bạn.
+                  Vui lòng nhập lại chính xác <strong>Gmail</strong> và <strong>Số điện thoại</strong> đã đăng ký. Hệ thống sẽ đối soát với Google Sheet quản trị và tự động cấp lại mật khẩu mặc định mới gửi về Gmail của bạn.
                 </p>
 
                 {forgotError && (
-                  <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs">
+                  <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs leading-relaxed animate-in fade-in">
                     {forgotError}
                   </div>
                 )}
 
                 <div>
-                  <label className="text-zinc-700 font-medium block mb-1">Mã Code *</label>
+                  <label className="text-zinc-700 font-medium block mb-1">Gmail đăng ký tài khoản *</label>
                   <input
-                    type="text"
+                    type="email"
                     required
-                    placeholder="Nhập mã code của bạn"
-                    value={forgotCode}
-                    onChange={(e) => setForgotCode(e.target.value)}
-                    className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-2 text-xs text-zinc-950 font-mono uppercase focus:outline-none focus:border-zinc-900"
+                    placeholder="vidu@gmail.com"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-2 text-xs text-zinc-950 focus:outline-none focus:border-zinc-900"
                   />
+                </div>
+
+                <div>
+                  <label className="text-zinc-700 font-medium block mb-1">Số điện thoại đăng ký *</label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="Ví dụ: 0912 345 678"
+                    value={forgotPhone}
+                    onChange={(e) => setForgotPhone(e.target.value)}
+                    className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-2 text-xs text-zinc-950 font-mono focus:outline-none focus:border-zinc-900"
+                  />
+                </div>
+
+                <div className="p-2 bg-amber-50/70 border border-amber-200/60 rounded-lg text-[11px] text-amber-800 font-mono">
+                  Lưu ý: Bạn còn <strong>{5 - forgotAttempts}</strong> lần thử. Nhập sai quá 5 lần tính năng sẽ tự động đóng.
                 </div>
 
                 <div className="pt-2 flex justify-end gap-2 border-t border-black/[0.06]">
@@ -441,25 +569,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="btn-primary cursor-pointer"
+                    disabled={isSubmittingForgot}
+                    className="btn-primary cursor-pointer flex items-center gap-1.5"
                   >
-                    Tạo & Gửi Gmail
+                    {isSubmittingForgot && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                    <span>Xác Thực & Cấp Lại</span>
                   </button>
                 </div>
               </form>
             ) : (
-              <div className="space-y-3 text-xs">
+              <div className="space-y-3 text-xs animate-in fade-in">
                 <div className="p-3.5 rounded-lg bg-zinc-50 border border-black/[0.06] space-y-2 text-zinc-800">
                   <div className="text-zinc-950 font-semibold flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Đã gửi mật khẩu mới
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Đã gửi mật khẩu mới về Gmail!
                   </div>
-                  <p>
-                    Đã gửi đến Gmail: <strong className="text-zinc-950 font-mono">{forgotSuccessData.email}</strong>
+                  <p className="leading-relaxed">
+                    Hệ thống đã tạo lại mật khẩu mặc định mới cho Mã Code: <strong className="text-zinc-950 font-mono">{forgotSuccessData.code}</strong> và gửi đến Gmail: <strong className="text-zinc-950 font-mono">{forgotSuccessData.email}</strong>.
                   </p>
                   <div className="p-2 bg-white rounded border border-black/[0.06]">
-                    <div className="text-[10px] text-zinc-500 font-mono">Mật khẩu tạm thời:</div>
-                    <div className="text-zinc-950 font-mono font-bold mt-0.5">{forgotSuccessData.tempPass}</div>
+                    <div className="text-[10px] text-zinc-500 font-mono">Mật khẩu mặc định mới cấp:</div>
+                    <div className="text-zinc-950 font-mono font-bold mt-0.5 text-sm text-emerald-600">{forgotSuccessData.tempPass}</div>
                   </div>
+                  <p className="text-[11px] text-zinc-500 italic">
+                    Vui lòng kiểm tra hộp thư đến (hoặc hòm thư Spam) để hoàn tất đăng nhập.
+                  </p>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">
@@ -473,13 +606,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setLoginCode(forgotCode.toUpperCase());
+                      setLoginCode(forgotSuccessData.code);
                       setLoginPass(forgotSuccessData.tempPass);
                       setShowForgotModal(false);
                     }}
                     className="btn-primary cursor-pointer"
                   >
-                    Điền & Đăng Nhập
+                    Điền & Đăng Nhập Ngay
                   </button>
                 </div>
               </div>

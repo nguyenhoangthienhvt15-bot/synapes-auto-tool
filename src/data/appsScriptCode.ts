@@ -14,7 +14,7 @@ export const APPS_SCRIPT_CODE = `/**
  */
 
 var SHEET_NAME_USERS = "Thông tin người dùng";
-var SHEET_NAME_ACCOUNTS = "Danh sách tài khoản";
+var SHEET_NAME_ACCOUNTS = "Quản lý mật khẩu";
 
 // 1. Tự động thêm Menu tùy chỉnh khi mở Sheet
 function onOpen() {
@@ -259,6 +259,24 @@ function sendApprovalEmailWithContract(email, fullName, dob, gender, phone, addr
       '      <li><b>Cổng làm việc trực tuyến:</b> <a href="https://synapes-auto-tool.onrender.com" target="_blank" style="color: #0284c7; text-decoration: underline;">https://synapes-auto-tool.onrender.com</a></li>' +
       '      <li><b>Mã Code Khách Hàng:</b> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #0f172a; background: #e2e8f0; padding: 2px 8px; border-radius: 4px;">' + code + '</span></li>' +
       '      <li><b>Mật Khẩu Đăng Nhập:</b> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #b91c1c; background: #fee2e2; padding: 2px 8px; border-radius: 4px;">' + password + '</span></li>' +
+      '    </ul>' +
+      '  </div>' +
+      '  <div style="background: #f1f5f9; padding: 14px 18px; border-radius: 6px; margin: 15px 0; font-size: 13.5px;">' +
+      '    <h4 style="margin: 0 0 6px 0; color: #0f172a;">📖 HƯỚNG DẪN ĐĂNG NHẬP STUDIO:</h4>' +
+      '    <ol style="margin: 0; padding-left: 18px; color: #334155;">' +
+      '      <li>Truy cập <a href="https://synapes-auto-tool.onrender.com" target="_blank" style="color: #0284c7;">https://synapes-auto-tool.onrender.com</a> và bấm nút <b>Đăng Nhập</b> ở góc trên bên phải.</li>' +
+      '      <li>Điền chính xác <b>Mã Code</b> và <b>Mật Khẩu</b> được cấp ở trên.</li>' +
+      '      <li>Trong phiên đầu tiên, hệ thống sẽ đề nghị bạn kích hoạt mật khẩu riêng cá nhân để bảo mật 100%.</li>' +
+      '    </ol>' +
+      '  </div>' +
+      '  <div style="background: #fefce8; border: 1px solid #fef08a; padding: 14px 18px; border-radius: 6px; margin: 15px 0; font-size: 13.5px;">' +
+      '    <h4 style="margin: 0 0 6px 0; color: #854d0e;">🔒 CƠ CHẾ LẤY LẠI MẬT KHẨU KHI QUÊN (FORGOT PASSWORD):</h4>' +
+      '    <p style="margin: 0 0 6px 0; color: #713f12;">Trường hợp bạn quên mật khẩu đăng nhập, hãy làm theo các bước sau:</p>' +
+      '    <ul style="margin: 0; padding-left: 18px; color: #713f12;">' +
+      '      <li>Tại khung Đăng Nhập, nhấn vào <b>"Bạn quên mật khẩu?"</b>.</li>' +
+      '      <li>Hệ thống yêu cầu nhập lại đúng <b>Gmail đăng ký</b> (<code>' + email + '</code>) và <b>Số điện thoại</b> (<code>' + phone + '</code>).</li>' +
+      '      <li>Sau khi đối soát hợp lệ trên hệ thống Google Sheet quản trị, một mật khẩu mặc định mới sẽ tự động gửi về hộp thư Gmail của bạn.</li>' +
+      '      <li><b>Cảnh báo an toàn:</b> Nhập sai quá 5 lần liên tiếp hệ thống sẽ tự động khóa tính năng quên mật khẩu để phòng ngừa xâm phạm.</li>' +
       '    </ul>' +
       '  </div>' +
       '  <p><b>📄 Bản mềm Hợp đồng dịch vụ điện tử:</b> Được đính kèm trực tiếp dưới email này dưới định dạng PDF hoàn chỉnh, có đóng dấu đỏ xác thực điện tử của Trưởng ban và chữ ký hai bên theo đúng quy định của Luật Giao dịch điện tử số 20/2023/QH15.</p>' +

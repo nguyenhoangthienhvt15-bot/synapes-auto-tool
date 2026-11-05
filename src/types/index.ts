@@ -179,6 +179,7 @@ export interface UserRegistrationData {
   assignedCode?: string;
   assignedPassword?: string;
   status?: 'pending' | 'approved';
+  notes?: string;
 }
 
 export interface UserRegistrationSheetRow {

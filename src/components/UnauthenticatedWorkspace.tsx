@@ -130,3 +130,4 @@ export const UnauthenticatedWorkspace: React.FC<UnauthenticatedWorkspaceProps> =
     </div>
   );
 };
+

@@ -41,10 +41,24 @@ Trang tính mục tiêu: [https://docs.google.com/spreadsheets/d/1E9zec8lX52-ofl
 ---
 
 ### Bước 5: Cách thức hoạt động khi có khách đăng ký mới
-* Khi khách hàng hoàn tất đăng ký trên WebApp, thông tin sẽ được tự động ghi nhận vào trang **"Thông tin người dùng"**.
+* Khi khách hàng hoàn tất đăng ký trên WebApp, thông tin sẽ được tự động ghi nhận vào trang **"Thông tin người dùng"** với ghi chú ban đầu là `Chờ ký hợp đồng` (khi ở Bước 1) hoặc `Đã ký hợp đồng qua WebApp` (khi đã bấm Ký hợp đồng & tải PDF ở Bước 2).
 * Khi Kỹ sư / Dev bấm **tích chọn vào ô Checkbox ở Cột I**:
   1. Hệ thống tự động tạo **Mã Code Khách Hàng**: dạng `SNP_[6 số YYMMDD + 4 số ngày tháng sinh khách hàng]`.
   2. Hệ thống tự động tạo **Mật Khẩu**: dạng `SNP_[3 số + 3 chữ cái ngẫu nhiên]`.
-  3. Hệ thống tự động tạo file **Hợp đồng điện tử PDF hoàn chỉnh** (kèm đầy đủ thông tin hai bên, 4 điều khoản pháp lý và chữ ký, con dấu đỏ của Trưởng ban KS Nguyễn Hoàng Thiện).
-  4. Hệ thống tự động gửi **Gmail** chứa Mã Code, Mật khẩu và đính kèm file Hợp đồng PDF đến Gmail khách hàng đã đăng ký.
-  5. Cập nhật trạng thái Cột L: `✅ ĐÃ GỬI GMAIL (Thời gian: ...)`.
+  3. Hệ thống lưu tài khoản đã cấp sang trang tính **"Quản lý mật khẩu"**.
+  4. Hệ thống tự động tạo file **Hợp đồng điện tử PDF hoàn chỉnh** (kèm đầy đủ thông tin hai bên, 4 điều khoản pháp lý và chữ ký, con dấu đỏ của Trưởng ban KS Nguyễn Hoàng Thiện).
+  5. Hệ thống tự động gửi **Gmail** chứa:
+     - Mã Code và Mật khẩu Studio.
+     - Hướng dẫn đăng nhập và kích hoạt bảo mật.
+     - Cơ chế lấy lại mật khẩu khi quên (đối soát Gmail + Số điện thoại).
+     - Đính kèm file Hợp đồng PDF hoàn chỉnh.
+  6. Cập nhật trạng thái Cột L: `✅ ĐÃ GỬI GMAIL (Thời gian: ...)`.
+
+---
+
+### Bước 6: Cơ chế Quên mật khẩu an toàn trên WebApp
+* Người dùng khi bấm **"Bạn quên mật khẩu?"** sẽ được yêu cầu nhập đúng **Gmail** và **Số điện thoại** đã đăng ký.
+* Hệ thống sẽ đối soát với dữ liệu trên Google Sheet:
+  - Nếu trùng khớp: Tự động tạo mật khẩu mặc định mới, lưu lại và gửi Gmail cho người dùng.
+  - Nếu không đúng: Cảnh báo và đếm số lần thử.
+  - **Nếu nhập sai quá 5 lần liên tiếp:** Hệ thống tự động khóa tính năng quên mật khẩu và yêu cầu liên hệ trực tiếp Kỹ sư KS Nguyễn Hoàng Thiện (`nguyenhoangthien.hvt.15@gmail.com`).
