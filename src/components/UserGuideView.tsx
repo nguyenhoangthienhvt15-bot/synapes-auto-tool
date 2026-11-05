@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-  BookOpen, Search, ArrowRight, CheckCircle2, Play, Pause, RotateCcw,
+  BookOpen, Search, ArrowRight, CheckCircle2,
   Sparkles, KeyRound, Clock, Folder, Calendar, Share2, HardDrive,
   Cpu, FileText, ExternalLink, ShieldCheck, HelpCircle, Eye, EyeOff,
   ChevronRight, ArrowLeft, Layers, Video, Monitor, AlertCircle
@@ -40,49 +40,10 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [activeTabMode, setActiveTabMode] = useState<Record<string, 'mockup' | 'simulation'>>({});
-  const [simStep, setSimStep] = useState<Record<string, number>>({});
-  const [isSimPlaying, setIsSimPlaying] = useState<Record<string, boolean>>({});
-
-  // Mock Eye toggle demo for Auth
   const [demoShowPass, setDemoShowPass] = useState(false);
 
-  // Auto-play simulation interval
-  useEffect(() => {
-    const intervals: ReturnType<typeof setInterval>[] = [];
-    Object.keys(isSimPlaying).forEach((modId) => {
-      if (isSimPlaying[modId]) {
-        const interval = setInterval(() => {
-          setSimStep((prev) => {
-            const current = prev[modId] || 0;
-            return { ...prev, [modId]: (current + 1) % 3 };
-          });
-        }, 3200);
-        intervals.push(interval);
-      }
-    });
-    return () => intervals.forEach(clearInterval);
-  }, [isSimPlaying]);
-
-  const toggleSimPlay = (modId: string) => {
-    setIsSimPlaying((prev) => ({
-      ...prev,
-      [modId]: !prev[modId],
-    }));
-  };
-
-  const setModuleTabMode = (modId: string, mode: 'mockup' | 'simulation') => {
-    setActiveTabMode((prev) => ({
-      ...prev,
-      [modId]: mode,
-    }));
-    if (mode === 'simulation' && isSimPlaying[modId] === undefined) {
-      setIsSimPlaying((prev) => ({ ...prev, [modId]: true }));
-    }
-  };
-
   const categories = [
-    { id: 'all', label: 'Tất Cả (Từ A-Z)' },
+    { id: 'all', label: 'Tất Cả Hướng Dẫn' },
     { id: 'auth', label: '1. Đăng Nhập & Mật Khẩu' },
     { id: 'ai', label: '2. Kịch Bản AI & Prompt' },
     { id: 'review', label: '3. Kiểm Duyệt & Ghép Video' },
@@ -135,9 +96,9 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
       id: 'ai-prompt-guide',
       stepNumber: 'BƯỚC 02 / 10',
       category: 'ai',
-      title: 'Tạo Dự Án Kịch Bản Video Mới Với Động Cơ AI Gemini 2.0',
+      title: 'Tạo Dự Án Kịch Bản Video Mới Với Động Cơ AI',
       shortDesc: 'Khởi tạo kịch bản video phân rã đa phân cảnh hoàn chỉnh chỉ từ một câu Prompt mô tả ngắn gọn và tùy chọn tỉ lệ chuẩn đa nền tảng.',
-      badge: 'Động Cơ AI Gemini 2.0',
+      badge: 'Động Cơ AI Thông Minh',
       steps: [
         {
           number: 1,
@@ -157,7 +118,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
         {
           number: 4,
           title: 'Bấm "Tạo Kịch Bản"',
-          description: 'AI Gemini 2.0 sẽ tự động phân tích và tạo kịch bản gồm phân cảnh (Scenes), lời bình TTS, gợi ý hình ảnh và hiệu ứng âm thanh.',
+          description: 'Hệ thống AI sẽ tự động phân tích và tạo kịch bản gồm phân cảnh (Scenes), lời bình TTS, gợi ý hình ảnh và hiệu ứng âm thanh.',
         },
       ],
       actionLabel: 'Tạo Dự Án Video Mới Ngay',
@@ -448,23 +409,23 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
       steps: [
         {
           number: 1,
-          title: 'Bổ sung mục "Hướng Dẫn Sử Dụng (A-Z)" trên thanh Header',
-          description: 'Đưa mục Hướng dẫn sử dụng trực tiếp lên thanh điều hướng trung tâm với đầy đủ hình ảnh minh họa và trình mô phỏng thao tác.',
+          title: 'Bổ sung mục "Hướng Dẫn Sử Dụng" trên thanh Header & Sidebar',
+          description: 'Đưa mục Hướng dẫn sử dụng trực tiếp lên thanh điều hướng trung tâm với đầy đủ hình ảnh minh họa thực tế.',
         },
         {
           number: 2,
+          title: 'Tích hợp nút "API Keys AI Module" gom GPT, Claude, DeepSeek, Grok, Gemini',
+          description: 'Mở rộng hạ tầng hỗ trợ đầy đủ các nhà cung cấp AI tiên tiến nhất hiện nay kèm cơ chế kiểm tra kết nối API Key.',
+        },
+        {
+          number: 3,
           title: 'Cập nhật nút "Đổi tài khoản" & Đăng nhập Google Drive OAuth',
           description: 'Đổi nút "Đổi nick" thành "Đổi tài khoản" trang trọng; bổ sung nút "Đăng nhập tài khoản" trong phần Google Drive Cloud.',
         },
         {
-          number: 3,
-          title: 'Tích hợp Biểu Đồ Miền Lưu Lượng Giờ Vàng Telemetry Realtime',
-          description: 'Hệ thống tự động theo dõi và cập nhật lưu lượng TikTok, YouTube, Facebook cứ mỗi 10 phút/lần kèm giờ thực tế.',
-        },
-        {
           number: 4,
-          title: 'Bổ sung tính năng Xem/Ẩn Mật Khẩu & 4 File PDF Pháp Lý',
-          description: 'Thêm icon con mắt hiển thị mật khẩu; tích hợp 4 tài liệu PDF chuẩn Times New Roman có dẫn chú luật pháp Việt Nam.',
+          title: 'Biểu Đồ Miền Lưu Lượng Giờ Vàng Telemetry Realtime 10p/lần',
+          description: 'Hệ thống tự động theo dõi và cập nhật lưu lượng TikTok, YouTube, Facebook cứ mỗi 10 phút/lần kèm giờ thực tế.',
         },
       ],
       actionLabel: 'Quay Lại Bàn Làm Việc',
@@ -563,7 +524,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
                 <span>+ Khởi Tạo Dự Án Video Mới (AI Engine)</span>
               </span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-100 text-zinc-700 border border-black/5">
-                Gemini 2.0 Flash
+                Multi-LLM
               </span>
             </div>
 
@@ -930,7 +891,11 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
             <div className="space-y-1.5 text-xs text-zinc-700">
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                <span>Thêm mục Hướng Dẫn Sử Dụng A-Z kèm mô phỏng trực quan.</span>
+                <span>Thêm mục Hướng Dẫn Sử Dụng với hình ảnh minh họa chi tiết.</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>Nâng cấp "API Keys AI Module" gom GPT, Claude, DeepSeek, Grok, Gemini.</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
@@ -951,147 +916,6 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
       default:
         return null;
     }
-  };
-
-  // Render Interactive Walkthrough Simulation
-  const renderInteractiveSimulation = (mod: GuideModule) => {
-    const currentStep = simStep[mod.id] || 0;
-    const isPlaying = isSimPlaying[mod.id] !== false;
-
-    return (
-      <div className="bg-zinc-950 text-white rounded-lg p-4 shadow-md space-y-3 font-sans border border-white/10">
-        <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-            <span className="text-xs font-mono font-semibold tracking-wide text-zinc-200">
-              MÔ PHỎNG THAO TÁC TRỰC QUAN (WALKTHROUGH)
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => toggleSimPlay(mod.id)}
-              className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-mono flex items-center gap-1 transition cursor-pointer"
-            >
-              {isPlaying ? <Pause className="w-3 h-3 text-amber-400" /> : <Play className="w-3 h-3 text-emerald-400" />}
-              <span>{isPlaying ? 'Tạm Dừng' : 'Phát Tiếp'}</span>
-            </button>
-            <button
-              onClick={() => setSimStep((prev) => ({ ...prev, [mod.id]: 0 }))}
-              className="p-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white transition cursor-pointer"
-              title="Phát lại từ đầu"
-            >
-              <RotateCcw className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
-
-        {/* Video Simulation Canvas */}
-        <div className="relative h-44 bg-zinc-900 rounded-md border border-white/10 overflow-hidden flex flex-col justify-between p-3 select-none">
-          {/* Header bar of simulated browser */}
-          <div className="flex items-center justify-between text-[10px] text-zinc-400 font-mono pb-2 border-b border-white/5">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-red-500/80"></span>
-              <span className="w-2 h-2 rounded-full bg-yellow-500/80"></span>
-              <span className="w-2 h-2 rounded-full bg-green-500/80"></span>
-              <span className="ml-2 text-zinc-400">synapes.studio / {mod.category}</span>
-            </div>
-            <span className="text-emerald-400">FPS: 60 • Live Demo</span>
-          </div>
-
-          {/* Simulated step animation scene */}
-          <div className="flex-1 flex items-center justify-center relative">
-            {currentStep === 0 && (
-              <div className="text-center space-y-2 animate-fade-in">
-                <div className="inline-block px-3 py-1 rounded-full bg-zinc-800 text-zinc-300 text-xs font-mono border border-white/10">
-                  Bước 1: Điều hướng đến chức năng
-                </div>
-                <div className="text-sm font-semibold text-white">
-                  {mod.steps[0]?.title || 'Bấm vào menu chức năng'}
-                </div>
-                {/* Pointer mouse visual */}
-                <div className="relative inline-block mt-2">
-                  <div className="px-3 py-1.5 rounded-lg bg-zinc-100 text-zinc-900 text-xs font-semibold shadow-lg animate-bounce">
-                    👉 Bấm chọn nút thao tác tại đây
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {currentStep === 1 && (
-              <div className="text-center space-y-2 animate-fade-in">
-                <div className="inline-block px-3 py-1 rounded-full bg-zinc-800 text-zinc-300 text-xs font-mono border border-white/10">
-                  Bước 2: Điền tham số & Kiểm tra
-                </div>
-                <div className="text-sm font-semibold text-white">
-                  {mod.steps[1]?.title || 'Nhập các thông số cần thiết'}
-                </div>
-                <div className="max-w-xs mx-auto text-[11px] text-zinc-400">
-                  Hệ thống hỗ trợ kiểm tra tính hợp lệ tự động trước khi lưu.
-                </div>
-                <div className="w-36 h-1.5 bg-zinc-800 rounded-full mx-auto overflow-hidden">
-                  <div className="w-2/3 h-full bg-emerald-500 animate-pulse"></div>
-                </div>
-              </div>
-            )}
-
-            {currentStep === 2 && (
-              <div className="text-center space-y-2 animate-fade-in">
-                <div className="inline-block px-3 py-1 rounded-full bg-emerald-950/80 text-emerald-400 text-xs font-mono border border-emerald-500/30">
-                  Bước 3: Hoàn tất & Kích hoạt tự động
-                </div>
-                <div className="text-sm font-semibold text-emerald-300 flex items-center justify-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Thao tác đã được lưu & chạy tức thời!</span>
-                </div>
-                <div className="text-[11px] text-zinc-400 max-w-sm mx-auto">
-                  Toàn bộ trạng thái và dữ liệu đã được đồng bộ với Cloud và cơ sở dữ liệu.
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Timeline progress indicator */}
-          <div className="space-y-1 pt-1 border-t border-white/5">
-            <div className="flex items-center justify-between text-[10px] text-zinc-400 font-mono">
-              <span>Tiến trình mô phỏng: Bước {currentStep + 1} / 3</span>
-              <span className="text-zinc-500">Tự động chuyển cảnh sau 3s</span>
-            </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              <div className={`h-1 rounded transition-all duration-300 ${currentStep >= 0 ? 'bg-emerald-400' : 'bg-zinc-800'}`}></div>
-              <div className={`h-1 rounded transition-all duration-300 ${currentStep >= 1 ? 'bg-emerald-400' : 'bg-zinc-800'}`}></div>
-              <div className={`h-1 rounded transition-all duration-300 ${currentStep >= 2 ? 'bg-emerald-400' : 'bg-zinc-800'}`}></div>
-            </div>
-          </div>
-        </div>
-
-        {/* Step controls */}
-        <div className="flex items-center justify-between text-xs pt-1">
-          <button
-            onClick={() => setSimStep((prev) => ({ ...prev, [mod.id]: Math.max(0, currentStep - 1) }))}
-            disabled={currentStep === 0}
-            className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-zinc-300 transition text-[11px]"
-          >
-            ← Bước Trước
-          </button>
-          <div className="flex items-center gap-1.5">
-            {[0, 1, 2].map((idx) => (
-              <button
-                key={idx}
-                onClick={() => setSimStep((prev) => ({ ...prev, [mod.id]: idx }))}
-                className={`w-2 h-2 rounded-full transition-all ${currentStep === idx ? 'w-5 bg-emerald-400' : 'bg-zinc-700'}`}
-              />
-            ))}
-          </div>
-          <button
-            onClick={() => setSimStep((prev) => ({ ...prev, [mod.id]: Math.min(2, currentStep + 1) }))}
-            disabled={currentStep === 2}
-            className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-zinc-300 transition text-[11px]"
-          >
-            Bước Kế Tiếp →
-          </button>
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -1116,7 +940,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-bold text-zinc-950 tracking-tight">
-                  Cẩm Nang & Hướng Dẫn Sử Dụng SYNAPES Studio (Từ A-Z)
+                  Cẩm Nang Hướng Dẫn Sử Dụng SYNAPES Studio
                 </h1>
                 <span className="hidden md:inline-flex px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold">
                   Phiên Bản v2.4 (11/2026)
@@ -1203,158 +1027,126 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
             </button>
           </div>
         ) : (
-          filteredModules.map((mod) => {
-            const currentMode = activeTabMode[mod.id] || 'mockup';
+          filteredModules.map((mod) => (
+            <div
+              key={mod.id}
+              id={mod.id}
+              className="studio-card p-5 sm:p-6 space-y-5 transition-all hover:border-black/20"
+            >
+              {/* Module Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-black/5 pb-3.5">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-mono font-bold text-zinc-500 tracking-wider">
+                      {mod.stepNumber}
+                    </span>
+                    <span className="text-zinc-300">•</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-zinc-100 text-zinc-800 border border-zinc-200">
+                      {mod.badge}
+                    </span>
+                  </div>
+                  <h2 className="text-sm sm:text-base font-bold text-zinc-950 mt-1">
+                    {mod.title}
+                  </h2>
+                  <p className="text-xs text-zinc-600 mt-0.5 leading-relaxed max-w-3xl">
+                    {mod.shortDesc}
+                  </p>
+                </div>
 
-            return (
-              <div
-                key={mod.id}
-                id={mod.id}
-                className="studio-card p-5 sm:p-6 space-y-5 transition-all hover:border-black/20"
-              >
-                {/* Module Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-black/5 pb-3.5">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-mono font-bold text-zinc-500 tracking-wider">
-                        {mod.stepNumber}
-                      </span>
-                      <span className="text-zinc-300">•</span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-zinc-100 text-zinc-800 border border-zinc-200">
-                        {mod.badge}
-                      </span>
-                    </div>
-                    <h2 className="text-sm sm:text-base font-bold text-zinc-950 mt-1">
-                      {mod.title}
-                    </h2>
-                    <p className="text-xs text-zinc-600 mt-0.5 leading-relaxed max-w-3xl">
-                      {mod.shortDesc}
-                    </p>
+                {mod.actionLabel && (
+                  <button
+                    onClick={() => handleActionClick(mod.actionView)}
+                    className="btn-primary self-start sm:self-auto flex items-center gap-1.5 text-xs shadow-xs"
+                    title="Chuyển đến màn hình chức năng để thao tác ngay"
+                  >
+                    <span>{mod.actionLabel}</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* 2-Column Layout: Steps Instructions on Left, Clean Visual Mockup on Right */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Column: Numbered Step-by-Step (7 cols) */}
+                <div className="lg:col-span-7 space-y-4">
+                  <div className="text-xs font-mono font-bold text-zinc-400 uppercase tracking-wider">
+                    CÁC BƯỚC THỰC HIỆN CHI TIẾT
                   </div>
 
-                  {mod.actionLabel && (
-                    <button
-                      onClick={() => handleActionClick(mod.actionView)}
-                      className="btn-primary self-start sm:self-auto flex items-center gap-1.5 text-xs shadow-xs"
-                      title="Chuyển đến màn hình chức năng để thao tác ngay"
-                    >
-                      <span>{mod.actionLabel}</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </button>
+                  <div className="space-y-3.5">
+                    {mod.steps.map((st) => (
+                      <div key={st.number} className="flex items-start gap-3 text-xs">
+                        <div className="w-6 h-6 rounded-full bg-zinc-900 text-white font-mono font-bold text-[11px] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-2xs">
+                          {st.number}
+                        </div>
+                        <div className="space-y-1 flex-1">
+                          <h3 className="font-semibold text-zinc-900 text-xs">
+                            {st.title}
+                          </h3>
+                          <p className="text-zinc-600 leading-relaxed text-xs">
+                            {st.description}
+                          </p>
+                          {st.note && (
+                            <div className="p-2 rounded bg-amber-50/80 border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
+                              💡 <strong>Lưu ý:</strong> {st.note}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Pro Tips Box */}
+                  {mod.proTips && mod.proTips.length > 0 && (
+                    <div className="p-3 rounded-lg bg-zinc-50 border border-black/5 text-[11px] text-zinc-600 space-y-1.5">
+                      <div className="font-semibold text-zinc-900 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-zinc-800" />
+                        <span>Mẹo Nghiệp Vụ & Kinh Nghiệm Tối Ưu:</span>
+                      </div>
+                      <ul className="list-disc list-inside space-y-1 text-zinc-600 pl-1 leading-relaxed">
+                        {mod.proTips.map((tip, idx) => (
+                          <li key={idx}>{tip}</li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
                 </div>
 
-                {/* 2-Column Layout: Steps Instructions on Left, Visuals/Simulation on Right */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                  {/* Left Column: Numbered Step-by-Step (7 cols) */}
-                  <div className="lg:col-span-7 space-y-4">
-                    <div className="text-xs font-mono font-bold text-zinc-400 uppercase tracking-wider">
-                      CÁC BƯỚC THỰC HIỆN CHI TIẾT
-                    </div>
-
-                    <div className="space-y-3.5">
-                      {mod.steps.map((st) => (
-                        <div key={st.number} className="flex items-start gap-3 text-xs">
-                          <div className="w-6 h-6 rounded-full bg-zinc-900 text-white font-mono font-bold text-[11px] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-2xs">
-                            {st.number}
-                          </div>
-                          <div className="space-y-1 flex-1">
-                            <h3 className="font-semibold text-zinc-900 text-xs">
-                              {st.title}
-                            </h3>
-                            <p className="text-zinc-600 leading-relaxed text-xs">
-                              {st.description}
-                            </p>
-                            {st.note && (
-                              <div className="p-2 rounded bg-amber-50/80 border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
-                                💡 <strong>Lưu ý:</strong> {st.note}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Pro Tips Box */}
-                    {mod.proTips && mod.proTips.length > 0 && (
-                      <div className="p-3 rounded-lg bg-zinc-50 border border-black/5 text-[11px] text-zinc-600 space-y-1.5">
-                        <div className="font-semibold text-zinc-900 flex items-center gap-1.5">
-                          <Sparkles className="w-3.5 h-3.5 text-zinc-800" />
-                          <span>Mẹo Nghiệp Vụ & Kinh Nghiệm Tối Ưu:</span>
-                        </div>
-                        <ul className="list-disc list-inside space-y-1 text-zinc-600 pl-1 leading-relaxed">
-                          {mod.proTips.map((tip, idx) => (
-                            <li key={idx}>{tip}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                {/* Right Column: Visual Mockup (5 cols) */}
+                <div className="lg:col-span-5 space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-black/5 pb-2">
+                    <span className="text-[11px] font-mono text-zinc-400 font-semibold uppercase">
+                      HÌNH ẢNH MINH HỌA GIAO DIỆN
+                    </span>
+                    <span className="text-[10px] font-mono text-zinc-400">
+                      Giao diện thực tế
+                    </span>
                   </div>
 
-                  {/* Right Column: Visual Mockup or Interactive Simulation (5 cols) */}
-                  <div className="lg:col-span-5 space-y-2.5">
-                    {/* Switcher Tab between Mockup and Simulation Player */}
-                    <div className="flex items-center justify-between border-b border-black/5 pb-2">
-                      <span className="text-[11px] font-mono text-zinc-400 font-semibold uppercase">
-                        HÌNH ẢNH MINH HỌA & MÔ PHỎNG
-                      </span>
-                      <div className="flex items-center gap-1 p-0.5 rounded-md bg-zinc-100 border border-black/5 text-[10px]">
-                        <button
-                          onClick={() => setModuleTabMode(mod.id, 'mockup')}
-                          className={`px-2 py-0.5 rounded font-medium transition cursor-pointer ${
-                            currentMode === 'mockup'
-                              ? 'bg-white text-zinc-900 shadow-2xs'
-                              : 'text-zinc-500 hover:text-zinc-900'
-                          }`}
-                        >
-                          📸 Ảnh Giao Diện
-                        </button>
-                        <button
-                          onClick={() => setModuleTabMode(mod.id, 'simulation')}
-                          className={`px-2 py-0.5 rounded font-medium transition cursor-pointer flex items-center gap-1 ${
-                            currentMode === 'simulation'
-                              ? 'bg-zinc-900 text-white shadow-2xs'
-                              : 'text-zinc-500 hover:text-zinc-900'
-                          }`}
-                        >
-                          <Play className="w-2.5 h-2.5" />
-                          <span>🎬 Mô Phỏng Video</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Content Display */}
-                    <div className="transition-all">
-                      {currentMode === 'mockup' ? (
-                        <div className="space-y-2">
-                          {renderVisualMockup(mod.mockupType)}
-                          <div className="text-[10px] text-zinc-400 text-center italic">
-                            Hình ảnh mô phỏng trực quan các trường nhập liệu và nút bấm thực tế trên hệ thống.
-                          </div>
-                        </div>
-                      ) : (
-                        renderInteractiveSimulation(mod)
-                      )}
+                  <div className="space-y-2">
+                    {renderVisualMockup(mod.mockupType)}
+                    <div className="text-[10px] text-zinc-400 text-center italic">
+                      Hình ảnh mô phỏng trực quan các trường nhập liệu và nút bấm thực tế trên hệ thống.
                     </div>
                   </div>
                 </div>
               </div>
-            );
-          })
+            </div>
+          ))
         )}
       </div>
 
       {/* Footer Support Help */}
       <div className="studio-card p-6 text-center space-y-3">
         <div className="w-10 h-10 rounded-full bg-zinc-100 border border-black/5 mx-auto flex items-center justify-center text-zinc-700">
-          <HelpCircle className="w-5 h-5" />
+          <BookOpen className="w-5 h-5 text-zinc-800" />
         </div>
         <div className="space-y-1">
           <h3 className="text-sm font-semibold text-zinc-900">
-            Bạn Cần Trợ Giúp Kỹ Thuật Hoặc Hỗ Trợ Riêng?
+            Sẵn Sàng Sáng Tạo Video?
           </h3>
           <p className="text-xs text-zinc-500 max-w-md mx-auto leading-relaxed">
-            Đội ngũ kỹ sư SYNAPES luôn sẵn sàng hỗ trợ bạn qua hệ thống kiểm tra Google Sheet và kênh hỗ trợ trực tiếp.
+            Hệ thống đã sẵn sàng hỗ trợ bạn sản xuất kịch bản, ghép video đa phân cảnh và xuất bản tự động.
           </p>
         </div>
         <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
@@ -1364,16 +1156,6 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
           >
             Vào Bàn Làm Việc Studio
           </button>
-          <a
-            href="https://mail.google.com/mail/?view=cm&fs=1&to=nguyenhoangthien.hvt.15@gmail.com&su=LI%C3%8AN%20H%E1%BB%86%20NH%C3%80%20PH%C3%81T%20TRI%E1%BB%82N"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-secondary text-xs flex items-center gap-1.5"
-            title="Soạn thư Gmail gửi nguyenhoangthien.hvt.15@gmail.com với chủ đề: LIÊN HỆ NHÀ PHÁT TRIỂN"
-          >
-            <span>Liên Hệ Kỹ Sư Trực 24/7</span>
-            <ExternalLink className="w-3 h-3 text-zinc-400" />
-          </a>
         </div>
       </div>
     </div>

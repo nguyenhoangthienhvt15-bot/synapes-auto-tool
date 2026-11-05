@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Plus, Sparkles, Clock, Calendar, Folder, Share2,
-  HardDrive, Cpu, BookOpen
+  HardDrive, Cpu, BookOpen, ChevronDown, Key
 } from 'lucide-react';
 import { MiniPeakHoursAreaChart } from './MiniPeakHoursAreaChart';
 
@@ -10,6 +10,8 @@ interface SidebarProps {
   pendingCount: number;
   onSelectView: (view: string) => void;
   onOpenCreateModal: () => void;
+  onSelectAiProvider?: (provider: string) => void;
+  selectedAiProvider?: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -17,7 +19,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   pendingCount,
   onSelectView,
   onOpenCreateModal,
+  onSelectAiProvider,
+  selectedAiProvider,
 }) => {
+  const [isAiModuleOpen, setIsAiModuleOpen] = useState(true);
   return (
     <aside className="w-60 bg-[#FBFBFA] border-r border-black/[0.07] p-3 flex flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.25rem)] overflow-y-auto select-none scrollbar-none">
       <div className="space-y-4">
@@ -47,11 +52,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <button
               onClick={() => onSelectView('skills')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${
-                activeView === 'skills'
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${activeView === 'skills'
                   ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2.5">
                 <Sparkles className="w-3.5 h-3.5 text-zinc-500" />
@@ -69,11 +73,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="space-y-0.5">
             <button
               onClick={() => onSelectView('pending-approval')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${
-                activeView === 'pending-approval' || activeView === 'review'
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${activeView === 'pending-approval' || activeView === 'review'
                   ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2.5">
                 <Clock className="w-3.5 h-3.5 text-zinc-500" />
@@ -88,11 +91,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <button
               onClick={() => onSelectView('calendar')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${
-                activeView === 'calendar'
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${activeView === 'calendar'
                   ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2.5">
                 <Calendar className="w-3.5 h-3.5 text-zinc-500" />
@@ -102,11 +104,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <button
               onClick={() => onSelectView('in-progress')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${
-                activeView === 'in-progress'
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${activeView === 'in-progress'
                   ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2.5">
                 <Folder className="w-3.5 h-3.5 text-zinc-500" />
@@ -125,15 +126,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* 1. Kênh YouTube */}
             <button
               onClick={() => onSelectView('connect-youtube')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer group ${
-                activeView === 'connect-youtube'
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer group ${activeView === 'connect-youtube'
                   ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2.5">
                 <svg className="w-3.5 h-3.5 flex-shrink-0 text-red-600" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
                 </svg>
                 <span>Kênh YouTube</span>
               </div>
@@ -145,15 +145,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* 2. Tài khoản TikTok */}
             <button
               onClick={() => onSelectView('connect-tiktok')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer group ${
-                activeView === 'connect-tiktok'
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer group ${activeView === 'connect-tiktok'
                   ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2.5">
                 <svg className="w-3.5 h-3.5 flex-shrink-0 text-black" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.86.12V9.4a6.33 6.33 0 0 0-.86-.06A6.34 6.34 0 0 0 3.1 15.68a6.34 6.34 0 0 0 10.74 4.54 6.29 6.29 0 0 0 1.93-4.55V8.87a8.28 8.28 0 0 0 4.82 1.54V6.96a4.85 4.85 0 0 1-1-.27z"/>
+                  <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.86.12V9.4a6.33 6.33 0 0 0-.86-.06A6.34 6.34 0 0 0 3.1 15.68a6.34 6.34 0 0 0 10.74 4.54 6.29 6.29 0 0 0 1.93-4.55V8.87a8.28 8.28 0 0 0 4.82 1.54V6.96a4.85 4.85 0 0 1-1-.27z" />
                 </svg>
                 <span>Tài khoản TikTok</span>
               </div>
@@ -165,15 +164,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* 3. Tài khoản Facebook */}
             <button
               onClick={() => onSelectView('connect-facebook')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer group ${
-                activeView === 'connect-facebook'
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer group ${activeView === 'connect-facebook'
                   ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2.5">
                 <svg className="w-3.5 h-3.5 flex-shrink-0 text-[#0866FF]" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
                 </svg>
                 <span>Tài khoản Facebook</span>
               </div>
@@ -185,11 +183,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* 4. Google Drive Cloud */}
             <button
               onClick={() => onSelectView('drive-backup')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${
-                activeView === 'drive-backup'
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${activeView === 'drive-backup'
                   ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2.5">
                 <HardDrive className="w-3.5 h-3.5 text-zinc-500" />
@@ -200,11 +197,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* 5. Quản lý tất cả kênh */}
             <button
               onClick={() => onSelectView('channels')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${
-                activeView === 'channels'
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${activeView === 'channels'
                   ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2.5">
                 <Share2 className="w-3.5 h-3.5 text-zinc-500" />
@@ -214,25 +210,135 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* SECTION 4: HỆ THỐNG */}
+        {/* SECTION 4: HỆ THỐNG / HẠ TẦNG */}
         <div>
           <div className="text-[10px] font-semibold text-zinc-400 tracking-wider px-2 mb-1 uppercase font-mono">
             Hạ Tầng
           </div>
           <div className="space-y-0.5">
+            {/* Nút tùy chọn gom: API Keys AI Module */}
             <button
-              onClick={() => onSelectView('ai-engine')}
+              onClick={() => {
+                onSelectView('ai-engine');
+                setIsAiModuleOpen(!isAiModuleOpen);
+              }}
               className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${
                 activeView === 'ai-engine'
                   ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
               }`}
+              title="Cấu hình API Keys các nhà cung cấp AI"
             >
               <div className="flex items-center gap-2.5">
                 <Cpu className="w-3.5 h-3.5 text-zinc-500" />
-                <span>Động cơ AI (Gemini 2.0)</span>
+                <span>API Keys AI Module</span>
               </div>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${
+                  isAiModuleOpen ? 'rotate-180' : ''
+                }`}
+              />
             </button>
+
+            {/* Các danh mục nhà cung cấp AI con */}
+            {isAiModuleOpen && (
+              <div className="pl-4 pr-1 py-1 space-y-0.5 border-l border-zinc-200 ml-3.5 animate-fade-in text-[11px]">
+                {/* 1. GPT (OpenAI) */}
+                <button
+                  onClick={() => {
+                    onSelectAiProvider?.('openai');
+                    onSelectView('ai-engine');
+                  }}
+                  className={`w-full flex items-center justify-between px-2 py-1 rounded-md transition text-left cursor-pointer ${
+                    activeView === 'ai-engine' && selectedAiProvider === 'openai'
+                      ? 'bg-zinc-200 text-zinc-950 font-semibold'
+                      : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span>GPT (OpenAI)</span>
+                  </div>
+                  <span className="text-[9px] font-mono text-zinc-400">GPT-4o</span>
+                </button>
+
+                {/* 2. Claude (Anthropic) */}
+                <button
+                  onClick={() => {
+                    onSelectAiProvider?.('claude');
+                    onSelectView('ai-engine');
+                  }}
+                  className={`w-full flex items-center justify-between px-2 py-1 rounded-md transition text-left cursor-pointer ${
+                    activeView === 'ai-engine' && selectedAiProvider === 'claude'
+                      ? 'bg-zinc-200 text-zinc-950 font-semibold'
+                      : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    <span>Claude (Anthropic)</span>
+                  </div>
+                  <span className="text-[9px] font-mono text-zinc-400">Sonnet 3.7</span>
+                </button>
+
+                {/* 3. DeepSeek */}
+                <button
+                  onClick={() => {
+                    onSelectAiProvider?.('deepseek');
+                    onSelectView('ai-engine');
+                  }}
+                  className={`w-full flex items-center justify-between px-2 py-1 rounded-md transition text-left cursor-pointer ${
+                    activeView === 'ai-engine' && selectedAiProvider === 'deepseek'
+                      ? 'bg-zinc-200 text-zinc-950 font-semibold'
+                      : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                    <span>DeepSeek AI</span>
+                  </div>
+                  <span className="text-[9px] font-mono text-zinc-400">V3 / R1</span>
+                </button>
+
+                {/* 4. Grok (xAI) */}
+                <button
+                  onClick={() => {
+                    onSelectAiProvider?.('grok');
+                    onSelectView('ai-engine');
+                  }}
+                  className={`w-full flex items-center justify-between px-2 py-1 rounded-md transition text-left cursor-pointer ${
+                    activeView === 'ai-engine' && selectedAiProvider === 'grok'
+                      ? 'bg-zinc-200 text-zinc-950 font-semibold'
+                      : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-800" />
+                    <span>Grok (xAI)</span>
+                  </div>
+                  <span className="text-[9px] font-mono text-zinc-400">Grok 2</span>
+                </button>
+
+                {/* 5. Gemini (Google) */}
+                <button
+                  onClick={() => {
+                    onSelectAiProvider?.('gemini');
+                    onSelectView('ai-engine');
+                  }}
+                  className={`w-full flex items-center justify-between px-2 py-1 rounded-md transition text-left cursor-pointer ${
+                    activeView === 'ai-engine' && selectedAiProvider === 'gemini'
+                      ? 'bg-zinc-200 text-zinc-950 font-semibold'
+                      : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                    <span>Gemini (Google)</span>
+                  </div>
+                  <span className="text-[9px] font-mono text-zinc-400">2.0 Flash</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -254,9 +360,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <BookOpen className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Hướng dẫn sử dụng</span>
               </div>
-              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold">
-                A-Z
-              </span>
             </button>
           </div>
         </div>

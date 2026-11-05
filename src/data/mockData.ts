@@ -366,10 +366,31 @@ export const INITIAL_PROJECTS: Project[] = [
 
 export const DEFAULT_AI_CONFIG: AIProviderConfig = {
   mode: 'gemini',
+  activeProvider: 'gemini',
   gemini: {
     apiKey: 'AIzaSyA8B2C9D10E_DEMO_KEY_OFFICIAL',
     model: 'gemini-2.0-flash',
     ttsVoice: 'vi-VN-Standard-B (Nam Bắc chuẩn)',
+  },
+  openai: {
+    apiKey: 'sk-proj-demo_openai_key_studio_2026',
+    model: 'gpt-4o',
+    endpointUrl: 'https://api.openai.com/v1',
+  },
+  claude: {
+    apiKey: 'sk-ant-api03-demo_claude_studio_2026',
+    model: 'claude-3-7-sonnet-20250219',
+    endpointUrl: 'https://api.anthropic.com/v1',
+  },
+  deepseek: {
+    apiKey: 'sk-deepseek-demo_key_studio_2026',
+    model: 'deepseek-chat',
+    endpointUrl: 'https://api.deepseek.com/v1',
+  },
+  grok: {
+    apiKey: 'xai-demo_grok_key_studio_2026',
+    model: 'grok-2',
+    endpointUrl: 'https://api.x.ai/v1',
   },
   plugin: {
     id: 'kling-default',
