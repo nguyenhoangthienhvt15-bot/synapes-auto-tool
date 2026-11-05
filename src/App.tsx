@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Project, UserAccount, EngineerSheetRow, Skill, AIProviderConfig
 } from './types';
 import {
   INITIAL_USER, INITIAL_SHEET_ROWS, INITIAL_SKILLS, INITIAL_PROJECTS, DEFAULT_AI_CONFIG
 } from './data/mockData';
+import {
+  fetchGoogleSheetLive, getCachedSheetRows, getLastSyncTime
+} from './services/googleSheetService';
 
 // Components
 import { Header } from './components/Header';
@@ -35,8 +38,14 @@ export function App() {
     isDefaultPassword: false,
   });
 
-  // State: Google Sheet for Devs
-  const [sheetRows, setSheetRows] = useState<EngineerSheetRow[]>(INITIAL_SHEET_ROWS);
+  // State: Google Sheet for Devs (ưu tiên cache hoặc mặc định từ Sheet)
+  const [sheetRows, setSheetRows] = useState<EngineerSheetRow[]>(() => {
+    const cached = getCachedSheetRows();
+    return cached && cached.length > 0 ? cached : INITIAL_SHEET_ROWS;
+  });
+  const [isSyncingSheet, setIsSyncingSheet] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(getLastSyncTime());
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // State: Projects & Skills & AI Config
   const [projects, setProjects] = useState<Project[]>(INITIAL_PROJECTS);
@@ -60,14 +69,62 @@ export function App() {
     setTimeout(() => setToastNotification(null), 4000);
   };
 
+  // Đồng bộ thời gian thực từ Google Sheet
+  const handleSyncSheet = async (silent: boolean = false) => {
+    setIsSyncingSheet(true);
+    try {
+      const rows = await fetchGoogleSheetLive();
+      if (rows && rows.length > 0) {
+        setSheetRows(rows);
+        setLastSyncTime(getLastSyncTime());
+        if (!silent) {
+          showToast(`Đã đồng bộ ${rows.length} tài khoản từ Google Sheet thành công!`);
+        }
+      } else if (!silent) {
+        showToast('Không lấy được dữ liệu mới từ Sheet, giữ nguyên danh sách hiện tại.');
+      }
+    } catch (e) {
+      console.warn('Sync sheet error:', e);
+      if (!silent) {
+        showToast('Lỗi khi đồng bộ Google Sheet.');
+      }
+    } finally {
+      setIsSyncingSheet(false);
+    }
+  };
+
+  // Tự động đồng bộ ngay khi người dùng mở WebApp
+  useEffect(() => {
+    handleSyncSheet(true);
+  }, []);
+
   const pendingCount = projects.filter((p) => p.status === 'pending_approval').length;
 
-  const handleLogin = (code: string, pass: string): boolean => {
-    const row = sheetRows.find((r) => r.code === code);
+  const handleLogin = async (code: string, pass: string): Promise<boolean> => {
+    const codeClean = code.trim().toUpperCase();
+    const passClean = pass.trim();
+
+    // 1. Kiểm tra đối soát với bộ nhớ hiện tại
+    let row = sheetRows.find((r) => r.code.toUpperCase() === codeClean);
+
+    // 2. Nếu chưa có hoặc mật khẩu không khớp, tự động tải trực tiếp từ Google Sheet để bắt kịp tài khoản mới tạo trên Sheet
+    if (!row || (row.currentTempPassword !== passClean && passClean !== 'Password123' && passClean !== '123456')) {
+      try {
+        const liveRows = await fetchGoogleSheetLive();
+        if (liveRows && liveRows.length > 0) {
+          setSheetRows(liveRows);
+          setLastSyncTime(getLastSyncTime());
+          row = liveRows.find((r) => r.code.toUpperCase() === codeClean);
+        }
+      } catch (err) {
+        console.warn('Auto live sync error during login', err);
+      }
+    }
+
     if (!row) return false;
 
-    const isTemp = row.currentTempPassword === pass;
-    const isCustom = pass === 'Password123' || pass === '123456' || isTemp;
+    const isTemp = row.currentTempPassword === passClean;
+    const isCustom = passClean === 'Password123' || passClean === '123456' || isTemp;
 
     if (!isTemp && !isCustom) {
       return false;
@@ -80,6 +137,7 @@ export function App() {
       isLoggedIn: true,
       isDefaultPassword: isTemp && row.accountStatus !== 'custom_password_active',
     });
+    setIsAuthModalOpen(false);
     showToast(`Đăng nhập thành công với mã ${row.code}!`);
     return true;
   };
@@ -88,6 +146,7 @@ export function App() {
     if (currentUser) {
       setCurrentUser({ ...currentUser, isLoggedIn: false });
     }
+    setIsAuthModalOpen(true);
     showToast('Đã đăng xuất.');
   };
 
@@ -164,6 +223,7 @@ export function App() {
             setCurrentUser({ ...currentUser, isDefaultPassword: true });
           }
         }}
+        onOpenLogin={() => setIsAuthModalOpen(true)}
       />
 
       {/* Main Body */}
@@ -281,6 +341,9 @@ export function App() {
               sheetRows={sheetRows}
               onUpdateSheetRow={setSheetRows}
               onSendTempPasswordEmail={handleSendTempPasswordEmail}
+              onSyncSheet={() => handleSyncSheet(false)}
+              isSyncingSheet={isSyncingSheet}
+              lastSyncTime={lastSyncTime}
             />
           )}
 
@@ -370,18 +433,22 @@ export function App() {
       )}
 
       {/* AUTH MODAL */}
-      {(!currentUser || !currentUser.isLoggedIn || currentUser.isDefaultPassword) && (
+      {(isAuthModalOpen || (currentUser?.isLoggedIn && currentUser.isDefaultPassword)) && (
         <AuthModal
           currentUser={currentUser}
           sheetRows={sheetRows}
           onLogin={handleLogin}
           onLogout={handleLogout}
           onForceChangePassword={handleForceChangePassword}
+          onClose={() => setIsAuthModalOpen(false)}
           onCloseChangePass={() => {
             if (currentUser) {
               setCurrentUser({ ...currentUser, isDefaultPassword: false });
             }
           }}
+          onSyncSheet={() => handleSyncSheet(false)}
+          isSyncingSheet={isSyncingSheet}
+          lastSyncTime={lastSyncTime}
           onUpdateSheetRow={setSheetRows}
           onSendTempPasswordEmail={handleSendTempPasswordEmail}
         />
