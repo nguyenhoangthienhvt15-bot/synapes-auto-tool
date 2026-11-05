@@ -141,7 +141,8 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       address: address.trim(),
       coords: coords || undefined,
       termsAccepted: false,
-      registeredAt: new Date().toLocaleString('vi-VN')
+      registeredAt: new Date().toLocaleString('vi-VN'),
+      notes: 'Chờ ký hợp đồng'
     };
     saveUserRegistration(initialRegData);
 
@@ -168,11 +169,12 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       address: address.trim(),
       coords: coords || undefined,
       termsAccepted: true,
-      registeredAt: new Date().toLocaleString('vi-VN')
+      registeredAt: new Date().toLocaleString('vi-VN'),
+      notes: 'Đã ký hợp đồng qua WebApp'
     };
 
     try {
-      // 1. Cập nhật trạng thái đã ký điều khoản
+      // 1. Cập nhật trạng thái "Đã ký hợp đồng qua WebApp" lên Google Sheet THÔNG TIN NGƯỜI DÙNG
       await saveUserRegistration(registrationData);
 
       // 2. Tự động tải xuống hợp đồng PDF hoàn chỉnh đã điền đầy đủ thông tin người dùng
