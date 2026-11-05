@@ -1,33 +1,53 @@
-import React, { useState } from 'react';
-import { Project } from '../types';
-import { HardDrive, ExternalLink, CheckCircle2, Folder, ArrowLeft, LogIn, X, Check, ShieldCheck, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Project, UserAccount } from '../types';
+import { HardDrive, ExternalLink, CheckCircle2, Folder, ArrowLeft, LogIn, X, Check, ShieldCheck, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface DriveBackupViewProps {
+  currentUser?: UserAccount | null;
   projects: Project[];
+  driveEmail?: string;
+  isConnected?: boolean;
+  onUpdateDrive?: (email: string, isConnected: boolean) => void;
+  onOpenLogin?: () => void;
   onBack?: () => void;
 }
 
-export const DriveBackupView: React.FC<DriveBackupViewProps> = ({ projects, onBack }) => {
+export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
+  currentUser,
+  projects,
+  driveEmail: propsDriveEmail,
+  isConnected: propsIsConnected,
+  onUpdateDrive,
+  onOpenLogin,
+  onBack,
+}) => {
   const publishedProjects = projects.filter((p) => p.driveBackupUrl);
 
   const [driveEmail, setDriveEmail] = useState<string>(() => {
+    if (propsDriveEmail !== undefined) return propsDriveEmail;
     try {
-      return localStorage.getItem('synapes_drive_email') || 'synapes.backup@gmail.com';
+      return localStorage.getItem('synapes_drive_email') || '';
     } catch {
-      return 'synapes.backup@gmail.com';
+      return '';
     }
   });
 
   const [isConnected, setIsConnected] = useState<boolean>(() => {
+    if (propsIsConnected !== undefined) return propsIsConnected;
     try {
-      return localStorage.getItem('synapes_drive_connected') !== 'false';
+      return localStorage.getItem('synapes_drive_connected') === 'true';
     } catch {
-      return true;
+      return false;
     }
   });
 
+  useEffect(() => {
+    if (propsDriveEmail !== undefined) setDriveEmail(propsDriveEmail);
+    if (propsIsConnected !== undefined) setIsConnected(propsIsConnected);
+  }, [propsDriveEmail, propsIsConnected]);
+
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [inputEmail, setInputEmail] = useState(driveEmail);
+  const [inputEmail, setInputEmail] = useState(driveEmail || currentUser?.email || '');
   const [inputAccountName, setInputAccountName] = useState('Google Drive Studio Storage');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -36,29 +56,36 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({ projects, onBa
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+  const handleOpenLoginModal = () => {
+    if (!currentUser || !currentUser.isLoggedIn) {
+      showToast('⚠️ Vui lòng đăng nhập tài khoản Studio của bạn trước khi kết nối Google Drive.');
+      if (onOpenLogin) onOpenLogin();
+      return;
+    }
+    setInputEmail(driveEmail || currentUser?.email || 'synapes.backup@gmail.com');
+    setShowLoginModal(true);
+  };
+
   const handleConfirmLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const email = inputEmail.trim() || 'synapes.backup@gmail.com';
+    const email = inputEmail.trim() || currentUser?.email || 'synapes.backup@gmail.com';
     setDriveEmail(email);
     setIsConnected(true);
-    try {
-      localStorage.setItem('synapes_drive_email', email);
-      localStorage.setItem('synapes_drive_connected', 'true');
-    } catch (err) {
-      console.warn('Could not save drive login', err);
-    }
+    onUpdateDrive?.(email, true);
     setShowLoginModal(false);
     showToast(`Đã kết nối tài khoản Google Drive [${email}] và cấp quyền drive.file thành công!`);
   };
 
   const handleDisconnect = () => {
+    if (!currentUser || !currentUser.isLoggedIn) {
+      showToast('⚠️ Vui lòng đăng nhập tài khoản Studio của bạn.');
+      if (onOpenLogin) onOpenLogin();
+      return;
+    }
+
     if (confirm(`Bạn có chắc muốn ngắt liên kết tài khoản Drive [${driveEmail}]? Các bản sao lưu tự động sẽ tạm dừng.`)) {
       setIsConnected(false);
-      try {
-        localStorage.setItem('synapes_drive_connected', 'false');
-      } catch (err) {
-        console.warn(err);
-      }
+      onUpdateDrive?.(driveEmail, false);
       showToast('Đã ngắt kết nối tài khoản Google Drive.');
     }
   };
@@ -70,6 +97,30 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({ projects, onBa
         <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white text-xs px-4 py-2.5 rounded-lg shadow-xl border border-white/10 flex items-center gap-2 animate-slide-up">
           <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Cảnh báo khi chưa đăng nhập */}
+      {(!currentUser || !currentUser.isLoggedIn) && (
+        <div className="p-4 rounded-xl bg-amber-50/90 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-950 shadow-2xs animate-in fade-in">
+          <div className="flex items-start sm:items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5 sm:mt-0" />
+            <div>
+              <div className="text-xs font-bold">Chưa Đăng Nhập Tài Khoản Studio</div>
+              <div className="text-[11px] text-amber-800 mt-0.5">
+                Google Drive Storage đang ở trạng thái chưa liên kết. Vui lòng đăng nhập tài khoản của bạn để kết nối và tự động sao lưu dữ liệu.
+              </div>
+            </div>
+          </div>
+          {onOpenLogin && (
+            <button
+              onClick={onOpenLogin}
+              className="btn-primary flex items-center gap-1.5 px-3.5 py-1.5 text-xs flex-shrink-0 cursor-pointer self-start sm:self-auto"
+            >
+              <LogIn className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Đăng Nhập Ngay</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -111,10 +162,7 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({ projects, onBa
               </div>
 
               <button
-                onClick={() => {
-                  setInputEmail(driveEmail);
-                  setShowLoginModal(true);
-                }}
+                onClick={handleOpenLoginModal}
                 className="btn-secondary flex items-center gap-1.5 text-xs font-medium"
                 title="Đăng nhập tài khoản Google Drive khác"
               >
@@ -124,10 +172,7 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({ projects, onBa
             </>
           ) : (
             <button
-              onClick={() => {
-                setInputEmail(driveEmail || 'synapes.backup@gmail.com');
-                setShowLoginModal(true);
-              }}
+              onClick={handleOpenLoginModal}
               className="btn-primary flex items-center gap-1.5 text-xs shadow-xs font-medium"
               title="Đăng nhập và ủy quyền tài khoản Google Drive"
             >
