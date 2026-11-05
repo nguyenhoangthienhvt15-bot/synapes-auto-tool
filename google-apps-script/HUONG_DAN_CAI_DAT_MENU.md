@@ -34,3 +34,4 @@
    * 🔑 **Tạo mật khẩu ngẫu nhiên cho dòng đang chọn**: Tự động tạo pass `Auto-XXXXXX` và ghi thời gian cấp.
    * 📧 **Gửi email mật khẩu cho khách qua Gmail**: Gửi thông tin tài khoản đến Gmail của khách bằng 1 click.
    * 🌐 **Mở WebApp Studio**: Mở nhanh website hệ thống.
+

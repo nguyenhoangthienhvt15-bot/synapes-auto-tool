@@ -52,7 +52,7 @@ export function cacheSheetRows(rows: EngineerSheetRow[]): void {
 /**
  * Phân tích dữ liệu phản hồi từ Google Visualization API
  */
-function parseGvizResponse(response: any): EngineerSheetRow[] {
+export function parseGvizResponse(response: any): EngineerSheetRow[] {
   if (!response || !response.table || !response.table.rows) {
     return [];
   }
@@ -75,10 +75,10 @@ function parseGvizResponse(response: any): EngineerSheetRow[] {
     const registeredGmail = r.c[3]?.v ? String(r.c[3].v).trim() : '';
 
     // Col E (index 4): Mật khẩu tạm / Mặc định
-    const currentTempPassword = r.c[4]?.v ? String(r.c[4].v).trim() : '';
+    const currentTempPassword = r.c[4]?.v !== undefined && r.c[4]?.v !== null ? String(r.c[4].v).trim() : '';
 
     // Col F (index 5): Thời gian cấp gần nhất
-    const lastIssuedTime = r.c[5]?.f || (r.c[5]?.v ? String(r.c[5].v).trim() : '');
+    const lastIssuedTime = r.c[5]?.f || (r.c[5]?.v !== undefined && r.c[5]?.v !== null ? String(r.c[5].v).trim() : '');
 
     // Col G (index 6): Trạng thái mật khẩu
     const statusRaw = r.c[6]?.v ? String(r.c[6].v).trim() : '';
@@ -109,26 +109,66 @@ function parseGvizResponse(response: any): EngineerSheetRow[] {
 }
 
 /**
- * Đồng bộ dữ liệu trực tiếp từ Google Sheet sử dụng cơ chế JSONP (hoạt động 100% trên mọi trình duyệt, không bị chặn CORS)
+ * Trích xuất JSON từ chuỗi phản hồi Google Visualization
  */
-export function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): Promise<EngineerSheetRow[]> {
+function extractGvizJson(rawText: string): any {
+  const start = rawText.indexOf('{');
+  const end = rawText.lastIndexOf('}');
+  if (start !== -1 && end !== -1 && end > start) {
+    const jsonStr = rawText.substring(start, end + 1);
+    return JSON.parse(jsonStr);
+  }
+  return null;
+}
+
+/**
+ * Đồng bộ dữ liệu trực tiếp từ Google Sheet:
+ * Cách 1: fetch() trực tiếp (Google Sheet hỗ trợ CORS cho domain web)
+ * Cách 2: JSONP fallback qua thẻ <script>
+ * Cách 3: Đọc cache localStorage đã lưu
+ */
+export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): Promise<EngineerSheetRow[]> {
+  // 1. Thử fetch() trực tiếp
+  try {
+    const timestamp = Date.now();
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&_t=${timestamp}`;
+    const res = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+
+    if (res.ok) {
+      const text = await res.text();
+      const json = extractGvizJson(text);
+      if (json) {
+        const rows = parseGvizResponse(json);
+        if (rows.length > 0) {
+          cacheSheetRows(rows);
+          return rows;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Direct fetch from Google Sheet failed, trying JSONP fallback...', err);
+  }
+
+  // 2. Fallback: JSONP
   return new Promise((resolve) => {
-    // 1. Kiểm tra môi trường trình duyệt
     if (typeof window === 'undefined' || typeof document === 'undefined') {
-      resolve([]);
+      const cached = getCachedSheetRows();
+      resolve(cached || []);
       return;
     }
 
     const callbackName = `__gviz_cb_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
     const script = document.createElement('script');
 
-    // Giới hạn thời gian chờ 5 giây nếu mạng chậm
     const timeout = setTimeout(() => {
       cleanup();
-      console.warn('Google Sheet fetch timed out, using fallback cache');
+      console.warn('JSONP timed out, using cached sheet rows');
       const cached = getCachedSheetRows();
       resolve(cached || []);
-    }, 5000);
+    }, 4000);
 
     const cleanup = () => {
       clearTimeout(timeout);
@@ -142,7 +182,6 @@ export function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): Promise
       }
     };
 
-    // Đăng ký hàm callback nhận dữ liệu JSONP
     (window as any)[callbackName] = (resp: any) => {
       cleanup();
       try {
@@ -155,7 +194,7 @@ export function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): Promise
           resolve(cached || []);
         }
       } catch (err) {
-        console.error('Error parsing Google Sheet data:', err);
+        console.error('Error parsing JSONP Google Sheet data:', err);
         const cached = getCachedSheetRows();
         resolve(cached || []);
       }
@@ -163,12 +202,10 @@ export function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): Promise
 
     script.onerror = () => {
       cleanup();
-      console.warn('JSONP script load error, using cache');
       const cached = getCachedSheetRows();
       resolve(cached || []);
     };
 
-    // Gửi yêu cầu với responseHandler để nhận JSONP
     script.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=responseHandler:${callbackName}&_t=${Date.now()}`;
     document.head.appendChild(script);
   });

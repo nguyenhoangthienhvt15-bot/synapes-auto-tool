@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserAccount, EngineerSheetRow } from '../types';
 import { Lock, User, KeyRound, Shield, AlertCircle, ArrowRight, CheckCircle2, X, RefreshCw, ExternalLink } from 'lucide-react';
 import { GOOGLE_SHEET_URL } from '../services/googleSheetService';
@@ -31,6 +31,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onUpdateSheetRow,
   onSendTempPasswordEmail,
 }) => {
+  const [internalVisible, setInternalVisible] = useState(true);
   const [loginCode, setLoginCode] = useState('');
   const [loginPass, setLoginPass] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -46,6 +47,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [forgotCode, setForgotCode] = useState('');
   const [forgotSuccessData, setForgotSuccessData] = useState<{ tempPass: string; email: string } | null>(null);
   const [forgotError, setForgotError] = useState<string | null>(null);
+
+  // Đóng modal an toàn (hỗ trợ cả ESC key)
+  const handleClose = () => {
+    setInternalVisible(false);
+    if (onClose) {
+      onClose();
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,45 +132,45 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const isForcedReset = currentUser?.isLoggedIn && currentUser.isDefaultPassword;
 
+  // Nếu đã bấm tắt thì không render
+  if (!internalVisible) {
+    return null;
+  }
+
   return (
     <>
       {/* Login Modal */}
       {(!currentUser || !currentUser.isLoggedIn) && (
         <div
-          className="fixed inset-0 z-50 bg-black/45 backdrop-blur-md flex items-center justify-center p-4 select-none"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex items-center justify-center p-4 select-none"
           onClick={(e) => {
-            if (e.target === e.currentTarget && onClose) {
-              onClose();
+            if (e.target === e.currentTarget) {
+              handleClose();
             }
           }}
         >
-          <div className="bg-white rounded-2xl border border-black/[0.08] max-w-sm w-full p-6 sm:p-7 shadow-2xl space-y-4 animate-scale-up relative">
-            {/* Nút X Đóng / Hủy góc trên bên phải */}
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="absolute top-4 right-4 p-1.5 rounded-full text-zinc-400 hover:text-zinc-800 hover:bg-black/[0.05] transition"
-                title="Đóng / Hủy đăng nhập"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+          <div className="bg-white rounded-3xl border border-black/[0.1] max-w-sm w-full p-6 sm:p-7 shadow-2xl space-y-4 animate-scale-up relative">
+            {/* NÚT "X" ĐÓNG / HỦY (LUÔN LUÔN HIỂN THỊ RÕ RÀNG Ở GÓC TRÊN BÊN PHẢI) */}
+            <button
+              type="button"
+              onClick={handleClose}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 flex items-center justify-center transition shadow-xs cursor-pointer z-20"
+              title="Đóng / Hủy cửa sổ (Phím Esc)"
+              aria-label="Đóng cửa sổ"
+            >
+              <X className="w-4 h-4 stroke-[2.5]" />
+            </button>
 
             {/* Window traffic lights */}
             <div className="flex items-center gap-1.5 pb-1">
-              {onClose ? (
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="w-2.5 h-2.5 rounded-full bg-[#FF5F56] border border-[#E0443E] hover:opacity-80 transition cursor-pointer"
-                  title="Đóng / Hủy"
-                />
-              ) : (
-                <span className="w-2.5 h-2.5 rounded-full bg-[#FF5F56] border border-[#E0443E]"></span>
-              )}
-              <span className="w-2.5 h-2.5 rounded-full bg-[#FFBD2E] border border-[#DEA123]"></span>
-              <span className="w-2.5 h-2.5 rounded-full bg-[#27C93F] border border-[#1AAB29]"></span>
+              <button
+                type="button"
+                onClick={handleClose}
+                className="w-3 h-3 rounded-full bg-[#FF5F56] border border-[#E0443E] hover:opacity-80 transition cursor-pointer"
+                title="Đóng / Hủy"
+              />
+              <span className="w-3 h-3 rounded-full bg-[#FFBD2E] border border-[#DEA123]"></span>
+              <span className="w-3 h-3 rounded-full bg-[#27C93F] border border-[#1AAB29]"></span>
             </div>
 
             <div className="text-center space-y-1">
@@ -179,7 +198,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     required
                     value={loginCode}
                     onChange={(e) => setLoginCode(e.target.value)}
-                    placeholder="VD: VIP-001 hoặc FYER-051126"
+                    placeholder="VD: FYER-051126 hoặc VIP-001"
                     className="w-full bg-[#FAF9F5] border border-black/[0.1] rounded-xl pl-8 pr-3 py-2 text-xs text-[#0071E3] font-mono font-semibold uppercase focus:outline-none focus:bg-white focus:border-[#0071E3] transition"
                   />
                 </div>
@@ -217,8 +236,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               {/* Tài khoản mẫu / Điền nhanh */}
               <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80 text-[11px] text-amber-900 space-y-1.5">
                 <div className="font-semibold text-amber-950 flex items-center justify-between">
-                  <span>Tài khoản sẵn sàng trên Sheet:</span>
-                  <span className="text-[10px] text-amber-700">Click để điền nhanh</span>
+                  <span>Tài khoản trên Sheet (Click để điền nhanh):</span>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5 pt-0.5">
                   <button
@@ -227,7 +245,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       setLoginCode('FYER-051126');
                       setLoginPass('Auto-219564');
                     }}
-                    className="text-left p-1.5 rounded-lg bg-white/90 hover:bg-white border border-amber-200 text-amber-900 font-mono text-[10px] transition shadow-2xs"
+                    className="text-left p-1.5 rounded-lg bg-white/90 hover:bg-white border border-amber-200 text-amber-900 font-mono text-[10px] transition shadow-2xs cursor-pointer"
                   >
                     <strong>FYER-051126</strong>
                     <div className="text-[9px] text-zinc-500">Pass: Auto-219564</div>
@@ -238,7 +256,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       setLoginCode('VIP-001');
                       setLoginPass('AutoPass@8912');
                     }}
-                    className="text-left p-1.5 rounded-lg bg-white/90 hover:bg-white border border-amber-200 text-amber-900 font-mono text-[10px] transition shadow-2xs"
+                    className="text-left p-1.5 rounded-lg bg-white/90 hover:bg-white border border-amber-200 text-amber-900 font-mono text-[10px] transition shadow-2xs cursor-pointer"
                   >
                     <strong>VIP-001</strong>
                     <div className="text-[9px] text-zinc-500">Pass: AutoPass@8912</div>
@@ -246,22 +264,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               </div>
 
-              {/* Hàng nút bấm: Nút Cancel và Nút Đăng Nhập */}
+              {/* HÀNG NÚT BẤM: NÚT HỦY/THOÁT VÀ NÚT ĐĂNG NHẬP */}
               <div className="flex items-center gap-2 pt-1">
-                {onClose && (
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="w-1/3 py-2.5 px-3 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl text-xs font-semibold transition active:scale-[0.98]"
-                    title="Đóng cửa sổ và xem chế độ khách"
-                  >
-                    Hủy / Thoát
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="w-1/3 py-2.5 px-3 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl text-xs font-semibold transition active:scale-[0.98] cursor-pointer"
+                  title="Hủy đăng nhập và quay lại"
+                >
+                  Hủy / Thoát
+                </button>
                 <button
                   type="submit"
                   disabled={isLoggingIn}
-                  className={`${onClose ? 'w-2/3' : 'w-full'} py-2.5 bg-[#0071E3] hover:bg-[#0077ED] text-white rounded-xl text-xs font-semibold shadow-xs transition active:scale-[0.98] flex items-center justify-center gap-1.5`}
+                  className="w-2/3 py-2.5 bg-[#0071E3] hover:bg-[#0077ED] text-white rounded-xl text-xs font-semibold shadow-xs transition active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   {isLoggingIn ? (
                     <>
@@ -320,25 +336,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       {/* Force Password Change Modal */}
       {isForcedReset && (
         <div
-          className="fixed inset-0 z-50 bg-black/45 backdrop-blur-md flex items-center justify-center p-4 select-none"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex items-center justify-center p-4 select-none"
           onClick={(e) => {
             if (e.target === e.currentTarget && onCloseChangePass) {
               onCloseChangePass();
             }
           }}
         >
-          <div className="bg-white rounded-2xl border border-black/[0.08] max-w-sm w-full p-6 shadow-2xl space-y-4 relative">
+          <div className="bg-white rounded-3xl border border-black/[0.08] max-w-sm w-full p-6 shadow-2xl space-y-4 relative">
             {/* Nút X Thoát / Đóng */}
-            {onCloseChangePass && (
-              <button
-                type="button"
-                onClick={onCloseChangePass}
-                className="absolute top-4 right-4 p-1.5 rounded-full text-zinc-400 hover:text-zinc-800 hover:bg-black/[0.05] transition"
-                title="Đóng / Hủy đổi mật khẩu"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (onCloseChangePass) onCloseChangePass();
+              }}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 flex items-center justify-center transition shadow-xs cursor-pointer"
+              title="Đóng / Hủy đổi mật khẩu"
+            >
+              <X className="w-4 h-4 stroke-[2.5]" />
+            </button>
 
             <div className="w-10 h-10 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-600 mx-auto">
               <KeyRound className="w-5 h-5" />
@@ -386,18 +402,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div className="flex items-center gap-2 pt-2 border-t border-black/[0.06]">
-                {onCloseChangePass && (
-                  <button
-                    type="button"
-                    onClick={onCloseChangePass}
-                    className="flex-1 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-medium transition apple-btn-tap"
-                  >
-                    Hủy / Để sau
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onCloseChangePass) onCloseChangePass();
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-medium transition apple-btn-tap cursor-pointer"
+                >
+                  Hủy / Để sau
+                </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 bg-[#34C759] hover:bg-[#30D158] text-white font-semibold rounded-xl text-xs transition apple-btn-tap shadow-xs"
+                  className="flex-1 py-2.5 bg-[#34C759] hover:bg-[#30D158] text-white font-semibold rounded-xl text-xs transition apple-btn-tap shadow-xs cursor-pointer"
                 >
                   Kích Hoạt
                 </button>
@@ -410,22 +426,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       {/* Forgot Password Modal */}
       {showForgotModal && (
         <div
-          className="fixed inset-0 z-50 bg-black/45 backdrop-blur-md flex items-center justify-center p-4 select-none"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex items-center justify-center p-4 select-none"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowForgotModal(false);
             }
           }}
         >
-          <div className="bg-white rounded-2xl border border-black/[0.08] max-w-sm w-full p-6 shadow-2xl space-y-4 relative">
+          <div className="bg-white rounded-3xl border border-black/[0.08] max-w-sm w-full p-6 shadow-2xl space-y-4 relative">
             {/* Nút X Đóng */}
             <button
               type="button"
               onClick={() => setShowForgotModal(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-full text-zinc-400 hover:text-zinc-800 hover:bg-black/[0.05] transition"
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 flex items-center justify-center transition shadow-xs cursor-pointer"
               title="Đóng / Hủy"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4 stroke-[2.5]" />
             </button>
 
             <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
@@ -460,13 +476,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowForgotModal(false)}
-                    className="px-3.5 py-2 text-xs font-medium text-zinc-600 hover:text-zinc-900 bg-zinc-100 hover:bg-zinc-200 rounded-xl transition"
+                    className="px-3.5 py-2 text-xs font-medium text-zinc-600 hover:text-zinc-900 bg-zinc-100 hover:bg-zinc-200 rounded-xl transition cursor-pointer"
                   >
                     Hủy / Quay lại
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-[#0071E3] hover:bg-[#0077ED] text-white rounded-xl text-xs font-semibold shadow-xs transition"
+                    className="px-4 py-2 bg-[#0071E3] hover:bg-[#0077ED] text-white rounded-xl text-xs font-semibold shadow-xs transition cursor-pointer"
                   >
                     Tạo & Gửi Gmail
                   </button>
@@ -491,7 +507,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowForgotModal(false)}
-                    className="px-3.5 py-1.5 text-xs text-zinc-600 hover:text-zinc-900"
+                    className="px-3.5 py-1.5 text-xs text-zinc-600 hover:text-zinc-900 cursor-pointer"
                   >
                     Đóng
                   </button>
@@ -502,7 +518,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       setLoginPass(forgotSuccessData.tempPass);
                       setShowForgotModal(false);
                     }}
-                    className="px-4 py-1.5 bg-[#0071E3] text-white rounded-xl text-xs font-medium shadow-xs"
+                    className="px-4 py-1.5 bg-[#0071E3] text-white rounded-xl text-xs font-medium shadow-xs cursor-pointer"
                   >
                     Điền & Đăng Nhập
                   </button>
