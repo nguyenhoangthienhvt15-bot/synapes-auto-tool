@@ -35,3 +35,4 @@ echo      - Publish Directory: dist
 echo   5. Bam "Create Static Site" -> Cho 1-2 phut la co link online!
 echo ========================================================
 pause
+
