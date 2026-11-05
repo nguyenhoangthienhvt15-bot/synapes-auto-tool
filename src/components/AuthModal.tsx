@@ -2,7 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { UserAccount, EngineerSheetRow } from '../types';
 import { Lock, User, KeyRound, Shield, AlertCircle, ArrowRight, CheckCircle2, X, RefreshCw, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import { RegisterModal } from './RegisterModal';
-import { generateUserPassword, generateUserCode, getStoredRegistrations, saveCustomPassword } from '../services/googleSheetService';
+import {
+  generateUserPassword,
+  generateUserCode,
+  getStoredRegistrations,
+  saveCustomPassword,
+  fetchGoogleSheetLive,
+  sendForgotPasswordViaSheet,
+} from '../services/googleSheetService';
 
 interface AuthModalProps {
   currentUser: UserAccount | null;
@@ -133,19 +140,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsSubmittingForgot(true);
 
     try {
-      // 1. Kiểm tra đối soát với hồ sơ đăng ký người dùng
+      // 0. Đồng bộ dữ liệu mới nhất trực tiếp từ cả 2 tab Google Sheet trước khi đối soát
+      const liveRows = await fetchGoogleSheetLive().catch(() => null);
+      const activeSheetRows = liveRows && liveRows.length > 0 ? liveRows : sheetRows;
+
+      const phoneTail = phoneClean.length >= 9 ? phoneClean.slice(-9) : phoneClean;
+
+      // 1. Kiểm tra đối soát với hồ sơ đăng ký người dùng (trên trang "THÔNG TIN NGƯỜI DÙNG")
       const storedRegs = getStoredRegistrations();
       const regMatch = storedRegs.find((r) => {
         const rEmail = (r.email || '').trim().toLowerCase();
         const rPhone = (r.phone || '').trim().replace(/\D/g, '');
-        return rEmail === emailClean && (rPhone === phoneClean || (phoneClean.length >= 9 && rPhone.includes(phoneClean)));
+        const rPhoneTail = rPhone.length >= 9 ? rPhone.slice(-9) : rPhone;
+        return rEmail === emailClean && (rPhone === phoneClean || (phoneTail.length >= 8 && rPhoneTail === phoneTail));
       });
 
-      // 2. Kiểm tra với danh bạ Sheet
-      const sheetMatch = sheetRows.find((r) => {
+      // 2. Kiểm tra với danh bạ Sheet ("Quản Lý Mật Khẩu")
+      const sheetMatch = activeSheetRows.find((r) => {
         const rEmail = (r.registeredGmail || '').trim().toLowerCase();
         const notesPhone = (r.engineerNotes || '').replace(/\D/g, '');
-        return rEmail === emailClean && (notesPhone.includes(phoneClean) || regMatch);
+        return (
+          rEmail === emailClean &&
+          (Boolean(regMatch) ||
+            (phoneTail.length >= 8 && notesPhone.includes(phoneTail)) ||
+            (!notesPhone && phoneClean.length >= 9))
+        );
       });
 
       const matched = regMatch || sheetMatch;
@@ -168,12 +187,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       // 3. Nếu đúng thông tin: Tạo lại mật khẩu mặc định mới dạng SNP_[3 số + 3 chữ]
       const newDefaultPass = generateUserPassword();
-      const matchedCode = regMatch?.assignedCode || (sheetMatch as any)?.code || generateUserCode(regMatch?.dob || '01/01/2000');
+      const matchedCode =
+        regMatch?.assignedCode ||
+        sheetMatch?.code ||
+        generateUserCode(regMatch?.dob || '01/01/2000');
+      const matchedName = regMatch?.fullName || sheetMatch?.clientName || 'Khách hàng SYNAPES';
+
       const now = new Date();
       const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} - ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
 
-      // Cập nhật vào danh sách Sheet
-      const updatedRows = sheetRows.map((item) => {
+      // Cập nhật vào danh sách Sheet cục bộ
+      const baseRows = activeSheetRows.length > 0 ? activeSheetRows : sheetRows;
+      const updatedRows = baseRows.map((item) => {
         if (item.code === matchedCode || item.registeredGmail.toLowerCase() === emailClean) {
           return {
             ...item,
@@ -189,7 +214,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onUpdateSheetRow(updatedRows);
       saveCustomPassword(matchedCode, newDefaultPass);
 
-      // Gửi email chứa mật khẩu mới
+      // 4. Gửi lệnh lên Google Sheet Apps Script để cập nhật mật khẩu trên cả 2 tab Sheet & gửi Gmail thực tế cho khách hàng
+      await sendForgotPasswordViaSheet({
+        email: emailClean,
+        phone: forgotPhone.trim(),
+        code: matchedCode,
+        newPassword: newDefaultPass,
+        fullName: matchedName,
+      });
+
+      // Đồng bộ thông báo UI
       onSendTempPasswordEmail(emailClean, matchedCode, newDefaultPass);
 
       // Xóa số lần nhập sai khi đã thành công

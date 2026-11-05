@@ -8,7 +8,11 @@ import {
 import {
   GOOGLE_SHEET_URL,
   getStoredRegistrations,
-  approveStoredRegistration
+  approveStoredRegistration,
+  getAppsScriptWebhookUrl,
+  setAppsScriptWebhookUrl,
+  callAppsScriptWebhook,
+  flushPendingWebhookQueue,
 } from '../services/googleSheetService';
 import { APPS_SCRIPT_CODE } from '../data/appsScriptCode';
 import { downloadMasterPdfFile, printPersonalizedContractPdf } from '../utils/contractPdfGenerator';
@@ -36,9 +40,22 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
   const [isAddingNewRow, setIsAddingNewRow] = useState(false);
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState(() => getAppsScriptWebhookUrl());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'accounts' | 'registrations'>('accounts');
   const [registrations, setRegistrations] = useState<UserRegistrationData[]>(() => getStoredRegistrations());
+
+  const handleSaveWebhook = async () => {
+    const clean = webhookUrl.trim();
+    if (!clean || !clean.includes('script.google.com')) {
+      showToast('⚠️ Vui lòng nhập URL Web App hợp lệ (https://script.google.com/macros/s/.../exec)');
+      return;
+    }
+    setAppsScriptWebhookUrl(clean);
+    await callAppsScriptWebhook({ action: 'save_webhook_url', webhookUrl: clean });
+    await flushPendingWebhookQueue(clean);
+    showToast('✅ Đã lưu kết nối Webhook 2 chiều với Google Sheet!');
+  };
 
   const [newCode, setNewCode] = useState('');
   const [newClientName, setNewClientName] = useState('');
@@ -679,14 +696,40 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
             </div>
 
             <div className="space-y-3.5 text-xs">
-              <div className="p-3 bg-zinc-50 border border-black/5 rounded-lg space-y-1.5">
-                <div className="font-semibold text-zinc-900">Cách cài đặt:</div>
-                <ol className="list-decimal list-inside space-y-1 text-zinc-600 leading-relaxed">
+              <div className="p-3.5 bg-zinc-50 border border-black/5 rounded-lg space-y-2">
+                <div className="font-semibold text-zinc-900">Cách kích hoạt đồng bộ tự động 2 chiều & gửi Gmail:</div>
+                <ol className="list-decimal list-inside space-y-1.5 text-zinc-600 leading-relaxed">
                   <li>Mở bảng tính Google Sheets: <a href={GOOGLE_SHEET_URL} target="_blank" rel="noopener noreferrer" className="text-zinc-900 font-medium underline">Bấm vào đây để mở Sheet</a>.</li>
                   <li>Trên thanh menu trên cùng, bấm <strong>Tiện ích mở rộng</strong> (Extensions) ➔ <strong>Apps Script</strong>.</li>
-                  <li>Xóa mã cũ trong tệp `Code.gs`, dán đoạn mã bên dưới vào và bấm <strong>💾 Lưu</strong> (Ctrl + S).</li>
-                  <li>Bấm nút <strong>▶ Chạy</strong> (Run) hàm `onOpen` để cấp quyền Google, sau đó quay lại Sheet nhấn <strong>F5</strong> để hiển thị menu.</li>
+                  <li>Xóa toàn bộ mã cũ trong tệp <code>Code.gs</code>, dán đoạn mã bên dưới vào và bấm <strong>💾 Lưu</strong> (Ctrl + S).</li>
+                  <li>Đảm bảo ô hàm bên cạnh nút Chạy đang chọn <strong><code>setupUserRegistrationSheet</code></strong>, bấm <strong>▶ Chạy (Run)</strong> và cấp quyền Google (để bật quyền gửi Gmail tự động khi tích Checkbox Cột I).</li>
+                  <li>Bấm nút <strong>Triển khai (Deploy)</strong> ở góc trên bên phải ➔ <strong>Triển khai mới (New deployment)</strong> ➔ Loại: <strong>Ứng dụng web (Web app)</strong> ➔ Quyền truy cập: <strong>Bất kỳ ai (Anyone)</strong> ➔ Bấm <strong>Triển khai</strong>, rồi dán URL <code>/exec</code> vào ô bên dưới:</li>
                 </ol>
+              </div>
+
+              <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-lg space-y-2">
+                <div className="flex items-center justify-between font-semibold text-emerald-950">
+                  <span>🔗 URL Web App (Google Apps Script Webhook):</span>
+                  <span className="text-[11px] font-mono">
+                    {webhookUrl ? '🟢 Đã kết nối' : '⚪ Chưa gắn URL'}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={webhookUrl}
+                    onChange={(e) => setWebhookUrl(e.target.value)}
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                    className="flex-1 bg-white border border-emerald-300 rounded-lg px-3 py-1.5 text-xs font-mono text-zinc-900 focus:outline-none focus:border-zinc-900"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveWebhook}
+                    className="btn-primary py-1.5 px-3 text-xs font-semibold cursor-pointer"
+                  >
+                    Lưu & Đồng Bộ
+                  </button>
+                </div>
               </div>
 
               <div>
