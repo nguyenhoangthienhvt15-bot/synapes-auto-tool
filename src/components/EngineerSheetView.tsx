@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
-import { EngineerSheetRow } from '../types';
+import { EngineerSheetRow, UserRegistrationData } from '../types';
 import {
   KeyRound, Plus, RefreshCw, Search, ShieldCheck, Mail, CheckCircle2, Clock,
-  FileSpreadsheet, ExternalLink, Code2, Copy, Check, X
+  FileSpreadsheet, ExternalLink, Code2, Copy, Check, X, Users, CheckSquare, Square,
+  Download, FileText, MapPin, Sparkles
 } from 'lucide-react';
-import { GOOGLE_SHEET_URL } from '../services/googleSheetService';
+import {
+  GOOGLE_SHEET_URL,
+  getStoredRegistrations,
+  approveStoredRegistration
+} from '../services/googleSheetService';
+import { APPS_SCRIPT_CODE } from '../data/appsScriptCode';
+import { downloadMasterPdfFile, printPersonalizedContractPdf } from '../utils/contractPdfGenerator';
 
 interface EngineerSheetViewProps {
   sheetRows: EngineerSheetRow[];
@@ -14,81 +21,6 @@ interface EngineerSheetViewProps {
   isSyncingSheet?: boolean;
   lastSyncTime?: string | null;
 }
-
-const APPS_SCRIPT_CODE = `function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu('🚀 SYNAPES Auto Tool')
-    .addItem('🔄 Cập nhật dữ liệu lên WebApp ngay', 'syncToWebApp')
-    .addSeparator()
-    .addItem('🔑 Tạo mật khẩu ngẫu nhiên cho dòng đang chọn', 'generateTempPasswordForSelectedRow')
-    .addItem('📧 Gửi email mật khẩu cho khách qua Gmail', 'sendAccountEmailToClient')
-    .addSeparator()
-    .addItem('🌐 Mở WebApp Studio', 'openWebAppUrl')
-    .addToUi();
-}
-
-function syncToWebApp() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var data = sheet.getDataRange().getValues();
-  var valid = 0;
-  for (var i = 1; i < data.length; i++) {
-    if (data[i][1] && String(data[i][1]).trim() !== '') valid++;
-  }
-  SpreadsheetApp.getUi().alert(
-    '🔄 ĐÃ CẬP NHẬT LÊN WEBAPP THÀNH CÔNG!\\n\\n' +
-    '• Tổng số tài khoản sẵn sàng: ' + valid + '\\n' +
-    '• WebApp kết nối trực tiếp với Sheet theo thời gian thực.\\n' +
-    '• Mọi thay đổi về Mã Code/Mật khẩu có hiệu lực ngay lập tức.\\n\\n' +
-    'Link: https://synapes-auto-tool.onrender.com'
-  );
-}
-
-function generateTempPasswordForSelectedRow() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var row = sheet.getActiveCell().getRow();
-  if (row <= 1) {
-    SpreadsheetApp.getUi().alert('⚠️ Vui lòng chọn dòng khách hàng từ dòng 2.');
-    return;
-  }
-  var newPass = 'Auto-' + Math.floor(100000 + Math.random() * 900000);
-  var time = Utilities.formatDate(new Date(), "GMT+7", "dd/MM/yyyy HH:mm");
-  sheet.getRange(row, 5).setValue(newPass);
-  sheet.getRange(row, 6).setValue(time);
-  sheet.getRange(row, 7).setValue('⚪ Dùng mặc định');
-  SpreadsheetApp.getUi().alert('🔑 Đã tạo mật khẩu mới [' + newPass + '] thành công!');
-}
-
-function sendAccountEmailToClient() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var row = sheet.getActiveCell().getRow();
-  if (row <= 1) return;
-  var code = sheet.getRange(row, 2).getValue();
-  var name = sheet.getRange(row, 3).getValue();
-  var email = sheet.getRange(row, 4).getValue();
-  var pass = sheet.getRange(row, 5).getValue();
-  if (!email || String(email).indexOf('@') === -1) {
-    SpreadsheetApp.getUi().alert('⚠️ Chưa có email hợp lệ ở Cột D!');
-    return;
-  }
-  MailApp.sendEmail(
-    email,
-    'Thông tin tài khoản Studio — SYNAPES Auto Tool (' + code + ')',
-    'Kính gửi ' + name + ',\\n\\n' +
-    'Thông tin đăng nhập Studio của bạn:\\n' +
-    '• WebApp: https://synapes-auto-tool.onrender.com\\n' +
-    '• Mã Code: ' + code + '\\n' +
-    '• Mật khẩu: ' + pass + '\\n\\n' +
-    'Trân trọng,\\nĐội ngũ SYNAPES Auto Tool'
-  );
-  SpreadsheetApp.getUi().alert('📧 Đã gửi email thông tin đăng nhập đến ' + email);
-}
-
-function openWebAppUrl() {
-  var html = HtmlService.createHtmlOutput(
-    '<script>window.open("https://synapes-auto-tool.onrender.com", "_blank");google.script.host.close();</script>'
-  ).setWidth(100).setHeight(50);
-  SpreadsheetApp.getUi().showModalDialog(html, 'Đang mở WebApp...');
-}`;
 
 export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
   sheetRows,
@@ -105,6 +37,8 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'accounts' | 'registrations'>('accounts');
+  const [registrations, setRegistrations] = useState<UserRegistrationData[]>(() => getStoredRegistrations());
 
   const [newCode, setNewCode] = useState('');
   const [newClientName, setNewClientName] = useState('');
@@ -130,6 +64,39 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
       r.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.registeredGmail.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const filteredRegistrations = registrations.filter(
+    (r) =>
+      r.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.phone.includes(searchTerm) ||
+      (r.assignedCode && r.assignedCode.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const handleApproveRegistration = (regId: string) => {
+    const res = approveStoredRegistration(regId);
+    if (res.success && res.code && res.password && res.registration) {
+      setRegistrations(getStoredRegistrations());
+      const reg = res.registration;
+      const existing = sheetRows.find((r) => r.code === res.code);
+      if (!existing) {
+        const now = new Date();
+        const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} - ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+        const newRow: EngineerSheetRow = {
+          code: res.code,
+          clientName: reg.fullName,
+          registeredGmail: reg.email,
+          currentTempPassword: res.password,
+          lastIssuedTime: timeString,
+          accountStatus: 'never_changed',
+          engineerNotes: `Đã duyệt từ hồ sơ (${reg.phone} - ${reg.address})`,
+        };
+        onUpdateSheetRow([newRow, ...sheetRows]);
+      }
+      onSendTempPasswordEmail(reg.email, res.code, res.password);
+      showToast(`Đã duyệt cấp tài khoản [${res.code}] và gửi Gmail đến ${reg.email}!`);
+    }
+  };
 
   const handleResetPassword = (row: EngineerSheetRow) => {
     const generatedPass = newTempPassInput.trim() || `Auto-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -275,13 +242,49 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
           </div>
         </div>
 
+        {/* Sub-Tabs: Tài khoản Studio vs Hồ sơ đăng ký người dùng */}
+        <div className="flex items-center gap-2 border-b border-black/5 pb-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('accounts')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer flex items-center gap-2 ${
+              activeTab === 'accounts'
+                ? 'bg-zinc-900 text-white shadow-sm'
+                : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Tài Khoản Studio ({sheetRows.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setRegistrations(getStoredRegistrations());
+              setActiveTab('registrations');
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer flex items-center gap-2 ${
+              activeTab === 'registrations'
+                ? 'bg-zinc-900 text-white shadow-sm'
+                : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Hồ Sơ Đăng Ký Khách Hàng ({registrations.length})</span>
+            {registrations.filter((r) => !r.isApproved).length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-white">
+                {registrations.filter((r) => !r.isApproved).length} chờ duyệt
+              </span>
+            )}
+          </button>
+        </div>
+
         {/* Search & Stats Bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
           <div className="relative w-full sm:w-72">
             <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-zinc-400" />
             <input
               type="text"
-              placeholder="Tìm theo Mã, Tên hoặc Gmail..."
+              placeholder={activeTab === 'accounts' ? 'Tìm theo Mã, Tên hoặc Gmail...' : 'Tìm tên, Gmail, SĐT, Mã...'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-zinc-50 border border-black/10 rounded-lg pl-8 pr-3 py-1.5 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:bg-white focus:border-zinc-900 transition"
@@ -289,85 +292,189 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
           </div>
 
           <div className="flex items-center gap-3 text-xs text-zinc-500 font-mono">
-            <span>Tổng: <strong className="text-zinc-900">{sheetRows.length}</strong></span>
-            <span>•</span>
-            <span>Đã đổi pass riêng: <strong className="text-zinc-900">{sheetRows.filter((r) => r.accountStatus === 'custom_password_active').length}</strong></span>
-            <span>•</span>
-            <span>Dùng pass tạm: <strong className="text-zinc-900">{sheetRows.filter((r) => r.accountStatus !== 'custom_password_active').length}</strong></span>
+            {activeTab === 'accounts' ? (
+              <>
+                <span>Tổng: <strong className="text-zinc-900">{sheetRows.length}</strong></span>
+                <span>•</span>
+                <span>Đã đổi pass riêng: <strong className="text-zinc-900">{sheetRows.filter((r) => r.accountStatus === 'custom_password_active').length}</strong></span>
+                <span>•</span>
+                <span>Dùng pass tạm: <strong className="text-zinc-900">{sheetRows.filter((r) => r.accountStatus !== 'custom_password_active').length}</strong></span>
+              </>
+            ) : (
+              <>
+                <span>Hồ sơ đăng ký: <strong className="text-zinc-900">{registrations.length}</strong></span>
+                <span>•</span>
+                <span>Chờ duyệt: <strong className="text-amber-600">{registrations.filter((r) => !r.isApproved).length}</strong></span>
+                <span>•</span>
+                <span>Đã cấp mã: <strong className="text-emerald-600">{registrations.filter((r) => r.isApproved).length}</strong></span>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto rounded-lg border border-black/10">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-zinc-50/80 text-zinc-500 border-b border-black/5 font-mono text-[11px] uppercase tracking-wider">
-                <th className="py-2.5 px-3.5 font-medium">Mã Code</th>
-                <th className="py-2.5 px-3.5 font-medium">Khách Hàng</th>
-                <th className="py-2.5 px-3.5 font-medium">Gmail Đăng Ký</th>
-                <th className="py-2.5 px-3.5 font-medium">Mật Khẩu Tạm</th>
-                <th className="py-2.5 px-3.5 font-medium">Thời Gian Cấp</th>
-                <th className="py-2.5 px-3.5 font-medium">Trạng Thái</th>
-                <th className="py-2.5 px-3.5 font-medium">Ghi Chú</th>
-                <th className="py-2.5 px-3.5 font-medium text-center">Thao Tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-black/5">
-              {filteredRows.map((row) => (
-                <tr key={row.code} className="hover:bg-zinc-50/60 transition">
-                  <td className="py-2.5 px-3.5 font-mono font-medium text-zinc-900">
-                    {row.code}
-                  </td>
-                  <td className="py-2.5 px-3.5 text-zinc-900 font-medium">
-                    {row.clientName}
-                  </td>
-                  <td className="py-2.5 px-3.5 text-zinc-500 font-mono text-[11px]">
-                    {row.registeredGmail}
-                  </td>
-                  <td className="py-2.5 px-3.5 font-mono text-zinc-800 font-medium">
-                    {row.currentTempPassword}
-                  </td>
-                  <td className="py-2.5 px-3.5 text-zinc-500 font-mono text-[11px]">
-                    {row.lastIssuedTime}
-                  </td>
-                  <td className="py-2.5 px-3.5">
-                    {row.accountStatus === 'custom_password_active' ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-zinc-100 text-zinc-800 border border-zinc-200">
-                        <CheckCircle2 className="w-2.5 h-2.5 text-zinc-700" />
-                        <span>ĐÃ ĐỔI PASS</span>
-                      </span>
-                    ) : row.accountStatus === 'temp_password_active' ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-zinc-100 text-zinc-800 border border-zinc-200">
-                        <Clock className="w-2.5 h-2.5 text-zinc-700" />
-                        <span>VỪA CẤP LẠI</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-zinc-50 text-zinc-500 border border-zinc-200">
-                        <span>MẶC ĐỊNH</span>
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-3.5 text-zinc-500 text-[11px] max-w-xs truncate" title={row.engineerNotes}>
-                    {row.engineerNotes}
-                  </td>
-                  <td className="py-2.5 px-3.5 text-center">
-                    <button
-                      onClick={() => {
-                        setSelectedRow(row);
-                        setNewTempPassInput(`Auto-${Math.floor(100000 + Math.random() * 900000)}`);
-                      }}
-                      className="btn-secondary py-1 px-2 text-[11px] inline-flex items-center gap-1 mx-auto"
-                      title="Cấp mật khẩu tạm thời mới"
-                    >
-                      <KeyRound className="w-3 h-3 text-zinc-600" />
-                      <span>Cấp lại Pass</span>
-                    </button>
-                  </td>
+        {/* Table Accounts */}
+        {activeTab === 'accounts' ? (
+          <div className="overflow-x-auto rounded-lg border border-black/10">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-zinc-50/80 text-zinc-500 border-b border-black/5 font-mono text-[11px] uppercase tracking-wider">
+                  <th className="py-2.5 px-3.5 font-medium">Mã Code</th>
+                  <th className="py-2.5 px-3.5 font-medium">Khách Hàng</th>
+                  <th className="py-2.5 px-3.5 font-medium">Gmail Đăng Ký</th>
+                  <th className="py-2.5 px-3.5 font-medium">Mật Khẩu Tạm</th>
+                  <th className="py-2.5 px-3.5 font-medium">Thời Gian Cấp</th>
+                  <th className="py-2.5 px-3.5 font-medium">Trạng Thái</th>
+                  <th className="py-2.5 px-3.5 font-medium">Ghi Chú</th>
+                  <th className="py-2.5 px-3.5 font-medium text-center">Thao Tác</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-black/5">
+                {filteredRows.map((row) => (
+                  <tr key={row.code} className="hover:bg-zinc-50/60 transition">
+                    <td className="py-2.5 px-3.5 font-mono font-medium text-zinc-900">
+                      {row.code}
+                    </td>
+                    <td className="py-2.5 px-3.5 text-zinc-900 font-medium">
+                      {row.clientName}
+                    </td>
+                    <td className="py-2.5 px-3.5 text-zinc-500 font-mono text-[11px]">
+                      {row.registeredGmail}
+                    </td>
+                    <td className="py-2.5 px-3.5 font-mono text-zinc-800 font-medium">
+                      {row.currentTempPassword}
+                    </td>
+                    <td className="py-2.5 px-3.5 text-zinc-500 font-mono text-[11px]">
+                      {row.lastIssuedTime}
+                    </td>
+                    <td className="py-2.5 px-3.5">
+                      {row.accountStatus === 'custom_password_active' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-zinc-100 text-zinc-800 border border-zinc-200">
+                          <CheckCircle2 className="w-2.5 h-2.5 text-zinc-700" />
+                          <span>ĐÃ ĐỔI PASS</span>
+                        </span>
+                      ) : row.accountStatus === 'temp_password_active' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-zinc-100 text-zinc-800 border border-zinc-200">
+                          <Clock className="w-2.5 h-2.5 text-zinc-700" />
+                          <span>VỪA CẤP LẠI</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-zinc-50 text-zinc-500 border border-zinc-200">
+                          <span>MẶC ĐỊNH</span>
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3.5 text-zinc-500 text-[11px] max-w-xs truncate" title={row.engineerNotes}>
+                      {row.engineerNotes}
+                    </td>
+                    <td className="py-2.5 px-3.5 text-center">
+                      <button
+                        onClick={() => {
+                          setSelectedRow(row);
+                          setNewTempPassInput(`Auto-${Math.floor(100000 + Math.random() * 900000)}`);
+                        }}
+                        className="btn-secondary py-1 px-2 text-[11px] inline-flex items-center gap-1 mx-auto cursor-pointer"
+                        title="Cấp mật khẩu tạm thời mới"
+                      >
+                        <KeyRound className="w-3 h-3 text-zinc-600" />
+                        <span>Cấp lại Pass</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* Table Registrations ("Thông tin người dùng") */
+          <div className="overflow-x-auto rounded-lg border border-black/10">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-zinc-50/80 text-zinc-500 border-b border-black/5 font-mono text-[11px] uppercase tracking-wider">
+                  <th className="py-2.5 px-3 font-medium">Thời Gian Đăng Ký</th>
+                  <th className="py-2.5 px-3 font-medium">Họ Và Tên</th>
+                  <th className="py-2.5 px-3 font-medium">Ngày Sinh / Giới Tính</th>
+                  <th className="py-2.5 px-3 font-medium">Gmail & Điện Thoại</th>
+                  <th className="py-2.5 px-3 font-medium">Địa Chỉ Hiện Tại</th>
+                  <th className="py-2.5 px-3 font-medium text-center">Duyệt Cấp TK (Cột I)</th>
+                  <th className="py-2.5 px-3 font-medium">Mã Code / Mật Khẩu</th>
+                  <th className="py-2.5 px-3 font-medium text-center">Hợp Đồng PDF</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black/5">
+                {filteredRegistrations.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-zinc-400">
+                      Chưa có hồ sơ đăng ký nào. Người dùng có thể bấm "Bạn chưa có tài khoản? Đăng kí ngay" ở màn hình Đăng nhập.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRegistrations.map((reg) => (
+                    <tr key={reg.id} className="hover:bg-zinc-50/60 transition">
+                      <td className="py-2.5 px-3 font-mono text-[11px] text-zinc-500 whitespace-nowrap">
+                        {reg.registeredAt}
+                      </td>
+                      <td className="py-2.5 px-3 font-semibold text-zinc-950">
+                        {reg.fullName}
+                      </td>
+                      <td className="py-2.5 px-3 text-zinc-700 whitespace-nowrap">
+                        <span>{reg.dob}</span>
+                        {reg.gender && <span className="ml-1 text-zinc-400">({reg.gender})</span>}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-[11px]">
+                        <div className="text-zinc-900 font-medium">{reg.email}</div>
+                        <div className="text-zinc-500">{reg.phone}</div>
+                      </td>
+                      <td className="py-2.5 px-3 text-zinc-600 text-[11px] max-w-xs truncate" title={reg.address}>
+                        {reg.address}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        {reg.isApproved ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckSquare className="w-3 h-3 text-emerald-600" />
+                            <span>ĐÃ DUYỆT</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleApproveRegistration(reg.id || '')}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-800 transition shadow-xs cursor-pointer"
+                            title="Tích duyệt hồ sơ này: Tự động sinh Code, Pass và gửi Gmail"
+                          >
+                            <Square className="w-3.5 h-3.5 text-zinc-300" />
+                            <span>Tích Duyệt</span>
+                          </button>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-[11px]">
+                        {reg.assignedCode ? (
+                          <div>
+                            <div className="font-bold text-zinc-950">{reg.assignedCode}</div>
+                            {reg.assignedPassword && (
+                              <div className="text-red-600 font-medium">{reg.assignedPassword}</div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-zinc-400 italic">Chờ Kỹ sư duyệt</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => printPersonalizedContractPdf(reg)}
+                          className="btn-secondary py-1 px-2 text-[11px] inline-flex items-center gap-1 mx-auto cursor-pointer"
+                          title="Xem & in bản hợp đồng điện tử có dấu Trưởng ban"
+                        >
+                          <FileText className="w-3 h-3 text-zinc-600" />
+                          <span>Hợp Đồng</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* POPUP CẤP LẠI MẬT KHẨU TẠM */}

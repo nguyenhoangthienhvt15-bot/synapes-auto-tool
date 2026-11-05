@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserAccount, EngineerSheetRow } from '../types';
 import { Lock, User, KeyRound, Shield, AlertCircle, ArrowRight, CheckCircle2, X, RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { RegisterModal } from './RegisterModal';
 
 interface AuthModalProps {
   currentUser: UserAccount | null;
@@ -30,6 +31,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [showLoginPass, setShowLoginPass] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
 
   // Forced password change (lần đầu login với pass mặc định)
   const [newPassword, setNewPassword] = useState('');
@@ -135,7 +137,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   return (
     <>
       {/* Login Modal */}
-      {(!currentUser || !currentUser.isLoggedIn) && (
+      {(!currentUser || !currentUser.isLoggedIn) && !showRegisterModal && (
         <div
           className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 select-none animate-in fade-in duration-150"
           onClick={(e) => {
@@ -251,6 +253,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       <ArrowRight className="w-3.5 h-3.5" />
                     </>
                   )}
+                </button>
+              </div>
+
+              {/* Tùy chọn Bạn chưa có tài khoản? Đăng kí ngay */}
+              <div className="pt-3 text-center border-t border-black/[0.06]">
+                <span className="text-zinc-500 text-xs">Bạn chưa có tài khoản? </span>
+                <button
+                  type="button"
+                  onClick={() => setShowRegisterModal(true)}
+                  className="text-zinc-950 font-semibold text-xs hover:underline cursor-pointer transition"
+                >
+                  Đăng kí ngay
                 </button>
               </div>
             </form>
@@ -473,6 +487,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
         </div>
       )}
+
+      {/* Registration Modal */}
+      <RegisterModal
+        isOpen={showRegisterModal}
+        onClose={() => setShowRegisterModal(false)}
+        onSwitchToLogin={() => setShowRegisterModal(false)}
+      />
     </>
   );
 };
