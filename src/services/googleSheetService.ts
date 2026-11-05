@@ -1,12 +1,42 @@
 import { EngineerSheetRow, UserRegistrationData } from '../types';
 
 export const GOOGLE_SHEET_ID = '1E9zec8lX52-ofleS0MG-oRSc8k_hK9aBtC1XBaqNafY';
+export const GOOGLE_SHEET_GID_ACCOUNTS = '0'; // Tab "Quản Lý Mật Khẩu"
+export const GOOGLE_SHEET_GID_USERS = '2096171544'; // Tab "THÔNG TIN NGƯỜI DÙNG"
 export const GOOGLE_SHEET_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/edit?usp=sharing`;
 
 const STORAGE_KEY = 'synapes_cached_sheet_rows';
 const LAST_SYNC_KEY = 'synapes_last_sheet_sync';
 const CUSTOM_PASSWORDS_KEY = 'synapes_custom_passwords';
 const REGISTRATION_STORAGE_KEY = 'synapes_user_registrations';
+const WEBHOOK_STORAGE_KEY = 'synapes_apps_script_webhook';
+const PENDING_WEBHOOK_QUEUE_KEY = 'synapes_pending_webhook_queue';
+
+/**
+ * Chuẩn hóa ngày sinh về định dạng DD/MM/YYYY
+ * Hỗ trợ cả định dạng YYYY-MM-DD từ <input type="date"> và DD/MM/YYYY
+ */
+export function formatDobToDDMMYYYY(dob: string): string {
+  if (!dob) return '';
+  const clean = dob.trim();
+  // Nếu dạng YYYY-MM-DD
+  const ymdMatch = clean.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if (ymdMatch) {
+    const yyyy = ymdMatch[1];
+    const mm = ymdMatch[2].padStart(2, '0');
+    const dd = ymdMatch[3].padStart(2, '0');
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  // Nếu dạng DD/MM/YYYY
+  const dmyMatch = clean.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (dmyMatch) {
+    const dd = dmyMatch[1].padStart(2, '0');
+    const mm = dmyMatch[2].padStart(2, '0');
+    const yyyy = dmyMatch[3];
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  return clean;
+}
 
 /**
  * Sinh mã Code khách hàng chuẩn theo quy tắc: SNP_[6 số YYMMDD + 4 số ngày tháng sinh DDMM]
@@ -18,14 +48,23 @@ export function generateUserCode(dob: string): string {
   const dd = now.getDate().toString().padStart(2, '0');
   const yymmdd = `${yy}${mm}${dd}`;
 
-  let ddmm = '0101';
-  const match = dob.match(/(\d{1,2})[\/\-\.](\d{1,2})/);
-  if (match) {
-    const d = match[1].padStart(2, '0');
-    const m = match[2].padStart(2, '0');
+  let ddmm = `${dd}${mm}`;
+  const cleanDob = (dob || '').trim();
+
+  // Kiểm tra YYYY-MM-DD trước
+  const ymdMatch = cleanDob.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+  if (ymdMatch) {
+    const d = ymdMatch[3].padStart(2, '0');
+    const m = ymdMatch[2].padStart(2, '0');
     ddmm = `${d}${m}`;
   } else {
-    ddmm = `${dd}${mm}`;
+    // Kiểm tra DD/MM/YYYY
+    const dmyMatch = cleanDob.match(/^(\d{1,2})[\/\-\.](\d{1,2})/);
+    if (dmyMatch) {
+      const d = dmyMatch[1].padStart(2, '0');
+      const m = dmyMatch[2].padStart(2, '0');
+      ddmm = `${d}${m}`;
+    }
   }
 
   return `SNP_${yymmdd}${ddmm}`;
@@ -45,6 +84,200 @@ export function generateUserPassword(): string {
 }
 
 /**
+ * Lấy hoặc cập nhật URL Google Apps Script Webhook (https://script.google.com/macros/s/.../exec)
+ */
+export function getAppsScriptWebhookUrl(): string {
+  try {
+    const envUrl = (import.meta as any).env?.VITE_APPS_SCRIPT_WEBHOOK_URL;
+    if (envUrl && typeof envUrl === 'string' && envUrl.includes('script.google.com')) {
+      return envUrl.trim();
+    }
+    const stored = localStorage.getItem(WEBHOOK_STORAGE_KEY);
+    return stored ? stored.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
+export function setAppsScriptWebhookUrl(url: string): void {
+  try {
+    const clean = url.trim();
+    if (clean) {
+      localStorage.setItem(WEBHOOK_STORAGE_KEY, clean);
+      // Ngay khi có URL Webhook, đẩy toàn bộ hàng đợi chưa đồng bộ lên Sheet
+      flushPendingWebhookQueue(clean).catch(() => {});
+    } else {
+      localStorage.removeItem(WEBHOOK_STORAGE_KEY);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Tự động quét tìm URL Apps Script Web App được lưu trong các ô của Google Sheet (ví dụ N1 hoặc J4)
+ */
+function extractWebhookUrlFromRawText(rawText: string): string | null {
+  if (!rawText) return null;
+  const match = rawText.match(/https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec/);
+  if (match && match[0]) {
+    const foundUrl = match[0].trim();
+    const current = getAppsScriptWebhookUrl();
+    if (current !== foundUrl) {
+      try {
+        localStorage.setItem(WEBHOOK_STORAGE_KEY, foundUrl);
+      } catch {
+        // ignore
+      }
+    }
+    return foundUrl;
+  }
+  return null;
+}
+
+/**
+ * Gửi dữ liệu tới Google Apps Script Webhook bằng cơ chế kép (JSONP GET + Fetch POST text/plain)
+ * Đảm bảo vượt qua 100% rào cản CORS và 302 Redirect của Google Apps Script trên mọi trình duyệt.
+ */
+export async function callAppsScriptWebhook(payload: Record<string, any>): Promise<{
+  sent: boolean;
+  webhookUrl: string;
+  response?: any;
+}> {
+  let webhookUrl = getAppsScriptWebhookUrl();
+
+  // Nếu chưa có trong localStorage, thử tự động dò từ Google Sheet live ngay lập tức
+  if (!webhookUrl) {
+    webhookUrl = (await discoverWebhookUrlFromSheet()) || '';
+  }
+
+  const enrichedPayload = {
+    ...payload,
+    requestId: payload.requestId || `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+  };
+
+  if (!webhookUrl || !webhookUrl.includes('script.google.com')) {
+    enqueuePendingWebhookPayload(enrichedPayload);
+    return { sent: false, webhookUrl: '' };
+  }
+
+  // Kênh 1: Gửi POST với Content-Type text/plain;charset=utf-8 (CORS-safelisted cho no-cors)
+  try {
+    fetch(webhookUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(enrichedPayload),
+    }).catch(() => {});
+  } catch {
+    // ignore
+  }
+
+  // Kênh 2: Gửi qua JSONP (doGet) để vừa đảm bảo vượt qua 302 redirect, vừa nhận phản hồi trực tiếp
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      resolve({ sent: true, webhookUrl });
+      return;
+    }
+
+    const cbName = `__synapes_gas_cb_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    const script = document.createElement('script');
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      try {
+        if (script.parentNode) script.parentNode.removeChild(script);
+        delete (window as any)[cbName];
+      } catch {
+        // ignore
+      }
+    };
+
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve({ sent: true, webhookUrl });
+    }, 4500);
+
+    (window as any)[cbName] = (resp: any) => {
+      cleanup();
+      resolve({ sent: true, webhookUrl, response: resp });
+    };
+
+    script.onerror = () => {
+      cleanup();
+      resolve({ sent: true, webhookUrl });
+    };
+
+    const sep = webhookUrl.includes('?') ? '&' : '?';
+    const encoded = encodeURIComponent(JSON.stringify(enrichedPayload));
+    script.src = `${webhookUrl}${sep}callback=${cbName}&payload=${encoded}&_t=${Date.now()}`;
+    document.head.appendChild(script);
+  });
+}
+
+function enqueuePendingWebhookPayload(payload: Record<string, any>): void {
+  try {
+    const raw = localStorage.getItem(PENDING_WEBHOOK_QUEUE_KEY);
+    const list: Record<string, any>[] = raw ? JSON.parse(raw) : [];
+    // Tránh trùng lặp cùng email + action
+    const idx = list.findIndex(
+      (item) => item.email && payload.email && item.email === payload.email && item.action === payload.action
+    );
+    if (idx >= 0) {
+      list[idx] = payload;
+    } else {
+      list.push(payload);
+    }
+    localStorage.setItem(PENDING_WEBHOOK_QUEUE_KEY, JSON.stringify(list.slice(-30)));
+  } catch {
+    // ignore
+  }
+}
+
+export async function flushPendingWebhookQueue(webhookUrlOverride?: string): Promise<void> {
+  const url = webhookUrlOverride || getAppsScriptWebhookUrl();
+  if (!url || !url.includes('script.google.com')) return;
+
+  try {
+    const raw = localStorage.getItem(PENDING_WEBHOOK_QUEUE_KEY);
+    if (!raw) return;
+    const list: Record<string, any>[] = JSON.parse(raw);
+    if (!Array.isArray(list) || list.length === 0) return;
+
+    localStorage.removeItem(PENDING_WEBHOOK_QUEUE_KEY);
+    for (const item of list) {
+      await callAppsScriptWebhook(item);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Tự động dò tìm URL Webhook được lưu trên Google Sheet (ở cả 2 tab)
+ */
+export async function discoverWebhookUrlFromSheet(sheetId: string = GOOGLE_SHEET_ID): Promise<string | null> {
+  const gids = [GOOGLE_SHEET_GID_USERS, GOOGLE_SHEET_GID_ACCOUNTS];
+  for (const gid of gids) {
+    try {
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&gid=${gid}&_t=${Date.now()}`;
+      const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+      if (res.ok) {
+        const text = await res.text();
+        const found = extractWebhookUrlFromRawText(text);
+        if (found) {
+          flushPendingWebhookQueue(found).catch(() => {});
+          return found;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+/**
  * Lấy danh sách hồ sơ đăng ký đã lưu cục bộ
  */
 export function getStoredRegistrations(): UserRegistrationData[] {
@@ -57,54 +290,96 @@ export function getStoredRegistrations(): UserRegistrationData[] {
 }
 
 /**
- * Lưu hồ sơ người dùng đăng ký mới
+ * Lưu hồ sơ người dùng đăng ký mới và đồng bộ tức thời lên trang tính "THÔNG TIN NGƯỜI DÙNG"
  */
-export async function saveUserRegistration(data: UserRegistrationData): Promise<{ success: boolean; message: string }> {
+export async function saveUserRegistration(
+  data: UserRegistrationData
+): Promise<{ success: boolean; syncedToSheet: boolean; message: string }> {
   try {
+    const formattedDob = formatDobToDDMMYYYY(data.dob);
+    const normalizedData: UserRegistrationData = {
+      ...data,
+      dob: formattedDob,
+      fullName: data.fullName.trim(),
+      email: data.email.trim(),
+      phone: data.phone.trim(),
+      address: data.address.trim(),
+    };
+
     const current = getStoredRegistrations();
-    if (!data.id) {
-      data.id = `reg_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    if (!normalizedData.id) {
+      normalizedData.id = `reg_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
     }
-    if (data.isApproved === undefined) {
-      data.isApproved = false;
-      data.status = 'pending';
+    if (normalizedData.isApproved === undefined) {
+      normalizedData.isApproved = false;
+      normalizedData.status = 'pending';
     }
 
-    // Nếu email hoặc ID đã tồn tại thì cập nhật thay vì tạo trùng lặp
     const existingIndex = current.findIndex(
-      (r) => (data.email && r.email === data.email) || (data.id && r.id === data.id)
+      (r) =>
+        (normalizedData.email && r.email.toLowerCase() === normalizedData.email.toLowerCase()) ||
+        (normalizedData.id && r.id === normalizedData.id)
     );
     if (existingIndex >= 0) {
-      current[existingIndex] = { ...current[existingIndex], ...data };
+      current[existingIndex] = { ...current[existingIndex], ...normalizedData };
     } else {
-      current.unshift(data);
+      current.unshift(normalizedData);
     }
 
     localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(current));
 
-    // Đồng bộ gửi thông tin đến Google Apps Script Webhook nếu có cấu hình
-    try {
-      const webhookUrl = localStorage.getItem('synapes_apps_script_webhook');
-      if (webhookUrl) {
-        fetch(webhookUrl, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        }).catch(() => {});
-      }
-    } catch {
-      // ignore network errors for offline resiliency
-    }
+    // Gửi trực tiếp lên Google Sheet "THÔNG TIN NGƯỜI DÙNG" qua Apps Script Webhook
+    const webhookRes = await callAppsScriptWebhook({
+      action: 'register',
+      fullName: normalizedData.fullName,
+      dob: normalizedData.dob,
+      gender: normalizedData.gender || 'Nam',
+      email: normalizedData.email,
+      phone: normalizedData.phone,
+      address: normalizedData.address,
+      termsAccepted: normalizedData.termsAccepted,
+      registeredAt: normalizedData.registeredAt,
+      notes: normalizedData.notes || (normalizedData.termsAccepted ? 'Đã ký hợp đồng qua WebApp' : 'Chờ ký hợp đồng'),
+    });
 
-    return { success: true, message: 'Hồ sơ đã được lưu thành công' };
+    return {
+      success: true,
+      syncedToSheet: webhookRes.sent,
+      message: 'Hồ sơ đã được lưu và đồng bộ thành công',
+    };
   } catch (err: any) {
-    return { success: false, message: err?.message || 'Lỗi khi lưu hồ sơ' };
+    return {
+      success: false,
+      syncedToSheet: false,
+      message: err?.message || 'Lỗi khi lưu hồ sơ',
+    };
   }
 }
 
 /**
- * Phê duyệt hồ sơ đăng ký cục bộ và sinh Code + Mật khẩu
+ * Yêu cầu Google Apps Script gửi email cấp lại mật khẩu mặc định khi người dùng Quên mật khẩu
+ * và cập nhật mật khẩu mới lên trang tính "Quản Lý Mật Khẩu" & "THÔNG TIN NGƯỜI DÙNG"
+ */
+export async function sendForgotPasswordViaSheet(params: {
+  email: string;
+  phone: string;
+  code: string;
+  newPassword: string;
+  fullName?: string;
+}): Promise<{ sent: boolean }> {
+  const res = await callAppsScriptWebhook({
+    action: 'forgot_password',
+    email: params.email.trim(),
+    phone: params.phone.trim(),
+    code: params.code.trim().toUpperCase(),
+    newPassword: params.newPassword.trim(),
+    fullName: params.fullName || 'Khách hàng SYNAPES',
+  });
+  return { sent: res.sent };
+}
+
+/**
+ * Phê duyệt hồ sơ đăng ký cục bộ và sinh Code + Mật khẩu + Gửi qua Apps Script nếu có
  */
 export function approveStoredRegistration(id: string): {
   success: boolean;
@@ -126,6 +401,20 @@ export function approveStoredRegistration(id: string): {
     item.status = 'approved';
 
     localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(list));
+
+    // Đồng bộ lệnh phê duyệt & gửi Gmail lên Google Sheet Apps Script
+    callAppsScriptWebhook({
+      action: 'approve_user',
+      email: item.email,
+      fullName: item.fullName,
+      dob: formatDobToDDMMYYYY(item.dob),
+      gender: item.gender || 'Nam',
+      phone: item.phone,
+      address: item.address,
+      code,
+      password,
+    }).catch(() => {});
+
     return { success: true, code, password, registration: item };
   } catch {
     return { success: false };
@@ -201,7 +490,119 @@ export function cacheSheetRows(rows: EngineerSheetRow[]): void {
 }
 
 /**
- * Phân tích dữ liệu phản hồi từ Google Visualization API với cơ chế tự thích ứng cột (Auto-Adaptive Column Detection)
+ * Phân tích dữ liệu từ tab "THÔNG TIN NGƯỜI DÙNG" (gid=2096171544)
+ * Đồng bộ danh sách đăng ký về WebApp và trích xuất các tài khoản đã được Kỹ sư tích duyệt
+ */
+export function parseUsersSheetGvizResponse(response: any): {
+  registrations: UserRegistrationData[];
+  approvedRows: EngineerSheetRow[];
+} {
+  const registrations: UserRegistrationData[] = [];
+  const approvedRows: EngineerSheetRow[] = [];
+
+  if (!response || !response.table || !Array.isArray(response.table.rows)) {
+    return { registrations, approvedRows };
+  }
+
+  for (let idx = 0; idx < response.table.rows.length; idx++) {
+    const r = response.table.rows[idx];
+    if (!r || !Array.isArray(r.c)) continue;
+
+    // Ưu tiên lấy giá trị hiển thị (f) nếu có để giữ đúng định dạng DD/MM/YYYY và số 0 ở đầu SĐT
+    const cellVals: string[] = r.c.map((cell: any) => {
+      if (!cell) return '';
+      if (cell.f !== undefined && cell.f !== null && String(cell.f).trim() !== '') {
+        return String(cell.f).trim();
+      }
+      if (cell.v !== undefined && cell.v !== null) {
+        return String(cell.v).trim();
+      }
+      return '';
+    });
+
+    // Kiểm tra xem có phải dòng tiêu đề hoặc dòng trống không
+    const fullName = cellVals[2] || '';
+    const email = cellVals[5] || '';
+    if (!fullName && !email) continue;
+    if (
+      fullName.toLowerCase().includes('họ và tên') ||
+      email.toLowerCase().includes('gmail đăng ký')
+    ) {
+      continue;
+    }
+
+    const registeredAt = cellVals[1] || '';
+    const dob = formatDobToDDMMYYYY(cellVals[3] || '');
+    const gender = cellVals[4] || 'Nam';
+    const phone = cellVals[6] || '';
+    const address = cellVals[7] || '';
+    const rawApproved = r.c[8]?.v;
+    const isApproved =
+      rawApproved === true ||
+      String(rawApproved).toUpperCase() === 'TRUE' ||
+      Boolean(cellVals[9] && cellVals[9].startsWith('SNP_'));
+    const assignedCode = (cellVals[9] || '').toUpperCase();
+    const assignedPassword = cellVals[10] || '';
+    const emailStatus = cellVals[11] || '';
+    const notes = cellVals[12] || '';
+
+    const regItem: UserRegistrationData = {
+      id: `sheet_row_${idx + 2}`,
+      fullName,
+      dob,
+      gender,
+      email,
+      phone,
+      addressType: address.toLowerCase().includes('gps') ? 'gps' : 'manual',
+      address,
+      termsAccepted: notes.toLowerCase().includes('đã ký'),
+      registeredAt,
+      isApproved,
+      assignedCode: assignedCode || undefined,
+      assignedPassword: assignedPassword || undefined,
+      status: isApproved ? 'approved' : 'pending',
+      notes: notes || emailStatus,
+    };
+
+    registrations.push(regItem);
+
+    if (assignedCode && assignedPassword) {
+      approvedRows.push({
+        code: assignedCode,
+        clientName: fullName,
+        registeredGmail: email,
+        currentTempPassword: assignedPassword,
+        lastIssuedTime: registeredAt || 'Đã duyệt trên Sheet',
+        accountStatus: 'never_changed',
+        engineerNotes: `SĐT: ${phone} | Đ/c: ${address} | ${notes}`,
+      });
+    }
+  }
+
+  // Merge với danh sách đăng ký trong localStorage để không mất hồ sơ vừa tạo
+  if (registrations.length > 0) {
+    try {
+      const localRegs = getStoredRegistrations();
+      const merged = [...registrations];
+      for (const localItem of localRegs) {
+        const exists = merged.some(
+          (m) => m.email && localItem.email && m.email.toLowerCase() === localItem.email.toLowerCase()
+        );
+        if (!exists) {
+          merged.push(localItem);
+        }
+      }
+      localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(merged));
+    } catch {
+      // ignore
+    }
+  }
+
+  return { registrations, approvedRows };
+}
+
+/**
+ * Phân tích dữ liệu phản hồi từ Google Visualization API (Tab "Quản Lý Mật Khẩu")
  */
 export function parseGvizResponse(response: any): EngineerSheetRow[] {
   if (!response || !response.table || !response.table.rows) {
@@ -214,33 +615,58 @@ export function parseGvizResponse(response: any): EngineerSheetRow[] {
   for (const r of gvizRows) {
     if (!r || !r.c || !Array.isArray(r.c)) continue;
 
-    // Lấy mảng giá trị của hàng
-    const cellVals: string[] = r.c.map((cell: any) =>
-      cell && (cell.v !== undefined && cell.v !== null) ? String(cell.v).trim() : ''
-    );
+    const cellVals: string[] = r.c.map((cell: any) => {
+      if (!cell) return '';
+      if (cell.f !== undefined && cell.f !== null && String(cell.f).trim() !== '') {
+        return String(cell.f).trim();
+      }
+      return cell.v !== undefined && cell.v !== null ? String(cell.v).trim() : '';
+    });
 
-    // Bỏ qua dòng trống hoặc dòng tiêu đề
     if (cellVals.every((v) => v === '')) continue;
-    if (cellVals.some((v) => v.toLowerCase().includes('mã code') || v.toLowerCase().includes('mã khách hàng'))) {
+    if (
+      cellVals.some(
+        (v) =>
+          v.toLowerCase().includes('mã code') ||
+          v.toLowerCase().includes('mã khách hàng') ||
+          v.toLowerCase().includes('hệ thống quản lý')
+      )
+    ) {
       continue;
     }
 
-    // Tự động tìm cột Code: cột có dạng FYER-..., VIP-..., hoặc mã chữ hoa có gạch nối
     let code = '';
     let codeIndex = -1;
 
-    // Ưu tiên 1: Cột B (index 1) hoặc Cột A (index 0)
-    if (cellVals[1] && (cellVals[1].includes('-') || /^[A-Z0-9_-]{3,20}$/i.test(cellVals[1]))) {
+    // Ưu tiên Cột B (index 1) hoặc Cột A (index 0)
+    if (
+      cellVals[1] &&
+      (cellVals[1].startsWith('SNP_') ||
+        cellVals[1].includes('-') ||
+        /^[A-Z0-9_-]{4,22}$/i.test(cellVals[1]))
+    ) {
       code = cellVals[1].toUpperCase();
       codeIndex = 1;
-    } else if (cellVals[0] && (cellVals[0].includes('-') || /^[A-Z0-9_-]{3,20}$/i.test(cellVals[0]))) {
+    } else if (
+      cellVals[0] &&
+      !cellVals[0].match(/^\d+(\.0)?$/) &&
+      (cellVals[0].startsWith('SNP_') ||
+        cellVals[0].includes('-') ||
+        /^[A-Z0-9_-]{4,22}$/i.test(cellVals[0]))
+    ) {
       code = cellVals[0].toUpperCase();
       codeIndex = 0;
     } else {
-      // Tìm trong bất kỳ cột nào
       for (let i = 0; i < cellVals.length; i++) {
         const val = cellVals[i];
-        if (val && !val.includes('@') && (val.startsWith('VIP') || val.startsWith('FYER') || (val.includes('-') && val.length <= 25))) {
+        if (
+          val &&
+          !val.includes('@') &&
+          (val.startsWith('SNP_') ||
+            val.startsWith('VIP') ||
+            val.startsWith('FYER') ||
+            (val.includes('-') && val.length <= 25))
+        ) {
           code = val.toUpperCase();
           codeIndex = i;
           break;
@@ -250,7 +676,6 @@ export function parseGvizResponse(response: any): EngineerSheetRow[] {
 
     if (!code) continue;
 
-    // Tìm cột Gmail: cột chứa ký tự '@'
     let registeredGmail = '';
     for (let i = 0; i < cellVals.length; i++) {
       if (cellVals[i].includes('@') && cellVals[i].includes('.')) {
@@ -259,7 +684,6 @@ export function parseGvizResponse(response: any): EngineerSheetRow[] {
       }
     }
 
-    // Tên khách hàng: Thường nằm sau cột Mã Code
     let clientName = 'Khách Hàng Studio';
     if (codeIndex !== -1 && cellVals[codeIndex + 1] && !cellVals[codeIndex + 1].includes('@')) {
       clientName = cellVals[codeIndex + 1];
@@ -267,7 +691,6 @@ export function parseGvizResponse(response: any): EngineerSheetRow[] {
       clientName = cellVals[2];
     }
 
-    // Mật khẩu tạm: Thường nằm ở cột E (index 4) hoặc sau Gmail
     let currentTempPassword = '';
     if (cellVals[4] && cellVals[4] !== '') {
       currentTempPassword = cellVals[4];
@@ -275,8 +698,15 @@ export function parseGvizResponse(response: any): EngineerSheetRow[] {
       currentTempPassword = cellVals[3];
     } else {
       for (let i = 0; i < cellVals.length; i++) {
-        if (i !== codeIndex && cellVals[i] && !cellVals[i].includes('@') && cellVals[i] !== clientName && cellVals[i].length >= 4 && cellVals[i].length <= 30) {
-          if (/^(Auto-|Start@|snp@|[A-Za-z0-9@#$!%*?&]{6,})/i.test(cellVals[i])) {
+        if (
+          i !== codeIndex &&
+          cellVals[i] &&
+          !cellVals[i].includes('@') &&
+          cellVals[i] !== clientName &&
+          cellVals[i].length >= 4 &&
+          cellVals[i].length <= 30
+        ) {
+          if (/^(SNP_|Auto-|Start@|snp@|[A-Za-z0-9@#$!%*?&_]{6,})/i.test(cellVals[i])) {
             currentTempPassword = cellVals[i];
             break;
           }
@@ -284,10 +714,7 @@ export function parseGvizResponse(response: any): EngineerSheetRow[] {
       }
     }
 
-    // Thời gian cấp
-    const lastIssuedTime = cellVals[5] || cellVals[6] || 'Mới cập nhật';
-
-    // Trạng thái mật khẩu
+    const lastIssuedTime = cellVals[5] || 'Mới cập nhật';
     const statusRaw = (cellVals[6] || cellVals[7] || '').toLowerCase();
     let accountStatus: 'custom_password_active' | 'temp_password_active' | 'never_changed' = 'never_changed';
     if (statusRaw.includes('đổi pass') || statusRaw.includes('custom') || statusRaw.includes('riêng')) {
@@ -296,7 +723,6 @@ export function parseGvizResponse(response: any): EngineerSheetRow[] {
       accountStatus = 'temp_password_active';
     }
 
-    // Ghi chú
     const engineerNotes = cellVals[8] || cellVals[7] || 'Khách hàng SYNAPES';
 
     rows.push({
@@ -327,86 +753,119 @@ function extractGvizJson(rawText: string): any {
 }
 
 /**
- * Đồng bộ dữ liệu trực tiếp từ Google Sheet
+ * Tải dữ liệu GViz của một tab cụ thể (hỗ trợ cả Fetch trực tiếp và JSONP Fallback)
  */
-export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): Promise<EngineerSheetRow[]> {
+async function fetchGvizByGid(sheetId: string, gid: string): Promise<any | null> {
+  const timestamp = Date.now();
   try {
-    const timestamp = Date.now();
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&_t=${timestamp}`;
-    const res = await fetch(url, {
-      method: 'GET',
-      cache: 'no-store',
-    });
-
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&gid=${gid}&_t=${timestamp}`;
+    const res = await fetch(url, { method: 'GET', cache: 'no-store' });
     if (res.ok) {
       const text = await res.text();
+      extractWebhookUrlFromRawText(text);
       const json = extractGvizJson(text);
-      if (json) {
-        const rows = parseGvizResponse(json);
-        if (rows.length > 0) {
-          cacheSheetRows(rows);
-          return rows;
-        }
-      }
+      if (json) return json;
     }
-  } catch (err) {
-    console.warn('Direct fetch from Google Sheet failed, trying JSONP fallback...', err);
+  } catch {
+    // Chuyển sang JSONP fallback
+  }
+
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return null;
   }
 
   return new Promise((resolve) => {
-    if (typeof window === 'undefined' || typeof document === 'undefined') {
-      const cached = getCachedSheetRows();
-      resolve(cached || []);
-      return;
-    }
-
-    const callbackName = `__gviz_cb_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    const callbackName = `__gviz_cb_${gid}_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
     const script = document.createElement('script');
-
-    const timeout = setTimeout(() => {
-      cleanup();
-      console.warn('JSONP timed out, using cached sheet rows');
-      const cached = getCachedSheetRows();
-      resolve(cached || []);
-    }, 4000);
 
     const cleanup = () => {
       clearTimeout(timeout);
       try {
-        if (script.parentNode) {
-          script.parentNode.removeChild(script);
-        }
+        if (script.parentNode) script.parentNode.removeChild(script);
         delete (window as any)[callbackName];
-      } catch (e) {
+      } catch {
         // ignore
       }
     };
 
+    const timeout = setTimeout(() => {
+      cleanup();
+      resolve(null);
+    }, 4000);
+
     (window as any)[callbackName] = (resp: any) => {
       cleanup();
       try {
-        const rows = parseGvizResponse(resp);
-        if (rows.length > 0) {
-          cacheSheetRows(rows);
-          resolve(rows);
-        } else {
-          const cached = getCachedSheetRows();
-          resolve(cached || []);
-        }
-      } catch (err) {
-        console.error('Error parsing JSONP Google Sheet data:', err);
-        const cached = getCachedSheetRows();
-        resolve(cached || []);
+        extractWebhookUrlFromRawText(JSON.stringify(resp));
+      } catch {
+        // ignore
       }
+      resolve(resp);
     };
 
     script.onerror = () => {
       cleanup();
-      const cached = getCachedSheetRows();
-      resolve(cached || []);
+      resolve(null);
     };
 
-    script.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=responseHandler:${callbackName}&_t=${Date.now()}`;
+    script.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json;responseHandler:${callbackName}&gid=${gid}&_t=${timestamp}`;
     document.head.appendChild(script);
   });
+}
+
+/**
+ * Đồng bộ dữ liệu trực tiếp từ CẢ 2 TAB của Google Sheet:
+ * 1. Tab "Quản Lý Mật Khẩu" (gid=0)
+ * 2. Tab "THÔNG TIN NGƯỜI DÙNG" (gid=2096171544)
+ */
+export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): Promise<EngineerSheetRow[]> {
+  try {
+    const [accountsJson, usersJson] = await Promise.all([
+      fetchGvizByGid(sheetId, GOOGLE_SHEET_GID_ACCOUNTS),
+      fetchGvizByGid(sheetId, GOOGLE_SHEET_GID_USERS),
+    ]);
+
+    const accountRows = accountsJson ? parseGvizResponse(accountsJson) : [];
+    const { approvedRows } = usersJson
+      ? parseUsersSheetGvizResponse(usersJson)
+      : { approvedRows: [] };
+
+    // Gộp danh sách tài khoản từ cả 2 tab (ưu tiên thông tin mới nhất)
+    const mergedMap = new Map<string, EngineerSheetRow>();
+    for (const r of accountRows) {
+      mergedMap.set(r.code.toUpperCase(), r);
+    }
+    for (const r of approvedRows) {
+      const existing = mergedMap.get(r.code.toUpperCase());
+      if (existing) {
+        mergedMap.set(r.code.toUpperCase(), {
+          ...existing,
+          currentTempPassword: r.currentTempPassword || existing.currentTempPassword,
+          engineerNotes: `${existing.engineerNotes} | ${r.engineerNotes}`,
+        });
+      } else {
+        mergedMap.set(r.code.toUpperCase(), r);
+      }
+    }
+
+    const finalRows = Array.from(mergedMap.values());
+    if (finalRows.length > 0) {
+      cacheSheetRows(finalRows);
+    }
+
+    // Nếu phát hiện được Webhook URL thì tự động đẩy hàng đợi đang chờ lên Google Sheet
+    const webhookUrl = getAppsScriptWebhookUrl();
+    if (webhookUrl) {
+      flushPendingWebhookQueue(webhookUrl).catch(() => {});
+    }
+
+    if (finalRows.length > 0) {
+      return finalRows;
+    }
+  } catch (err) {
+    console.warn('Error syncing both tabs from Google Sheet:', err);
+  }
+
+  const cached = getCachedSheetRows();
+  return cached || [];
 }

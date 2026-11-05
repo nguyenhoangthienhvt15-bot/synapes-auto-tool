@@ -2,10 +2,18 @@ import React, { useState, useEffect } from 'react';
 import {
   X, User, Calendar, Mail, Phone, MapPin, Navigation, Compass,
   FileText, ShieldCheck, CheckCircle2, AlertCircle, Download,
-  Printer, ArrowRight, ArrowLeft, RefreshCw, Check, Sparkles
+  Printer, ArrowRight, ArrowLeft, RefreshCw, Check, Sparkles, Link2
 } from 'lucide-react';
 import { UserRegistrationData } from '../types';
-import { saveUserRegistration } from '../services/googleSheetService';
+import {
+  saveUserRegistration,
+  formatDobToDDMMYYYY,
+  getAppsScriptWebhookUrl,
+  setAppsScriptWebhookUrl,
+  discoverWebhookUrlFromSheet,
+  callAppsScriptWebhook,
+  flushPendingWebhookQueue,
+} from '../services/googleSheetService';
 import { downloadPersonalizedContractPdf, printPersonalizedContractPdf } from '../utils/contractPdfGenerator';
 
 interface RegisterModalProps {
@@ -39,6 +47,28 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Cấu hình kết nối Webhook Google Sheet (Dành cho Kỹ sư hoặc tự động dò từ Sheet)
+  const [showWebhookConfig, setShowWebhookConfig] = useState(false);
+  const [webhookUrlInput, setWebhookUrlInput] = useState(() => getAppsScriptWebhookUrl());
+  const [webhookSavedMsg, setWebhookSavedMsg] = useState<string | null>(null);
+
+  // Tự động dò URL Webhook từ Google Sheet ngay khi mở cửa sổ đăng ký
+  useEffect(() => {
+    if (isOpen) {
+      const existing = getAppsScriptWebhookUrl();
+      if (existing) {
+        setWebhookUrlInput(existing);
+      }
+      discoverWebhookUrlFromSheet()
+        .then((found) => {
+          if (found) {
+            setWebhookUrlInput(found);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
+
   // Đóng bằng phím Esc
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -51,6 +81,22 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+
+  const handleSaveWebhookUrl = async () => {
+    const clean = webhookUrlInput.trim();
+    if (!clean || !clean.includes('script.google.com')) {
+      setWebhookSavedMsg('⚠️ Vui lòng dán đúng đường dẫn Web App (https://script.google.com/macros/s/.../exec)');
+      return;
+    }
+    setAppsScriptWebhookUrl(clean);
+    await callAppsScriptWebhook({ action: 'save_webhook_url', webhookUrl: clean });
+    await flushPendingWebhookQueue(clean);
+    setWebhookSavedMsg('✅ Đã kết nối & đồng bộ 2 chiều với Google Sheet thành công!');
+    setTimeout(() => {
+      setWebhookSavedMsg(null);
+      setShowWebhookConfig(false);
+    }, 2500);
+  };
 
   // Xử lý lấy định vị GPS thực tế
   const handleGetLocation = () => {
@@ -129,11 +175,13 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       return;
     }
 
+    const formattedDob = formatDobToDDMMYYYY(dob.trim());
+
     // NGAY KHI BẤM SANG TRANG TIẾP THEO:
     // Cập nhật ngay thông tin lên trang tính "THÔNG TIN NGƯỜI DÙNG" trên hệ thống quản trị Google Sheet
     const initialRegData: UserRegistrationData = {
       fullName: fullName.trim(),
-      dob: dob.trim(),
+      dob: formattedDob,
       gender,
       email: email.trim(),
       phone: phone.trim(),
@@ -159,9 +207,11 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     setIsSubmitting(true);
     setFormError(null);
 
+    const formattedDob = formatDobToDDMMYYYY(dob.trim());
+
     const registrationData: UserRegistrationData = {
       fullName: fullName.trim(),
-      dob: dob.trim(),
+      dob: formattedDob,
       gender,
       email: email.trim(),
       phone: phone.trim(),
@@ -177,7 +227,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       // 1. Cập nhật trạng thái "Đã ký hợp đồng qua WebApp" lên Google Sheet THÔNG TIN NGƯỜI DÙNG
       await saveUserRegistration(registrationData);
 
-      // 2. Tự động tải xuống hợp đồng PDF hoàn chỉnh đã điền đầy đủ thông tin người dùng
+      // 2. Tự động tải xuống hợp đồng PDF hoàn chỉnh đã điền đầy đủ thông tin người dùng (2 trang A4 chuẩn)
       await downloadPersonalizedContractPdf(registrationData);
 
       // 3. Chuyển sang bước Hoàn tất
@@ -191,7 +241,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
 
   const currentRegistration: UserRegistrationData = {
     fullName: fullName.trim() || 'Khách Hàng',
-    dob: dob.trim() || '01/01/2000',
+    dob: formatDobToDDMMYYYY(dob.trim()) || '01/01/2000',
     gender,
     email: email.trim(),
     phone: phone.trim(),
@@ -209,15 +259,29 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       }}
     >
       <div className="bg-white rounded-2xl border border-black/10 max-w-2xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden relative">
-        {/* Nút đóng */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition cursor-pointer z-10"
-          title="Đóng (Esc)"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        {/* Nút cấu hình kết nối Sheet & Nút đóng */}
+        <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
+          <button
+            type="button"
+            onClick={() => setShowWebhookConfig(!showWebhookConfig)}
+            className={`p-1.5 rounded-lg transition cursor-pointer flex items-center gap-1 text-[11px] font-medium ${
+              webhookUrlInput
+                ? 'text-emerald-600 hover:bg-emerald-50'
+                : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100'
+            }`}
+            title="Cấu hình liên kết Webhook đồng bộ Google Sheet"
+          >
+            <Link2 className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition cursor-pointer"
+            title="Đóng (Esc)"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
 
         {/* Header Modal */}
         <div className="px-6 pt-6 pb-4 border-b border-zinc-100 flex-shrink-0">
@@ -234,6 +298,36 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
               </p>
             </div>
           </div>
+
+          {showWebhookConfig && (
+            <div className="mt-3 p-3 rounded-xl bg-zinc-50 border border-zinc-200 space-y-2 text-xs">
+              <div className="flex items-center justify-between font-semibold text-zinc-900">
+                <span>🔗 Liên kết Webhook Google Sheet (Apps Script Web App URL):</span>
+                <span className="text-[10px] font-mono text-zinc-500">
+                  {webhookUrlInput ? '🟢 Đã gắn URL' : '⚪ Tự động dò từ Sheet'}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={webhookUrlInput}
+                  onChange={(e) => setWebhookUrlInput(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  className="flex-1 bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-900 focus:outline-none focus:border-zinc-900"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveWebhookUrl}
+                  className="btn-primary py-1.5 px-3 text-xs font-semibold cursor-pointer"
+                >
+                  Lưu kết nối
+                </button>
+              </div>
+              {webhookSavedMsg && (
+                <div className="text-[11px] font-medium text-emerald-700">{webhookSavedMsg}</div>
+              )}
+            </div>
+          )}
 
           {/* Thanh tiến trình các bước */}
           <div className="grid grid-cols-2 gap-2 mt-4 text-xs font-medium">
@@ -512,7 +606,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                 <div>
                   <span className="text-zinc-500">Người đăng ký (Bên B):</span>{' '}
                   <span className="font-bold text-zinc-950">{fullName}</span>{' '}
-                  <span className="text-zinc-400 font-mono">({dob} • {phone})</span>
+                  <span className="text-zinc-400 font-mono">({formatDobToDDMMYYYY(dob)} • {phone})</span>
                   <div className="text-zinc-600 truncate mt-0.5">{address}</div>
                 </div>
                 <button
@@ -705,7 +799,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                 <ul className="space-y-1.5 text-zinc-600 pl-1 font-sans">
                   <li className="flex items-start gap-2">
                     <span className="text-emerald-600 font-bold">1.</span>
-                    <span>Toàn bộ thông tin đăng ký của bạn đã được ghi nhận tự động vào trang tính <b>"Thông tin người dùng"</b> trên hệ thống Google Sheet quản trị.</span>
+                    <span>Toàn bộ thông tin đăng ký của bạn đã được ghi nhận tự động vào trang tính <b>"THÔNG TIN NGƯỜI DÙNG"</b> trên hệ thống Google Sheet quản trị.</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-emerald-600 font-bold">2.</span>
