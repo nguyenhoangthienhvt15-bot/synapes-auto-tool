@@ -13,14 +13,14 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
 
         {/* Cột 1: Điều Khoản & Pháp Lý */}
         <div className="space-y-3">
-          <div className="text-[#1D1D1F] font-bold text-xs tracking-tight uppercase">
+          <div className="text-zinc-900 font-semibold text-xs tracking-tight uppercase font-mono">
             Điều Khoản & Chính Sách
           </div>
           <ul className="space-y-1.5 text-zinc-600">
             <li>
               <button
                 onClick={() => onOpenPolicyModal?.('terms')}
-                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5 cursor-pointer"
+                className="hover:text-zinc-950 transition text-left flex items-center gap-2 cursor-pointer"
               >
                 <FileText className="w-3.5 h-3.5 text-zinc-400" />
                 <span>Điều khoản sử dụng phần mềm</span>
@@ -29,27 +29,27 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
             <li>
               <button
                 onClick={() => onOpenPolicyModal?.('privacy')}
-                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5 cursor-pointer"
+                className="hover:text-zinc-950 transition text-left flex items-center gap-2 cursor-pointer"
               >
-                <ShieldCheck className="w-3.5 h-3.5 text-[#34C759]" />
+                <ShieldCheck className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Bảo mật dữ liệu & Token API</span>
               </button>
             </li>
             <li>
               <button
                 onClick={() => onOpenPolicyModal?.('copyright')}
-                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5 cursor-pointer"
+                className="hover:text-zinc-950 transition text-left flex items-center gap-2 cursor-pointer"
               >
-                <CheckCircle2 className="w-3.5 h-3.5 text-[#0071E3]" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Quyền sở hữu trí tuệ kịch bản</span>
               </button>
             </li>
             <li>
               <button
                 onClick={() => onOpenPolicyModal?.('disclaimer')}
-                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5 cursor-pointer"
+                className="hover:text-zinc-950 transition text-left flex items-center gap-2 cursor-pointer"
               >
-                <AlertCircle className="w-3.5 h-3.5 text-[#FF9500]" />
+                <AlertCircle className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Cơ chế phê duyệt & Miễn trừ trách nhiệm</span>
               </button>
             </li>
@@ -58,7 +58,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
 
         {/* Cột 2: Hệ Sinh Thái Tích Hợp */}
         <div className="space-y-3">
-          <div className="text-[#1D1D1F] font-bold text-xs tracking-tight uppercase">
+          <div className="text-zinc-900 font-semibold text-xs tracking-tight uppercase font-mono">
             Hạ Tầng Tích Hợp
           </div>
           <div className="space-y-1.5 text-zinc-600">
@@ -108,9 +108,9 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
 
         {/* Cột 3: Website Cùng Hệ Sinh Thái */}
         <div className="space-y-3">
-          <div className="text-[#1D1D1F] font-bold text-xs tracking-tight uppercase flex items-center justify-between">
+          <div className="text-zinc-900 font-semibold text-xs tracking-tight uppercase font-mono flex items-center justify-between">
             <span>Hệ sinh thái liên kết</span>
-            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-blue-50 text-[#0071E3] font-semibold border border-blue-200">
+            <span className="text-[10px] font-mono text-zinc-400">
               SYNAPES SUITE
             </span>
           </div>
@@ -122,12 +122,12 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
               target="_blank"
               rel="noopener noreferrer"
               title="Truy cập SYNAPES AUDIT"
-              className="inline-flex items-center justify-center p-2 rounded-2xl bg-white hover:bg-zinc-50 border border-black/[0.08] hover:border-[#0071E3]/50 shadow-2xs hover:shadow-xs transition-all duration-200 active:scale-95 group"
+              className="inline-flex items-center justify-center p-2 rounded-lg bg-white hover:bg-zinc-50 border border-black/[0.08] hover:border-black/20 shadow-2xs transition group"
             >
               <img
                 src="/synapes-educheck-logo.jpg"
                 alt="SYNAPES AUDIT"
-                className="w-14 h-14 object-contain rounded-xl group-hover:scale-105 transition-transform duration-200"
+                className="w-12 h-12 object-contain rounded-md group-hover:scale-102 transition-transform duration-150"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = '/logo.jpg';
                 }}
