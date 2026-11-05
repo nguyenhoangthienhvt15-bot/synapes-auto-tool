@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserAccount, EngineerSheetRow } from '../types';
-import { Lock, User, KeyRound, Shield, AlertCircle, ArrowRight, CheckCircle2, X, RefreshCw } from 'lucide-react';
+import { Lock, User, KeyRound, Shield, AlertCircle, ArrowRight, CheckCircle2, X, RefreshCw, Eye, EyeOff } from 'lucide-react';
 
 interface AuthModalProps {
   currentUser: UserAccount | null;
@@ -27,12 +27,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [internalVisible, setInternalVisible] = useState(true);
   const [loginCode, setLoginCode] = useState('');
   const [loginPass, setLoginPass] = useState('');
+  const [showLoginPass, setShowLoginPass] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Forced password change (lần đầu login với pass mặc định)
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [changePassError, setChangePassError] = useState<string | null>(null);
 
   // Quên mật khẩu popup
@@ -203,13 +206,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <div className="relative">
                   <Lock className="w-3.5 h-3.5 absolute left-3 top-2.5 text-zinc-400" />
                   <input
-                    type="password"
+                    type={showLoginPass ? 'text' : 'password'}
                     required
                     value={loginPass}
                     onChange={(e) => setLoginPass(e.target.value)}
                     placeholder="Nhập mật khẩu"
-                    className="w-full bg-white border border-black/[0.1] rounded-lg pl-8 pr-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900 transition"
+                    className="w-full bg-white border border-black/[0.1] rounded-lg pl-8 pr-10 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900 transition font-mono"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPass(!showLoginPass)}
+                    className="absolute right-2.5 top-2 p-1 text-zinc-400 hover:text-zinc-700 transition rounded cursor-pointer"
+                    title={showLoginPass ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    aria-label={showLoginPass ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  >
+                    {showLoginPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
                 </div>
               </div>
 
@@ -287,26 +299,48 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <form onSubmit={handleChangePassSubmit} className="space-y-3 text-xs">
               <div>
                 <label className="text-zinc-700 font-medium block mb-1">Mật khẩu mới *</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Tối thiểu 6 ký tự"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900"
-                />
+                <div className="relative">
+                  <input
+                    type={showNewPass ? 'text' : 'password'}
+                    required
+                    placeholder="Tối thiểu 6 ký tự"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full bg-white border border-black/[0.1] rounded-lg pl-3 pr-10 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPass(!showNewPass)}
+                    className="absolute right-2.5 top-2 p-1 text-zinc-400 hover:text-zinc-700 transition rounded cursor-pointer"
+                    title={showNewPass ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    aria-label={showNewPass ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  >
+                    {showNewPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="text-zinc-700 font-medium block mb-1">Xác nhận mật khẩu *</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Nhập lại mật khẩu mới"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900"
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPass ? 'text' : 'password'}
+                    required
+                    placeholder="Nhập lại mật khẩu mới"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full bg-white border border-black/[0.1] rounded-lg pl-3 pr-10 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPass(!showConfirmPass)}
+                    className="absolute right-2.5 top-2 p-1 text-zinc-400 hover:text-zinc-700 transition rounded cursor-pointer"
+                    title={showConfirmPass ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    aria-label={showConfirmPass ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  >
+                    {showConfirmPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
               <div className="p-2.5 bg-zinc-50 border border-black/[0.06] rounded-lg text-[11px] text-zinc-600 leading-relaxed font-mono">
