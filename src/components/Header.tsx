@@ -78,11 +78,10 @@ export const Header: React.FC<HeaderProps> = ({
         <nav className="studio-segmented-container">
           <button
             onClick={() => onSelectView('pending-approval')}
-            className={`studio-segmented-item flex items-center gap-1.5 cursor-pointer ${
-              activeView === 'pending-approval' || activeView === 'review'
+            className={`studio-segmented-item flex items-center gap-1.5 cursor-pointer ${activeView === 'pending-approval' || activeView === 'review'
                 ? 'active'
                 : ''
-            }`}
+              }`}
           >
             <span>Trình Duyệt Kịch Bản</span>
             {pendingCount > 0 && (
@@ -94,33 +93,27 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => onSelectView('in-progress')}
-            className={`studio-segmented-item cursor-pointer ${
-              activeView === 'in-progress' ? 'active' : ''
-            }`}
+            className={`studio-segmented-item cursor-pointer ${activeView === 'in-progress' ? 'active' : ''
+              }`}
           >
             Tất Cả Dự Án
           </button>
 
           <button
             onClick={() => onSelectView('calendar')}
-            className={`studio-segmented-item cursor-pointer ${
-              activeView === 'calendar' ? 'active' : ''
-            }`}
+            className={`studio-segmented-item cursor-pointer ${activeView === 'calendar' ? 'active' : ''
+              }`}
           >
             Lịch Phát Sóng
           </button>
 
           <button
             onClick={() => onSelectView('user-guide')}
-            className={`studio-segmented-item flex items-center gap-1.5 cursor-pointer ${
-              activeView === 'user-guide' ? 'active' : ''
-            }`}
+            className={`studio-segmented-item flex items-center gap-1.5 cursor-pointer ${activeView === 'user-guide' ? 'active' : ''
+              }`}
           >
             <BookOpen className="w-3.5 h-3.5 text-zinc-500" />
             <span>Hướng Dẫn Sử Dụng</span>
-            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold">
-              A-Z
-            </span>
           </button>
         </nav>
       </div>

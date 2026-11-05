@@ -112,12 +112,35 @@ export interface ConnectedChannelAccount {
   };
 }
 
+export type AIProviderId = 'gemini' | 'openai' | 'claude' | 'deepseek' | 'grok' | 'plugin';
+
 export interface AIProviderConfig {
-  mode: 'gemini' | 'plugin';
+  mode: AIProviderId;
+  activeProvider?: AIProviderId;
   gemini: {
     apiKey: string;
-    model: 'gemini-2.0-flash' | 'gemini-1.5-pro';
+    model: string;
     ttsVoice: string;
+  };
+  openai?: {
+    apiKey: string;
+    model: string;
+    endpointUrl?: string;
+  };
+  claude?: {
+    apiKey: string;
+    model: string;
+    endpointUrl?: string;
+  };
+  deepseek?: {
+    apiKey: string;
+    model: string;
+    endpointUrl?: string;
+  };
+  grok?: {
+    apiKey: string;
+    model: string;
+    endpointUrl?: string;
   };
   plugin: {
     id: string;

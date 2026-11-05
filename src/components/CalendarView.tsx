@@ -154,19 +154,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ projects, onSelectPr
                 </div>
 
                 <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-mono border ${
-                    proj.status === 'published'
+                  className={`px-2 py-0.5 rounded text-[10px] font-mono border ${proj.status === 'published'
                       ? 'bg-zinc-900 text-white border-zinc-900'
                       : proj.status === 'scheduled'
-                      ? 'bg-zinc-100 text-zinc-800 border-zinc-200'
-                      : 'bg-white text-zinc-600 border-zinc-200'
-                  }`}
+                        ? 'bg-zinc-100 text-zinc-800 border-zinc-200'
+                        : 'bg-white text-zinc-600 border-zinc-200'
+                    }`}
                 >
                   {proj.status === 'published'
                     ? 'ĐÃ PHÁT'
                     : proj.status === 'scheduled'
-                    ? 'ĐÃ HẸN GIỜ'
-                    : 'CHỜ DUYỆT'}
+                      ? 'ĐÃ HẸN GIỜ'
+                      : 'CHỜ DUYỆT'}
                 </span>
               </div>
             </div>

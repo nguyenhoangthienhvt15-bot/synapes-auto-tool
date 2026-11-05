@@ -165,11 +165,10 @@ export const PolicyModal: React.FC<PolicyModalProps> = ({ policyType, onClose })
               <button
                 key={doc.id}
                 onClick={() => setActiveTab(doc.id)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition cursor-pointer ${
-                  isSelected
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition cursor-pointer ${isSelected
                     ? 'bg-zinc-900 text-white'
                     : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 hover:text-zinc-900'
-                }`}
+                  }`}
               >
                 <TabIcon className="w-3.5 h-3.5" />
                 <span>{doc.shortTitle}</span>

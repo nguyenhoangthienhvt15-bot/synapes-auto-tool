@@ -53,6 +53,7 @@ export function App() {
   const [projects, setProjects] = useState<Project[]>(INITIAL_PROJECTS);
   const [skills, setSkills] = useState<Skill[]>(INITIAL_SKILLS);
   const [aiConfig, setAiConfig] = useState<AIProviderConfig>(DEFAULT_AI_CONFIG);
+  const [selectedAiProvider, setSelectedAiProvider] = useState<string>('gemini');
 
   // Navigation & Workspace Views
   const [activeView, setActiveView] = useState<string>('pending-approval');
@@ -244,6 +245,8 @@ export function App() {
         <Sidebar
           activeView={activeView}
           pendingCount={pendingCount}
+          selectedAiProvider={selectedAiProvider}
+          onSelectAiProvider={(prov) => setSelectedAiProvider(prov)}
           onSelectView={(v) => {
             setActiveView(v);
             if (v === 'pending-approval') {
@@ -354,14 +357,18 @@ export function App() {
             />
           )}
 
-          {/* VIEW: CẤU HÌNH AI ENGINE */}
+          {/* VIEW: CẤU HÌNH API KEYS AI MODULE */}
           {activeView === 'ai-engine' && (
             <AiEngineSettingsView
               config={aiConfig}
+              initialProvider={selectedAiProvider}
               onBack={() => setActiveView('pending-approval')}
               onUpdateConfig={(cfg) => {
                 setAiConfig(cfg);
-                showToast('Đã lưu thiết lập AI Provider.');
+                if (cfg.activeProvider) {
+                  setSelectedAiProvider(cfg.activeProvider);
+                }
+                showToast(`Đã lưu cấu hình API Keys AI Module.`);
               }}
             />
           )}
@@ -399,19 +406,19 @@ export function App() {
             activeView === 'connect-youtube' ||
             activeView === 'connect-tiktok' ||
             activeView === 'connect-facebook') && (
-            <SocialChannelsView
-              initialPlatform={
-                activeView === 'connect-youtube'
-                  ? 'youtube'
-                  : activeView === 'connect-tiktok'
-                  ? 'tiktok'
-                  : activeView === 'connect-facebook'
-                  ? 'facebook'
-                  : 'all'
-              }
-              onBack={() => setActiveView('pending-approval')}
-            />
-          )}
+              <SocialChannelsView
+                initialPlatform={
+                  activeView === 'connect-youtube'
+                    ? 'youtube'
+                    : activeView === 'connect-tiktok'
+                      ? 'tiktok'
+                      : activeView === 'connect-facebook'
+                        ? 'facebook'
+                        : 'all'
+                }
+                onBack={() => setActiveView('pending-approval')}
+              />
+            )}
 
           {/* VIEW: GOOGLE DRIVE BACKUP */}
           {activeView === 'drive-backup' && (

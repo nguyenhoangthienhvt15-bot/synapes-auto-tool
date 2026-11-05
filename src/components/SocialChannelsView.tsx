@@ -276,53 +276,49 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
       <div className="studio-card p-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
         <button
           onClick={() => setActiveFilter('all')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-            activeFilter === 'all'
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${activeFilter === 'all'
               ? 'bg-zinc-900 text-white'
               : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
-          }`}
+            }`}
         >
           Tất Cả Kênh ({channels.length})
         </button>
 
         <button
           onClick={() => setActiveFilter('youtube')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer ${
-            activeFilter === 'youtube'
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer ${activeFilter === 'youtube'
               ? 'bg-zinc-900 text-white'
               : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
-          }`}
+            }`}
         >
           <svg className="w-3.5 h-3.5 text-red-600" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
           </svg>
           <span>YouTube Channel</span>
         </button>
 
         <button
           onClick={() => setActiveFilter('tiktok')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer ${
-            activeFilter === 'tiktok'
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer ${activeFilter === 'tiktok'
               ? 'bg-zinc-900 text-white'
               : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
-          }`}
+            }`}
         >
           <svg className="w-3.5 h-3.5 text-black" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.86.12V9.4a6.33 6.33 0 0 0-.86-.06A6.34 6.34 0 0 0 3.1 15.68a6.34 6.34 0 0 0 10.74 4.54 6.29 6.29 0 0 0 1.93-4.55V8.87a8.28 8.28 0 0 0 4.82 1.54V6.96a4.85 4.85 0 0 1-1-.27z"/>
+            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.86.12V9.4a6.33 6.33 0 0 0-.86-.06A6.34 6.34 0 0 0 3.1 15.68a6.34 6.34 0 0 0 10.74 4.54 6.29 6.29 0 0 0 1.93-4.55V8.87a8.28 8.28 0 0 0 4.82 1.54V6.96a4.85 4.85 0 0 1-1-.27z" />
           </svg>
           <span>TikTok Creator</span>
         </button>
 
         <button
           onClick={() => setActiveFilter('facebook')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer ${
-            activeFilter === 'facebook'
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer ${activeFilter === 'facebook'
               ? 'bg-zinc-900 text-white'
               : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
-          }`}
+            }`}
         >
           <svg className="w-3.5 h-3.5 text-[#0866FF]" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
           </svg>
           <span>Facebook Fanpage</span>
         </button>
@@ -356,11 +352,10 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                   </div>
 
                   <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-mono border flex-shrink-0 flex items-center gap-1 ${
-                      isConnected
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono border flex-shrink-0 flex items-center gap-1 ${isConnected
                         ? 'bg-zinc-100 text-zinc-800 border-zinc-200'
                         : 'bg-red-50 text-red-600 border-red-200'
-                    }`}
+                      }`}
                   >
                     {isConnected ? (
                       <>
@@ -409,8 +404,8 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                           {isTestingUpload === chan.id
                             ? 'Đang test...'
                             : chan.platform === 'drive'
-                            ? 'Thử sao lưu Drive'
-                            : 'Thử đăng video'}
+                              ? 'Thử sao lưu Drive'
+                              : 'Thử đăng video'}
                         </span>
                       </button>
 
@@ -576,27 +571,27 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                 >
                   {loginModalPlatform === 'youtube' && (
                     <svg className="w-4 h-4 text-red-600" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
                     </svg>
                   )}
                   {loginModalPlatform === 'tiktok' && (
                     <svg className="w-4 h-4 text-black" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.86.12V9.4a6.33 6.33 0 0 0-.86-.06A6.34 6.34 0 0 0 3.1 15.68a6.34 6.34 0 0 0 10.74 4.54 6.29 6.29 0 0 0 1.93-4.55V8.87a8.28 8.28 0 0 0 4.82 1.54V6.96a4.85 4.85 0 0 1-1-.27z"/>
+                      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.86.12V9.4a6.33 6.33 0 0 0-.86-.06A6.34 6.34 0 0 0 3.1 15.68a6.34 6.34 0 0 0 10.74 4.54 6.29 6.29 0 0 0 1.93-4.55V8.87a8.28 8.28 0 0 0 4.82 1.54V6.96a4.85 4.85 0 0 1-1-.27z" />
                     </svg>
                   )}
                   {loginModalPlatform === 'facebook' && (
                     <svg className="w-4 h-4 text-[#0866FF]" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
                     </svg>
                   )}
                   {loginModalPlatform === 'drive' && (
                     <svg className="w-4 h-4" viewBox="0 0 87.3 78" fill="none">
-                      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-                      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
-                      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l6.1 10.55z" fill="#ea4335"/>
-                      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
-                      <path d="m59.8 53h27.5c0-1.55-.4-3.1-1.2-4.5l-13.75-23.8c-.8-1.4-1.95-2.5-3.3-3.3L55.3 45.2z" fill="#2684fc"/>
-                      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3H27.5l-6.15 10.6c1.35.8 2.9 1.2 4.5 1.2h43.2c1.6 0 3.15-.45 4.5-1.2z" fill="#ffba00"/>
+                      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da" />
+                      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47" />
+                      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l6.1 10.55z" fill="#ea4335" />
+                      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d" />
+                      <path d="m59.8 53h27.5c0-1.55-.4-3.1-1.2-4.5l-13.75-23.8c-.8-1.4-1.95-2.5-3.3-3.3L55.3 45.2z" fill="#2684fc" />
+                      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3H27.5l-6.15 10.6c1.35.8 2.9 1.2 4.5 1.2h43.2c1.6 0 3.15-.45 4.5-1.2z" fill="#ffba00" />
                     </svg>
                   )}
                   <span>Chọn Tài Khoản Kênh Mẫu Có Sẵn</span>
