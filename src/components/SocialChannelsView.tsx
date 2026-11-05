@@ -102,7 +102,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'youtube' | 'tiktok' | 'facebook' | 'drive'>(initialPlatform);
   const [activeGuide, setActiveGuide] = useState<'google' | 'tiktok' | 'meta'>('google');
-  const [loginModalPlatform, setLoginModalPlatform] = useState<'youtube' | 'tiktok' | 'facebook' | null>(null);
+  const [loginModalPlatform, setLoginModalPlatform] = useState<'youtube' | 'tiktok' | 'facebook' | 'drive' | null>(null);
 
   // Form đăng nhập kênh mới
   const [inputChannelName, setInputChannelName] = useState('');
@@ -130,7 +130,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const handleOpenLoginModal = (platform: 'youtube' | 'tiktok' | 'facebook') => {
+  const handleOpenLoginModal = (platform: 'youtube' | 'tiktok' | 'facebook' | 'drive') => {
     setLoginModalPlatform(platform);
     if (platform === 'youtube') {
       setInputChannelName('Kênh Studio Official');
@@ -140,10 +140,14 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
       setInputChannelName('TikTok Creator Shop');
       setInputHandle('@techreviewer_creator');
       setInputEmailOrId('tt_account_vn');
-    } else {
+    } else if (platform === 'facebook') {
       setInputChannelName('Facebook Fanpage AI');
       setInputHandle('Cộng Đồng Video Sáng Tạo');
       setInputEmailOrId('page_id_891241');
+    } else if (platform === 'drive') {
+      setInputChannelName('Google Drive Studio Storage');
+      setInputHandle('synapes.backup@gmail.com');
+      setInputEmailOrId('synapes.backup@gmail.com');
     }
   };
 
@@ -155,12 +159,22 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
     const now = new Date();
     const dateStr = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
 
-    const idMap: Record<string, 'yt' | 'tt' | 'fb'> = {
+    const idMap: Record<string, 'yt' | 'tt' | 'fb' | 'gd'> = {
       youtube: 'yt',
       tiktok: 'tt',
       facebook: 'fb',
+      drive: 'gd',
     };
     const targetId = idMap[plat];
+
+    if (plat === 'drive') {
+      try {
+        localStorage.setItem('synapes_drive_email', inputEmailOrId.trim() || 'synapes.backup@gmail.com');
+        localStorage.setItem('synapes_drive_connected', 'true');
+      } catch (err) {
+        console.warn('Could not save drive login', err);
+      }
+    }
 
     const updated = channels.map((c) => {
       if (c.id === targetId) {
@@ -177,7 +191,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
     });
 
     setChannels(updated);
-    showToast(`Đã đăng nhập và liên kết tài khoản ${inputChannelName} thành công! Quyền đăng video đã sẵn sàng.`);
+    showToast(`Đã đăng nhập và liên kết tài khoản ${inputChannelName} thành công! Quyền xuất bản đã sẵn sàng.`);
     setLoginModalPlatform(null);
   };
 
@@ -383,15 +397,21 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                 {isConnected ? (
                   <>
                     <div className="flex items-center gap-1.5">
-                      {/* Nút Test Upload Video */}
+                      {/* Nút Test Upload Video hoặc Test Backup */}
                       <button
                         onClick={() => handleTestUpload(chan)}
                         disabled={isTestingUpload === chan.id}
                         className="btn-secondary py-1 px-2.5 text-[11px] inline-flex items-center gap-1"
-                        title="Thử nghiệm đăng video test để kiểm tra quyền hạn"
+                        title={chan.platform === 'drive' ? 'Thử nghiệm sao lưu tập tin lên Google Drive' : 'Thử nghiệm đăng video test để kiểm tra quyền hạn'}
                       >
                         <UploadCloud className={`w-3 h-3 ${isTestingUpload === chan.id ? 'animate-bounce text-zinc-900' : 'text-zinc-500'}`} />
-                        <span>{isTestingUpload === chan.id ? 'Đang test...' : 'Thử đăng video'}</span>
+                        <span>
+                          {isTestingUpload === chan.id
+                            ? 'Đang test...'
+                            : chan.platform === 'drive'
+                            ? 'Thử sao lưu Drive'
+                            : 'Thử đăng video'}
+                        </span>
                       </button>
 
                       {/* Làm mới token */}
@@ -405,16 +425,14 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      {/* Đổi tài khoản khác */}
-                      {chan.platform !== 'drive' && (
-                        <button
-                          onClick={() => handleOpenLoginModal(chan.platform as any)}
-                          className="btn-secondary py-1 px-2 text-[11px]"
-                          title="Đăng nhập tài khoản khác"
-                        >
-                          Đổi nick
-                        </button>
-                      )}
+                      {/* Đổi tài khoản */}
+                      <button
+                        onClick={() => handleOpenLoginModal(chan.platform)}
+                        className="btn-secondary py-1 px-2.5 text-[11px]"
+                        title="Đổi sang tài khoản khác"
+                      >
+                        Đổi tài khoản
+                      </button>
 
                       {/* Ngắt kết nối */}
                       <button
@@ -430,7 +448,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                   <div className="w-full flex items-center justify-between">
                     <span className="text-[11px] text-zinc-400">Tài khoản chưa được ủy quyền</span>
                     <button
-                      onClick={() => handleOpenLoginModal(chan.platform as any)}
+                      onClick={() => handleOpenLoginModal(chan.platform)}
                       className="btn-primary py-1 px-3 text-xs inline-flex items-center gap-1.5"
                     >
                       <LogIn className="w-3.5 h-3.5" />
@@ -512,9 +530,13 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                 </div>
                 <div>
                   <h3 className="text-zinc-900 font-semibold text-xs uppercase tracking-wider font-mono">
-                    Đăng Nhập Tài Khoản {loginModalPlatform === 'youtube' ? 'YouTube' : loginModalPlatform === 'tiktok' ? 'TikTok' : 'Facebook'}
+                    Đăng Nhập Tài Khoản {loginModalPlatform === 'youtube' ? 'YouTube' : loginModalPlatform === 'tiktok' ? 'TikTok' : loginModalPlatform === 'facebook' ? 'Facebook' : 'Google Drive'}
                   </h3>
-                  <p className="text-zinc-500 text-xs">Ủy quyền OAuth 2.0 để xuất bản video tự động</p>
+                  <p className="text-zinc-500 text-xs">
+                    {loginModalPlatform === 'drive'
+                      ? 'Ủy quyền Google Drive API (drive.file) để tự động sao lưu dự án'
+                      : 'Ủy quyền OAuth 2.0 để xuất bản video tự động'}
+                  </p>
                 </div>
               </div>
               <button
@@ -532,20 +554,23 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    setInputChannelName(
-                      loginModalPlatform === 'youtube'
-                        ? 'Anh Hoàng Nam (Studio Media Tech)'
-                        : loginModalPlatform === 'tiktok'
-                        ? '@hoangnam_techvn'
-                        : 'Fanpage Công Nghệ AI'
-                    );
-                    setInputHandle(
-                      loginModalPlatform === 'youtube'
-                        ? '@HoangNamMedia'
-                        : loginModalPlatform === 'tiktok'
-                        ? '@hoangnam_techvn'
-                        : 'Cộng Đồng Yêu AI'
-                    );
+                    if (loginModalPlatform === 'youtube') {
+                      setInputChannelName('Anh Hoàng Nam (Studio Media Tech)');
+                      setInputHandle('@HoangNamMedia');
+                      setInputEmailOrId('hoangnam.media@gmail.com');
+                    } else if (loginModalPlatform === 'tiktok') {
+                      setInputChannelName('TikTok Creator Shop');
+                      setInputHandle('@hoangnam_techvn');
+                      setInputEmailOrId('tt_creator_8921');
+                    } else if (loginModalPlatform === 'facebook') {
+                      setInputChannelName('Fanpage Công Nghệ AI');
+                      setInputHandle('Cộng Đồng Yêu AI');
+                      setInputEmailOrId('page_id_891241');
+                    } else if (loginModalPlatform === 'drive') {
+                      setInputChannelName('Google Drive Backup Storage');
+                      setInputHandle('synapes.backup@gmail.com');
+                      setInputEmailOrId('synapes.backup@gmail.com');
+                    }
                   }}
                   className="w-full py-2 px-3 rounded-lg bg-white hover:bg-zinc-100 text-zinc-900 border border-black/10 font-medium text-xs shadow-2xs flex items-center justify-center gap-2 transition"
                 >
@@ -564,16 +589,28 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                       <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                     </svg>
                   )}
+                  {loginModalPlatform === 'drive' && (
+                    <svg className="w-4 h-4" viewBox="0 0 87.3 78" fill="none">
+                      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+                      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l6.1 10.55z" fill="#ea4335"/>
+                      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                      <path d="m59.8 53h27.5c0-1.55-.4-3.1-1.2-4.5l-13.75-23.8c-.8-1.4-1.95-2.5-3.3-3.3L55.3 45.2z" fill="#2684fc"/>
+                      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3H27.5l-6.15 10.6c1.35.8 2.9 1.2 4.5 1.2h43.2c1.6 0 3.15-.45 4.5-1.2z" fill="#ffba00"/>
+                    </svg>
+                  )}
                   <span>Chọn Tài Khoản Kênh Mẫu Có Sẵn</span>
                 </button>
               </div>
 
               <div>
-                <label className="text-zinc-700 font-medium block mb-1">Tên Kênh / Fanpage *</label>
+                <label className="text-zinc-700 font-medium block mb-1">
+                  {loginModalPlatform === 'drive' ? 'Tên Kho Lưu Trữ / Workspace *' : 'Tên Kênh / Fanpage *'}
+                </label>
                 <input
                   type="text"
                   required
-                  placeholder="Ví dụ: Kênh Công Nghệ Số"
+                  placeholder={loginModalPlatform === 'drive' ? 'Ví dụ: Google Drive Studio Storage' : 'Ví dụ: Kênh Công Nghệ Số'}
                   value={inputChannelName}
                   onChange={(e) => setInputChannelName(e.target.value)}
                   className="w-full bg-zinc-50 border border-black/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 focus:outline-none focus:bg-white focus:border-zinc-900"
@@ -581,11 +618,13 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
               </div>
 
               <div>
-                <label className="text-zinc-700 font-medium block mb-1">Handle / Định Danh (@...) *</label>
+                <label className="text-zinc-700 font-medium block mb-1">
+                  {loginModalPlatform === 'drive' ? 'Tài Khoản / Thư Mục Đồng Bộ *' : 'Handle / Định Danh (@...) *'}
+                </label>
                 <input
                   type="text"
                   required
-                  placeholder="Ví dụ: @techstudio_official"
+                  placeholder={loginModalPlatform === 'drive' ? 'Ví dụ: synapes.backup@gmail.com' : 'Ví dụ: @techstudio_official'}
                   value={inputHandle}
                   onChange={(e) => setInputHandle(e.target.value)}
                   className="w-full bg-zinc-50 border border-black/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 font-mono focus:outline-none focus:bg-white focus:border-zinc-900"
@@ -593,11 +632,13 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
               </div>
 
               <div>
-                <label className="text-zinc-700 font-medium block mb-1">Email Tài Khoản / Client ID *</label>
+                <label className="text-zinc-700 font-medium block mb-1">
+                  {loginModalPlatform === 'drive' ? 'Email Google Drive (Gmail / Workspace) *' : 'Email Tài Khoản / Client ID *'}
+                </label>
                 <input
                   type="text"
                   required
-                  placeholder="creator@gmail.com"
+                  placeholder="synapes.backup@gmail.com"
                   value={inputEmailOrId}
                   onChange={(e) => setInputEmailOrId(e.target.value)}
                   className="w-full bg-zinc-50 border border-black/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 font-mono focus:outline-none focus:bg-white focus:border-zinc-900"
@@ -606,7 +647,11 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
 
               <div className="p-2.5 rounded-lg bg-zinc-50 border border-black/5 text-zinc-500 text-[11px] flex items-center gap-2">
                 <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                <span>Hệ thống tự động cấp quyền đăng tải trực tiếp vào lịch xuất bản và hàng đợi video.</span>
+                <span>
+                  {loginModalPlatform === 'drive'
+                    ? 'Chỉ cấp quyền drive.file: Ứng dụng chỉ được đọc/ghi tệp do chính nó tải lên, bảo vệ tối đa dữ liệu người dùng.'
+                    : 'Hệ thống tự động cấp quyền đăng tải trực tiếp vào lịch xuất bản và hàng đợi video.'}
+                </span>
               </div>
 
               <div className="pt-2 flex justify-end gap-2 border-t border-black/5">
@@ -621,7 +666,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                   type="submit"
                   className="btn-primary"
                 >
-                  Xác Nhận & Cấp Quyền Đăng Video
+                  {loginModalPlatform === 'drive' ? 'Xác Nhận & Cấp Quyền Google Drive' : 'Xác Nhận & Cấp Quyền Đăng Video'}
                 </button>
               </div>
             </form>
