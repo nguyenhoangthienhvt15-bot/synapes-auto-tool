@@ -94,6 +94,24 @@ export interface Skill {
   systemPrompt: string;
 }
 
+export interface ConnectedChannelAccount {
+  id: 'yt' | 'tt' | 'fb' | 'gd';
+  platform: 'youtube' | 'tiktok' | 'facebook' | 'drive';
+  name: string;
+  handle: string;
+  avatarUrl?: string;
+  status: 'connected' | 'disconnected' | 'reauth_needed';
+  apiScope: string;
+  tokenExpiry: string;
+  connectedAt: string;
+  stats: {
+    metricLabel: string;
+    metricValue: string;
+    totalPublishedVideos: number;
+    lastPublishedTime?: string;
+  };
+}
+
 export interface AIProviderConfig {
   mode: 'gemini' | 'plugin';
   gemini: {
