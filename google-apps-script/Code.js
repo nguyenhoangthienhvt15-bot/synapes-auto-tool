@@ -75,29 +75,31 @@ function setupUserRegistrationSheet() {
   // Tự động cài đặt Installable Trigger cho phép gửi Gmail khi tích chọn Checkbox Cột I
   var triggerInstalled = installAutoEditTrigger(ss);
 
-  // Tự động phát hiện và ghi URL Web App vào ô N1 (THÔNG TIN NGƯỜI DÙNG) & J4 (Quản Lý Mật Khẩu)
-  var detectedUrl = autoPublishWebhookUrlToSheet(ss);
+  // Tự động khởi tạo Cầu nối Google Form (Zero-Deploy Bridge) & lưu vào ô N1 / J4
+  // Giúp WebApp tự động đẩy dữ liệu đăng ký vào Sheet 100% mà KHÔNG cần Deploy Web App thủ công!
+  var bridgeUrl = setupGoogleFormBridge(ss);
+  var detectedUrl = bridgeUrl || autoPublishWebhookUrlToSheet(ss);
+
+  // Quét ngay các hồ sơ đang chờ trong Cầu nối (nếu có)
+  syncPendingFormBridgeResponses();
 
   try {
     var msg =
-      "✅ ĐÃ KÍCH HOẠT HỆ THỐNG THÀNH CÔNG!\n\n" +
+      "✅ ĐÃ KÍCH HOẠT HỆ THỐNG ĐỒNG BỘ TỰ ĐỘNG 2 CHIỀU THÀNH CÔNG!\n\n" +
       "1. Trang tính \"" + sheet.getName() + "\" đã sẵn sàng tiếp nhận dữ liệu từ Dòng 2.\n" +
       "2. Bộ kích hoạt tự động gửi Gmail khi tích Checkbox Cột I: " + (triggerInstalled ? "ĐÃ BẬT (100%)" : "Đã cập nhật") + ".\n" +
       "3. Hạn ngạch gửi Gmail hôm nay còn: " + remainingQuota + " thư.\n";
 
     if (detectedUrl) {
-      msg += "4. Đã tự động gắn kết nối 2 chiều với WebApp:\n" + detectedUrl;
-    } else {
       msg +=
-        "\n📌 LƯU Ý ĐỂ WEBAPP TỰ ĐỘNG GHI DỮ LIỆU VÀO SHEET:\n" +
-        "• Tại góc trên bên phải cửa sổ Apps Script, bấm nút [Triển khai] (Deploy) ➔ [Triển khai mới] (New deployment).\n" +
-        "• Chọn loại: [Ứng dụng web] (Web app) ➔ Quyền truy cập: [Bất kỳ ai] (Anyone) ➔ Bấm [Triển khai].\n" +
-        "• Sau đó copy URL Web App và bấm menu [🚀 SYNAPES Studio ➔ 🔗 2. Gắn Link Web App] trên Sheet!";
+        "4. Đã tự động khởi tạo Cầu nối 2 chiều với WebApp (Zero-Deploy):\n" +
+        detectedUrl + "\n\n" +
+        "👉 Bây giờ bạn chỉ cần mở lại WebApp (F5), mọi thông tin người dùng đã đăng ký sẽ tự động đổ thẳng vào Dòng 2 của trang 'THÔNG TIN NGƯỜI DÙNG'!";
     }
 
     SpreadsheetApp.getUi().alert(msg);
   } catch (e) {
-    Logger.log("Đã hoàn tất khởi tạo trong trình biên dịch Apps Script.");
+    Logger.log("Đã hoàn tất khởi tạo trong trình biên dịch Apps Script. Bridge URL: " + detectedUrl);
   }
 }
 
@@ -106,18 +108,21 @@ function setupUserRegistrationSheet() {
  */
 function onOpen() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  autoPublishWebhookUrlToSheet(ss);
+  try {
+    autoPublishWebhookUrlToSheet(ss);
+    syncPendingFormBridgeResponses();
+  } catch (e) {}
 
   var ui = SpreadsheetApp.getUi();
   ui.createMenu("🚀 SYNAPES Studio")
-    .addItem("📋 1. Khởi tạo & Bật tự động gửi Gmail khi tích duyệt", "setupUserRegistrationSheet")
-    .addItem("🔗 2. Gắn Link Web App (Kết nối tự động 2 chiều với WebApp)", "connectWebAppWebhookPrompt")
+    .addItem("📋 1. Khởi tạo & Bật kết nối tự động 2 chiều + Gmail (Khuyên dùng)", "setupUserRegistrationSheet")
+    .addItem("🔗 2. Gắn Link Web App tùy chỉnh (Nếu dùng Deploy Web App)", "connectWebAppWebhookPrompt")
     .addSeparator()
     .addItem("✅ Duyệt dòng đang chọn (Cấp Code + Pass + Gửi Gmail kèm HĐ PDF)", "approveSelectedUserRow")
     .addItem("⚡ Duyệt TẤT CẢ hồ sơ đang chờ duyệt", "approveAllPendingUsers")
     .addItem("📧 Gửi lại Gmail tài khoản & Hợp đồng PDF cho dòng đang chọn", "resendEmailForSelectedRow")
     .addSeparator()
-    .addItem("🔄 Đồng bộ dữ liệu lên WebApp ngay", "syncToWebApp")
+    .addItem("🔄 Đồng bộ dữ liệu từ WebApp ngay lập tức", "syncToWebApp")
     .addItem("🌐 Mở WebApp Studio", "openWebAppUrl")
     .addToUi();
 }
@@ -239,33 +244,186 @@ function installAutoEditTrigger(ss) {
 }
 
 /**
- * Tự động ghi URL Web App (https://script.google.com/macros/s/.../exec) vào ô N1 và J4
- * để WebApp tự động đọc được qua GViz mà người dùng không cần cấu hình thủ công.
+ * Tự động khởi tạo Cầu nối Google Form (Zero-Deploy Bridge)
+ * Giúp WebApp tự động đẩy dữ liệu đăng ký vào Sheet & gửi Gmail 100% TỰ ĐỘNG
+ * mà Kỹ sư KHÔNG CẦN phải thao tác Deploy Web App thủ công.
+ */
+function setupGoogleFormBridge(ss) {
+  try {
+    if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
+    var props = PropertiesService.getScriptProperties();
+    var existingBridgeUrl = props.getProperty("SYNAPES_FORM_BRIDGE_URL") || "";
+    var existingFormId = props.getProperty("SYNAPES_FORM_BRIDGE_ID") || "";
+
+    var form = null;
+    if (existingFormId) {
+      try {
+        form = FormApp.openById(existingFormId);
+      } catch (e) {
+        form = null;
+      }
+    }
+
+    if (!form || !existingBridgeUrl || existingBridgeUrl.indexOf("docs.google.com/forms") === -1) {
+      form = FormApp.create("SYNAPES_STUDIO_AUTO_BRIDGE");
+      try {
+        form.setRequireLogin(false);
+      } catch (e) {}
+      try {
+        form.setAcceptingResponses(true);
+        form.setCollectEmail(false);
+        form.setShowLinkToRespondAgain(false);
+      } catch (e) {}
+
+      var item = form.addParagraphTextItem().setTitle("PAYLOAD_JSON");
+      var sampleResp = form.createResponse().withItemResponse(item.createResponse("SYNAPES_MARKER"));
+      var prefillUrl = sampleResp.toPrefilledUrl();
+      var entryMatch = prefillUrl.match(/(entry\.\d+)=/);
+      var formActionUrl = prefillUrl.split("?")[0].replace(/\/viewform.*$/, "/formResponse");
+
+      if (formActionUrl && entryMatch) {
+        existingBridgeUrl = formActionUrl + "?" + entryMatch[1] + "=";
+        existingFormId = form.getId();
+        props.setProperty("SYNAPES_FORM_BRIDGE_URL", existingBridgeUrl);
+        props.setProperty("SYNAPES_FORM_BRIDGE_ID", existingFormId);
+      }
+    }
+
+    if (form) {
+      var triggers = ScriptApp.getProjectTriggers();
+      var hasFormTrigger = false;
+      var hasTimeTrigger = false;
+      for (var i = 0; i < triggers.length; i++) {
+        var fn = triggers[i].getHandlerFunction();
+        if (fn === "onFormBridgeSubmit") hasFormTrigger = true;
+        if (fn === "syncPendingFormBridgeResponses") hasTimeTrigger = true;
+      }
+      if (!hasFormTrigger) {
+        ScriptApp.newTrigger("onFormBridgeSubmit")
+          .forForm(form)
+          .onFormSubmit()
+          .create();
+      }
+      if (!hasTimeTrigger) {
+        ScriptApp.newTrigger("syncPendingFormBridgeResponses")
+          .timeBased()
+          .everyMinutes(1)
+          .create();
+      }
+    }
+
+    if (existingBridgeUrl && existingBridgeUrl.indexOf("docs.google.com/forms") !== -1) {
+      var usersSheet = getUsersSheet(ss, false);
+      if (usersSheet) {
+        usersSheet.getRange("N1").setValue(existingBridgeUrl).setFontColor("#94a3b8").setFontSize(8);
+      }
+      var accSheet = getAccountsSheet(ss);
+      if (accSheet) {
+        accSheet.getRange("J4").setValue(existingBridgeUrl).setFontColor("#94a3b8").setFontSize(8);
+      }
+      return existingBridgeUrl;
+    }
+  } catch (err) {
+    Logger.log("setupGoogleFormBridge error: " + err);
+  }
+  return "";
+}
+
+/**
+ * Bộ kích hoạt tức thời (< 1 giây) khi WebApp gửi dữ liệu qua Cầu nối Google Form
+ */
+function onFormBridgeSubmit(e) {
+  try {
+    if (e && e.response) {
+      var itemResponses = e.response.getItemResponses();
+      for (var i = 0; i < itemResponses.length; i++) {
+        var rawText = String(itemResponses[i].getResponse() || "").trim();
+        if (rawText && rawText.charAt(0) === "{") {
+          var payload = JSON.parse(rawText);
+          if (!payload.requestId) {
+            payload.requestId = "form_" + e.response.getId();
+          }
+          processWebhookPayload(payload);
+        }
+      }
+    }
+  } catch (err) {
+    Logger.log("onFormBridgeSubmit error: " + err);
+  }
+  syncPendingFormBridgeResponses();
+}
+
+/**
+ * Quét bổ sung các phản hồi gần nhất trong Cầu nối Google Form để đảm bảo không bao giờ sót hồ sơ
+ */
+function syncPendingFormBridgeResponses() {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var formId = props.getProperty("SYNAPES_FORM_BRIDGE_ID");
+    if (!formId) return 0;
+
+    var form = FormApp.openById(formId);
+    var responses = form.getResponses();
+    var count = 0;
+    var startIdx = Math.max(0, responses.length - 30);
+    for (var i = startIdx; i < responses.length; i++) {
+      var itemResps = responses[i].getItemResponses();
+      for (var j = 0; j < itemResps.length; j++) {
+        var raw = String(itemResps[j].getResponse() || "").trim();
+        if (raw && raw.charAt(0) === "{") {
+          try {
+            var payload = JSON.parse(raw);
+            if (!payload.requestId) {
+              payload.requestId = "form_resp_" + responses[i].getId();
+            }
+            var res = processWebhookPayload(payload);
+            if (res && res.status === "success") {
+              count++;
+            }
+          } catch (e) {}
+        }
+      }
+    }
+    return count;
+  } catch (err) {
+    return 0;
+  }
+}
+
+/**
+ * Tự động ghi URL Cầu nối hợp lệ (Google Form Bridge hoặc Web App đã Deploy) vào ô N1 và J4
+ * Tự động xóa bỏ các URL lỗi 404 chưa deploy.
  */
 function autoPublishWebhookUrlToSheet(ss, customUrl) {
   try {
     if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
-    var url = customUrl || "";
-    if (!url) {
-      try {
-        var serviceUrl = ScriptApp.getService().getUrl();
-        if (serviceUrl && serviceUrl.indexOf("script.google.com") !== -1) {
-          url = serviceUrl;
-        }
-      } catch (e) {}
-    }
+    var props = PropertiesService.getScriptProperties();
+    var url = customUrl || props.getProperty("SYNAPES_FORM_BRIDGE_URL") || "";
 
     if (!url) {
       var uSheet = getUsersSheet(ss, false);
       if (uSheet) {
         var existing = String(uSheet.getRange("N1").getValue() || "").trim();
-        if (existing.indexOf("script.google.com") !== -1) {
+        // Loại bỏ URL ảo 404 chưa deploy trước đây
+        if (existing.indexOf("AKfycbwjCX3IJpWA7xOxloT9YuYVGE1DI_LePFobI9TOaLYj9k2vivQ") !== -1) {
+          uSheet.getRange("N1").clearContent();
+          var aSheet = getAccountsSheet(ss);
+          if (aSheet) aSheet.getRange("J4").clearContent();
+          existing = "";
+        }
+        if (
+          existing.indexOf("docs.google.com/forms") !== -1 ||
+          existing.indexOf("script.google.com") !== -1
+        ) {
           url = existing;
         }
       }
     }
 
-    if (url && url.indexOf("script.google.com") !== -1) {
+    if (
+      url &&
+      (url.indexOf("docs.google.com/forms") !== -1 || url.indexOf("script.google.com") !== -1)
+    ) {
       var usersSheet = getUsersSheet(ss, false);
       if (usersSheet) {
         usersSheet.getRange("N1").setValue(url).setFontColor("#94a3b8").setFontSize(8);
@@ -886,14 +1044,25 @@ function doPost(e) {
 function processWebhookPayload(payload) {
   if (!payload) return { status: "error", message: "Empty payload" };
 
-  // Chống xử lý trùng lặp khi WebApp gửi song song cả POST và JSONP GET
+  // Chống xử lý trùng lặp bằng cả CacheService và PropertiesService
   if (payload.requestId) {
     try {
       var cache = CacheService.getScriptCache();
       if (cache.get(payload.requestId)) {
         return { status: "already_processed", requestId: payload.requestId };
       }
-      cache.put(payload.requestId, "1", 300);
+      var props = PropertiesService.getScriptProperties();
+      var historyRaw = props.getProperty("PROCESSED_REQ_IDS") || "[]";
+      var historyList = JSON.parse(historyRaw);
+      if (historyList.indexOf(payload.requestId) !== -1) {
+        return { status: "already_processed", requestId: payload.requestId };
+      }
+      historyList.push(payload.requestId);
+      if (historyList.length > 80) {
+        historyList = historyList.slice(historyList.length - 80);
+      }
+      props.setProperty("PROCESSED_REQ_IDS", JSON.stringify(historyList));
+      cache.put(payload.requestId, "1", 21600);
     } catch (e) {}
   }
 
@@ -1099,13 +1268,16 @@ function handleForgotPasswordWebhook(ss, payload) {
 function syncToWebApp() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   installAutoEditTrigger(ss);
-  var url = autoPublishWebhookUrlToSheet(ss);
+  var bridgeUrl = setupGoogleFormBridge(ss);
+  var syncedCount = syncPendingFormBridgeResponses();
+  var url = bridgeUrl || autoPublishWebhookUrlToSheet(ss);
 
   SpreadsheetApp.getUi().alert(
     "🔄 ĐÃ ĐỒNG BỘ DỮ LIỆU VỚI WEBAPP!\n\n" +
+    "• Đã quét và cập nhật " + syncedCount + " hồ sơ mới từ Cầu nối tự động.\n" +
     "• Trang \"THÔNG TIN NGƯỜI DÙNG\" và \"Quản Lý Mật Khẩu\" đang kết nối thời gian thực với WebApp.\n" +
     "• Bộ kích hoạt tự động gửi Gmail khi tích Checkbox Cột I: ĐÃ BẬT.\n" +
-    (url ? "• Webhook 2 chiều: " + url + "\n" : "• Gợi ý: Bấm mục '🔗 2. Gắn Link Web App' trong menu để bật tự động ghi từ WebApp vào Sheet.\n") +
+    (url ? "• Cầu nối 2 chiều đang hoạt động: " + url + "\n" : "") +
     "\nĐịa chỉ WebApp: https://synapes-auto-tool.onrender.com"
   );
 }

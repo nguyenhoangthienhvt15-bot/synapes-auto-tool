@@ -13,6 +13,7 @@ import {
   setAppsScriptWebhookUrl,
   callAppsScriptWebhook,
   flushPendingWebhookQueue,
+  isValidWebhookUrl,
 } from '../services/googleSheetService';
 import { APPS_SCRIPT_CODE } from '../data/appsScriptCode';
 import { downloadMasterPdfFile, printPersonalizedContractPdf } from '../utils/contractPdfGenerator';
@@ -47,14 +48,14 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
 
   const handleSaveWebhook = async () => {
     const clean = webhookUrl.trim();
-    if (!clean || !clean.includes('script.google.com')) {
-      showToast('⚠️ Vui lòng nhập URL Web App hợp lệ (https://script.google.com/macros/s/.../exec)');
+    if (!isValidWebhookUrl(clean)) {
+      showToast('⚠️ Vui lòng nhập URL Cầu nối Google Form hoặc Web App hợp lệ!');
       return;
     }
     setAppsScriptWebhookUrl(clean);
     await callAppsScriptWebhook({ action: 'save_webhook_url', webhookUrl: clean });
     await flushPendingWebhookQueue(clean);
-    showToast('✅ Đã lưu kết nối Webhook 2 chiều với Google Sheet!');
+    showToast('✅ Đã lưu kết nối 2 chiều với Google Sheet!');
   };
 
   const [newCode, setNewCode] = useState('');

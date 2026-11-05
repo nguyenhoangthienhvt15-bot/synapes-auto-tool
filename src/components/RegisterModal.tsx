@@ -13,6 +13,7 @@ import {
   discoverWebhookUrlFromSheet,
   callAppsScriptWebhook,
   flushPendingWebhookQueue,
+  isValidWebhookUrl,
 } from '../services/googleSheetService';
 import { downloadPersonalizedContractPdf, printPersonalizedContractPdf } from '../utils/contractPdfGenerator';
 
@@ -84,8 +85,8 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
 
   const handleSaveWebhookUrl = async () => {
     const clean = webhookUrlInput.trim();
-    if (!clean || !clean.includes('script.google.com')) {
-      setWebhookSavedMsg('⚠️ Vui lòng dán đúng đường dẫn Web App (https://script.google.com/macros/s/.../exec)');
+    if (!isValidWebhookUrl(clean)) {
+      setWebhookSavedMsg('⚠️ Vui lòng dán đúng đường dẫn Cầu nối Google Form hoặc Web App (/exec)');
       return;
     }
     setAppsScriptWebhookUrl(clean);
