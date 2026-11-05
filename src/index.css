@@ -2,40 +2,36 @@
 
 @layer base {
   :root {
-    --apple-bg: #FAF9F5;
-    --apple-surface: #FFFFFF;
-    --apple-card: #FFFFFF;
-    --apple-card-elevated: #F6F5F0;
-    --apple-border: rgba(0, 0, 0, 0.065);
-    --apple-border-strong: rgba(0, 0, 0, 0.12);
-    --apple-text-primary: #1D1D1F;
-    --apple-text-secondary: #6E6E73;
-    --apple-text-muted: #86868B;
-    --apple-blue: #0071E3;
-    --apple-blue-hover: #0077ED;
-    --apple-green: #34C759;
-    --apple-orange: #FF9500;
-    --apple-red: #FF3B30;
-    --apple-purple: #AF52DE;
+    --studio-bg: #FBFBFA;
+    --studio-surface: #FFFFFF;
+    --studio-surface-subtle: #F7F7F6;
+    --studio-border: rgba(0, 0, 0, 0.08);
+    --studio-border-subtle: rgba(0, 0, 0, 0.04);
+    --studio-border-strong: rgba(0, 0, 0, 0.16);
+    --studio-text-primary: #121212;
+    --studio-text-secondary: #525252;
+    --studio-text-muted: #737373;
+    --studio-accent: #121212;
+    --studio-blue: #0F52BA;
+    --studio-green: #15803D;
+    --studio-amber: #B45309;
+    --studio-red: #B91C1C;
   }
 
   body {
-    background-color: #FAF9F5;
-    color: #1D1D1F;
-    /* High-Craft Typography: Plus Jakarta Sans + Inter (used by Apple/Linear/Vercel) */
-    font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    background-color: #FBFBFA;
+    color: #121212;
+    font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-variant-numeric: tabular-nums;
-    /* EXPLICITLY turn off slashed zero ("zero" 0) to avoid robotic AI look (05:42 instead of 0̸5:42) */
-    font-feature-settings: "zero" 0, "tnum" 1;
-    letter-spacing: -0.012em;
+    font-feature-settings: "zero" 0, "tnum" 1, "cv02" 1, "cv03" 1, "cv04" 1;
+    letter-spacing: -0.015em;
   }
 }
 
 /* ==========================================================================
-   Typography Classes (Apple / Linear / High-Craft Standard)
-   Derived from wondelai/skills (web-typography) & emilkowalski/skills
+   Modern Minimalist Design Engineering System (Taste-Skill / Linear Spec)
    ========================================================================== */
 
 .font-display {
@@ -43,183 +39,201 @@
   letter-spacing: -0.025em;
 }
 
-.font-numeric {
-  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "zero" 0, "tnum" 1;
-  letter-spacing: -0.02em;
-}
-
-/* Override font-mono so that time and numbers never show robotic slashed zeros (Ø) */
+.font-numeric,
 .font-mono,
 [class*="font-mono"] {
-  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  font-family: 'JetBrains Mono', 'Plus Jakarta Sans', monospace !important;
   font-variant-numeric: tabular-nums !important;
   font-feature-settings: "zero" 0, "tnum" 1 !important;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.015em;
 }
 
-/* Dual-layer Soft Physical Shadows */
+/* Architectural Minimalist Surfaces */
+.studio-card {
+  background-color: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.025);
+}
+
+.studio-card-elevated {
+  background-color: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+.studio-card-hover {
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.studio-card-hover:hover {
+  border-color: rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.03);
+}
+
+/* Legacy alias for backwards compatibility */
 .apple-card {
   background-color: #FFFFFF;
-  border: 1px solid rgba(0, 0, 0, 0.065);
-  border-radius: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 6px 20px rgba(0, 0, 0, 0.025);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.025);
 }
 
 .apple-card-hover {
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .apple-card-hover:hover {
-  border-color: rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04), 0 14px 34px rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.03);
 }
 
-/* Frosted Glass Vibrancy */
-.apple-glass {
-  background-color: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(24px) saturate(190%);
-  -webkit-backdrop-filter: blur(24px) saturate(190%);
-  border: 1px solid rgba(0, 0, 0, 0.065);
-}
-
-.apple-glass-heavy {
-  background-color: rgba(250, 249, 245, 0.92);
-  backdrop-filter: blur(30px) saturate(200%);
-  -webkit-backdrop-filter: blur(30px) saturate(200%);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+/* Hairline Glass & Command Bars */
+.studio-header {
+  background-color: rgba(251, 251, 250, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
 }
 
 .apple-header {
-  background-color: rgba(250, 249, 245, 0.90);
-  backdrop-filter: blur(24px) saturate(190%);
-  -webkit-backdrop-filter: blur(24px) saturate(190%);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.065);
+  background-color: rgba(251, 251, 250, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
 }
 
-/* Apple Segmented Control (Physical tactile switch) */
+/* Linear-style Segmented Switcher */
+.studio-segmented-container,
 .apple-segmented-container {
-  background-color: rgba(0, 0, 0, 0.05);
-  padding: 3px;
-  border-radius: 12px;
+  background-color: rgba(0, 0, 0, 0.04);
+  padding: 2.5px;
+  border-radius: 9px;
   display: inline-flex;
   align-items: center;
   border: 1px solid rgba(0, 0, 0, 0.03);
 }
 
+.studio-segmented-item,
 .apple-segmented-item {
-  padding: 5px 14px;
-  border-radius: 9px;
+  padding: 5px 12px;
+  border-radius: 7px;
   font-size: 12px;
   font-weight: 500;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  color: #6E6E73;
+  transition: all 0.15s ease;
+  color: #525252;
 }
 
+.studio-segmented-item:hover,
 .apple-segmented-item:hover {
-  color: #1D1D1F;
+  color: #121212;
 }
 
+.studio-segmented-item.active,
 .apple-segmented-item.active {
   background-color: #FFFFFF;
-  color: #1D1D1F;
+  color: #121212;
   font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 3px 8px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
-/* Interactive Tap Feedback (Spring physics) */
-.apple-btn-tap {
-  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+/* High-Craft Minimalist Buttons */
+.btn-primary {
+  background-color: #121212;
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
-.apple-btn-tap:active {
-  transform: scale(0.975);
+.btn-primary:hover {
+  background-color: #000000;
 }
 
-/* Visual Equalizer Micro-Waveform Animation */
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-secondary {
+  background-color: #FFFFFF;
+  color: #262626;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 13px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-secondary:hover {
+  background-color: #F7F7F6;
+  border-color: rgba(0, 0, 0, 0.16);
+  color: #121212;
+}
+
+.btn-secondary:active {
+  transform: scale(0.98);
+}
+
+/* Precision Tactile Feedback */
+.apple-btn-tap,
+.studio-btn-tap {
+  transition: all 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.apple-btn-tap:active,
+.studio-btn-tap:active {
+  transform: scale(0.98);
+}
+
+/* Minimalist Audio Waveform Animation */
 @keyframes soundwave {
-
-  0%,
-  100% {
-    height: 4px;
+  0%, 100% {
+    height: 3px;
   }
-
   50% {
-    height: 16px;
+    height: 14px;
   }
 }
 
-.wave-bar-1 {
-  animation: soundwave 0.8s ease-in-out infinite;
-}
+.wave-bar-1 { animation: soundwave 0.8s ease-in-out infinite; }
+.wave-bar-2 { animation: soundwave 1.1s ease-in-out infinite 0.2s; }
+.wave-bar-3 { animation: soundwave 0.9s ease-in-out infinite 0.4s; }
+.wave-bar-4 { animation: soundwave 1.2s ease-in-out infinite 0.1s; }
 
-.wave-bar-2 {
-  animation: soundwave 1.1s ease-in-out infinite 0.2s;
-}
-
-.wave-bar-3 {
-  animation: soundwave 0.9s ease-in-out infinite 0.4s;
-}
-
-.wave-bar-4 {
-  animation: soundwave 1.2s ease-in-out infinite 0.1s;
-}
-
-/* Subtle Loading Shimmer */
-@keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-.shimmer-active {
-  position: relative;
-  overflow: hidden;
-}
-
-.shimmer-active::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-  animation: shimmer 1.8s infinite;
-}
-
-/* Pulsing Status Dot */
+/* Subtle Live Dot */
 @keyframes livePulse {
-  0% {
+  0%, 100% {
+    opacity: 0.6;
     transform: scale(0.95);
-    opacity: 0.8;
   }
-
   50% {
-    transform: scale(1.15);
     opacity: 1;
-  }
-
-  100% {
-    transform: scale(0.95);
-    opacity: 0.8;
+    transform: scale(1.05);
   }
 }
 
 .pulse-dot {
-  animation: livePulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: livePulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Subtle Apple Custom Scrollbar */
+/* Sleek Minimalist Scrollbar */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -227,10 +241,10 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.14);
-  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.24);
+  background: rgba(0, 0, 0, 0.22);
 }

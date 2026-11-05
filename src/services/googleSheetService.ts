@@ -5,6 +5,32 @@ export const GOOGLE_SHEET_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE
 
 const STORAGE_KEY = 'synapes_cached_sheet_rows';
 const LAST_SYNC_KEY = 'synapes_last_sheet_sync';
+const CUSTOM_PASSWORDS_KEY = 'synapes_custom_passwords';
+
+/**
+ * Lấy danh sách mật khẩu riêng đã đổi lưu trên trình duyệt
+ */
+export function getCustomPasswords(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(CUSTOM_PASSWORDS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Lưu mật khẩu riêng của tài khoản vào bộ nhớ cục bộ
+ */
+export function saveCustomPassword(code: string, pass: string): void {
+  try {
+    const current = getCustomPasswords();
+    current[code.toUpperCase()] = pass;
+    localStorage.setItem(CUSTOM_PASSWORDS_KEY, JSON.stringify(current));
+  } catch (e) {
+    console.warn('Failed to save custom password', e);
+  }
+}
 
 /**
  * Lấy thời gian đồng bộ lần cuối
@@ -50,7 +76,7 @@ export function cacheSheetRows(rows: EngineerSheetRow[]): void {
 }
 
 /**
- * Phân tích dữ liệu phản hồi từ Google Visualization API
+ * Phân tích dữ liệu phản hồi từ Google Visualization API với cơ chế tự thích ứng cột (Auto-Adaptive Column Detection)
  */
 export function parseGvizResponse(response: any): EngineerSheetRow[] {
   if (!response || !response.table || !response.table.rows) {
@@ -61,38 +87,92 @@ export function parseGvizResponse(response: any): EngineerSheetRow[] {
   const gvizRows = response.table.rows;
 
   for (const r of gvizRows) {
-    if (!r || !r.c) continue;
+    if (!r || !r.c || !Array.isArray(r.c)) continue;
 
-    // Col B (index 1): Mã Code
-    const codeRaw = r.c[1]?.v;
-    if (!codeRaw || String(codeRaw).trim() === '') continue;
-    const code = String(codeRaw).trim().toUpperCase();
+    // Lấy mảng giá trị của hàng
+    const cellVals: string[] = r.c.map((cell: any) =>
+      cell && (cell.v !== undefined && cell.v !== null) ? String(cell.v).trim() : ''
+    );
 
-    // Col C (index 2): Tên khách hàng / Studio
-    const clientName = r.c[2]?.v ? String(r.c[2].v).trim() : 'Khách Hàng Studio';
+    // Bỏ qua dòng trống hoặc dòng tiêu đề
+    if (cellVals.every((v) => v === '')) continue;
+    if (cellVals.some((v) => v.toLowerCase().includes('mã code') || v.toLowerCase().includes('mã khách hàng'))) {
+      continue;
+    }
 
-    // Col D (index 3): Gmail đăng ký
-    const registeredGmail = r.c[3]?.v ? String(r.c[3].v).trim() : '';
+    // Tự động tìm cột Code: cột có dạng FYER-..., VIP-..., hoặc mã chữ hoa có gạch nối
+    let code = '';
+    let codeIndex = -1;
 
-    // Col E (index 4): Mật khẩu tạm / Mặc định
-    const currentTempPassword = r.c[4]?.v !== undefined && r.c[4]?.v !== null ? String(r.c[4].v).trim() : '';
+    // Ưu tiên 1: Cột B (index 1) hoặc Cột A (index 0)
+    if (cellVals[1] && (cellVals[1].includes('-') || /^[A-Z0-9_-]{3,20}$/i.test(cellVals[1]))) {
+      code = cellVals[1].toUpperCase();
+      codeIndex = 1;
+    } else if (cellVals[0] && (cellVals[0].includes('-') || /^[A-Z0-9_-]{3,20}$/i.test(cellVals[0]))) {
+      code = cellVals[0].toUpperCase();
+      codeIndex = 0;
+    } else {
+      // Tìm trong bất kỳ cột nào
+      for (let i = 0; i < cellVals.length; i++) {
+        const val = cellVals[i];
+        if (val && !val.includes('@') && (val.startsWith('VIP') || val.startsWith('FYER') || (val.includes('-') && val.length <= 25))) {
+          code = val.toUpperCase();
+          codeIndex = i;
+          break;
+        }
+      }
+    }
 
-    // Col F (index 5): Thời gian cấp gần nhất
-    const lastIssuedTime = r.c[5]?.f || (r.c[5]?.v !== undefined && r.c[5]?.v !== null ? String(r.c[5].v).trim() : '');
+    if (!code) continue;
 
-    // Col G (index 6): Trạng thái mật khẩu
-    const statusRaw = r.c[6]?.v ? String(r.c[6].v).trim() : '';
+    // Tìm cột Gmail: cột chứa ký tự '@'
+    let registeredGmail = '';
+    for (let i = 0; i < cellVals.length; i++) {
+      if (cellVals[i].includes('@') && cellVals[i].includes('.')) {
+        registeredGmail = cellVals[i];
+        break;
+      }
+    }
+
+    // Tên khách hàng: Thường nằm sau cột Mã Code
+    let clientName = 'Khách Hàng Studio';
+    if (codeIndex !== -1 && cellVals[codeIndex + 1] && !cellVals[codeIndex + 1].includes('@')) {
+      clientName = cellVals[codeIndex + 1];
+    } else if (cellVals[2] && !cellVals[2].includes('@')) {
+      clientName = cellVals[2];
+    }
+
+    // Mật khẩu tạm: Thường nằm ở cột E (index 4) hoặc sau Gmail
+    let currentTempPassword = '';
+    if (cellVals[4] && cellVals[4] !== '') {
+      currentTempPassword = cellVals[4];
+    } else if (codeIndex === 0 && cellVals[3] && !cellVals[3].includes('@')) {
+      currentTempPassword = cellVals[3];
+    } else {
+      for (let i = 0; i < cellVals.length; i++) {
+        if (i !== codeIndex && cellVals[i] && !cellVals[i].includes('@') && cellVals[i] !== clientName && cellVals[i].length >= 4 && cellVals[i].length <= 30) {
+          if (/^(Auto-|Start@|snp@|[A-Za-z0-9@#$!%*?&]{6,})/i.test(cellVals[i])) {
+            currentTempPassword = cellVals[i];
+            break;
+          }
+        }
+      }
+    }
+
+    // Thời gian cấp
+    const lastIssuedTime = cellVals[5] || cellVals[6] || 'Mới cập nhật';
+
+    // Trạng thái mật khẩu
+    const statusRaw = (cellVals[6] || cellVals[7] || '').toLowerCase();
     let accountStatus: 'custom_password_active' | 'temp_password_active' | 'never_changed' = 'never_changed';
-    if (statusRaw.includes('đổi pass riêng') || statusRaw.includes('custom')) {
+    if (statusRaw.includes('đổi pass') || statusRaw.includes('custom') || statusRaw.includes('riêng')) {
       accountStatus = 'custom_password_active';
     } else if (statusRaw.includes('cấp lại') || statusRaw.includes('temp')) {
       accountStatus = 'temp_password_active';
     }
 
-    // Col I (index 8) hoặc Col H (index 7): Ghi chú
-    const notesPart1 = r.c[8]?.v ? String(r.c[8].v).trim() : '';
-    const pkgPart = r.c[7]?.v ? String(r.c[7].v).trim() : '';
-    const engineerNotes = notesPart1 ? `${pkgPart ? `[${pkgPart}] ` : ''}${notesPart1}` : pkgPart || 'Khách hàng SYNAPES';
+    // Ghi chú
+    const engineerNotes = cellVals[8] || cellVals[7] || 'Khách hàng SYNAPES';
 
     rows.push({
       code,
@@ -122,13 +202,9 @@ function extractGvizJson(rawText: string): any {
 }
 
 /**
- * Đồng bộ dữ liệu trực tiếp từ Google Sheet:
- * Cách 1: fetch() trực tiếp (Google Sheet hỗ trợ CORS cho domain web)
- * Cách 2: JSONP fallback qua thẻ <script>
- * Cách 3: Đọc cache localStorage đã lưu
+ * Đồng bộ dữ liệu trực tiếp từ Google Sheet
  */
 export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): Promise<EngineerSheetRow[]> {
-  // 1. Thử fetch() trực tiếp
   try {
     const timestamp = Date.now();
     const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&_t=${timestamp}`;
@@ -152,7 +228,6 @@ export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): P
     console.warn('Direct fetch from Google Sheet failed, trying JSONP fallback...', err);
   }
 
-  // 2. Fallback: JSONP
   return new Promise((resolve) => {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
       const cached = getCachedSheetRows();

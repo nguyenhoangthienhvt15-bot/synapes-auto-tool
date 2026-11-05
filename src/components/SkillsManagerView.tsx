@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Skill } from '../types';
-import { Sparkles, Plus, Upload, Trash2 } from 'lucide-react';
+import { Sparkles, Plus, Upload, Trash2, X } from 'lucide-react';
 
 interface SkillsManagerViewProps {
   skills: Skill[];
@@ -39,7 +39,7 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
           category: parsed.category || 'Mở rộng',
           description: parsed.description || 'Kỹ năng nạp từ file cấu hình',
           tone: parsed.tone || 'Chuyên nghiệp',
-          defaultTags: parsed.defaultTags || ['#AI', '#Video'],
+          defaultTags: parsed.defaultTags || ['AI', 'Video'],
           systemPrompt: parsed.systemPrompt || 'Prompt chuẩn hóa từ tệp tin',
         };
         onAddSkill(uploadedSkill);
@@ -74,32 +74,32 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
   };
 
   return (
-    <div className="space-y-5 animate-fade-in select-none">
-      <div className="apple-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-4 animate-in fade-in duration-150 select-none text-zinc-900">
+      <div className="studio-card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           {onBack && (
             <button
               onClick={onBack}
-              className="px-3.5 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-semibold border border-black/[0.08] transition apple-btn-tap flex items-center gap-1.5 shadow-2xs mr-1"
-              title="Thoát kho skills, quay lại bàn duyệt"
+              className="btn-secondary cursor-pointer"
+              title="Quay lại bàn duyệt"
             >
               <span>← Quay Lại</span>
             </button>
           )}
 
-          <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600 flex-shrink-0">
-            <Sparkles className="w-5 h-5" />
+          <div className="w-8 h-8 rounded-lg bg-zinc-100 border border-black/[0.06] flex items-center justify-center text-zinc-900 flex-shrink-0">
+            <Sparkles className="w-4 h-4 text-zinc-700" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-[#1D1D1F] tracking-tight">Kho Skills & Prompt Mẫu</h2>
+            <h2 className="text-base font-bold text-zinc-950 tracking-tight">Kho Skills & Prompt Mẫu</h2>
             <p className="text-zinc-500 text-xs mt-0.5">
-              Định hình sẵn cấu trúc phân cảnh và phong cách. Khi tạo kịch bản chỉ cần gõ <code>/skill-name</code>
+              Định hình sẵn cấu trúc phân cảnh và phong cách. Khi tạo kịch bản chỉ cần nhập <code>/skill-name</code>
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="px-3 py-1.5 bg-[#FAF9F5] hover:bg-zinc-100 text-zinc-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer border border-black/[0.08] transition shadow-2xs">
+          <label className="btn-secondary cursor-pointer">
             <Upload className="w-3.5 h-3.5 text-zinc-500" />
             <span>Nạp File JSON</span>
             <input
@@ -112,9 +112,9 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
 
           <button
             onClick={() => setShowAddModal(true)}
-            className="px-3.5 py-1.5 bg-[#0071E3] hover:bg-[#0077ED] text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition active:scale-[0.98] shadow-xs"
+            className="btn-primary cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             <span>Tạo Skill</span>
           </button>
         </div>
@@ -125,16 +125,16 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
         {skills.map((skill) => (
           <div
             key={skill.id}
-            className="apple-card p-5 space-y-2.5 hover:border-black/[0.14] transition"
+            className="studio-card p-4 space-y-2 hover:border-black/20 transition"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded-md bg-[#FAF9F5] text-[#0071E3] border border-black/[0.08] font-mono font-bold text-xs">
+                <span className="px-2 py-0.5 rounded bg-zinc-100 text-zinc-950 border border-zinc-200 font-mono font-medium text-xs">
                   {skill.command}
                 </span>
-                <span className="text-[#1D1D1F] font-bold text-xs">{skill.name}</span>
+                <span className="text-zinc-950 font-semibold text-xs">{skill.name}</span>
               </div>
-              <span className="text-[10px] text-zinc-500 font-medium bg-zinc-100 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] text-zinc-500 font-mono">
                 {skill.category}
               </span>
             </div>
@@ -145,7 +145,7 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
               {skill.defaultTags.map((tag) => (
                 <span
                   key={tag}
-                  className="px-2 py-0.5 rounded-md bg-[#FAF9F5] text-zinc-500 text-[10px] font-mono border border-black/[0.04]"
+                  className="px-1.5 py-0.2 rounded bg-zinc-50 text-zinc-600 text-[10px] font-mono border border-black/[0.04]"
                 >
                   #{tag}
                 </span>
@@ -153,10 +153,10 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
             </div>
 
             <div className="pt-2 border-t border-black/[0.06] flex items-center justify-between text-[11px] text-zinc-500">
-              <span>Tông giọng: <strong className="text-zinc-800">{skill.tone}</strong></span>
+              <span>Tông giọng: <strong className="text-zinc-800 font-medium">{skill.tone}</strong></span>
               <button
                 onClick={() => onDeleteSkill(skill.id)}
-                className="text-zinc-400 hover:text-red-600 transition p-1"
+                className="text-zinc-400 hover:text-red-600 transition p-1 cursor-pointer"
                 title="Xóa skill"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -169,21 +169,21 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
       {/* Modal Add Skill */}
       {showAddModal && (
         <div
-          className="fixed inset-0 z-50 bg-black/45 backdrop-blur-md flex items-center justify-center p-4 select-none"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 select-none animate-in fade-in duration-150"
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowAddModal(false);
           }}
         >
-          <div className="bg-white rounded-2xl border border-black/[0.08] max-w-md w-full p-6 shadow-2xl space-y-3.5 text-xs relative">
+          <div className="studio-card max-w-md w-full p-6 shadow-2xl space-y-3.5 text-xs relative">
             <div className="flex items-center justify-between pb-2 border-b border-black/[0.06]">
-              <h3 className="text-[#1D1D1F] font-bold text-sm">Tạo Skill Kịch Bản Mới</h3>
+              <h3 className="text-zinc-950 font-bold text-sm">Tạo Skill Kịch Bản Mới</h3>
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-zinc-400 hover:text-zinc-800 text-sm p-1 rounded-md hover:bg-black/[0.04]"
-                title="Đóng / Hủy"
+                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition cursor-pointer"
+                title="Đóng"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-3">
@@ -196,7 +196,7 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
                     placeholder="Review Công Nghệ"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-[#FAF9F5] border border-black/[0.1] rounded-xl px-3 py-1.5 text-xs text-zinc-900 focus:outline-none focus:bg-white focus:border-[#0071E3]"
+                    className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-1.5 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900"
                   />
                 </div>
                 <div>
@@ -207,7 +207,7 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
                     placeholder="/tech-review"
                     value={command}
                     onChange={(e) => setCommand(e.target.value)}
-                    className="w-full bg-[#FAF9F5] border border-black/[0.1] rounded-xl px-3 py-1.5 text-xs text-[#0071E3] font-mono font-semibold focus:outline-none focus:bg-white focus:border-[#0071E3]"
+                    className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-1.5 text-xs text-zinc-950 font-mono font-medium focus:outline-none focus:border-zinc-900"
                   />
                 </div>
               </div>
@@ -220,7 +220,7 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
                   placeholder="Kịch bản review công nghệ có hook 3 giây đầu..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full bg-[#FAF9F5] border border-black/[0.1] rounded-xl px-3 py-1.5 text-xs text-zinc-900 focus:outline-none focus:bg-white focus:border-[#0071E3]"
+                  className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-1.5 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900"
                 />
               </div>
 
@@ -232,7 +232,7 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
                   placeholder="Chia kịch bản thành các phân đoạn 10s..."
                   value={systemPrompt}
                   onChange={(e) => setSystemPrompt(e.target.value)}
-                  className="w-full bg-[#FAF9F5] border border-black/[0.1] rounded-xl p-2.5 text-xs text-zinc-900 focus:outline-none focus:bg-white focus:border-[#0071E3]"
+                  className="w-full bg-white border border-black/[0.1] rounded-lg p-2.5 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900 font-mono"
                 ></textarea>
               </div>
 
@@ -240,13 +240,13 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-3 py-1.5 text-zinc-500 hover:text-zinc-800"
+                  className="btn-secondary cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-[#0071E3] text-white rounded-xl text-xs font-semibold shadow-xs"
+                  className="btn-primary cursor-pointer"
                 >
                   Lưu Skill
                 </button>

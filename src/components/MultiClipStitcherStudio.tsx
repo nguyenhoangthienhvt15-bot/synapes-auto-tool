@@ -11,6 +11,7 @@ import {
   Link2,
   Upload,
   Trash2,
+  X
 } from 'lucide-react';
 
 interface LocalStitcherClip {
@@ -127,7 +128,7 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
 
     const newClip: LocalStitcherClip = {
       id: `clip-custom-${Date.now()}`,
-      name: `Clip URL Ngoại #${clips.length + 1}`,
+      name: `Clip URL #${clips.length + 1}`,
       thumbnailUrl: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?auto=format&fit=crop&w=400&q=80',
       videoUrl: customClipUrl.trim(),
       durationSec: Number(customClipDuration) || 10,
@@ -146,7 +147,7 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
 
     setTimeout(() => {
       setProcessPercent(35);
-      setProcessStep(`Nối ${clips.length} clip 10s bằng FFmpeg concat demuxer...`);
+      setProcessStep(`Nối ${clips.length} clip bằng FFmpeg concat demuxer...`);
     }, 1000);
 
     setTimeout(() => {
@@ -168,57 +169,57 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#FAF9F5] text-zinc-800 flex flex-col select-none overflow-hidden animate-fade-in">
-      {/* Top Header: macOS Traffic Lights + Title + Thoát Studio */}
-      <div className="h-14 px-5 bg-white border-b border-black/[0.08] flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-4">
-          {/* Nút Thoát Studio nổi bật */}
+    <div className="fixed inset-0 z-50 bg-[#FBFBFA] text-zinc-900 flex flex-col select-none overflow-hidden animate-in fade-in duration-150">
+      {/* Top Header: Command Bar */}
+      <div className="h-13 px-5 bg-white border-b border-black/[0.08] flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-3">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-semibold flex items-center gap-1.5 transition apple-btn-tap border border-black/[0.06]"
-            title="Thoát Timeline Studio (hoặc bấm Esc)"
+            className="px-2.5 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-medium flex items-center gap-1.5 transition border border-black/[0.06] cursor-pointer"
+            title="Thoát Timeline Studio (Esc)"
           >
-            <span>✕ Thoát Studio</span>
-            <span className="px-1.5 py-0.2 rounded bg-black/[0.06] text-[10px] text-zinc-500 font-mono">Esc</span>
+            <X className="w-3.5 h-3.5" />
+            <span>Thoát Studio</span>
+            <span className="px-1 py-0.2 rounded bg-black/[0.06] text-[10px] text-zinc-500 font-mono">Esc</span>
           </button>
 
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-[#1D1D1F] text-xs tracking-tight">Timeline Studio</span>
-            <span className="text-zinc-400 text-xs">•</span>
-            <span className="text-zinc-500 text-xs font-normal">Ghép Nối Video Dài YouTube (5–10 Phút)</span>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-bold text-zinc-950 tracking-tight">Timeline Studio</span>
+            <span className="text-zinc-300">/</span>
+            <span className="text-zinc-500 font-normal">Ghép Nối Video Dài YouTube (5–10 Phút)</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <button
             onClick={onClose}
-            className="px-3.5 py-1.5 rounded-xl bg-[#FAF9F5] hover:bg-zinc-100 text-zinc-700 text-xs font-medium border border-black/[0.08] transition apple-btn-tap"
+            className="btn-secondary cursor-pointer"
           >
-            Hủy / Đóng
+            Hủy
           </button>
           <button
             onClick={handleStartStitching}
             disabled={isProcessing}
-            className="px-4 py-1.5 rounded-xl bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-semibold shadow-xs transition active:scale-[0.98] flex items-center gap-1.5 apple-btn-tap"
+            className="btn-primary cursor-pointer"
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <Sparkles className="w-3.5 h-3.5 text-zinc-400" />
             <span>Ghép Thành Video Hoàn Chỉnh</span>
           </button>
         </div>
       </div>
 
       {/* Main Workspace (Preview + Inspector) */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 p-5 overflow-y-auto">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 overflow-y-auto">
 
-        {/* KHU VỰC 1: XEM TRƯỚC TỔNG THỂ */}
+        {/* LEFT: MASTER PREVIEW */}
         <div className="lg:col-span-7 flex flex-col">
-          <div className="apple-card p-5 flex-1 flex flex-col justify-between">
+          <div className="studio-card p-4 sm:p-5 flex-1 flex flex-col justify-between">
             <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] text-xs text-zinc-500">
-              <span className="font-bold text-[#1D1D1F]">Màn hình Xem trước Master</span>
-              <span className="font-numeric text-[#34C759] font-bold text-[11px]">16:9 Full HD 1080p</span>
+              <span className="font-semibold text-zinc-900">Màn hình Xem trước Master</span>
+              <span className="font-mono text-zinc-600 font-medium text-[11px]">16:9 Full HD 1080p</span>
             </div>
 
-            <div className="w-full aspect-video bg-black rounded-xl overflow-hidden relative border border-black/[0.08] flex items-center justify-center my-3 shadow-sm">
+            <div className="w-full aspect-video bg-zinc-950 rounded-lg overflow-hidden relative border border-black/[0.08] flex items-center justify-center my-3 shadow-inner">
               <video
                 src={project.videoUrl}
                 poster={project.thumbnailUrl}
@@ -229,81 +230,73 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
             </div>
 
             <div className="pt-3 border-t border-black/[0.06] flex items-center justify-between text-[11px] text-zinc-500">
-              <span>Đang kết hợp: <strong className="text-zinc-900 font-numeric font-bold">{clips.length} phân cảnh</strong></span>
-              <span>FFmpeg Concat Demuxer Engine</span>
+              <span>Đang kết hợp: <strong className="text-zinc-900 font-mono font-medium">{clips.length} phân cảnh</strong></span>
+              <span className="font-mono text-[10px]">FFmpeg Concat Demuxer Engine</span>
             </div>
           </div>
         </div>
 
-        {/* KHU VỰC 2: THÔNG SỐ VÀ ÂM THANH */}
+        {/* RIGHT: TIMELINE TELEMETRY & AUDIO */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="apple-card p-5 space-y-4">
+          <div className="studio-card p-4 sm:p-5 space-y-4">
 
-            {/* ĐỒNG HỒ ĐO THỜI LƯỢNG THỜI GIAN THỰC */}
+            {/* DURATION TELEMETRY */}
             <div>
               <div className="flex items-center justify-between mb-1.5 text-xs">
-                <span className="font-bold text-[#1D1D1F] flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-[#0071E3]" />
+                <span className="font-semibold text-zinc-900 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-zinc-500" />
                   Tổng thời lượng video:
                 </span>
-                <span className="font-numeric text-zinc-500 text-[11px]">Quy định: 05:00 - 10:00</span>
+                <span className="font-mono text-zinc-500 text-[11px]">Định hạn: 05:00 - 10:00</span>
               </div>
 
               {/* Status Box */}
-              <div
-                className={`p-4 rounded-2xl border text-center transition ${isPerfect
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                    : isTooShort
-                      ? 'bg-amber-50 border-amber-200 text-amber-900'
-                      : 'bg-red-50 border-red-200 text-red-900'
-                  }`}
-              >
-                <div className="text-3xl font-extrabold font-numeric tracking-tight">
-                  {formatTime(totalDurationSec)} <span className="text-xs font-normal opacity-70">/ 10:00 phút</span>
+              <div className="p-4 rounded-xl border border-black/[0.08] bg-zinc-50/70 text-center">
+                <div className="text-3xl font-bold font-mono tracking-tight text-zinc-950">
+                  {formatTime(totalDurationSec)} <span className="text-xs font-normal text-zinc-400">/ 10:00</span>
                 </div>
 
-                <div className="mt-1.5 text-xs font-semibold flex items-center justify-center gap-1.5">
+                <div className="mt-2 text-xs font-medium flex items-center justify-center gap-1.5">
                   {isPerfect && (
                     <>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      <span>Đạt chuẩn thời lượng YouTube (5 - 10 phút)</span>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="text-zinc-800">Đạt chuẩn thời lượng YouTube (5 - 10 phút)</span>
                     </>
                   )}
                   {isTooShort && (
                     <>
-                      <AlertTriangle className="w-4 h-4 text-amber-600" />
-                      <span>Chưa đạt tối thiểu 5 phút (Hiện tại: {formatTime(totalDurationSec)})</span>
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                      <span className="text-zinc-800">Chưa đạt tối thiểu 5 phút (Hiện tại: {formatTime(totalDurationSec)})</span>
                     </>
                   )}
                   {isTooLong && (
                     <>
-                      <AlertTriangle className="w-4 h-4 text-red-600" />
-                      <span>Vượt quá giới hạn tối đa 10 phút</span>
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                      <span className="text-zinc-800">Vượt quá giới hạn tối đa 10 phút</span>
                     </>
                   )}
                 </div>
               </div>
 
               {/* Progress bar */}
-              <div className="w-full bg-black/[0.06] h-2 rounded-full overflow-hidden mt-2.5">
+              <div className="w-full bg-zinc-100 h-1.5 rounded-full overflow-hidden mt-2.5">
                 <div
-                  className={`h-full rounded-full transition-all duration-300 ${isPerfect ? 'bg-[#34C759]' : isTooShort ? 'bg-[#FF9500]' : 'bg-[#FF3B30]'
-                    }`}
+                  className="h-full rounded-full transition-all duration-300 bg-zinc-900"
                   style={{ width: `${Math.min(100, (totalDurationSec / 600) * 100)}%` }}
                 ></div>
               </div>
             </div>
 
-            {/* THÊM CLIP */}
+            {/* ADD CLIPS */}
             <div className="space-y-2 pt-3 border-t border-black/[0.06]">
               <span className="text-xs font-semibold text-zinc-800 block">Thêm đoạn clip:</span>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => setShowAddModal(true)}
-                  className="p-3 rounded-xl bg-[#FAF9F5] hover:bg-zinc-100 border border-black/[0.08] text-left text-xs transition"
+                  className="p-3 rounded-lg bg-zinc-50 hover:bg-zinc-100 border border-black/[0.06] text-left text-xs transition cursor-pointer"
                 >
-                  <div className="text-[#0071E3] font-bold mb-0.5 flex items-center gap-1.5">
-                    <Link2 className="w-3.5 h-3.5" /> Dán link URL
+                  <div className="text-zinc-900 font-semibold mb-0.5 flex items-center gap-1.5">
+                    <Link2 className="w-3.5 h-3.5 text-zinc-500" /> Dán link URL
                   </div>
                   <div className="text-[11px] text-zinc-500">Từ Kling / Runway / Drive</div>
                 </button>
@@ -316,10 +309,10 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
                     input.onchange = () => alert('Đã nạp file video từ máy.');
                     input.click();
                   }}
-                  className="p-3 rounded-xl bg-[#FAF9F5] hover:bg-zinc-100 border border-black/[0.08] text-left text-xs transition"
+                  className="p-3 rounded-lg bg-zinc-50 hover:bg-zinc-100 border border-black/[0.06] text-left text-xs transition cursor-pointer"
                 >
-                  <div className="text-[#34C759] font-bold mb-0.5 flex items-center gap-1.5">
-                    <Upload className="w-3.5 h-3.5" /> Tải từ máy tính
+                  <div className="text-zinc-900 font-semibold mb-0.5 flex items-center gap-1.5">
+                    <Upload className="w-3.5 h-3.5 text-zinc-500" /> Tải từ máy tính
                   </div>
                   <div className="text-[11px] text-zinc-500">Tệp MP4 có sẵn</div>
                 </button>
@@ -328,28 +321,28 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
 
             {/* MASTER AUDIO */}
             <div className="space-y-3 pt-3 border-t border-black/[0.06] text-xs">
-              <span className="font-bold text-zinc-800 flex items-center gap-1.5">
-                <Music className="w-3.5 h-3.5 text-purple-600" />
-                Âm thanh Master xuyên suốt:
+              <span className="font-semibold text-zinc-900 flex items-center gap-1.5">
+                <Music className="w-3.5 h-3.5 text-zinc-600" />
+                Âm thanh Master:
               </span>
 
-              <div className="p-3 rounded-xl bg-[#FAF9F5] border border-black/[0.06] flex items-center justify-between">
+              <div className="p-3 rounded-lg bg-zinc-50 border border-black/[0.05] flex items-center justify-between">
                 <div>
-                  <div className="text-zinc-800 font-medium">Lồng tiếng (Voiceover Track)</div>
-                  <div className="text-[10px] text-[#34C759] font-numeric font-semibold">audio_voiceover_master.mp3</div>
+                  <div className="text-zinc-900 font-medium">Lồng tiếng (Voiceover Track)</div>
+                  <div className="text-[10px] text-zinc-500 font-mono">audio_voiceover_master.mp3</div>
                 </div>
                 <input
                   type="checkbox"
                   checked={voiceTrackActive}
                   onChange={(e) => setVoiceTrackActive(e.target.checked)}
-                  className="rounded text-[#0071E3] w-4 h-4 cursor-pointer"
+                  className="rounded text-zinc-900 w-4 h-4 cursor-pointer"
                 />
               </div>
 
-              <div className="p-3 rounded-xl bg-[#FAF9F5] border border-black/[0.06] space-y-2">
+              <div className="p-3 rounded-lg bg-zinc-50 border border-black/[0.05] space-y-2">
                 <div className="flex items-center justify-between text-zinc-600">
                   <span className="font-medium">Nhạc nền (BGM):</span>
-                  <span className="font-numeric text-[11px] text-zinc-800 font-semibold">{bgmVolume}%</span>
+                  <span className="font-mono text-[11px] text-zinc-900 font-semibold">{bgmVolume}%</span>
                 </div>
                 <select
                   value={selectedBgm}
@@ -367,7 +360,7 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
                   max="50"
                   value={bgmVolume}
                   onChange={(e) => setBgmVolume(Number(e.target.value))}
-                  className="w-full accent-[#0071E3] cursor-pointer"
+                  className="w-full accent-zinc-900 cursor-pointer"
                 />
               </div>
             </div>
@@ -377,15 +370,15 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
 
       </div>
 
-      {/* KHU VỰC 3: DÃY TIMELINE KÉO THẢ */}
-      <div className="h-56 bg-white border-t border-black/[0.08] p-3.5 flex flex-col justify-between flex-shrink-0">
-        <div className="flex items-center justify-between text-xs mb-1.5">
+      {/* BOTTOM TIMELINE REEL */}
+      <div className="h-52 bg-white border-t border-black/[0.08] p-3 flex flex-col justify-between flex-shrink-0">
+        <div className="flex items-center justify-between text-xs mb-1">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-[#1D1D1F] flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-[#0071E3]" />
+            <span className="font-semibold text-zinc-950 flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-zinc-600" />
               Timeline Video ({clips.length} Phân Cảnh)
             </span>
-            <span className="text-zinc-500 text-[11px]">Dùng mũi tên để hoán đổi thứ tự</span>
+            <span className="text-zinc-400 text-[11px]">Dùng phím điều hướng để đổi thứ tự</span>
           </div>
 
           <button
@@ -400,7 +393,7 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
               };
               setClips([...clips, newC]);
             }}
-            className="px-3 py-1 bg-[#FAF9F5] hover:bg-zinc-100 text-zinc-700 rounded-lg text-xs font-semibold border border-black/[0.08]"
+            className="btn-secondary cursor-pointer"
           >
             + Chèn Clip 10s
           </button>
@@ -411,24 +404,24 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
           {clips.map((clip, index) => (
             <div
               key={clip.id}
-              className="relative flex-shrink-0 w-32 bg-[#FAF9F5] border border-black/[0.08] rounded-xl overflow-hidden shadow-2xs group hover:border-black/[0.2] transition"
+              className="relative flex-shrink-0 w-30 bg-zinc-50 border border-black/[0.08] rounded-lg overflow-hidden group hover:border-black/20 transition"
             >
-              <div className="h-18 w-full relative bg-zinc-900">
+              <div className="h-16 w-full relative bg-zinc-950">
                 <img
                   src={clip.thumbnailUrl}
                   alt={clip.name}
                   className="w-full h-full object-cover opacity-90"
                 />
-                <span className="absolute bottom-1 right-1 px-1 py-0.2 rounded bg-black/80 font-numeric text-[9px] text-[#34C759] font-bold">
+                <span className="absolute bottom-1 right-1 px-1 py-0.2 rounded bg-black/80 font-mono text-[9px] text-emerald-400 font-medium">
                   {clip.durationSec}s
                 </span>
-                <span className="absolute top-1 left-1 px-1 py-0.2 rounded bg-black/70 font-numeric text-[9px] text-white">
+                <span className="absolute top-1 left-1 px-1 py-0.2 rounded bg-black/70 font-mono text-[9px] text-white">
                   #{index + 1}
                 </span>
 
                 <button
                   onClick={() => handleDeleteClip(clip.id)}
-                  className="absolute top-1 right-1 w-4 h-4 rounded bg-black/80 text-white hover:text-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                  className="absolute top-1 right-1 w-4 h-4 rounded bg-black/80 text-white hover:text-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer"
                 >
                   <Trash2 className="w-2.5 h-2.5" />
                 </button>
@@ -438,7 +431,7 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
                 <button
                   onClick={() => handleMoveClip(index, 'left')}
                   disabled={index === 0}
-                  className="px-1 py-0.5 rounded text-zinc-500 disabled:opacity-20 hover:text-zinc-900"
+                  className="px-1 py-0.5 rounded text-zinc-500 disabled:opacity-20 hover:text-zinc-900 cursor-pointer"
                 >
                   ◀
                 </button>
@@ -450,7 +443,7 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
                     next[index].transition = e.target.value as any;
                     setClips(next);
                   }}
-                  className="bg-transparent text-zinc-600 text-[9px] focus:outline-none"
+                  className="bg-transparent text-zinc-600 text-[9px] focus:outline-none font-mono"
                 >
                   <option value="cut">Cut</option>
                   <option value="fade">Fade</option>
@@ -460,7 +453,7 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
                 <button
                   onClick={() => handleMoveClip(index, 'right')}
                   disabled={index === clips.length - 1}
-                  className="px-1 py-0.5 rounded text-zinc-500 disabled:opacity-20 hover:text-zinc-900"
+                  className="px-1 py-0.5 rounded text-zinc-500 disabled:opacity-20 hover:text-zinc-900 cursor-pointer"
                 >
                   ▶
                 </button>
@@ -470,27 +463,27 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
         </div>
 
         <div className="pt-2 border-t border-black/[0.06] flex items-center justify-between text-[10px] text-zinc-500">
-          <span>{clips.length} phân cảnh • Tổng thời lượng: <strong className="text-zinc-900 font-numeric font-bold">{formatTime(totalDurationSec)}</strong></span>
-          <span>Apple HIG Timeline Interface</span>
+          <span>{clips.length} phân cảnh • Tổng thời lượng: <strong className="text-zinc-900 font-mono font-medium">{formatTime(totalDurationSec)}</strong></span>
+          <span className="font-mono">NLE Timeline Engine</span>
         </div>
       </div>
 
       {/* Modal dán URL ngoài */}
       {showAddModal && (
         <div
-          className="fixed inset-0 z-50 bg-black/45 backdrop-blur-md flex items-center justify-center p-4 select-none"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 select-none"
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowAddModal(false);
           }}
         >
-          <div className="bg-white rounded-2xl border border-black/[0.08] p-5 max-w-sm w-full shadow-2xl space-y-3 relative">
+          <div className="studio-card p-5 max-w-sm w-full shadow-2xl space-y-3 relative">
             <div className="flex items-center justify-between pb-2 border-b border-black/[0.06]">
-              <h3 className="text-[#1D1D1F] font-bold text-sm">Dán URL Video Ngoài</h3>
+              <h3 className="text-zinc-950 font-bold text-sm">Dán URL Video Ngoài</h3>
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-zinc-400 hover:text-zinc-800 text-sm p-1 rounded-md hover:bg-black/[0.04]"
-                title="Đóng / Hủy"
+                className="text-zinc-400 hover:text-zinc-800 text-sm p-1 rounded-md cursor-pointer"
+                title="Đóng"
               >
                 ✕
               </button>
@@ -504,7 +497,7 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
                   placeholder="https://..."
                   value={customClipUrl}
                   onChange={(e) => setCustomClipUrl(e.target.value)}
-                  className="w-full bg-[#FAF9F5] border border-black/[0.1] rounded-xl px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:bg-white focus:border-[#0071E3]"
+                  className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900 font-mono"
                 />
               </div>
 
@@ -517,7 +510,7 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
                   required
                   value={customClipDuration}
                   onChange={(e) => setCustomClipDuration(Number(e.target.value))}
-                  className="w-full bg-[#FAF9F5] border border-black/[0.1] rounded-xl px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:bg-white focus:border-[#0071E3]"
+                  className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900 font-mono"
                 />
               </div>
 
@@ -525,13 +518,13 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-3 py-1.5 text-zinc-500 hover:text-zinc-800 text-xs"
+                  className="btn-secondary cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-[#0071E3] text-white rounded-xl text-xs font-semibold shadow-xs"
+                  className="btn-primary cursor-pointer"
                 >
                   Thêm Vào Timeline
                 </button>
@@ -543,16 +536,16 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
 
       {/* Processing Overlay */}
       {isProcessing && (
-        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-black/[0.08] p-6 max-w-xs w-full text-center space-y-3 shadow-2xl">
-            <div className="w-10 h-10 rounded-full bg-[#0071E3]/10 flex items-center justify-center text-[#0071E3] mx-auto">
-              <Film className="w-5 h-5 animate-spin" />
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="studio-card p-6 max-w-xs w-full text-center space-y-3 shadow-2xl">
+            <div className="w-9 h-9 rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-900 mx-auto border border-black/[0.06]">
+              <Film className="w-4 h-4 animate-spin text-zinc-700" />
             </div>
-            <h4 className="text-sm font-bold text-[#1D1D1F]">Đang Ghép Video Dài...</h4>
-            <p className="text-zinc-500 text-xs">{processStep}</p>
-            <div className="w-full bg-black/[0.06] h-1.5 rounded-full overflow-hidden">
+            <h4 className="text-sm font-bold text-zinc-950">Đang Ghép Video Dài...</h4>
+            <p className="text-zinc-500 text-xs font-mono">{processStep}</p>
+            <div className="w-full bg-zinc-100 h-1.5 rounded-full overflow-hidden">
               <div
-                className="bg-[#0071E3] h-full rounded-full transition-all duration-300"
+                className="bg-zinc-900 h-full rounded-full transition-all duration-300"
                 style={{ width: `${processPercent}%` }}
               ></div>
             </div>

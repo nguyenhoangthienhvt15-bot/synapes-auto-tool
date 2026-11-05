@@ -18,66 +18,68 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCreateModal,
 }) => {
   return (
-    <aside className="w-60 bg-[#FAF9F5]/70 backdrop-blur-xl border-r border-black/[0.06] p-3.5 flex flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.5rem)] select-none">
+    <aside className="w-56 bg-[#FBFBFA] border-r border-black/[0.07] p-3 flex flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.25rem)] select-none">
       <div className="space-y-4">
 
-        {/* Nút Tạo dự án mới chuẩn Apple System Blue */}
+        {/* Primary Action Button */}
         <button
           onClick={onOpenCreateModal}
-          className="w-full py-2.5 px-3.5 rounded-xl bg-[#0071E3] hover:bg-[#0077ED] text-white font-medium text-xs shadow-xs flex items-center justify-center gap-2 transition apple-btn-tap"
+          className="w-full py-2 px-3 rounded-lg bg-zinc-900 hover:bg-black text-white font-medium text-xs shadow-2xs flex items-center justify-center gap-2 transition active:scale-[0.98] cursor-pointer"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-3.5 h-3.5" />
           <span>Dự Án Video Mới</span>
         </button>
 
-        {/* PHÂN NHÓM 1: SÁNG TẠO */}
+        {/* SECTION 1: SẢN XUẤT */}
         <div>
-          <div className="text-[10px] font-semibold text-zinc-400 tracking-wider px-2.5 mb-1 uppercase">
-            Sáng Tạo Nội Dung
+          <div className="text-[10px] font-semibold text-zinc-400 tracking-wider px-2 mb-1 uppercase font-mono">
+            Sản Xuất
           </div>
           <div className="space-y-0.5">
             <button
               onClick={onOpenCreateModal}
-              className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-normal text-zinc-600 hover:text-zinc-900 hover:bg-black/[0.035] transition text-left apple-btn-tap"
+              className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-normal text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70 transition text-left cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5 text-[#34C759]" />
+              <Plus className="w-3.5 h-3.5 text-zinc-400" />
               <span>Tạo kịch bản từ Prompt</span>
             </button>
 
             <button
               onClick={() => onSelectView('skills')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition text-left apple-btn-tap ${activeView === 'skills'
-                  ? 'bg-white text-zinc-900 font-semibold shadow-xs border border-black/[0.06]'
-                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-black/[0.035]'
-                }`}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${
+                activeView === 'skills'
+                  ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
+                  : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
+              }`}
             >
               <div className="flex items-center gap-2.5">
-                <Sparkles className="w-3.5 h-3.5 text-[#AF52DE]" />
+                <Sparkles className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Kho Skills & Prompts</span>
               </div>
             </button>
           </div>
         </div>
 
-        {/* PHÂN NHÓM 2: QUẢN LÝ & XÉT DUYỆT */}
+        {/* SECTION 2: DUYỆT & ĐIỀU PHỐI */}
         <div>
-          <div className="text-[10px] font-semibold text-zinc-400 tracking-wider px-2.5 mb-1 uppercase">
-            Quản Lý & Phê Duyệt
+          <div className="text-[10px] font-semibold text-zinc-400 tracking-wider px-2 mb-1 uppercase font-mono">
+            Kiểm Duyệt
           </div>
           <div className="space-y-0.5">
             <button
               onClick={() => onSelectView('pending-approval')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition text-left apple-btn-tap ${activeView === 'pending-approval' || activeView === 'review'
-                  ? 'bg-white text-zinc-900 font-semibold shadow-xs border border-black/[0.06]'
-                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-black/[0.035]'
-                }`}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${
+                activeView === 'pending-approval' || activeView === 'review'
+                  ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
+                  : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
+              }`}
             >
               <div className="flex items-center gap-2.5">
-                <Clock className="w-3.5 h-3.5 text-[#FF9500]" />
+                <Clock className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Chờ phê duyệt</span>
               </div>
               {pendingCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#FF3B30] text-white font-numeric">
+                <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-zinc-900 text-white">
                   {pendingCount}
                 </span>
               )}
@@ -85,23 +87,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <button
               onClick={() => onSelectView('calendar')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition text-left apple-btn-tap ${activeView === 'calendar'
-                  ? 'bg-white text-zinc-900 font-semibold shadow-xs border border-black/[0.06]'
-                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-black/[0.035]'
-                }`}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${
+                activeView === 'calendar'
+                  ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
+                  : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
+              }`}
             >
               <div className="flex items-center gap-2.5">
-                <Calendar className="w-3.5 h-3.5 text-[#0071E3]" />
-                <span>Lịch đăng & Giờ vàng</span>
+                <Calendar className="w-3.5 h-3.5 text-zinc-500" />
+                <span>Lịch phát sóng</span>
               </div>
             </button>
 
             <button
               onClick={() => onSelectView('in-progress')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition text-left apple-btn-tap ${activeView === 'in-progress'
-                  ? 'bg-white text-zinc-900 font-semibold shadow-xs border border-black/[0.06]'
-                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-black/[0.035]'
-                }`}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${
+                activeView === 'in-progress'
+                  ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
+                  : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
+              }`}
             >
               <div className="flex items-center gap-2.5">
                 <Folder className="w-3.5 h-3.5 text-zinc-500" />
@@ -111,55 +115,58 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* PHÂN NHÓM 3: KHO LƯU TRỮ & PHÂN PHỐI */}
+        {/* SECTION 3: PHÂN PHỐI */}
         <div>
-          <div className="text-[10px] font-semibold text-zinc-400 tracking-wider px-2.5 mb-1 uppercase">
-            Kênh & Dữ Liệu
+          <div className="text-[10px] font-semibold text-zinc-400 tracking-wider px-2 mb-1 uppercase font-mono">
+            Phân Phối & Lưu Trữ
           </div>
           <div className="space-y-0.5">
             <button
               onClick={() => onSelectView('channels')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition text-left apple-btn-tap ${activeView === 'channels'
-                  ? 'bg-white text-zinc-900 font-semibold shadow-xs border border-black/[0.06]'
-                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-black/[0.035]'
-                }`}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${
+                activeView === 'channels'
+                  ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
+                  : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
+              }`}
             >
               <div className="flex items-center gap-2.5">
                 <Share2 className="w-3.5 h-3.5 text-zinc-500" />
-                <span>Kênh xuất bản (YT/TT/FB)</span>
+                <span>Kênh xuất bản</span>
               </div>
             </button>
 
             <button
               onClick={() => onSelectView('drive-backup')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition text-left apple-btn-tap ${activeView === 'drive-backup'
-                  ? 'bg-white text-zinc-900 font-semibold shadow-xs border border-black/[0.06]'
-                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-black/[0.035]'
-                }`}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${
+                activeView === 'drive-backup'
+                  ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
+                  : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
+              }`}
             >
               <div className="flex items-center gap-2.5">
-                <HardDrive className="w-3.5 h-3.5 text-[#FF9500]" />
+                <HardDrive className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Google Drive Cloud</span>
               </div>
             </button>
           </div>
         </div>
 
-        {/* PHÂN NHÓM 4: CẤU HÌNH & HỆ THỐNG */}
+        {/* SECTION 4: HỆ THỐNG */}
         <div>
-          <div className="text-[10px] font-semibold text-zinc-400 tracking-wider px-2.5 mb-1 uppercase">
-            Hệ Thống
+          <div className="text-[10px] font-semibold text-zinc-400 tracking-wider px-2 mb-1 uppercase font-mono">
+            Hạ Tầng
           </div>
           <div className="space-y-0.5">
             <button
               onClick={() => onSelectView('ai-engine')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition text-left apple-btn-tap ${activeView === 'ai-engine'
-                  ? 'bg-white text-zinc-900 font-semibold shadow-xs border border-black/[0.06]'
-                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-black/[0.035]'
-                }`}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${
+                activeView === 'ai-engine'
+                  ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
+                  : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
+              }`}
             >
               <div className="flex items-center gap-2.5">
-                <Cpu className="w-3.5 h-3.5 text-[#0071E3]" />
+                <Cpu className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Động cơ AI (Gemini 2.0)</span>
               </div>
             </button>
@@ -168,18 +175,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       </div>
 
-      {/* Golden Hour Status Banner */}
+      {/* Studio Status Pod */}
       <div className="pt-3 border-t border-black/[0.06] text-[11px] px-2 space-y-1">
-        <div className="flex items-center justify-between text-zinc-400 text-[10px] uppercase font-semibold">
-          <span>Giờ vàng hôm nay</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-[#34C759] pulse-dot"></span>
+        <div className="flex items-center justify-between text-zinc-400 text-[10px] font-mono uppercase">
+          <span>Giờ phát sóng tối ưu</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
         </div>
-        <div className="text-[#1D1D1F] font-numeric font-semibold text-xs flex items-center gap-1.5">
-          <Clock className="w-3.5 h-3.5 text-[#FF9500]" />
-          <span>19:00 — 21:00</span>
+        <div className="text-zinc-900 font-mono font-medium text-xs">
+          19:00 — 21:00
         </div>
         <p className="text-[10px] text-zinc-400 leading-tight">
-          Tối ưu hóa lượt xem YouTube & TikTok
+          YouTube • TikTok • Meta Reels
         </p>
       </div>
     </aside>

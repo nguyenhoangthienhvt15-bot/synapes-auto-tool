@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserAccount } from '../types';
-import { Bell, KeyRound, LogOut, Shield } from 'lucide-react';
+import { Bell, KeyRound, LogOut, Shield, ChevronRight } from 'lucide-react';
 
 interface HeaderProps {
   currentUser: UserAccount | null;
@@ -21,51 +21,72 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenChangePass,
   onOpenLogin,
 }) => {
+  const [currentTime, setCurrentTime] = useState<string>('');
+
+  useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      setCurrentTime(
+        `${now.getHours().toString().padStart(2, '0')}:${now
+          .getMinutes()
+          .toString()
+          .padStart(2, '0')}`
+      );
+    };
+    update();
+    const interval = setInterval(update, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <header className="h-14 px-4 sm:px-6 apple-header flex items-center justify-between sticky top-0 z-40 select-none">
-      {/* Left: Synapes Brand Logo & Tagline */}
+    <header className="h-13 px-4 sm:px-6 bg-[#FBFBFA]/90 backdrop-blur-md border-b border-black/[0.08] flex items-center justify-between sticky top-0 z-40 select-none">
+      {/* Left: Brand & Studio Breadcrumb */}
       <div className="flex items-center gap-3">
-        <div
-          className="flex items-center gap-2.5 cursor-pointer group"
+        <button
           onClick={() => onSelectView('pending-approval')}
-          title="Trang chủ SYNAPES Auto Tool"
+          className="flex items-center gap-2.5 text-left group cursor-pointer"
+          title="SYNAPES Video Studio"
         >
-          <div className="w-9 h-9 rounded-xl bg-white border border-black/[0.08] shadow-xs p-0.5 flex items-center justify-center transition group-hover:scale-105 group-active:scale-95">
+          <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-black/10 flex items-center justify-center p-0.5 overflow-hidden shadow-2xs">
             <img
               src="/logo.jpg"
-              alt="Synapes Logo"
-              className="w-full h-full object-contain rounded-lg"
+              alt="SYNAPES"
+              className="w-full h-full object-cover rounded-md"
             />
           </div>
 
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2 leading-none">
-              <span className="font-bold text-[#1D1D1F] text-[14px] tracking-tight">
-                SYNAPES
-              </span>
-              <span className="text-[10px] font-medium text-zinc-500 bg-black/[0.04] px-2 py-0.5 rounded-full border border-black/[0.05]">
-                Auto Tool
-              </span>
-            </div>
-            <span className="text-[10px] text-zinc-400 font-normal mt-0.5 tracking-tight hidden sm:inline">
-              Automated Multi-Platform Video Publisher
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-zinc-950 text-[13px] tracking-tight">
+              SYNAPES
+            </span>
+            <span className="text-zinc-300">/</span>
+            <span className="text-[11px] font-medium text-zinc-500">
+              Studio
             </span>
           </div>
+        </button>
+
+        {/* Live System Indicator */}
+        <div className="hidden md:flex items-center gap-1.5 pl-3 border-l border-zinc-200 text-[11px] text-zinc-400 font-mono">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          <span>{currentTime || '00:00'}</span>
         </div>
       </div>
 
-      {/* Center: Apple Physical Segmented Switcher */}
+      {/* Center: Linear-style Studio Segmented Navigation */}
       <div className="hidden lg:flex items-center">
-        <div className="apple-segmented-container">
+        <nav className="studio-segmented-container">
           <button
             onClick={() => onSelectView('pending-approval')}
-            className={`apple-segmented-item flex items-center gap-1.5 ${
-              activeView === 'pending-approval' || activeView === 'review' ? 'active' : ''
+            className={`studio-segmented-item flex items-center gap-1.5 cursor-pointer ${
+              activeView === 'pending-approval' || activeView === 'review'
+                ? 'active'
+                : ''
             }`}
           >
             <span>Trình Duyệt Kịch Bản</span>
             {pendingCount > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-[#FF3B30] text-white font-semibold font-numeric">
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-zinc-900 text-white font-mono font-medium">
                 {pendingCount}
               </span>
             )}
@@ -73,66 +94,69 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => onSelectView('in-progress')}
-            className={`apple-segmented-item ${activeView === 'in-progress' ? 'active' : ''}`}
+            className={`studio-segmented-item cursor-pointer ${
+              activeView === 'in-progress' ? 'active' : ''
+            }`}
           >
             Tất Cả Dự Án
           </button>
 
           <button
             onClick={() => onSelectView('calendar')}
-            className={`apple-segmented-item ${activeView === 'calendar' ? 'active' : ''}`}
+            className={`studio-segmented-item cursor-pointer ${
+              activeView === 'calendar' ? 'active' : ''
+            }`}
           >
             Lịch Phát Sóng
           </button>
-        </div>
+        </nav>
       </div>
 
-      {/* Right: User Controls */}
+      {/* Right: Studio Controls & User State */}
       <div className="flex items-center gap-2">
-        {/* Chuông Thông Báo */}
+        {/* Notification Bell */}
         <button
           onClick={() => onSelectView('pending-approval')}
-          className="relative p-2 rounded-full bg-white hover:bg-zinc-50 text-zinc-600 hover:text-zinc-900 border border-black/[0.06] shadow-xs transition apple-btn-tap"
-          title="Video đang chờ duyệt"
+          className="relative p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition cursor-pointer"
+          title="Kịch bản chờ duyệt"
         >
-          <Bell className="w-3.5 h-3.5" />
+          <Bell className="w-4 h-4" />
           {pendingCount > 0 && (
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#FF3B30] ring-2 ring-white"></span>
+            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-zinc-900 ring-2 ring-[#FBFBFA]"></span>
           )}
         </button>
 
-        {/* User Account Controls */}
+        {/* User Account Capsule */}
         {currentUser && currentUser.isLoggedIn ? (
-          <div className="flex items-center gap-1.5 pl-2 border-l border-black/[0.08]">
-            <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-full bg-white border border-black/[0.06] shadow-2xs">
-              <span className="w-2 h-2 rounded-full bg-[#34C759]"></span>
-              <span className="text-[11px] font-numeric text-zinc-700 font-medium">
+          <div className="flex items-center gap-1.5 pl-2 border-l border-zinc-200">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-100/90 border border-black/[0.05] text-zinc-800">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span className="text-[11px] font-mono font-semibold tracking-tight">
                 {currentUser.code}
               </span>
             </div>
 
             <button
               onClick={onOpenChangePass}
-              className="p-1.5 rounded-full bg-white hover:bg-zinc-50 text-zinc-500 hover:text-zinc-800 border border-black/[0.06] shadow-2xs transition apple-btn-tap"
-              title="Đổi mật khẩu tài khoản"
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-800 hover:bg-zinc-100 transition cursor-pointer"
+              title="Đổi mật khẩu bảo mật"
             >
-              <KeyRound className="w-3.5 h-3.5 text-[#FF9500]" />
+              <KeyRound className="w-3.5 h-3.5" />
             </button>
 
             <button
               onClick={onLogout}
-              className="p-1.5 rounded-full bg-white hover:bg-red-50 text-zinc-400 hover:text-[#FF3B30] border border-black/[0.06] shadow-2xs transition apple-btn-tap"
-              title="Đăng xuất"
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+              title="Đăng xuất khỏi phiên"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
         ) : (
-          <div className="pl-2 border-l border-black/[0.08]">
+          <div className="pl-2 border-l border-zinc-200">
             <button
               onClick={onOpenLogin}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-semibold shadow-xs transition apple-btn-tap"
-              title="Đăng nhập tài khoản Studio"
+              className="btn-primary cursor-pointer"
             >
               <Shield className="w-3.5 h-3.5" />
               <span>Đăng Nhập</span>
