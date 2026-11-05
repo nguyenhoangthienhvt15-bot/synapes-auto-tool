@@ -3,6 +3,7 @@ import {
   Plus, Sparkles, Clock, Calendar, Folder, Share2,
   HardDrive, Cpu
 } from 'lucide-react';
+import { MiniPeakHoursAreaChart } from './MiniPeakHoursAreaChart';
 
 interface SidebarProps {
   activeView: string;
@@ -18,7 +19,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCreateModal,
 }) => {
   return (
-    <aside className="w-56 bg-[#FBFBFA] border-r border-black/[0.07] p-3 flex flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.25rem)] select-none">
+    <aside className="w-60 bg-[#FBFBFA] border-r border-black/[0.07] p-3 flex flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.25rem)] overflow-y-auto select-none scrollbar-none">
       <div className="space-y-4">
 
         {/* Primary Action Button */}
@@ -175,18 +176,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       </div>
 
-      {/* Studio Status Pod */}
-      <div className="pt-3 border-t border-black/[0.06] text-[11px] px-2 space-y-1">
-        <div className="flex items-center justify-between text-zinc-400 text-[10px] font-mono uppercase">
-          <span>Giờ phát sóng tối ưu</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-        </div>
-        <div className="text-zinc-900 font-mono font-medium text-xs">
-          19:00 — 21:00
-        </div>
-        <p className="text-[10px] text-zinc-400 leading-tight">
-          YouTube • TikTok • Meta Reels
-        </p>
+      {/* Khung Biểu Đồ Miền Giờ Vàng Thời Gian Thực (TikTok, YouTube, Facebook) */}
+      <div className="pt-2">
+        <MiniPeakHoursAreaChart />
       </div>
     </aside>
   );
