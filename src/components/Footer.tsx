@@ -1,5 +1,5 @@
 import React from 'react';
-import { Headphones, ShieldCheck, CheckCircle2, FileText } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, FileText } from 'lucide-react';
 
 interface FooterProps {
   onOpenPolicyModal?: (policyType: string) => void;
@@ -8,30 +8,6 @@ interface FooterProps {
 export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
   return (
     <footer className="w-full bg-[#FFFFFF] text-zinc-600 text-xs border-t border-black/[0.08] pt-8 pb-8 px-5 lg:px-10 mt-14 select-none">
-      {/* Top Banner: Enterprise Overview */}
-      <div className="max-w-7xl mx-auto mb-7 pb-5 border-b border-black/[0.06] flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-black/[0.04] border border-black/[0.06] flex items-center justify-center text-[#0071E3]">
-            <Headphones className="w-4 h-4 text-[#0071E3]" />
-          </div>
-          <div>
-            <h4 className="text-[#1D1D1F] font-semibold text-xs tracking-tight">
-              SYNAPES Auto Tool — Hệ Thống Sản Xuất & Tự Động Hóa Video Đa Nền Tảng
-            </h4>
-            <p className="text-zinc-500 text-[11px]">
-              Tự động hóa kịch bản đa phong cách • Ghép clip 5-10 phút • Phê duyệt trực quan trước khi phát sóng
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Hệ Thống Đang Vận Hành Ổn Định</span>
-          </span>
-        </div>
-      </div>
-
       {/* Main 3-Column Layout */}
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 text-[11px] leading-relaxed">
 
