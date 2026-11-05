@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Plus, Sparkles, Clock, Calendar, Folder, Share2,
-  HardDrive, Cpu
+  HardDrive, Cpu, BookOpen
 } from 'lucide-react';
 import { MiniPeakHoursAreaChart } from './MiniPeakHoursAreaChart';
 
@@ -232,6 +232,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Cpu className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Động cơ AI (Gemini 2.0)</span>
               </div>
+            </button>
+          </div>
+        </div>
+
+        {/* SECTION 5: HỖ TRỢ & HƯỚNG DẪN */}
+        <div>
+          <div className="text-[10px] font-semibold text-zinc-400 tracking-wider px-2 mb-1 uppercase font-mono">
+            Tài Liệu & Hướng Dẫn
+          </div>
+          <div className="space-y-0.5">
+            <button
+              onClick={() => onSelectView('user-guide')}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${
+                activeView === 'user-guide'
+                  ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
+                  : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <BookOpen className="w-3.5 h-3.5 text-zinc-500" />
+                <span>Hướng dẫn sử dụng</span>
+              </div>
+              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold">
+                A-Z
+              </span>
             </button>
           </div>
         </div>
