@@ -20,61 +20,37 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
             <li>
               <button
                 onClick={() => onOpenPolicyModal?.('terms')}
-                className="hover:text-[#0071E3] transition text-left flex items-center justify-between w-full group cursor-pointer"
-                title="Xem văn bản PDF: Điều khoản sử dụng phần mềm"
+                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5 cursor-pointer"
               >
-                <div className="flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-zinc-400 group-hover:text-[#0071E3] transition-colors" />
-                  <span>Điều khoản sử dụng phần mềm</span>
-                </div>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500 font-semibold group-hover:bg-blue-50 group-hover:text-[#0071E3] transition">
-                  PDF
-                </span>
+                <FileText className="w-3.5 h-3.5 text-zinc-400" />
+                <span>Điều khoản sử dụng phần mềm</span>
               </button>
             </li>
             <li>
               <button
                 onClick={() => onOpenPolicyModal?.('privacy')}
-                className="hover:text-[#0071E3] transition text-left flex items-center justify-between w-full group cursor-pointer"
-                title="Xem văn bản PDF: Bảo mật dữ liệu & Token API"
+                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5 cursor-pointer"
               >
-                <div className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#34C759] group-hover:text-[#0071E3] transition-colors" />
-                  <span>Bảo mật dữ liệu & Token API</span>
-                </div>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500 font-semibold group-hover:bg-blue-50 group-hover:text-[#0071E3] transition">
-                  PDF
-                </span>
+                <ShieldCheck className="w-3.5 h-3.5 text-[#34C759]" />
+                <span>Bảo mật dữ liệu & Token API</span>
               </button>
             </li>
             <li>
               <button
                 onClick={() => onOpenPolicyModal?.('copyright')}
-                className="hover:text-[#0071E3] transition text-left flex items-center justify-between w-full group cursor-pointer"
-                title="Xem văn bản PDF: Quyền sở hữu trí tuệ kịch bản"
+                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5 cursor-pointer"
               >
-                <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-[#0071E3] transition-colors" />
-                  <span>Quyền sở hữu trí tuệ kịch bản</span>
-                </div>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500 font-semibold group-hover:bg-blue-50 group-hover:text-[#0071E3] transition">
-                  PDF
-                </span>
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#0071E3]" />
+                <span>Quyền sở hữu trí tuệ kịch bản</span>
               </button>
             </li>
             <li>
               <button
                 onClick={() => onOpenPolicyModal?.('disclaimer')}
-                className="hover:text-[#0071E3] transition text-left flex items-center justify-between w-full group cursor-pointer"
-                title="Xem văn bản PDF: Cơ chế phê duyệt & Miễn trừ trách nhiệm"
+                className="hover:text-[#0071E3] transition text-left flex items-center gap-1.5 cursor-pointer"
               >
-                <div className="flex items-center gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5 text-[#FF9500] group-hover:text-[#0071E3] transition-colors" />
-                  <span>Cơ chế phê duyệt & Miễn trừ trách nhiệm</span>
-                </div>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500 font-semibold group-hover:bg-blue-50 group-hover:text-[#0071E3] transition">
-                  PDF
-                </span>
+                <AlertCircle className="w-3.5 h-3.5 text-[#FF9500]" />
+                <span>Cơ chế phê duyệt & Miễn trừ trách nhiệm</span>
               </button>
             </li>
           </ul>
