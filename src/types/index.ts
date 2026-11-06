@@ -9,6 +9,15 @@ export type ProjectStatus =
 
 export type VoiceLanguage = 'vi' | 'en';
 
+export interface VoiceFormantEQ {
+  lowShelfHz: number;
+  lowGainDb: number;
+  midPeakingHz: number;
+  midGainDb: number;
+  highShelfHz: number;
+  highGainDb: number;
+}
+
 export interface VoiceProfile {
   id: string;
   name: string;
@@ -21,6 +30,12 @@ export interface VoiceProfile {
   pitch: number;
   rate: number;
   isRecommended?: boolean;
+  neuralVoiceId?: string;
+  geminiVoiceName?: string;
+  openaiVoiceName?: string;
+  dspDetuneCents?: number;
+  formantEq?: VoiceFormantEQ;
+  acousticSignature?: string;
 }
 
 export type ColorGradeLut = 'teal-orange' | 'cyberpunk' | 'studio-clean' | 'vintage-film' | 'monochrome' | 'none';
