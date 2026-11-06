@@ -1,21 +1,21 @@
 services:
   - type: web
     name: synapes-auto-tool
-    env: static
+    runtime: node
+    plan: free
+    region: singapore
     buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
     headers:
       - path: /*
         name: X-Frame-Options
         value: SAMEORIGIN
-      - path: /
-        name: Cache-Control
-        value: no-cache, no-store, must-revalidate
       - path: /index.html
         name: Cache-Control
         value: no-cache, no-store, must-revalidate
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-
