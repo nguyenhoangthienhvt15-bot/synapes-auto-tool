@@ -1,4 +1,4 @@
-import { AIProviderId } from '../types';
+import { AIProviderId, AIProviderConfig } from '../types';
 
 export interface DiscoveredModel {
   id: string;
@@ -10,6 +10,214 @@ export interface DiscoveredModel {
   isLiveFromKey: boolean;
   isRecommended?: boolean;
   category?: 'flagship' | 'fast' | 'reasoning' | 'standard';
+}
+
+export interface ProviderMeta {
+  id: AIProviderId;
+  name: string;
+  vendor: string;
+  description: string;
+  defaultEndpoint: string;
+  defaultModel: string;
+  models: { id: string; name: string; tag: string }[];
+  keyPrefix: string;
+  keyPlaceholder: string;
+  consoleUrl: string;
+  consoleName: string;
+  badgeColor: string;
+}
+
+export const PROVIDERS: ProviderMeta[] = [
+  {
+    id: 'gemini',
+    name: 'Google Gemini',
+    vendor: 'Google DeepMind',
+    description: 'Động cơ đa phương thức mạnh mẽ: phân rã kịch bản siêu tốc, tích hợp trực tiếp giọng đọc TTS tự nhiên tiếng Việt.',
+    defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta',
+    defaultModel: 'gemini-2.5-flash',
+    models: [
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: 'Thế hệ mới nhất 2026 • Siêu tốc • Khuyên dùng' },
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', tag: 'Suy luận kịch bản chuyên sâu thế hệ mới' },
+      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', tag: 'Tốc độ cao • Tối ưu chi phí' },
+      { id: 'gemini-2.0-pro-exp', name: 'Gemini 2.0 Pro Experimental', tag: 'Suy luận kịch bản phức tạp' },
+      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', tag: 'Ngữ cảnh dài 2M tokens' },
+      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', tag: 'Tiết kiệm tài nguyên' },
+    ],
+    keyPrefix: 'AIzaSy',
+    keyPlaceholder: 'AIzaSy...',
+    consoleUrl: 'https://aistudio.google.com/app/apikey',
+    consoleName: 'Google AI Studio Console',
+    badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI GPT',
+    vendor: 'OpenAI',
+    description: 'Dòng mô hình GPT-4o và o3-mini hàng đầu thế giới về khả năng sáng tạo ngôn từ, viết kịch bản viral và bắt trend.',
+    defaultEndpoint: 'https://api.openai.com/v1',
+    defaultModel: 'gpt-4o',
+    models: [
+      { id: 'gpt-4o', name: 'GPT-4o (Omni)', tag: 'Mạnh mẽ nhất • Đa phương thức • Khuyên dùng' },
+      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', tag: 'Nhanh nhẹn • Chi phí cực thấp' },
+      { id: 'o3-mini', name: 'o3-mini', tag: 'Suy luận tốc độ cao thế hệ mới 2026' },
+      { id: 'o1', name: 'o1 (Reasoning)', tag: 'Tư duy logic kịch bản chiều sâu' },
+      { id: 'gpt-4.5-preview', name: 'GPT-4.5 Preview', tag: 'Đột phá tư duy sáng tạo' },
+    ],
+    keyPrefix: 'sk-proj',
+    keyPlaceholder: 'sk-proj-... hoặc sk-...',
+    consoleUrl: 'https://platform.openai.com/api-keys',
+    consoleName: 'OpenAI Platform Dashboard',
+    badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  },
+  {
+    id: 'claude',
+    name: 'Anthropic Claude',
+    vendor: 'Anthropic',
+    description: 'Chuyên gia kể chuyện (Storytelling), văn phong tự nhiên giàu cảm xúc, phân tích tâm lý người xem xuất sắc nhất hiện nay.',
+    defaultEndpoint: 'https://api.anthropic.com/v1',
+    defaultModel: 'claude-3-7-sonnet-20250219',
+    models: [
+      { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet', tag: 'Mới nhất 2026 • Hybrid Reasoning • Khuyên dùng' },
+      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', tag: 'Độ mượt mà câu chữ cao nhất' },
+      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', tag: 'Siêu tốc cho kịch bản ngắn' },
+    ],
+    keyPrefix: 'sk-ant',
+    keyPlaceholder: 'sk-ant-api03-...',
+    consoleUrl: 'https://console.anthropic.com/settings/keys',
+    consoleName: 'Anthropic Console',
+    badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
+  },
+  {
+    id: 'deepseek',
+    name: 'DeepSeek AI',
+    vendor: 'DeepSeek',
+    description: 'Động cơ mã nguồn mở tối ưu đột phá toàn cầu: DeepSeek-V3 và DeepSeek-R1 cung cấp năng lực suy luận cực mạnh với chi phí siêu rẻ.',
+    defaultEndpoint: 'https://api.deepseek.com/v1',
+    defaultModel: 'deepseek-chat',
+    models: [
+      { id: 'deepseek-chat', name: 'DeepSeek-V3 (Chat)', tag: 'Tốc độ cao • Văn phong tự nhiên • Khuyên dùng' },
+      { id: 'deepseek-reasoner', name: 'DeepSeek-R1 (Reasoning)', tag: 'Mô hình suy luận từng bước (Chain-of-Thought)' },
+    ],
+    keyPrefix: 'sk-',
+    keyPlaceholder: 'sk-...',
+    consoleUrl: 'https://platform.deepseek.com/api_keys',
+    consoleName: 'DeepSeek Open Platform',
+    badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  },
+  {
+    id: 'grok',
+    name: 'xAI Grok',
+    vendor: 'xAI (Elon Musk)',
+    description: 'Mô hình Grok 2 & Grok 3 với khả năng tiếp cận tin tức thời sự cực nhanh, phong cách viết kịch bản sắc bén, hài hước và chân thực.',
+    defaultEndpoint: 'https://api.x.ai/v1',
+    defaultModel: 'grok-2',
+    models: [
+      { id: 'grok-2', name: 'Grok 2', tag: 'Cập nhật tin tức trực tiếp từ X • Khuyên dùng' },
+      { id: 'grok-2-mini', name: 'Grok 2 Mini', tag: 'Nhẹ & Tốc độ' },
+      { id: 'grok-beta', name: 'Grok 3 (Beta)', tag: 'Thế hệ tiếp theo' },
+    ],
+    keyPrefix: 'xai-',
+    keyPlaceholder: 'xai-...',
+    consoleUrl: 'https://console.x.ai/',
+    consoleName: 'xAI Cloud Console',
+    badgeColor: 'bg-zinc-100 text-zinc-800 border-zinc-200',
+  },
+  {
+    id: 'plugin',
+    name: 'Plugin Webhook Ngoài',
+    vendor: 'Kling / Runway / Custom',
+    description: 'Kết nối API trực tiếp đến các dịch vụ sinh video AI bên ngoài như Kling AI, Runway Gen-3, Luma Dream Machine qua Webhook URL.',
+    defaultEndpoint: 'https://api.klingai.com/v1/videos/text2video',
+    defaultModel: 'kling-v1.5',
+    models: [
+      { id: 'kling-v1.5', name: 'Kling Video v1.5 API', tag: 'Chất lượng điện ảnh' },
+      { id: 'runway-gen3', name: 'Runway Gen-3 Alpha', tag: 'Tạo clip siêu mượt' },
+      { id: 'custom-webhook', name: 'Custom HTTP Webhook', tag: 'Tùy biến payload JSON' },
+    ],
+    keyPrefix: '',
+    keyPlaceholder: 'Token API hoặc Secret Key...',
+    consoleUrl: 'https://klingai.com/',
+    consoleName: 'Kling AI Developer Portal',
+    badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
+  },
+];
+
+/**
+ * Kiểm tra xem nhà cung cấp đã được người dùng gắn API Key / Token hay chưa
+ */
+export function isProviderKeyConfigured(
+  provider: AIProviderId,
+  config?: AIProviderConfig | null
+): boolean {
+  if (!config) return false;
+  switch (provider) {
+    case 'gemini':
+      return Boolean(config.gemini?.apiKey && config.gemini.apiKey.trim().length > 5);
+    case 'openai':
+      return Boolean(config.openai?.apiKey && config.openai.apiKey.trim().length > 5);
+    case 'claude':
+      return Boolean(config.claude?.apiKey && config.claude.apiKey.trim().length > 5);
+    case 'deepseek':
+      return Boolean(config.deepseek?.apiKey && config.deepseek.apiKey.trim().length > 5);
+    case 'grok':
+      return Boolean(config.grok?.apiKey && config.grok.apiKey.trim().length > 5);
+    case 'plugin':
+      return Boolean(
+        (config.plugin?.apiToken && config.plugin.apiToken.trim().length > 3) ||
+        (config.plugin?.endpointUrl && config.plugin.endpointUrl.trim().length > 5)
+      );
+    default:
+      return false;
+  }
+}
+
+/**
+ * Lấy chuỗi API Key của nhà cung cấp từ cấu hình
+ */
+export function getProviderApiKey(
+  provider: AIProviderId,
+  config?: AIProviderConfig | null
+): string {
+  if (!config) return '';
+  switch (provider) {
+    case 'gemini':
+      return config.gemini?.apiKey || '';
+    case 'openai':
+      return config.openai?.apiKey || '';
+    case 'claude':
+      return config.claude?.apiKey || '';
+    case 'deepseek':
+      return config.deepseek?.apiKey || '';
+    case 'grok':
+      return config.grok?.apiKey || '';
+    case 'plugin':
+      return config.plugin?.apiToken || '';
+    default:
+      return '';
+  }
+}
+
+/**
+ * Lấy danh sách các Model khả dụng của nhà cung cấp (ưu tiên từ Cache Key đã đọc)
+ */
+export function getProviderModels(
+  provider: AIProviderId,
+  config?: AIProviderConfig | null
+): DiscoveredModel[] {
+  const meta = PROVIDERS.find((p) => p.id === provider);
+  const key = getProviderApiKey(provider, config);
+  const cached = getCachedDiscoveredModels(provider, key);
+  if (cached && cached.length > 0) {
+    return cached;
+  }
+  if (!meta) return [];
+  return meta.models.map((m) => ({
+    id: m.id,
+    name: m.name,
+    tag: m.tag,
+    isLiveFromKey: false,
+    isRecommended: m.id === meta.defaultModel,
+  }));
 }
 
 const CACHE_PREFIX = 'synapes_ai_models_cache_';
@@ -448,7 +656,7 @@ export async function discoverModelsFromKey(
           },
           signal: controller.signal,
         });
-      } catch {}
+      } catch { }
 
       clearTimeout(timeoutId);
 
@@ -523,7 +731,7 @@ export async function discoverModelsFromKey(
           },
           signal: controller.signal,
         });
-      } catch {}
+      } catch { }
 
       clearTimeout(timeoutId);
 

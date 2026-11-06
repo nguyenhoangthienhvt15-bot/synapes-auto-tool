@@ -114,13 +114,19 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
         },
         {
           number: 3,
-          title: 'Nhập Ý Tưởng / Prompt Mô Tả & Giọng Đọc',
-          description: 'Gõ chủ đề bạn muốn làm video (ví dụ: "Review 5 công nghệ AI thay đổi năm 2026"), chọn giọng đọc AI tự nhiên (Nam/Nữ) và độ dài.',
+          title: 'Nhập Ý Tưởng / Prompt Mô Tả & Bộ Skill Nhanh',
+          description: 'Gõ chủ đề bạn muốn làm video (ví dụ: "Review 5 công nghệ AI thay đổi năm 2026"), hoặc bấm chọn các thẻ skill như /tech-review, /cinematic-director, /retention-master.',
         },
         {
           number: 4,
+          title: 'Chọn Nhà Cung Cấp AI & Danh Sách Model Có Trong Keys',
+          description: 'Tại mục Động cơ AI: Bước 1 chọn Nhà cung cấp (Gemini, GPT, Claude, DeepSeek, Grok, Plugin). Hệ thống kiểm tra: nếu đã gắn API Key của nhà phát triển đó, hệ thống sẽ mở khóa và hiển thị toàn bộ danh sách các Model có trong Keys của bạn. Nếu chưa gắn API Key, mục Model sẽ khóa và hiển thị nút nhắc nhở nạp API Key an toàn.',
+          note: 'Bạn có thể bấm "Quét lại Model" để hệ thống tự động đọc lại danh sách Model mới nhất từ API Key.',
+        },
+        {
+          number: 5,
           title: 'Bấm "Tạo Kịch Bản"',
-          description: 'Hệ thống AI sẽ tự động phân tích và tạo kịch bản gồm phân cảnh (Scenes), lời bình TTS, gợi ý hình ảnh và hiệu ứng âm thanh.',
+          description: 'Hệ thống AI sẽ tự động phân tích và tạo kịch bản gồm phân cảnh (Scenes), lời bình TTS, gợi ý góc máy điện ảnh và chuyển vào Bàn Kiểm Duyệt.',
         },
       ],
       actionLabel: 'Tạo Dự Án Video Mới Ngay',
@@ -661,6 +667,31 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
                 <label className="text-[11px] text-zinc-500 block mb-1">Prompt / Ý Tưởng Video:</label>
                 <div className="p-2.5 rounded bg-zinc-50 border border-black/10 text-zinc-700 text-[11px] leading-relaxed font-mono">
                   "Top 5 bước tiến AI đột phá trong năm 2026 thay đổi hoàn toàn cách con người làm việc và sáng tạo nội dung..."
+                </div>
+              </div>
+
+              {/* 2-Step AI Engine & Model from Key */}
+              <div className="p-2.5 rounded-lg bg-zinc-50 border border-black/10 space-y-2">
+                <div className="text-[10px] font-semibold text-zinc-800 flex items-center justify-between">
+                  <span>4. Động cơ AI & Model (Đồng bộ từ API Keys):</span>
+                  <span className="text-emerald-700 font-mono">🟢 Key Active</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                  <div>
+                    <span className="text-zinc-500 block mb-0.5">Bước 1: Nhà Cung Cấp</span>
+                    <div className="p-1.5 rounded bg-white border border-black/10 text-zinc-900 font-medium">
+                      🟢 Google Gemini
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-zinc-500 block mb-0.5">Bước 2: Model Trong Key</span>
+                    <div className="p-1.5 rounded bg-white border border-black/10 text-zinc-900 font-medium truncate">
+                      Gemini 2.5 Flash (2026)
+                    </div>
+                  </div>
+                </div>
+                <div className="text-[9px] text-zinc-500 italic">
+                  * Nếu chọn nhà cung cấp chưa gắn API Key (🔒), ô Model sẽ tự động khóa và hiển thị nút nhắc nhở nạp API Key.
                 </div>
               </div>
 

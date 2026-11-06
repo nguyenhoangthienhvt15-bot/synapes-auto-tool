@@ -113,7 +113,7 @@ function onOpen() {
     autoPublishWebhookUrlToSheet(ss);
     syncPendingFormBridgeResponses();
     reconcileAllApprovedUsersToAccountsSheet(ss);
-  } catch (e) {}
+  } catch (e) { }
 
   var ui = SpreadsheetApp.getUi();
   ui.createMenu("🚀 SYNAPES Studio")
@@ -271,12 +271,12 @@ function setupGoogleFormBridge(ss) {
       form = FormApp.create("SYNAPES_STUDIO_AUTO_BRIDGE");
       try {
         form.setRequireLogin(false);
-      } catch (e) {}
+      } catch (e) { }
       try {
         form.setAcceptingResponses(true);
         form.setCollectEmail(false);
         form.setShowLinkToRespondAgain(false);
-      } catch (e) {}
+      } catch (e) { }
 
       var item = form.addParagraphTextItem().setTitle("PAYLOAD_JSON");
       var sampleResp = form.createResponse().withItemResponse(item.createResponse("SYNAPES_MARKER"));
@@ -383,7 +383,7 @@ function syncPendingFormBridgeResponses() {
             if (res && res.status === "success") {
               count++;
             }
-          } catch (e) {}
+          } catch (e) { }
         }
       }
     }
@@ -814,7 +814,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
       var b64 = Utilities.base64Encode(resp.getContent());
       stampImgHtml = '<img src="data:image/png;base64,' + b64 + '" style="width: 145px; height: auto; display: block; margin: 4px auto;" />';
     }
-  } catch (e) {}
+  } catch (e) { }
 
   return '<!DOCTYPE html>' +
     '<html><head><meta charset="utf-8">' +
@@ -1211,13 +1211,13 @@ function processWebhookPayload(payload) {
       }
       props.setProperty("PROCESSED_REQ_IDS", JSON.stringify(historyList));
       cache.put(payload.requestId, "1", 21600);
-    } catch (e) {}
+    } catch (e) { }
   }
 
   var lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
-  } catch (e) {}
+  } catch (e) { }
 
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1272,7 +1272,7 @@ function processWebhookPayload(payload) {
   } finally {
     try {
       lock.releaseLock();
-    } catch (e) {}
+    } catch (e) { }
   }
 }
 
@@ -1556,7 +1556,7 @@ function handleChangePasswordWebhook(ss, payload) {
       accSheet.getRange(foundAccRow, 6).setValue(nowStr).setHorizontalAlignment("center");
       try {
         accSheet.getRange(foundAccRow, 7).setValue("🟢 Khách đã đổi pass riêng");
-      } catch (err) {}
+      } catch (err) { }
       if (accSheet.getMaxColumns() >= 9) {
         accSheet
           .getRange(foundAccRow, 9)
@@ -1570,7 +1570,7 @@ function handleChangePasswordWebhook(ss, payload) {
         if (checkCode === code) {
           try {
             accSheet.getRange(k, 7).setValue("🟢 Khách đã đổi pass riêng");
-          } catch (err2) {}
+          } catch (err2) { }
           if (accSheet.getMaxColumns() >= 9) {
             accSheet
               .getRange(k, 9)

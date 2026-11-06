@@ -49,7 +49,7 @@ export interface Project {
   storyboard: StoryboardScene[];
   metadata: ProjectMetadata;
   aiSource: {
-    type: 'gemini' | 'plugin';
+    type: AIProviderId | string;
     name: string;
     model?: string;
     pluginUrl?: string;

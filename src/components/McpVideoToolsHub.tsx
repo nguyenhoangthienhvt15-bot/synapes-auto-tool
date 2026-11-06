@@ -159,11 +159,10 @@ export const McpVideoToolsHub: React.FC<McpVideoToolsHubProps> = ({
               <button
                 key={c.id}
                 onClick={() => setSelectedCategory(c.id)}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition cursor-pointer ${
-                  selectedCategory === c.id
+                className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition cursor-pointer ${selectedCategory === c.id
                     ? 'bg-zinc-900 text-white shadow-2xs'
                     : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200/80 hover:text-zinc-900'
-                }`}
+                  }`}
               >
                 {c.label}
               </button>
@@ -427,3 +426,4 @@ export const McpVideoToolsHub: React.FC<McpVideoToolsHubProps> = ({
     </div>
   );
 };
+
