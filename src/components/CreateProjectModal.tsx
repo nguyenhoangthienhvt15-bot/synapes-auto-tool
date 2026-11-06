@@ -9,6 +9,7 @@ import {
   isProviderKeyConfigured, getProviderApiKey, getProviderModels,
   discoverModelsFromKey
 } from '../services/aiModelDiscoveryService';
+import { generateAiVideoScript } from '../services/aiScriptGeneratorService';
 
 interface CreateProjectModalProps {
   skills: Skill[];
@@ -122,7 +123,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     }
   };
 
-  const handleSimulateCreate = (e: React.FormEvent) => {
+  const handleSimulateCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!promptText.trim()) return;
 
@@ -134,99 +135,71 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     }
 
     setIsGenerating(true);
-    setGenerationStep('Khởi tạo kịch bản từ Prompt...');
+    setGenerationStep('Đang khởi tạo kết nối tới Động cơ AI...');
+    setKeyErrorNotice(null);
 
-    setTimeout(() => {
-      setGenerationStep('Phân rã thành các phân cảnh 10s...');
-    }, 1000);
+    try {
+      const apiKey = getProviderApiKey(selectedProvider, aiConfig);
+      const endpoint = (aiConfig[selectedProvider as keyof AIProviderConfig] as any)?.endpointUrl;
 
-    setTimeout(() => {
-      setGenerationStep('Tạo tệp giọng đọc lồng tiếng (TTS)...');
-    }, 2000);
+      const generated = await generateAiVideoScript({
+        prompt: promptText,
+        skillId: selectedSkillId,
+        skills,
+        aspectRatio,
+        targetDurationMin,
+        provider: selectedProvider,
+        model: selectedModel,
+        apiKey,
+        endpointUrl: endpoint,
+        onProgress: (stepText) => {
+          setGenerationStep(stepText);
+        },
+      });
 
-    setTimeout(() => {
       const now = new Date();
       const projId = `prj-${Date.now()}`;
       const codeNum = Math.floor(100 + Math.random() * 900);
 
       const provMeta = PROVIDERS.find((p) => p.id === selectedProvider);
       const provName = provMeta?.name || selectedProvider;
-      const modelObj = modelsList.find((m) => m.id === selectedModel);
-      const modelDisplayName = modelObj?.name || selectedModel;
 
       const newProject: Project = {
         id: projId,
         code: `SYN-${codeNum}`,
-        title: promptText.slice(0, 48) + '...',
+        title: generated.title,
         status: 'pending_approval',
         aspectRatio,
-        duration: aspectRatio === '16:9' ? targetDurationMin * 60 : 45,
+        duration: generated.duration,
         targetChannels: aspectRatio === '16:9' ? ['youtube'] : ['tiktok', 'facebook'],
-        videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-        thumbnailUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80',
-        musicTrack: {
-          name: 'Cyberpunk Ambient Synth (10min Commercial)',
-          license: 'Bản quyền thương mại YouTube Audio Library',
-          volume: 20,
-        },
-        voiceoverTrack: {
-          name: 'Giọng Nam Bắc chuẩn',
-          voiceName: 'vi-VN-Standard-B',
-        },
+        videoUrl: generated.videoUrl,
+        thumbnailUrl: generated.thumbnailUrl,
+        musicTrack: generated.musicTrack,
+        voiceoverTrack: generated.voiceoverTrack,
         metadata: {
-          title: promptText.slice(0, 48),
-          description: promptText,
-          tags: ['AI', 'TechReview', 'AutoVideo', 'Synapes'],
-          productLink: 'https://shopee.vn/synapes-deal-tech',
+          title: generated.title,
+          description: generated.description,
+          tags: generated.tags,
+          productLink: generated.productLink,
         },
         aiSource: {
           type: selectedProvider,
-          name: `${provName} (${modelDisplayName})`,
-          model: selectedModel,
+          name: `${provName} (${generated.modelUsed})`,
+          model: generated.modelUsed,
           pluginUrl: selectedProvider === 'plugin' ? aiConfig.plugin?.endpointUrl : undefined,
         },
         createdAt: now.toISOString(),
-        storyboard: [
-          {
-            id: 1,
-            sceneNumber: 1,
-            timeRange: '00:00 - 00:10',
-            startSec: 0,
-            endSec: 10,
-            voiceover: 'Chào mừng các bạn đã quay trở lại với chuỗi phân tích chuyên sâu...',
-            visualPrompt: 'Cinematic wide shot opening, modern technology, 4k resolution, photorealistic',
-            clipUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-            transition: 'cut',
-          },
-          {
-            id: 2,
-            sceneNumber: 2,
-            timeRange: '00:10 - 00:20',
-            startSec: 10,
-            endSec: 20,
-            voiceover: 'Vấn đề cốt lõi bắt đầu từ việc tối ưu hóa chuỗi quy trình xuất bản đa nền tảng...',
-            visualPrompt: 'Detailed workflow demonstration, minimal interface, macro lens, hyper-clean',
-            clipUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-            transition: 'fade',
-          },
-          {
-            id: 3,
-            sceneNumber: 3,
-            timeRange: '00:20 - 00:30',
-            startSec: 20,
-            endSec: 30,
-            voiceover: 'Khi kết hợp nhiều clip lại, hệ thống tính toán chính xác tổng thời lượng mục tiêu...',
-            visualPrompt: 'Futuristic digital dashboard, high tech charts, crisp lighting',
-            clipUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-            transition: 'dissolve',
-          },
-        ],
+        storyboard: generated.storyboard,
       };
 
       onCreateProject(newProject);
       setIsGenerating(false);
       onClose();
-    }, 3200);
+    } catch (err: any) {
+      console.error('Error generating AI video script:', err);
+      setIsGenerating(false);
+      setKeyErrorNotice(err?.message || 'Có lỗi xảy ra khi tạo kịch bản video.');
+    }
   };
 
   React.useEffect(() => {
