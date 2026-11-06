@@ -16,6 +16,11 @@ export interface StoryboardScene {
   voiceover: string;
   visualPrompt: string;
   clipUrl?: string;
+  imageUrl?: string;
+  cameraMotion?: 'dolly-in' | 'dolly-out' | 'orbit' | 'pan-right' | 'pan-left' | 'crane-up' | 'fpv-zoom';
+  lightingStyle?: 'volumetric' | 'cyberpunk' | 'rembrandt' | 'studio-clean' | 'golden-hour';
+  sfx?: string;
+  headline?: string;
   transition?: 'cut' | 'fade' | 'dissolve';
 }
 

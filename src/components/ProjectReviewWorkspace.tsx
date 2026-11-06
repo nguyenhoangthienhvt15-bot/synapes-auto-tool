@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Project } from '../types';
+import { Project, StoryboardScene } from '../types';
+import { AiCinemaPlayer } from './AiCinemaPlayer';
+import { buildAiSceneImageUrl } from '../services/aiScriptGeneratorService';
 import {
-  Play, Volume2, CheckCircle2, Clock,
+  Volume2, CheckCircle2, Clock,
   Edit3, Film, ExternalLink, Smartphone, Monitor,
-  Link2, Search, Sparkles, X, Check, Camera, Terminal, Sliders
+  Link2, Sparkles, X, Check, Camera, RefreshCw
 } from 'lucide-react';
 
 interface ProjectReviewWorkspaceProps {
@@ -20,7 +22,9 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
   onBackToList,
 }) => {
   const [activeTab, setActiveTab] = useState<'storyboard' | 'metadata'>('storyboard');
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [activeSceneId, setActiveSceneId] = useState<number | null>(
+    project.storyboard[0]?.id ?? null
+  );
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>(project.aspectRatio);
   const [showSocialMockup, setShowSocialMockup] = useState<'none' | 'tiktok' | 'youtube'>('none');
   const [editingSceneId, setEditingSceneId] = useState<number | null>(null);
@@ -94,15 +98,45 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
     setEditingSceneId(null);
   };
 
+  const inferCameraFromPrompt = (prompt: string, fallback?: StoryboardScene['cameraMotion']): StoryboardScene['cameraMotion'] => {
+    const p = prompt.toLowerCase();
+    if (p.includes('fpv') || p.includes('drone')) return 'fpv-zoom';
+    if (p.includes('orbit') || p.includes('360')) return 'orbit';
+    if (p.includes('crane') || p.includes('rise') || p.includes('rising')) return 'crane-up';
+    if (p.includes('dolly out') || p.includes('pull back')) return 'dolly-out';
+    if (p.includes('pan right') || p.includes('tracking')) return 'pan-right';
+    if (p.includes('pan left')) return 'pan-left';
+    if (p.includes('dolly in') || p.includes('push')) return 'dolly-in';
+    return fallback || 'dolly-in';
+  };
+
+  const inferLightingFromPrompt = (prompt: string, fallback?: StoryboardScene['lightingStyle']): StoryboardScene['lightingStyle'] => {
+    const p = prompt.toLowerCase();
+    if (p.includes('cyberpunk') || p.includes('neon')) return 'cyberpunk';
+    if (p.includes('rembrandt') || p.includes('chiaroscuro')) return 'rembrandt';
+    if (p.includes('golden') || p.includes('warm')) return 'golden-hour';
+    if (p.includes('studio') || p.includes('apple') || p.includes('clean')) return 'studio-clean';
+    if (p.includes('volumetric') || p.includes('rays')) return 'volumetric';
+    return fallback || 'volumetric';
+  };
+
   const handleSavePromptEdit = (sceneId: number) => {
     const updatedStoryboard = project.storyboard.map((s) => {
       if (s.id === sceneId) {
-        return { ...s, visualPrompt: editingPromptText };
+        const newSeed = (Date.now() % 8000) + sceneId * 37;
+        return {
+          ...s,
+          visualPrompt: editingPromptText,
+          cameraMotion: inferCameraFromPrompt(editingPromptText, s.cameraMotion),
+          lightingStyle: inferLightingFromPrompt(editingPromptText, s.lightingStyle),
+          imageUrl: buildAiSceneImageUrl(editingPromptText, aspectRatio, newSeed),
+        };
       }
       return s;
     });
     onUpdateProject({ ...project, storyboard: updatedStoryboard });
     setEditingScenePromptId(null);
+    setActiveSceneId(sceneId);
   };
 
   const handleInjectCameraTag = (sceneId: number, tag: string) => {
@@ -110,13 +144,35 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
       if (s.id === sceneId) {
         const cleanPrompt = s.visualPrompt.trim();
         const hasTagAlready = cleanPrompt.toLowerCase().includes(tag.toLowerCase());
-        if (hasTagAlready) return s;
-        const separator = cleanPrompt.endsWith('.') || cleanPrompt.endsWith(',') ? ' ' : ', ';
-        return { ...s, visualPrompt: `${cleanPrompt}${separator}${tag}` };
+        const nextPrompt = hasTagAlready
+          ? cleanPrompt
+          : `${cleanPrompt}${cleanPrompt.endsWith('.') || cleanPrompt.endsWith(',') ? ' ' : ', '}${tag}`;
+        return {
+          ...s,
+          visualPrompt: nextPrompt,
+          cameraMotion: inferCameraFromPrompt(nextPrompt, s.cameraMotion),
+          lightingStyle: inferLightingFromPrompt(nextPrompt, s.lightingStyle),
+        };
       }
       return s;
     });
     onUpdateProject({ ...project, storyboard: updatedStoryboard });
+    setActiveSceneId(sceneId);
+  };
+
+  const handleRegenerateSceneVisual = (sceneId: number) => {
+    const updatedStoryboard = project.storyboard.map((s) => {
+      if (s.id === sceneId) {
+        const newSeed = Math.floor(Math.random() * 90000) + 1000;
+        return {
+          ...s,
+          imageUrl: buildAiSceneImageUrl(s.visualPrompt, aspectRatio, newSeed),
+        };
+      }
+      return s;
+    });
+    onUpdateProject({ ...project, storyboard: updatedStoryboard });
+    setActiveSceneId(sceneId);
   };
 
   const handleAddTag = () => {
@@ -250,80 +306,14 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
               </div>
             </div>
 
-            {/* Video Player Viewport */}
-            <div
-              className={`w-full mx-auto bg-zinc-950 rounded-xl overflow-hidden relative border border-black/10 flex items-center justify-center ${
-                aspectRatio === '16:9' ? 'aspect-video' : 'aspect-[9/16] max-h-[480px]'
-              }`}
-            >
-              <video
-                src={project.videoUrl}
-                poster={project.thumbnailUrl}
-                controls={false}
-                playsInline
-                loop
-                className="w-full h-full object-cover"
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-              />
-
-              {/* TikTok Overlay Mockup */}
-              {showSocialMockup === 'tiktok' && (
-                <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between text-white bg-gradient-to-t from-black/80 via-transparent to-black/30">
-                  <div className="flex justify-between items-center text-xs font-medium">
-                    <span>Đang theo dõi</span>
-                    <span className="border-b-2 border-white pb-0.5 font-bold">Dành cho bạn</span>
-                    <Search className="w-4 h-4 opacity-80" />
-                  </div>
-
-                  <div className="flex justify-between items-end">
-                    <div className="max-w-[70%] space-y-1 text-xs">
-                      <div className="font-semibold text-sm">@synapes_studio</div>
-                      <div className="text-[11px] line-clamp-2 text-zinc-200">
-                        {project.metadata.title} {project.metadata.tags.map((t) => `#${t} `)}
-                      </div>
-                      <div className="flex items-center gap-1 text-[10px] text-zinc-300 font-mono">
-                        <span>🎵</span>
-                        <span>{project.musicTrack.name}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-center gap-2.5 text-xs font-mono">
-                      <div className="flex flex-col items-center">
-                        <span className="text-lg">❤️</span>
-                        <span className="text-[10px]">12.4K</span>
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <span className="text-lg">💬</span>
-                        <span className="text-[10px]">482</span>
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <span className="text-lg">🔗</span>
-                        <span className="text-[10px]">Chia sẻ</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tactile Play Button */}
-              {!isPlaying && (
-                <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                  <button
-                    onClick={() => {
-                      const v = document.querySelector('video');
-                      if (v) {
-                        v.play();
-                        setIsPlaying(true);
-                      }
-                    }}
-                    className="w-12 h-12 rounded-full bg-white text-zinc-900 flex items-center justify-center shadow-lg transition hover:scale-105 active:scale-95 cursor-pointer"
-                  >
-                    <Play className="w-5 h-5 ml-0.5 fill-zinc-900 text-zinc-900" />
-                  </button>
-                </div>
-              )}
-            </div>
+            {/* Real-Time 60fps AI Cinema Video Engine & Sequencer */}
+            <AiCinemaPlayer
+              project={project}
+              aspectRatio={aspectRatio}
+              showSocialMockup={showSocialMockup}
+              activeSceneId={activeSceneId}
+              onSelectScene={(sceneId) => setActiveSceneId(sceneId)}
+            />
 
             {/* Audio Track Info Pod */}
             <div className="p-3 rounded-lg bg-zinc-50 border border-black/[0.05] flex items-center justify-between text-xs text-zinc-600">
@@ -419,21 +409,53 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                   <span className="text-zinc-900 font-mono font-semibold">Tổng: {formatSeconds(project.duration)}</span>
                 </div>
 
-                {project.storyboard.map((scene) => (
+                {project.storyboard.map((scene) => {
+                  const isCurrentScene = activeSceneId === scene.id;
+                  return (
                   <div
                     key={scene.id}
-                    className="p-3 rounded-lg bg-zinc-50/70 border border-black/[0.05] hover:border-black/[0.12] transition space-y-1.5"
+                    onClick={() => setActiveSceneId(scene.id)}
+                    className={`p-3 rounded-lg border transition space-y-1.5 cursor-pointer ${
+                      isCurrentScene
+                        ? 'bg-indigo-50/40 border-indigo-400 shadow-sm'
+                        : 'bg-zinc-50/70 border-black/[0.05] hover:border-black/[0.14]'
+                    }`}
                   >
                     <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-4 h-4 rounded bg-white border border-black/[0.08] flex items-center justify-center text-[10px] font-mono font-bold text-zinc-700">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-mono font-bold ${
+                          isCurrentScene
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-white border border-black/[0.08] text-zinc-700'
+                        }`}>
                           {scene.sceneNumber}
                         </span>
-                        <span className="text-zinc-900 font-semibold text-[11px]">Cảnh {scene.sceneNumber}</span>
+                        <span className="text-zinc-900 font-semibold text-[11px]">
+                          {scene.headline || `Cảnh ${scene.sceneNumber}`}
+                        </span>
+                        {scene.cameraMotion && (
+                          <span className="px-1.5 py-0.2 rounded bg-indigo-100/80 text-indigo-700 font-mono text-[9px] uppercase">
+                            🎥 {scene.cameraMotion}
+                          </span>
+                        )}
                       </div>
-                      <span className="font-mono text-zinc-500 text-[10px] bg-white px-1.5 py-0.2 rounded border border-black/[0.04]">
-                        {scene.timeRange}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRegenerateSceneVisual(scene.id);
+                          }}
+                          className="px-1.5 py-0.5 rounded bg-white hover:bg-indigo-50 text-zinc-600 hover:text-indigo-600 border border-black/[0.06] text-[9px] font-mono flex items-center gap-1 transition cursor-pointer"
+                          title="Tạo lại khung hình AI mới cho cảnh này"
+                        >
+                          <RefreshCw className="w-2.5 h-2.5" />
+                          <span>Render lại ảnh</span>
+                        </button>
+                        <span className="font-mono text-zinc-500 text-[10px] bg-white px-1.5 py-0.2 rounded border border-black/[0.04]">
+                          {scene.timeRange}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Voiceover Text (Inline Edit) */}
@@ -557,7 +579,8 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -804,12 +827,29 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
               </button>
               <button
                 onClick={() => {
-                  alert('Đã gửi yêu cầu chỉnh sửa đến AI Engine.');
+                  if (revisionPrompt.trim()) {
+                    const updatedStoryboard = project.storyboard.map((s, idx) => {
+                      const nextPrompt = `${s.visualPrompt}, ${revisionPrompt.trim()}`;
+                      const newSeed = (Date.now() % 9000) + idx * 101;
+                      return {
+                        ...s,
+                        visualPrompt: nextPrompt,
+                        cameraMotion: inferCameraFromPrompt(nextPrompt, s.cameraMotion),
+                        lightingStyle: inferLightingFromPrompt(nextPrompt, s.lightingStyle),
+                        imageUrl: buildAiSceneImageUrl(nextPrompt, aspectRatio, newSeed),
+                      };
+                    });
+                    onUpdateProject({
+                      ...project,
+                      storyboard: updatedStoryboard,
+                    });
+                  }
+                  setRevisionPrompt('');
                   setShowAiRevisionModal(false);
                 }}
                 className="btn-primary cursor-pointer"
               >
-                Gửi Lệnh Sửa
+                Áp Dụng & Render Lại
               </button>
             </div>
           </div>
