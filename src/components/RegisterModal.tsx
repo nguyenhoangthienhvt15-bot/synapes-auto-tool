@@ -2,18 +2,13 @@ import React, { useState, useEffect } from 'react';
 import {
   X, User, Calendar, Mail, Phone, MapPin, Navigation, Compass,
   FileText, ShieldCheck, CheckCircle2, AlertCircle, Download,
-  Printer, ArrowRight, ArrowLeft, RefreshCw, Check, Sparkles, Link2
+  Printer, ArrowRight, ArrowLeft, RefreshCw, Check, Sparkles
 } from 'lucide-react';
 import { UserRegistrationData } from '../types';
 import {
   saveUserRegistration,
   formatDobToDDMMYYYY,
-  getAppsScriptWebhookUrl,
-  setAppsScriptWebhookUrl,
   discoverWebhookUrlFromSheet,
-  callAppsScriptWebhook,
-  flushPendingWebhookQueue,
-  isValidWebhookUrl,
 } from '../services/googleSheetService';
 import { downloadPersonalizedContractPdf, printPersonalizedContractPdf } from '../utils/contractPdfGenerator';
 
@@ -48,25 +43,10 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Cấu hình kết nối Webhook Google Sheet (Dành cho Kỹ sư hoặc tự động dò từ Sheet)
-  const [showWebhookConfig, setShowWebhookConfig] = useState(false);
-  const [webhookUrlInput, setWebhookUrlInput] = useState(() => getAppsScriptWebhookUrl());
-  const [webhookSavedMsg, setWebhookSavedMsg] = useState<string | null>(null);
-
-  // Tự động dò URL Webhook từ Google Sheet ngay khi mở cửa sổ đăng ký
+  // Tự động dò kết nối hệ thống ngầm khi mở cửa sổ đăng ký (không hiển thị ra giao diện người dùng)
   useEffect(() => {
     if (isOpen) {
-      const existing = getAppsScriptWebhookUrl();
-      if (existing) {
-        setWebhookUrlInput(existing);
-      }
-      discoverWebhookUrlFromSheet()
-        .then((found) => {
-          if (found) {
-            setWebhookUrlInput(found);
-          }
-        })
-        .catch(() => {});
+      discoverWebhookUrlFromSheet().catch(() => {});
     }
   }, [isOpen]);
 
@@ -82,22 +62,6 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
-
-  const handleSaveWebhookUrl = async () => {
-    const clean = webhookUrlInput.trim();
-    if (!isValidWebhookUrl(clean)) {
-      setWebhookSavedMsg('⚠️ Vui lòng dán đúng đường dẫn Cầu nối Google Form hoặc Web App (/exec)');
-      return;
-    }
-    setAppsScriptWebhookUrl(clean);
-    await callAppsScriptWebhook({ action: 'save_webhook_url', webhookUrl: clean });
-    await flushPendingWebhookQueue(clean);
-    setWebhookSavedMsg('✅ Đã kết nối & đồng bộ 2 chiều với Google Sheet thành công!');
-    setTimeout(() => {
-      setWebhookSavedMsg(null);
-      setShowWebhookConfig(false);
-    }, 2500);
-  };
 
   // Xử lý lấy định vị GPS thực tế
   const handleGetLocation = () => {
@@ -260,20 +224,8 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       }}
     >
       <div className="bg-white rounded-2xl border border-black/10 max-w-2xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden relative">
-        {/* Nút cấu hình kết nối Sheet & Nút đóng */}
+        {/* Nút đóng */}
         <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
-          <button
-            type="button"
-            onClick={() => setShowWebhookConfig(!showWebhookConfig)}
-            className={`p-1.5 rounded-lg transition cursor-pointer flex items-center gap-1 text-[11px] font-medium ${
-              webhookUrlInput
-                ? 'text-emerald-600 hover:bg-emerald-50'
-                : 'text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100'
-            }`}
-            title="Cấu hình liên kết Webhook đồng bộ Google Sheet"
-          >
-            <Link2 className="w-4 h-4" />
-          </button>
           <button
             type="button"
             onClick={onClose}
@@ -299,36 +251,6 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
               </p>
             </div>
           </div>
-
-          {showWebhookConfig && (
-            <div className="mt-3 p-3 rounded-xl bg-zinc-50 border border-zinc-200 space-y-2 text-xs">
-              <div className="flex items-center justify-between font-semibold text-zinc-900">
-                <span>🔗 Liên kết Webhook Google Sheet (Apps Script Web App URL):</span>
-                <span className="text-[10px] font-mono text-zinc-500">
-                  {webhookUrlInput ? '🟢 Đã gắn URL' : '⚪ Tự động dò từ Sheet'}
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={webhookUrlInput}
-                  onChange={(e) => setWebhookUrlInput(e.target.value)}
-                  placeholder="https://script.google.com/macros/s/.../exec"
-                  className="flex-1 bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-900 focus:outline-none focus:border-zinc-900"
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveWebhookUrl}
-                  className="btn-primary py-1.5 px-3 text-xs font-semibold cursor-pointer"
-                >
-                  Lưu kết nối
-                </button>
-              </div>
-              {webhookSavedMsg && (
-                <div className="text-[11px] font-medium text-emerald-700">{webhookSavedMsg}</div>
-              )}
-            </div>
-          )}
 
           {/* Thanh tiến trình các bước */}
           <div className="grid grid-cols-2 gap-2 mt-4 text-xs font-medium">
