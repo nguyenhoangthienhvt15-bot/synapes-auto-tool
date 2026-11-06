@@ -4,6 +4,11 @@ import {
   Cpu, Key, Globe, CheckCircle2, Sparkles, RefreshCw,
   ExternalLink, Eye, EyeOff, ShieldCheck, Check, ArrowLeft, Radio, AlertCircle, LogIn
 } from 'lucide-react';
+import {
+  discoverModelsFromKey,
+  getCachedDiscoveredModels,
+  DiscoveredModel,
+} from '../services/aiModelDiscoveryService';
 
 interface AiEngineSettingsViewProps {
   currentUser?: UserAccount | null;
@@ -36,9 +41,11 @@ const PROVIDERS: ProviderMeta[] = [
     vendor: 'Google DeepMind',
     description: 'Động cơ đa phương thức mạnh mẽ: phân rã kịch bản siêu tốc, tích hợp trực tiếp giọng đọc TTS tự nhiên tiếng Việt.',
     defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta',
-    defaultModel: 'gemini-2.0-flash',
+    defaultModel: 'gemini-2.5-flash',
     models: [
-      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', tag: 'Siêu tốc • Tối ưu chi phí • Khuyên dùng' },
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: 'Thế hệ mới nhất 2026 • Siêu tốc • Khuyên dùng' },
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', tag: 'Suy luận kịch bản chuyên sâu thế hệ mới' },
+      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', tag: 'Tốc độ cao • Tối ưu chi phí' },
       { id: 'gemini-2.0-pro-exp', name: 'Gemini 2.0 Pro Experimental', tag: 'Suy luận kịch bản phức tạp' },
       { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', tag: 'Ngữ cảnh dài 2M tokens' },
       { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', tag: 'Tiết kiệm tài nguyên' },
@@ -59,8 +66,9 @@ const PROVIDERS: ProviderMeta[] = [
     models: [
       { id: 'gpt-4o', name: 'GPT-4o (Omni)', tag: 'Mạnh mẽ nhất • Đa phương thức • Khuyên dùng' },
       { id: 'gpt-4o-mini', name: 'GPT-4o Mini', tag: 'Nhanh nhẹn • Chi phí cực thấp' },
+      { id: 'o3-mini', name: 'o3-mini', tag: 'Suy luận tốc độ cao thế hệ mới 2026' },
       { id: 'o1', name: 'o1 (Reasoning)', tag: 'Tư duy logic kịch bản chiều sâu' },
-      { id: 'o3-mini', name: 'o3-mini', tag: 'Suy luận tốc độ cao thế hệ mới' },
+      { id: 'gpt-4.5-preview', name: 'GPT-4.5 Preview', tag: 'Đột phá tư duy sáng tạo' },
     ],
     keyPrefix: 'sk-proj',
     keyPlaceholder: 'sk-proj-... hoặc sk-...',
@@ -210,8 +218,145 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
     }));
   };
 
+  // Discovered models per provider (tự động đọc trực tiếp từ API Key)
+  const [discoveredModels, setDiscoveredModels] = useState<Record<string, DiscoveredModel[]>>(() => {
+    const initial: Record<string, DiscoveredModel[]> = {};
+    for (const p of PROVIDERS) {
+      const provKey = p.id === 'plugin' ? config.plugin?.apiToken : (config[p.id as keyof AIProviderConfig] as any)?.apiKey;
+      const cached = getCachedDiscoveredModels(p.id, provKey);
+      if (cached && cached.length > 0) {
+        initial[p.id] = cached;
+      } else {
+        initial[p.id] = p.models.map((m) => ({
+          id: m.id,
+          name: m.name,
+          tag: m.tag,
+          isLiveFromKey: false,
+          isRecommended: m.id === p.defaultModel,
+        }));
+      }
+    }
+    return initial;
+  });
+
+  const [isDiscovering, setIsDiscovering] = useState<boolean>(false);
+  const [discoveryStatus, setDiscoveryStatus] = useState<Record<string, {
+    type: 'loading' | 'success' | 'error' | null;
+    message: string;
+    modelCount?: number;
+  }>>({});
+
+  const handleDiscoverModels = async (provId: AIProviderId, customKey?: string, isAuto: boolean = false) => {
+    const keyToUse = (customKey !== undefined ? customKey : keys[provId])?.trim();
+    if (!keyToUse) {
+      if (!isAuto) {
+        setDiscoveryStatus((prev) => ({
+          ...prev,
+          [provId]: {
+            type: 'error',
+            message: `Vui lòng nhập API Key của ${PROVIDERS.find((p) => p.id === provId)?.name || provId} trước khi đọc Models.`,
+          },
+        }));
+      }
+      return;
+    }
+
+    setIsDiscovering(true);
+    setDiscoveryStatus((prev) => ({
+      ...prev,
+      [provId]: {
+        type: 'loading',
+        message: `Đang kết nối API và đọc danh sách Models từ Key của ${PROVIDERS.find((p) => p.id === provId)?.name || provId}...`,
+      },
+    }));
+
+    try {
+      const res = await discoverModelsFromKey(provId, keyToUse, endpoints[provId]);
+      if (res.success && res.models.length > 0) {
+        setDiscoveredModels((prev) => ({
+          ...prev,
+          [provId]: res.models,
+        }));
+        setDiscoveryStatus((prev) => ({
+          ...prev,
+          [provId]: {
+            type: 'success',
+            message: res.message,
+            modelCount: res.models.length,
+          },
+        }));
+
+        // Nếu model hiện tại chưa được chọn hoặc không nằm trong danh sách mới, chọn model khuyên dùng
+        const currentModelId = models[provId];
+        const hasCurrent = res.models.some((m) => m.id === currentModelId);
+        if (!hasCurrent) {
+          const recommended = res.models.find((m) => m.isRecommended) || res.models[0];
+          if (recommended) {
+            setModels((prev) => ({ ...prev, [provId]: recommended.id }));
+          }
+        }
+      } else {
+        setDiscoveryStatus((prev) => ({
+          ...prev,
+          [provId]: {
+            type: 'error',
+            message: res.message,
+          },
+        }));
+      }
+    } catch (err: any) {
+      setDiscoveryStatus((prev) => ({
+        ...prev,
+        [provId]: {
+          type: 'error',
+          message: `Lỗi kết nối khi quét models: ${err?.message || 'Không xác định'}`,
+        },
+      }));
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
+
+  // Tự động quét models khi nạp hoặc thay đổi API key
+  useEffect(() => {
+    const currentKey = keys[activeProvider]?.trim();
+    if (!currentKey) return;
+
+    if (currentKey.length >= 15) {
+      const timer = setTimeout(() => {
+        handleDiscoverModels(activeProvider, currentKey, true);
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [keys[activeProvider], activeProvider]);
+
+  // Nạp lại cache nếu chuyển tab provider
+  useEffect(() => {
+    const currentKey = keys[activeProvider]?.trim();
+    if (currentKey) {
+      const cached = getCachedDiscoveredModels(activeProvider, currentKey);
+      if (cached && cached.length > 0) {
+        setDiscoveredModels((prev) => ({
+          ...prev,
+          [activeProvider]: cached,
+        }));
+      }
+    }
+  }, [activeProvider]);
+
   const currentMeta = PROVIDERS.find((p) => p.id === activeProvider) || PROVIDERS[0];
   const isDefaultSelected = (config.activeProvider || config.mode) === activeProvider;
+
+  const activeModels: DiscoveredModel[] =
+    discoveredModels[activeProvider] && discoveredModels[activeProvider].length > 0
+      ? discoveredModels[activeProvider]
+      : currentMeta.models.map((m) => ({
+          id: m.id,
+          name: m.name,
+          tag: m.tag,
+          isLiveFromKey: false,
+          isRecommended: m.id === currentMeta.defaultModel,
+        }));
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -274,7 +419,7 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
     setTimeout(() => setTestResult(null), 3500);
   };
 
-  const handleTestConnection = () => {
+  const handleTestConnection = async () => {
     const key = keys[activeProvider]?.trim();
     if (!key) {
       setTestResult(`⚠️ Vui lòng nhập API Key cho ${currentMeta.name} trước khi kiểm tra.`);
@@ -282,13 +427,14 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
     }
 
     setIsTesting(true);
-    setTestResult(`Đang gửi tín hiệu kiểm tra Ping đến máy chủ ${currentMeta.name}...`);
+    setTestResult(`Đang gửi tín hiệu kiểm tra Ping và đồng bộ danh sách Model từ ${currentMeta.name}...`);
 
-    setTimeout(() => {
-      setIsTesting(false);
-      setTestResult(`✅ Kết nối thành công! Động cơ ${currentMeta.name} phản hồi HTTP 200 OK (${models[activeProvider]}). Sẵn sàng tạo kịch bản video.`);
-      setTimeout(() => setTestResult(null), 5000);
-    }, 1100);
+    await handleDiscoverModels(activeProvider, key, false);
+
+    setIsTesting(false);
+    const chosenModel = models[activeProvider] || 'mô hình đã chọn';
+    setTestResult(`✅ Kết nối thành công! Động cơ ${currentMeta.name} phản hồi HTTP 200 OK (${chosenModel}). Sẵn sàng tạo kịch bản video.`);
+    setTimeout(() => setTestResult(null), 5000);
   };
 
   return (
@@ -514,27 +660,49 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
         <form onSubmit={handleSave} className="space-y-4 text-xs">
           {/* API Key Input */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-zinc-700 font-medium">
-                Khóa Xác Thực ({currentMeta.name} API Key) *
-              </label>
-              <button
-                type="button"
-                onClick={() => toggleShowKey(activeProvider)}
-                className="text-[11px] text-zinc-500 hover:text-zinc-900 flex items-center gap-1 cursor-pointer font-medium"
-              >
-                {showKey[activeProvider] ? (
-                  <>
-                    <EyeOff className="w-3.5 h-3.5" />
-                    <span>Ẩn Khóa</span>
-                  </>
-                ) : (
-                  <>
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Xem Khóa</span>
-                  </>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-zinc-700 font-medium flex items-center gap-2">
+                <span>Khóa Xác Thực ({currentMeta.name} API Key) *</span>
+                {activeModels.some((m) => m.isLiveFromKey) && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <Sparkles className="w-3 h-3 text-emerald-600" />
+                    Đã đọc {activeModels.length} models từ Key
+                  </span>
                 )}
-              </button>
+              </label>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleDiscoverModels(activeProvider, keys[activeProvider], false)}
+                  disabled={isDiscovering || !keys[activeProvider]?.trim()}
+                  className="text-[11px] text-indigo-600 hover:text-indigo-800 disabled:text-zinc-400 flex items-center gap-1 cursor-pointer font-semibold transition"
+                  title="Gửi yêu cầu API để đọc và cập nhật danh sách các mô hình AI mới nhất được cung cấp trong Key này"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isDiscovering ? 'animate-spin' : ''}`} />
+                  <span>{isDiscovering ? 'Đang đọc...' : 'Đọc Models Từ Key'}</span>
+                </button>
+
+                <span className="text-zinc-300">|</span>
+
+                <button
+                  type="button"
+                  onClick={() => toggleShowKey(activeProvider)}
+                  className="text-[11px] text-zinc-500 hover:text-zinc-900 flex items-center gap-1 cursor-pointer font-medium"
+                >
+                  {showKey[activeProvider] ? (
+                    <>
+                      <EyeOff className="w-3.5 h-3.5" />
+                      <span>Ẩn Khóa</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Xem Khóa</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="relative">
@@ -551,27 +719,66 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
               />
             </div>
             <div className="text-[11px] text-zinc-400 mt-1 flex items-center justify-between">
-              <span>Được lưu trữ bảo mật cục bộ tại trình duyệt (Local Storage Encrypted).</span>
+              <span>Hệ thống tự động quét danh sách Model AI mới nhất từ Key ngay khi dán/nhập.</span>
               <span className="font-mono">Định dạng chuẩn: {currentMeta.keyPrefix}...</span>
             </div>
           </div>
 
+          {/* Status Banner khi Đọc Models từ API Key */}
+          {discoveryStatus[activeProvider] && (
+            <div
+              className={`p-3 rounded-xl text-xs flex items-center justify-between gap-2.5 transition animate-in fade-in ${
+                discoveryStatus[activeProvider]?.type === 'loading'
+                  ? 'bg-blue-50 border border-blue-200 text-blue-900'
+                  : discoveryStatus[activeProvider]?.type === 'success'
+                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-950'
+                  : 'bg-rose-50 border border-rose-200 text-rose-950'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {discoveryStatus[activeProvider]?.type === 'loading' && (
+                  <RefreshCw className="w-4 h-4 text-blue-600 animate-spin flex-shrink-0" />
+                )}
+                {discoveryStatus[activeProvider]?.type === 'success' && (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                )}
+                {discoveryStatus[activeProvider]?.type === 'error' && (
+                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                )}
+                <span className="font-sans leading-relaxed">
+                  {discoveryStatus[activeProvider]?.message}
+                </span>
+              </div>
+
+              {discoveryStatus[activeProvider]?.type === 'success' && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex-shrink-0">
+                  LIVE DISCOVERY
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Model & Endpoint selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-zinc-700 font-medium block mb-1">
-                Mô Hình AI (Model Release)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-zinc-700 font-medium">
+                  Mô Hình AI (Model Release)
+                </label>
+                <span className="text-[10px] font-mono text-zinc-500">
+                  {activeModels.length} mô hình khả dụng
+                </span>
+              </div>
               <select
-                value={models[activeProvider] || currentMeta.defaultModel}
+                value={models[activeProvider] || activeModels[0]?.id || currentMeta.defaultModel}
                 onChange={(e) =>
                   setModels((prev) => ({ ...prev, [activeProvider]: e.target.value }))
                 }
                 className="w-full bg-zinc-50 border border-black/10 rounded-lg p-2 text-xs text-zinc-900 focus:outline-none focus:bg-white focus:border-zinc-900 font-mono"
               >
-                {currentMeta.models.map((m) => (
+                {activeModels.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.name} — {m.tag}
+                    {m.name} {m.isLiveFromKey ? '⚡ (Từ Key)' : ''} — {m.tag}
                   </option>
                 ))}
               </select>
@@ -590,6 +797,92 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
                 placeholder={currentMeta.defaultEndpoint}
                 className="w-full bg-zinc-50 border border-black/10 rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:bg-white focus:border-zinc-900 font-mono"
               />
+            </div>
+          </div>
+
+          {/* Interactive Model Showcase / Selection Grid */}
+          <div className="space-y-2 pt-1">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <div className="text-[11px] font-mono font-bold text-zinc-600 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span>Mô Hình AI Được Cung Cấp Trong Key (Bấm thẻ để chọn nhanh)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {activeModels.some((m) => m.isLiveFromKey) ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Đã đọc trực tiếp từ API Key
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-mono text-zinc-400">
+                    ○ Đề xuất tiêu chuẩn 2026
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleDiscoverModels(activeProvider, keys[activeProvider], false)}
+                  disabled={isDiscovering || !keys[activeProvider]?.trim()}
+                  className="text-[10px] font-mono text-indigo-600 hover:text-indigo-800 disabled:text-zinc-400 flex items-center gap-1 cursor-pointer font-medium"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isDiscovering ? 'animate-spin' : ''}`} />
+                  <span>Quét lại</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-64 overflow-y-auto pr-1">
+              {activeModels.map((m) => {
+                const isSelected = (models[activeProvider] || activeModels[0]?.id) === m.id;
+                return (
+                  <div
+                    key={m.id}
+                    onClick={() => setModels((prev) => ({ ...prev, [activeProvider]: m.id }))}
+                    className={`p-3 rounded-xl border text-left transition relative cursor-pointer flex flex-col justify-between ${
+                      isSelected
+                        ? 'bg-zinc-950 text-white border-zinc-950 shadow-md ring-2 ring-zinc-950/20'
+                        : 'bg-zinc-50/80 hover:bg-white border-black/[0.08] text-zinc-800 hover:shadow-2xs'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-1 mb-1">
+                        <div className="font-bold text-xs truncate" title={m.name}>
+                          {m.name}
+                        </div>
+                        {isSelected ? (
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 flex-shrink-0 mt-0.5 shadow-xs" title="Đang chọn" />
+                        ) : m.isRecommended ? (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                            Khuyên dùng
+                          </span>
+                        ) : m.isLiveFromKey ? (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-blue-50 text-blue-700 border border-blue-200">
+                            Key Live
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className={`text-[10px] font-mono truncate ${isSelected ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                        {m.id}
+                      </div>
+                    </div>
+
+                    <div className="mt-2.5 pt-2 border-t border-black/5 flex items-center justify-between text-[10px]">
+                      <span className={`truncate text-[10px] ${isSelected ? 'text-emerald-300' : 'text-zinc-600'}`}>
+                        {m.tag}
+                      </span>
+                      {m.inputTokenLimit && (
+                        <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded flex-shrink-0 ml-1.5 ${
+                          isSelected ? 'bg-zinc-800 text-zinc-300 border border-zinc-700' : 'bg-white border border-zinc-200 text-zinc-600'
+                        }`}>
+                          {m.inputTokenLimit >= 1000000
+                            ? `${(m.inputTokenLimit / 1000000).toFixed(m.inputTokenLimit % 1000000 === 0 ? 0 : 1)}M`
+                            : `${Math.round(m.inputTokenLimit / 1000)}K`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
