@@ -118,6 +118,7 @@ function onOpen() {
     .addItem("📋 1. Khởi tạo & Bật kết nối tự động 2 chiều + Gmail (Khuyên dùng)", "setupUserRegistrationSheet")
     .addItem("🔗 2. Gắn Link Web App tùy chỉnh (Nếu dùng Deploy Web App)", "connectWebAppWebhookPrompt")
     .addSeparator()
+    .addItem("📄 Xem bản Hợp đồng PDF của dòng đang chọn", "previewSelectedUserContractModal")
     .addItem("✅ Duyệt dòng đang chọn (Cấp Code + Pass + Gửi Gmail kèm HĐ PDF)", "approveSelectedUserRow")
     .addItem("⚡ Duyệt TẤT CẢ hồ sơ đang chờ duyệt", "approveAllPendingUsers")
     .addItem("📧 Gửi lại Gmail tài khoản & Hợp đồng PDF cho dòng đang chọn", "resendEmailForSelectedRow")
@@ -626,6 +627,7 @@ function processUserApproval(sheet, row, canSendMail) {
 
   if (emailResult.success) {
     sheet.getRange(row, 12).setValue("✅ ĐÃ GỬI GMAIL (" + nowStr + ")").setFontColor("#15803d").setFontWeight("bold");
+    sheet.getRange(row, 13).setValue("📄 HOP_DONG_DICH_VU_SYNAPES_" + code + ".pdf (Đã duyệt & Đã gửi Gmail)");
     ss.toast("✅ Đã cấp mã " + code + " và gửi Gmail kèm Hợp đồng PDF tới " + email, "🚀 SYNAPES Studio", 6);
     return true;
   } else {
@@ -908,8 +910,49 @@ function syncAccountToMainSheet(code, name, email, password, phone, address, isR
 }
 
 /**
- * 9. CÁC NÚT MENU DUYỆT HỒ SƠ TRỰC TIẾP TRÊN SHEET
+ * 9. CÁC NÚT MENU XEM HỢP ĐỒNG PDF & DUYỆT HỒ SƠ TRỰC TIẾP TRÊN SHEET
  */
+function previewSelectedUserContractModal() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getActiveSheet();
+  if (!isUsersSheet(sheet)) {
+    var uSheet = getUsersSheet(ss, false);
+    if (uSheet) {
+      ss.setActiveSheet(uSheet);
+      sheet = uSheet;
+    } else {
+      SpreadsheetApp.getUi().alert('⚠️ Vui lòng chuyển sang trang tính "THÔNG TIN NGƯỜI DÙNG" để xem Hợp đồng PDF!');
+      return;
+    }
+  }
+
+  var row = sheet.getActiveCell().getRow();
+  if (row <= 1) {
+    SpreadsheetApp.getUi().alert("⚠️ Vui lòng chọn một dòng thông tin khách hàng (từ dòng 2 trở đi).");
+    return;
+  }
+
+  var vals = sheet.getRange(row, 1, 1, 13).getDisplayValues()[0];
+  var fullName = String(vals[2] || "").trim();
+  var dob = String(vals[3] || "").trim();
+  var gender = String(vals[4] || "Nam").trim();
+  var email = String(vals[5] || "").trim();
+  var phone = String(vals[6] || "").trim();
+  var address = String(vals[7] || "").trim();
+  var code = String(vals[9] || "CHỜ_CẤP_MÃ").trim();
+
+  if (!fullName) {
+    SpreadsheetApp.getUi().alert("⚠️ Dòng " + row + " chưa có thông tin khách hàng.");
+    return;
+  }
+
+  var htmlContent = generateContractHtmlContent(fullName, dob, gender, phone, address, code, email);
+  var htmlOutput = HtmlService.createHtmlOutput(htmlContent)
+    .setWidth(820)
+    .setHeight(680);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, "📄 BẢN LƯU HỢP ĐỒNG PDF — " + fullName.toUpperCase());
+}
+
 function approveSelectedUserRow() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getActiveSheet();
@@ -1091,7 +1134,26 @@ function processWebhookPayload(payload) {
     if (action === "approve_user") {
       var uSheet = getUsersSheet(ss, true);
       var target = findOrCreateUserRowByEmail(uSheet, payload.email);
+      if (!target.isExisting && payload.email) {
+        handleUserRegistrationWebhook(ss, {
+          fullName: payload.fullName || "Khách hàng SYNAPES",
+          dob: payload.dob || "01/01/2000",
+          gender: payload.gender || "Nam",
+          email: payload.email,
+          phone: payload.phone || "",
+          address: payload.address || "",
+          termsAccepted: true,
+          notes: "📄 HOP_DONG_DICH_VU_SYNAPES.pdf (Đã ký — Chờ duyệt)"
+        });
+        target = findOrCreateUserRowByEmail(uSheet, payload.email);
+      }
       if (target.row >= 2) {
+        if (payload.code) {
+          uSheet.getRange(target.row, 10).setValue(payload.code);
+        }
+        if (payload.password) {
+          uSheet.getRange(target.row, 11).setValue(payload.password);
+        }
         uSheet.getRange(target.row, 9).setValue(true);
         processUserApproval(uSheet, target.row, true);
       }
@@ -1167,11 +1229,11 @@ function handleUserRegistrationWebhook(ss, payload) {
   }
 
   var isSigned = payload.termsAccepted === true || String(payload.notes || "").indexOf("Đã ký") !== -1;
-  var mailStatus = existingMailStatus || (isSigned ? "Chờ Kỹ sư duyệt" : "Chờ khách ký hợp đồng");
-  if (isSigned && mailStatus === "Chờ khách ký hợp đồng") {
-    mailStatus = "Chờ Kỹ sư duyệt";
+  var mailStatus = existingMailStatus || (isSigned ? "⏳ Chờ Ban quản lý duyệt" : "Chờ khách ký hợp đồng");
+  if (isSigned && (mailStatus === "Chờ khách ký hợp đồng" || mailStatus === "Chờ Kỹ sư duyệt")) {
+    mailStatus = "⏳ Chờ Ban quản lý duyệt";
   }
-  var contractNote = payload.notes || (isSigned ? "Đã ký hợp đồng qua WebApp" : "Chờ ký hợp đồng");
+  var contractNote = payload.notes || (isSigned ? "📄 Hợp đồng PDF đã ký — Chờ Ban quản lý duyệt" : "Chờ ký hợp đồng");
 
   var phoneStr = String(payload.phone || "").trim();
   if (phoneStr && phoneStr.charAt(0) === "0") {
@@ -1208,6 +1270,23 @@ function handleUserRegistrationWebhook(ss, payload) {
   sheet.getRange(targetRow, 7).setHorizontalAlignment("center");
   sheet.getRange(targetRow, 9).insertCheckboxes();
   sheet.getRange(targetRow, 9, 1, 3).setHorizontalAlignment("center");
+
+  // Lưu trữ thông tin bản mềm Hợp đồng PDF đã ký ngay trên ô Cột M để Kỹ sư kiểm tra & xác nhận
+  if (isSigned) {
+    var contractSummaryNote =
+      "📄 BẢN LƯU HỢP ĐỒNG DỊCH VỤ ĐIỆN TỬ (PDF)\n" +
+      "------------------------------------------\n" +
+      "• Đại diện Bên A: KS. Nguyễn Hoàng Thiện (Trưởng ban CĐS & TTNT)\n" +
+      "• Đại diện Bên B (Mua hàng): " + (payload.fullName || "") + " (Đã ký điện tử)\n" +
+      "• Ngày sinh: " + (dobParsed.formattedDob || payload.dob || "") + " | Giới tính: " + (payload.gender || "Nam") + "\n" +
+      "• Số điện thoại: " + (payload.phone || "") + "\n" +
+      "• Gmail nhận HĐ & Tài khoản: " + (payload.email || "") + "\n" +
+      "• Địa chỉ thực tế: " + (payload.address || "") + "\n" +
+      "• Thời điểm ký: " + (payload.registeredAt || nowStr) + "\n" +
+      "------------------------------------------\n" +
+      "👉 HƯỚNG DẪN DUYỆT: Tích chọn ô Checkbox tại Cột I (Duyệt Cấp Tài Khoản) để hệ thống tự động sinh Mã Code + Mật khẩu và gửi kèm file PDF Hợp đồng hoàn chỉnh tới Gmail khách hàng.";
+    sheet.getRange(targetRow, 13).setNote(contractSummaryNote);
+  }
 
   return {
     status: "success",

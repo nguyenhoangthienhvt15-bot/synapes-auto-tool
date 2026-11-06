@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   X, User, Calendar, Mail, Phone, MapPin, Navigation, Compass,
-  FileText, ShieldCheck, CheckCircle2, AlertCircle, Download,
-  Printer, ArrowRight, ArrowLeft, RefreshCw, Check, Sparkles
+  FileText, ShieldCheck, CheckCircle2, AlertCircle,
+  ArrowRight, ArrowLeft, RefreshCw, Check, Sparkles
 } from 'lucide-react';
 import { UserRegistrationData } from '../types';
 import {
@@ -10,7 +10,6 @@ import {
   formatDobToDDMMYYYY,
   discoverWebhookUrlFromSheet,
 } from '../services/googleSheetService';
-import { downloadPersonalizedContractPdf, printPersonalizedContractPdf } from '../utils/contractPdfGenerator';
 
 interface RegisterModalProps {
   isOpen: boolean;
@@ -63,55 +62,135 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Xử lý lấy định vị GPS thực tế
-  const handleGetLocation = () => {
+  // Chuyển đổi tọa độ (lat, lng) sang địa chỉ tiếng Việt chi tiết (kết hợp Nominatim OSM + BigDataCloud)
+  const reverseGeocodeToVietnameseAddress = async (lat: number, lng: number): Promise<string> => {
+    // Nguồn 1: OpenStreetMap Nominatim (Chi tiết tên đường, phường/xã, quận/huyện, tỉnh/thành)
+    try {
+      const osmResp = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=vi`
+      );
+      if (osmResp.ok) {
+        const osmData = await osmResp.json();
+        if (osmData) {
+          const a = osmData.address || {};
+          const parts: string[] = [];
+          const houseAndRoad = [a.house_number, a.road || a.pedestrian || a.residential]
+            .filter(Boolean)
+            .join(' ');
+          if (houseAndRoad) parts.push(houseAndRoad);
+          const ward = a.suburb || a.quarter || a.neighbourhood || a.village || a.town || a.hamlet;
+          if (ward && !parts.includes(ward)) parts.push(ward);
+          const district = a.city_district || a.district || a.county || a.municipality;
+          if (district && !parts.includes(district)) parts.push(district);
+          const city = a.city || a.state || a.province;
+          if (city && !parts.includes(city)) parts.push(city);
+
+          if (parts.length >= 2) {
+            return parts.join(', ');
+          }
+          if (osmData.display_name) {
+            const cleaned = String(osmData.display_name)
+              .replace(/,\s*\d{5,6}/g, '')
+              .replace(/,\s*(Việt Nam|Vietnam)\s*$/i, '')
+              .trim();
+            if (cleaned) return cleaned;
+          }
+        }
+      }
+    } catch {
+      // Chuyển sang nguồn 2 nếu Nominatim bị giới hạn
+    }
+
+    // Nguồn 2: BigDataCloud Reverse Geocode Client (Tốc độ cao, hỗ trợ CORS 100%)
+    try {
+      const bdcResp = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=vi`
+      );
+      if (bdcResp.ok) {
+        const bdc = await bdcResp.json();
+        const adminList: string[] = [];
+        if (bdc.locality) adminList.push(bdc.locality);
+        if (bdc.city && !adminList.includes(bdc.city)) adminList.push(bdc.city);
+        if (bdc.principalSubdivision && !adminList.includes(bdc.principalSubdivision)) {
+          adminList.push(bdc.principalSubdivision);
+        }
+        if (adminList.length > 0) {
+          return `${adminList.join(', ')} (GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+        }
+      }
+    } catch {
+      // Fallback bên dưới
+    }
+
+    return `Tọa độ GPS: ${lat.toFixed(5)}°N, ${lng.toFixed(5)}°E, Việt Nam`;
+  };
+
+  // Xử lý lấy định vị GPS thông minh (Đa tầng: Cảm biến GPS -> Mạng Wi-Fi -> Định vị IP dự phòng)
+  const handleGetLocation = async () => {
     setGpsError(null);
     setIsLocating(true);
 
-    if (!navigator.geolocation) {
-      setGpsError('Trình duyệt không hỗ trợ định vị GPS. Vui lòng chuyển sang điền tay.');
+    const getBrowserPosition = (highAccuracy: boolean, timeoutMs: number): Promise<GeolocationPosition> =>
+      new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('NO_GEOLOCATION'));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: highAccuracy,
+          timeout: timeoutMs,
+          maximumAge: 60000,
+        });
+      });
+
+    try {
+      let position: GeolocationPosition;
+      try {
+        // Ưu tiên định vị nhanh qua Wi-Fi/Network (< 1-2 giây trên cả máy tính và điện thoại)
+        position = await getBrowserPosition(false, 5000);
+      } catch {
+        // Thử lại với cảm biến GPS độ chính xác cao
+        position = await getBrowserPosition(true, 8000);
+      }
+
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      setCoords({ lat, lng });
+
+      const resolvedAddress = await reverseGeocodeToVietnameseAddress(lat, lng);
+      setAddress(resolvedAddress);
       setIsLocating(false);
       return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        setCoords({ lat, lng });
-
-        try {
-          // Thử reverse geocoding bằng OpenStreetMap Nominatim
-          const resp = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-            { headers: { 'Accept-Language': 'vi' } }
-          );
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data && data.display_name) {
-              setAddress(data.display_name);
-              setIsLocating(false);
-              return;
-            }
+    } catch {
+      // Tầng dự phòng tự động: Nếu trình duyệt trên máy tính chặn quyền hoặc không có chip GPS,
+      // tự động dò vị trí khu vực hiện tại để điền sẵn Phường/Quận/Thành phố giúp người dùng
+      try {
+        const fallbackResp = await fetch(
+          'https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=vi'
+        );
+        if (fallbackResp.ok) {
+          const data = await fallbackResp.json();
+          const lat = Number(data.latitude) || 10.7769;
+          const lng = Number(data.longitude) || 106.7009;
+          setCoords({ lat, lng });
+          const parts = [data.locality, data.city, data.principalSubdivision]
+            .filter(Boolean)
+            .filter((v, i, arr) => arr.indexOf(v) === i);
+          if (parts.length > 0) {
+            setAddress(parts.join(', '));
+            setIsLocating(false);
+            return;
           }
-        } catch {
-          // Fallback nếu không có mạng
         }
+      } catch {
+        // Nếu hoàn toàn ngoại tuyến
+      }
 
-        // Fallback ghi rõ tọa độ địa lý
-        setAddress(`Vị trí định vị GPS: Vĩ độ ${lat.toFixed(5)}°, Kinh độ ${lng.toFixed(5)}° (Việt Nam)`);
-        setIsLocating(false);
-      },
-      (err) => {
-        setIsLocating(false);
-        if (err.code === err.PERMISSION_DENIED) {
-          setGpsError('Bạn đã từ chối quyền truy cập vị trí. Vui lòng bật định vị hoặc chuyển sang điền tay.');
-        } else {
-          setGpsError('Không thể lấy tọa độ hiện tại. Vui lòng chuyển sang chế độ điền tay.');
-        }
-      },
-      { timeout: 10000, enableHighAccuracy: true }
-    );
+      setIsLocating(false);
+      setGpsError(
+        'Thiết bị chưa cấp quyền vị trí trình duyệt. Bạn có thể bấm cho phép vị trí trên thanh địa chỉ hoặc nhập bổ sung ngay vào ô bên dưới.'
+      );
+    }
   };
 
   // Chuyển sang Bước 2
@@ -162,7 +241,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     setStep(2);
   };
 
-  // Hoàn tất Bước 2: Ký hợp đồng và Tải PDF
+  // Hoàn tất Bước 2: Ký hợp đồng và Lưu bản hợp đồng PDF lên Sheet để Ban quản lý / Kỹ sư duyệt
   const handleCompleteRegistration = async () => {
     if (!termsAccepted) {
       setFormError('Bạn cần tích chọn xác nhận đã đọc, hiểu và cam kết chấp hành nghiêm túc các điều khoản.');
@@ -185,35 +264,21 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       coords: coords || undefined,
       termsAccepted: true,
       registeredAt: new Date().toLocaleString('vi-VN'),
-      notes: 'Đã ký hợp đồng qua WebApp'
+      notes: '📄 Hợp đồng PDF đã ký — Chờ Ban quản lý duyệt'
     };
 
     try {
-      // 1. Cập nhật trạng thái "Đã ký hợp đồng qua WebApp" lên Google Sheet THÔNG TIN NGƯỜI DÙNG
+      // Lưu hồ sơ và bản hợp đồng PDF lên trang tính "THÔNG TIN NGƯỜI DÙNG" để Dev/Kỹ sư xác nhận
+      // (Không tự động tải file PDF về máy người dùng ở bước này; PDF sẽ được gửi qua Gmail khi Kỹ sư tích duyệt)
       await saveUserRegistration(registrationData);
 
-      // 2. Tự động tải xuống hợp đồng PDF hoàn chỉnh đã điền đầy đủ thông tin người dùng (2 trang A4 chuẩn)
-      await downloadPersonalizedContractPdf(registrationData);
-
-      // 3. Chuyển sang bước Hoàn tất
+      // Chuyển sang bước thông báo Hoàn tất & Chờ duyệt
       setStep(3);
     } catch (err: any) {
       setFormError(err?.message || 'Đã có lỗi xảy ra khi xử lý đăng ký.');
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const currentRegistration: UserRegistrationData = {
-    fullName: fullName.trim() || 'Khách Hàng',
-    dob: formatDobToDDMMYYYY(dob.trim()) || '01/01/2000',
-    gender,
-    email: email.trim(),
-    phone: phone.trim(),
-    addressType,
-    address: address.trim() || 'Chưa cung cấp',
-    termsAccepted,
-    registeredAt: new Date().toLocaleString('vi-VN')
   };
 
   return (
@@ -408,7 +473,12 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                   <div className="flex items-center gap-1 bg-zinc-100 p-0.5 rounded-lg border border-zinc-200 text-[11px]">
                     <button
                       type="button"
-                      onClick={() => setAddressType('gps')}
+                      onClick={() => {
+                        setAddressType('gps');
+                        if (!coords || !address.trim()) {
+                          handleGetLocation();
+                        }
+                      }}
                       className={`px-2.5 py-1 rounded-md transition flex items-center gap-1 cursor-pointer font-medium ${
                         addressType === 'gps'
                           ? 'bg-white text-zinc-900 shadow-xs'
@@ -437,7 +507,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                   <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl space-y-2.5">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="text-[11px] text-zinc-600">
-                        Sử dụng cảm biến vị trí thiết bị để xác lập địa chỉ thực tế vào hợp đồng.
+                        Tự động trích xuất địa chỉ đường/phố, phường/xã, tỉnh/thành từ định vị GPS để điền nhanh.
                       </div>
                       <button
                         type="button"
@@ -448,41 +518,60 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                         {isLocating ? (
                           <>
                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Đang dò tọa độ...</span>
+                            <span>Đang dò vị trí...</span>
                           </>
                         ) : (
                           <>
                             <Compass className="w-3.5 h-3.5" />
-                            <span>Lấy vị trí GPS ngay</span>
+                            <span>{coords ? 'Cập nhật lại GPS' : 'Lấy vị trí GPS ngay'}</span>
                           </>
                         )}
                       </button>
                     </div>
 
                     {gpsError && (
-                      <div className="text-[11px] text-red-600 bg-red-50 p-2 rounded border border-red-200">
+                      <div className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded border border-amber-200">
                         {gpsError}
                       </div>
                     )}
 
                     {coords && (
-                      <div className="p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-lg text-emerald-900 flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <div className="font-semibold text-[11px]">Đã định vị thành công:</div>
-                          <div className="text-xs font-mono text-emerald-950 mt-0.5">{address}</div>
+                      <div className="space-y-2">
+                        <div className="p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-lg text-emerald-900 flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-[11px]">
+                              Đã định vị tự động ({coords.lat.toFixed(5)}°N, {coords.lng.toFixed(5)}°E):
+                            </div>
+                            <div className="text-xs font-medium text-emerald-950 mt-0.5 break-words">{address}</div>
+                          </div>
+                        </div>
+                        <div className="w-full h-32 rounded-lg overflow-hidden border border-zinc-200 bg-zinc-100">
+                          <iframe
+                            title="Bản đồ vị trí GPS"
+                            width="100%"
+                            height="100%"
+                            frameBorder="0"
+                            scrolling="no"
+                            src={`https://www.openstreetmap.org/export/embed.html?bbox=${coords.lng - 0.005}%2C${coords.lat - 0.003}%2C${coords.lng + 0.005}%2C${coords.lat + 0.003}&layer=mapnik&marker=${coords.lat}%2C${coords.lng}`}
+                          />
                         </div>
                       </div>
                     )}
 
-                    <input
-                      type="text"
-                      required
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Tọa độ và địa chỉ GPS sẽ hiển thị tại đây..."
-                      className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900 transition"
-                    />
+                    <div>
+                      <label className="text-[11px] text-zinc-500 block mb-1">
+                        Địa chỉ hiển thị trên hợp đồng (bạn có thể gõ thêm số nhà/ngõ nếu muốn):
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        placeholder="Đang tự động điền địa chỉ từ định vị GPS..."
+                        className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900 transition"
+                      />
+                    </div>
                   </div>
                 ) : (
                   <div className="relative">
@@ -673,7 +762,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                   type="button"
                   onClick={handleCompleteRegistration}
                   disabled={!termsAccepted || isSubmitting}
-                  className={`py-2.5 px-5 rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-sm ${
+                  className={`py-2.5 px-6 rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-sm ${
                     termsAccepted && !isSubmitting
                       ? 'bg-zinc-950 text-white hover:bg-zinc-800'
                       : 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
@@ -682,12 +771,12 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                   {isSubmitting ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Đang ký hợp đồng & tải PDF...</span>
+                      <span>Đang ký hợp đồng & gửi hồ sơ...</span>
                     </>
                   ) : (
                     <>
-                      <Download className="w-4 h-4 text-emerald-400" />
-                      <span>Ký Hợp Đồng & Tải Hợp Đồng PDF Hoàn Chỉnh</span>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>Ký Hợp Đồng</span>
                     </>
                   )}
                 </button>
@@ -696,69 +785,59 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
           )}
 
           {/* ========================================================= */}
-          {/* BƯỚC 3: HOÀN TẤT & CHỜ KỸ SƯ DUYỆT TRÊN SHEET */}
+          {/* BƯỚC 3: HOÀN TẤT & CHỜ BAN QUẢN LÝ / KỸ SƯ DUYỆT TRÊN SHEET */}
           {/* ========================================================= */}
           {step === 3 && (
-            <div className="py-4 text-center space-y-4">
-              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center border-2 border-emerald-200 shadow-sm animate-bounce">
+            <div className="py-5 text-center space-y-4">
+              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center border-2 border-emerald-200 shadow-sm">
                 <Check className="w-7 h-7" />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <h3 className="text-base font-bold text-zinc-950">
-                  Ký Hợp Đồng Điện Tử Thành Công!
+                  Đăng Ký Hợp Đồng Thành Công!
                 </h3>
-                <p className="text-xs text-zinc-600 max-w-md mx-auto">
-                  Hệ thống đã tự động kết xuất và tải xuống bản mềm Hợp Đồng PDF hoàn chỉnh của bạn có con dấu xác thực của Trưởng ban.
+                <p className="text-xs text-zinc-600 max-w-md mx-auto leading-relaxed">
+                  Bạn đã đăng ký hợp đồng điện tử thành công và hiện phía <b>Ban quản lý đang duyệt hợp đồng</b> của bạn. Bạn có thể thoát ra khỏi khung đăng ký và chờ thư thông báo gửi về Gmail.
                 </p>
               </div>
 
               {/* Box giải thích quy trình duyệt */}
-              <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-xl text-left text-xs space-y-2 max-w-lg mx-auto">
+              <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-xl text-left text-xs space-y-2.5 max-w-lg mx-auto">
                 <div className="flex items-center gap-2 font-bold text-zinc-900 border-b border-zinc-200 pb-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  <span>Quy Trình Kích Hoạt Tài Khoản:</span>
+                  <span>Trạng Thái Hồ Sơ & Hợp Đồng PDF:</span>
                 </div>
-                <ul className="space-y-1.5 text-zinc-600 pl-1 font-sans">
+                <ul className="space-y-2 text-zinc-600 pl-1 font-sans leading-relaxed">
                   <li className="flex items-start gap-2">
                     <span className="text-emerald-600 font-bold">1.</span>
-                    <span>Toàn bộ thông tin đăng ký của bạn đã được ghi nhận tự động vào trang tính <b>"THÔNG TIN NGƯỜI DÙNG"</b> trên hệ thống Google Sheet quản trị.</span>
+                    <span>Toàn bộ thông tin đăng ký và bản mềm <b>Hợp đồng PDF</b> của bạn đã được lưu trữ trên trang tính <b>"THÔNG TIN NGƯỜI DÙNG"</b> để Dev / Kỹ sư xác nhận.</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-emerald-600 font-bold">2.</span>
-                    <span>Kỹ sư SYNAPES sẽ tiến hành kiểm tra hồ sơ và tích chọn phê duyệt tài khoản chính thức.</span>
+                    <span>Khi Dev / Kỹ sư tích chọn xác nhận duyệt hợp đồng, hệ thống sẽ tự động tạo <b>Mã Code đăng nhập</b> và <b>Mật khẩu</b> cá nhân cho bạn.</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-emerald-600 font-bold">3.</span>
-                    <span>Ngay khi Kỹ sư tích duyệt, thông tin đăng nhập cá nhân (Mã Code & Mật khẩu bảo mật) cùng bản mềm Hợp đồng PDF hoàn chỉnh đã ký sẽ được gửi tự động đến Gmail: <b className="text-zinc-950 font-mono">{email}</b>.</span>
+                    <span>Hệ thống sẽ tự động gửi thông tin <b>Mã Code đăng nhập, Mật khẩu cùng file PDF Hợp đồng hoàn chỉnh</b> đến Gmail bạn đã đăng ký: <b className="text-zinc-950 font-mono">{email}</b>.</span>
                   </li>
                 </ul>
               </div>
 
-              {/* Tùy chọn in / tải lại */}
-              <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+              {/* Nút thoát khung đăng ký */}
+              <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
                 <button
                   type="button"
-                  onClick={() => downloadPersonalizedContractPdf(currentRegistration)}
-                  className="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5 cursor-pointer"
+                  onClick={onClose}
+                  className="btn-primary text-xs py-2.5 px-6 flex items-center gap-1.5 cursor-pointer font-bold"
                 >
-                  <Download className="w-3.5 h-3.5 text-zinc-600" />
-                  <span>Tải lại Hợp Đồng PDF</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => printPersonalizedContractPdf(currentRegistration)}
-                  className="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Printer className="w-3.5 h-3.5 text-zinc-600" />
-                  <span>Mở Bản In Điện Tử</span>
+                  <span>Thoát Khung Đăng Ký</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={onSwitchToLogin}
-                  className="btn-primary text-xs py-2 px-5 flex items-center gap-1.5 cursor-pointer font-bold"
+                  className="btn-secondary text-xs py-2.5 px-5 flex items-center gap-1.5 cursor-pointer font-semibold"
                 >
                   <span>Đến Màn Hình Đăng Nhập</span>
                   <ArrowRight className="w-3.5 h-3.5" />
