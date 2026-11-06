@@ -213,7 +213,7 @@ export function setAppsScriptWebhookUrl(url: string): void {
     if (clean && isValidWebhookUrl(clean)) {
       localStorage.setItem(WEBHOOK_STORAGE_KEY, clean);
       // Ngay khi có URL hợp lệ, đẩy toàn bộ hàng đợi chưa đồng bộ lên Sheet
-      flushPendingWebhookQueue(clean).catch(() => {});
+      flushPendingWebhookQueue(clean).catch(() => { });
     } else {
       localStorage.removeItem(WEBHOOK_STORAGE_KEY);
     }
@@ -327,7 +327,7 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(enrichedPayload),
-    }).catch(() => {});
+    }).catch(() => { });
   } catch {
     // ignore
   }
@@ -424,7 +424,7 @@ export async function discoverWebhookUrlFromSheet(sheetId: string = GOOGLE_SHEET
         const text = await res.text();
         const found = extractWebhookUrlFromRawText(text);
         if (found) {
-          flushPendingWebhookQueue(found).catch(() => {});
+          flushPendingWebhookQueue(found).catch(() => { });
           return found;
         }
       }
@@ -587,7 +587,7 @@ export function approveStoredRegistration(id: string): {
       address: item.address,
       code,
       password,
-    }).catch(() => {});
+    }).catch(() => { });
 
     return { success: true, code, password, registration: item };
   } catch {
@@ -688,7 +688,7 @@ export function saveCustomPassword(
     email,
     passwordHash,
     fullName,
-  }).catch(() => {});
+  }).catch(() => { });
 
   return passwordHash;
 }
@@ -1243,7 +1243,7 @@ export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): P
     // 2. Tự động đồng bộ bù các hồ sơ đăng ký hoặc trạng thái đã tạo mật khẩu mới lên Sheet
     const webhookUrl = getAppsScriptWebhookUrl();
     if (isValidWebhookUrl(webhookUrl)) {
-      flushPendingWebhookQueue(webhookUrl).catch(() => {});
+      flushPendingWebhookQueue(webhookUrl).catch(() => { });
 
       try {
         const localRegs = getStoredRegistrations();
@@ -1274,7 +1274,7 @@ export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): P
               action: 'register',
               requestId: `autosync_${emailKey}_${nameKey}_${localReg.termsAccepted ? 'signed' : 'draft'}`,
               ...localReg,
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
 
@@ -1298,7 +1298,7 @@ export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): P
               email,
               passwordHash: hashStr,
               fullName,
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
       } catch {

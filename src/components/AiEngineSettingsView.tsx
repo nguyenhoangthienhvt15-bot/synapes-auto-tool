@@ -8,6 +8,8 @@ import {
   discoverModelsFromKey,
   getCachedDiscoveredModels,
   DiscoveredModel,
+  PROVIDERS,
+  ProviderMeta,
 } from '../services/aiModelDiscoveryService';
 
 interface AiEngineSettingsViewProps {
@@ -18,136 +20,6 @@ interface AiEngineSettingsViewProps {
   onBack?: () => void;
   initialProvider?: string;
 }
-
-interface ProviderMeta {
-  id: AIProviderId;
-  name: string;
-  vendor: string;
-  description: string;
-  defaultEndpoint: string;
-  defaultModel: string;
-  models: { id: string; name: string; tag: string }[];
-  keyPrefix: string;
-  keyPlaceholder: string;
-  consoleUrl: string;
-  consoleName: string;
-  badgeColor: string;
-}
-
-const PROVIDERS: ProviderMeta[] = [
-  {
-    id: 'gemini',
-    name: 'Google Gemini',
-    vendor: 'Google DeepMind',
-    description: 'Động cơ đa phương thức mạnh mẽ: phân rã kịch bản siêu tốc, tích hợp trực tiếp giọng đọc TTS tự nhiên tiếng Việt.',
-    defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta',
-    defaultModel: 'gemini-2.5-flash',
-    models: [
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: 'Thế hệ mới nhất 2026 • Siêu tốc • Khuyên dùng' },
-      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', tag: 'Suy luận kịch bản chuyên sâu thế hệ mới' },
-      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', tag: 'Tốc độ cao • Tối ưu chi phí' },
-      { id: 'gemini-2.0-pro-exp', name: 'Gemini 2.0 Pro Experimental', tag: 'Suy luận kịch bản phức tạp' },
-      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', tag: 'Ngữ cảnh dài 2M tokens' },
-      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', tag: 'Tiết kiệm tài nguyên' },
-    ],
-    keyPrefix: 'AIzaSy',
-    keyPlaceholder: 'AIzaSy...',
-    consoleUrl: 'https://aistudio.google.com/app/apikey',
-    consoleName: 'Google AI Studio Console',
-    badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
-  },
-  {
-    id: 'openai',
-    name: 'OpenAI GPT',
-    vendor: 'OpenAI',
-    description: 'Dòng mô hình GPT-4o và o3-mini hàng đầu thế giới về khả năng sáng tạo ngôn từ, viết kịch bản viral và bắt trend.',
-    defaultEndpoint: 'https://api.openai.com/v1',
-    defaultModel: 'gpt-4o',
-    models: [
-      { id: 'gpt-4o', name: 'GPT-4o (Omni)', tag: 'Mạnh mẽ nhất • Đa phương thức • Khuyên dùng' },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', tag: 'Nhanh nhẹn • Chi phí cực thấp' },
-      { id: 'o3-mini', name: 'o3-mini', tag: 'Suy luận tốc độ cao thế hệ mới 2026' },
-      { id: 'o1', name: 'o1 (Reasoning)', tag: 'Tư duy logic kịch bản chiều sâu' },
-      { id: 'gpt-4.5-preview', name: 'GPT-4.5 Preview', tag: 'Đột phá tư duy sáng tạo' },
-    ],
-    keyPrefix: 'sk-proj',
-    keyPlaceholder: 'sk-proj-... hoặc sk-...',
-    consoleUrl: 'https://platform.openai.com/api-keys',
-    consoleName: 'OpenAI Platform Dashboard',
-    badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  },
-  {
-    id: 'claude',
-    name: 'Anthropic Claude',
-    vendor: 'Anthropic',
-    description: 'Chuyên gia kể chuyện (Storytelling), văn phong tự nhiên giàu cảm xúc, phân tích tâm lý người xem xuất sắc nhất hiện nay.',
-    defaultEndpoint: 'https://api.anthropic.com/v1',
-    defaultModel: 'claude-3-7-sonnet-20250219',
-    models: [
-      { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet', tag: 'Mới nhất 2026 • Hybrid Reasoning • Khuyên dùng' },
-      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', tag: 'Độ mượt mà câu chữ cao nhất' },
-      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', tag: 'Siêu tốc cho kịch bản ngắn' },
-    ],
-    keyPrefix: 'sk-ant',
-    keyPlaceholder: 'sk-ant-api03-...',
-    consoleUrl: 'https://console.anthropic.com/settings/keys',
-    consoleName: 'Anthropic Console',
-    badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
-  },
-  {
-    id: 'deepseek',
-    name: 'DeepSeek AI',
-    vendor: 'DeepSeek',
-    description: 'Động cơ mã nguồn mở tối ưu đột phá toàn cầu: DeepSeek-V3 và DeepSeek-R1 cung cấp năng lực suy luận cực mạnh với chi phí siêu rẻ.',
-    defaultEndpoint: 'https://api.deepseek.com/v1',
-    defaultModel: 'deepseek-chat',
-    models: [
-      { id: 'deepseek-chat', name: 'DeepSeek-V3 (Chat)', tag: 'Tốc độ cao • Văn phong tự nhiên • Khuyên dùng' },
-      { id: 'deepseek-reasoner', name: 'DeepSeek-R1 (Reasoning)', tag: 'Mô hình suy luận từng bước (Chain-of-Thought)' },
-    ],
-    keyPrefix: 'sk-',
-    keyPlaceholder: 'sk-...',
-    consoleUrl: 'https://platform.deepseek.com/api_keys',
-    consoleName: 'DeepSeek Open Platform',
-    badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  },
-  {
-    id: 'grok',
-    name: 'xAI Grok',
-    vendor: 'xAI (Elon Musk)',
-    description: 'Mô hình Grok 2 & Grok 3 với khả năng tiếp cận tin tức thời sự cực nhanh, phong cách viết kịch bản sắc bén, hài hước và chân thực.',
-    defaultEndpoint: 'https://api.x.ai/v1',
-    defaultModel: 'grok-2',
-    models: [
-      { id: 'grok-2', name: 'Grok 2', tag: 'Cập nhật tin tức trực tiếp từ X • Khuyên dùng' },
-      { id: 'grok-2-mini', name: 'Grok 2 Mini', tag: 'Nhẹ & Tốc độ' },
-      { id: 'grok-beta', name: 'Grok 3 (Beta)', tag: 'Thế hệ tiếp theo' },
-    ],
-    keyPrefix: 'xai-',
-    keyPlaceholder: 'xai-...',
-    consoleUrl: 'https://console.x.ai/',
-    consoleName: 'xAI Cloud Console',
-    badgeColor: 'bg-zinc-100 text-zinc-800 border-zinc-200',
-  },
-  {
-    id: 'plugin',
-    name: 'Plugin Webhook Ngoài',
-    vendor: 'Kling / Runway / Custom',
-    description: 'Kết nối API trực tiếp đến các dịch vụ sinh video AI bên ngoài như Kling AI, Runway Gen-3, Luma Dream Machine qua Webhook URL.',
-    defaultEndpoint: 'https://api.klingai.com/v1/videos/text2video',
-    defaultModel: 'kling-v1.5',
-    models: [
-      { id: 'kling-v1.5', name: 'Kling Video v1.5 API', tag: 'Chất lượng điện ảnh' },
-      { id: 'runway-gen3', name: 'Runway Gen-3 Alpha', tag: 'Tạo clip siêu mượt' },
-      { id: 'custom-webhook', name: 'Custom HTTP Webhook', tag: 'Tùy biến payload JSON' },
-    ],
-    keyPrefix: '',
-    keyPlaceholder: 'Token API hoặc Secret Key...',
-    consoleUrl: 'https://klingai.com/',
-    consoleName: 'Kling AI Developer Portal',
-    badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
-  },
-];
 
 export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
   currentUser,
@@ -351,12 +223,12 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
     discoveredModels[activeProvider] && discoveredModels[activeProvider].length > 0
       ? discoveredModels[activeProvider]
       : currentMeta.models.map((m) => ({
-          id: m.id,
-          name: m.name,
-          tag: m.tag,
-          isLiveFromKey: false,
-          isRecommended: m.id === currentMeta.defaultModel,
-        }));
+        id: m.id,
+        name: m.name,
+        tag: m.tag,
+        isLiveFromKey: false,
+        isRecommended: m.id === currentMeta.defaultModel,
+      }));
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -524,11 +396,10 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
                   key={prov.id}
                   type="button"
                   onClick={() => setActiveProvider(prov.id)}
-                  className={`p-3 rounded-xl border text-left transition relative cursor-pointer flex flex-col justify-between ${
-                    isCurrent
+                  className={`p-3 rounded-xl border text-left transition relative cursor-pointer flex flex-col justify-between ${isCurrent
                       ? 'bg-white border-zinc-950 ring-2 ring-zinc-950/10 shadow-sm'
                       : 'bg-zinc-50 hover:bg-white border-black/[0.08] text-zinc-600'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5 truncate">
@@ -546,7 +417,7 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
                       )}
                       {prov.id === 'openai' && (
                         <svg className="w-3.5 h-3.5 flex-shrink-0 text-[#10A37F]" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.6667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/>
+                          <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.6667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z" />
                         </svg>
                       )}
                       {prov.id === 'claude' && (
@@ -556,8 +427,8 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
                       )}
                       {prov.id === 'deepseek' && (
                         <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
-                          <path d="M3.5 14.5C3.5 9.5 7.5 5.5 12.5 5.5C17.5 5.5 21.5 9 21.5 14C21.5 17 19.5 19.5 16.5 19.5C13.5 19.5 12 17.5 10 17.5C8 17.5 6.5 19 4.5 18C3.8 17 3.5 15.8 3.5 14.5Z" fill="#1E6FFF"/>
-                          <circle cx="8" cy="12" r="1.5" fill="#FFFFFF"/>
+                          <path d="M3.5 14.5C3.5 9.5 7.5 5.5 12.5 5.5C17.5 5.5 21.5 9 21.5 14C21.5 17 19.5 19.5 16.5 19.5C13.5 19.5 12 17.5 10 17.5C8 17.5 6.5 19 4.5 18C3.8 17 3.5 15.8 3.5 14.5Z" fill="#1E6FFF" />
+                          <circle cx="8" cy="12" r="1.5" fill="#FFFFFF" />
                         </svg>
                       )}
                       {prov.id === 'grok' && (
@@ -727,13 +598,12 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
           {/* Status Banner khi Đọc Models từ API Key */}
           {discoveryStatus[activeProvider] && (
             <div
-              className={`p-3 rounded-xl text-xs flex items-center justify-between gap-2.5 transition animate-in fade-in ${
-                discoveryStatus[activeProvider]?.type === 'loading'
+              className={`p-3 rounded-xl text-xs flex items-center justify-between gap-2.5 transition animate-in fade-in ${discoveryStatus[activeProvider]?.type === 'loading'
                   ? 'bg-blue-50 border border-blue-200 text-blue-900'
                   : discoveryStatus[activeProvider]?.type === 'success'
-                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-950'
-                  : 'bg-rose-50 border border-rose-200 text-rose-950'
-              }`}
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-950'
+                    : 'bg-rose-50 border border-rose-200 text-rose-950'
+                }`}
             >
               <div className="flex items-center gap-2">
                 {discoveryStatus[activeProvider]?.type === 'loading' && (
@@ -837,11 +707,10 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
                   <div
                     key={m.id}
                     onClick={() => setModels((prev) => ({ ...prev, [activeProvider]: m.id }))}
-                    className={`p-3 rounded-xl border text-left transition relative cursor-pointer flex flex-col justify-between ${
-                      isSelected
+                    className={`p-3 rounded-xl border text-left transition relative cursor-pointer flex flex-col justify-between ${isSelected
                         ? 'bg-zinc-950 text-white border-zinc-950 shadow-md ring-2 ring-zinc-950/20'
                         : 'bg-zinc-50/80 hover:bg-white border-black/[0.08] text-zinc-800 hover:shadow-2xs'
-                    }`}
+                      }`}
                   >
                     <div>
                       <div className="flex items-start justify-between gap-1 mb-1">
@@ -871,9 +740,8 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
                         {m.tag}
                       </span>
                       {m.inputTokenLimit && (
-                        <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded flex-shrink-0 ml-1.5 ${
-                          isSelected ? 'bg-zinc-800 text-zinc-300 border border-zinc-700' : 'bg-white border border-zinc-200 text-zinc-600'
-                        }`}>
+                        <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded flex-shrink-0 ml-1.5 ${isSelected ? 'bg-zinc-800 text-zinc-300 border border-zinc-700' : 'bg-white border border-zinc-200 text-zinc-600'
+                          }`}>
                           {m.inputTokenLimit >= 1000000
                             ? `${(m.inputTokenLimit / 1000000).toFixed(m.inputTokenLimit % 1000000 === 0 ? 0 : 1)}M`
                             : `${Math.round(m.inputTokenLimit / 1000)}K`}

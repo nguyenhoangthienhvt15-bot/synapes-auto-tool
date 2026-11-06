@@ -659,8 +659,16 @@ export function App() {
       {isCreateModalOpen && (
         <CreateProjectModal
           skills={skills}
+          aiConfig={aiConfig}
           onClose={() => setIsCreateModalOpen(false)}
           onCreateProject={handleCreateProject}
+          onOpenAiSettings={(prov) => {
+            setIsCreateModalOpen(false);
+            if (prov) {
+              setSelectedAiProvider(prov);
+            }
+            setActiveView('ai-engine');
+          }}
         />
       )}
 
