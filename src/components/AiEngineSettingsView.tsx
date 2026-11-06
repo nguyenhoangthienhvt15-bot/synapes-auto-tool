@@ -161,11 +161,33 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
         // Nếu model hiện tại chưa được chọn hoặc không nằm trong danh sách mới, chọn model khuyên dùng
         const currentModelId = models[provId];
         const hasCurrent = res.models.some((m) => m.id === currentModelId);
-        if (!hasCurrent) {
-          const recommended = res.models.find((m) => m.isRecommended) || res.models[0];
-          if (recommended) {
-            setModels((prev) => ({ ...prev, [provId]: recommended.id }));
-          }
+        const selectedModelId = hasCurrent
+          ? currentModelId
+          : (res.models.find((m) => m.isRecommended) || res.models[0])?.id || currentModelId;
+
+        if (!hasCurrent && selectedModelId) {
+          setModels((prev) => ({ ...prev, [provId]: selectedModelId }));
+        }
+
+        // Tự động đồng bộ ngay API Key hợp lệ vào cấu hình phiên làm việc
+        if (currentUser && currentUser.isLoggedIn) {
+          const nextKeys = { ...keys, [provId]: keyToUse };
+          const nextModels = { ...models, [provId]: selectedModelId };
+          onUpdateConfig({
+            ...config,
+            mode: provId,
+            activeProvider: provId,
+            gemini: { apiKey: nextKeys.gemini.trim(), model: nextModels.gemini, ttsVoice },
+            openai: { apiKey: nextKeys.openai.trim(), model: nextModels.openai, endpointUrl: endpoints.openai.trim() },
+            claude: { apiKey: nextKeys.claude.trim(), model: nextModels.claude, endpointUrl: endpoints.claude.trim() },
+            deepseek: { apiKey: nextKeys.deepseek.trim(), model: nextModels.deepseek, endpointUrl: endpoints.deepseek.trim() },
+            grok: { apiKey: nextKeys.grok.trim(), model: nextModels.grok, endpointUrl: endpoints.grok.trim() },
+            plugin: {
+              ...config.plugin,
+              endpointUrl: endpoints.plugin.trim(),
+              apiToken: nextKeys.plugin.trim(),
+            },
+          });
         }
       } else {
         setDiscoveryStatus((prev) => ({

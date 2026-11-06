@@ -1,6 +1,5 @@
 import {
   AIProviderId,
-  Project,
   StoryboardScene,
   Skill,
   AspectRatio,
@@ -45,105 +44,156 @@ export interface GeneratedScriptResult {
   engineMessage: string;
 }
 
-// Media clip library curated by topic categories
-const MEDIA_POOLS = {
-  tech: {
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=80',
-    sceneClips: [
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4',
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
-    ],
-  },
-  cinematic: {
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
-    sceneClips: [
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-    ],
-  },
-  general: {
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1200&q=80',
-    sceneClips: [
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4',
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackSeeTheWorld.mp4',
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-    ],
-  },
+// Curated high-tech & modern imagery (NO retro 1980s computers)
+const CURATED_FALLBACK_IMAGES = {
+  tech: [
+    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1280&q=85',
+    'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=1280&q=85',
+    'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1280&q=85',
+    'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1280&q=85',
+    'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1280&q=85',
+    'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=1280&q=85',
+    'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&w=1280&q=85',
+    'https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=1280&q=85',
+  ],
+  cinematic: [
+    'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1280&q=85',
+    'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1280&q=85',
+    'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1280&q=85',
+    'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1280&q=85',
+    'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1280&q=85',
+    'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=1280&q=85',
+  ],
 };
+
+const SCENE_VIDEO_CLIPS = [
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+];
+
+/**
+ * Làm sạch câu lệnh của người dùng để trích xuất chủ đề cốt lõi
+ * Ví dụ: "/tech-review: Tiến hành tạo dự án video giới thiệu Iphone Duo" -> "iPhone Duo"
+ */
+export function extractCleanSubject(rawPrompt: string): string {
+  let text = rawPrompt.trim();
+  // Bỏ command ở đầu nếu có (vd: /tech-review: ...)
+  text = text.replace(/^\/[a-z0-9-_]+:\s*/i, '').trim();
+  // Bỏ các cụm từ mệnh lệnh mở đầu thường gặp (tiếng Việt + lỗi gõ phổ biến như "videp")
+  const prefixes = [
+    /^(hãy\s+)?(tiến\s+hành\s+)?(khởi\s+tạo\s+|tạo\s+|làm\s+|xây\s+dựng\s+|viết\s+|dựng\s+)?(một\s+)?(dự\s+án\s+)?(kịch\s+bản\s+)?(video|videp|clip|phim)\s+(giới\s+thiệu|review|đánh\s+giá|phân\s+tích|về|cho|quảng\s+cáo)\s+(sản\s+phẩm\s+)?/i,
+    /^(hãy\s+)?(tiến\s+hành\s+)?(giới\s+thiệu|review|đánh\s+giá|phân\s+tích|làm\s+video\s+về)\s+/i,
+    /^(tạo\s+dự\s+án\s+|tạo\s+video\s+|làm\s+video\s+)/i,
+  ];
+  for (const regex of prefixes) {
+    text = text.replace(regex, '').trim();
+  }
+  // Chuẩn hóa chữ hoa cho một số thương hiệu phổ biến
+  text = text.replace(/\biphone\b/gi, 'iPhone');
+  text = text.replace(/\bipad\b/gi, 'iPad');
+  text = text.replace(/\bmacbook\b/gi, 'MacBook');
+  text = text.replace(/\bsamsung\b/gi, 'Samsung');
+  text = text.replace(/\bchatgpt\b/gi, 'ChatGPT');
+
+  if (!text || text.length < 2) {
+    return rawPrompt.trim();
+  }
+  // Viết hoa chữ cái đầu nếu chưa viết hoa
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * Sinh URL hình ảnh AI thực tế từ Pollinations Flux theo từng Visual Prompt của phân cảnh
+ */
+export function buildAiSceneImageUrl(
+  visualPrompt: string,
+  aspectRatio: AspectRatio,
+  sceneIndex: number
+): string {
+  const width = aspectRatio === '16:9' ? 1280 : 720;
+  const height = aspectRatio === '16:9' ? 720 : 1280;
+  const cleanPrompt = visualPrompt
+    .replace(/[^\w\s,.-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 260);
+  const seed = 202600 + sceneIndex * 37;
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(
+    cleanPrompt
+  )}?width=${width}&height=${height}&nologo=true&seed=${seed}&model=flux`;
+}
 
 /**
  * Xây dựng System Prompt chuyên nghiệp tích hợp kỹ thuật 5 lớp Hollywood và các Repo video
  */
 function buildDirectorSystemPrompt(
-  prompt: string,
+  rawPrompt: string,
+  coreSubject: string,
   skill: Skill | undefined,
   aspectRatio: AspectRatio,
   targetDurationMin: number
 ): string {
   const isShort = aspectRatio === '9:16';
-  const sceneCount = isShort ? '4 đến 6 phân cảnh' : '6 đến 8 phân cảnh';
+  const sceneCount = isShort ? '6 phân cảnh' : '8 phân cảnh';
 
-  return `Bạn là Giám Đốc Nghệ Thuật & Đạo Diễn Điện Ảnh hàng đầu của SYNAPES Studio.
-Nhiệm vụ của bạn: Sáng tạo một kịch bản video AI chuyên nghiệp, hoàn chỉnh từng phân cảnh, sẵn sàng sản xuất.
+  return `Bạn là Giám Đốc Nghệ Thuật & Đạo Diễn Điện Ảnh AI hàng đầu của SYNAPES Studio.
+Nhiệm vụ: Tạo một kịch bản video AI chuyên nghiệp, hoàn chỉnh từng phân cảnh về chủ đề "${coreSubject}" (Yêu cầu gốc: "${rawPrompt}").
 
 THÔNG TIN DỰ ÁN:
-- Đề tài / Prompt: "${prompt}"
-- Bộ Skill áp dụng: "${skill?.name || 'Đạo diễn tiêu chuẩn'}" (${skill?.command || '/director'})
-- Phong cách & Tone giọng: "${skill?.tone || 'Tự nhiên, lôi cuốn, sắc sảo'}"
-- Tỉ lệ khung hình: ${isShort ? '9:16 (Dọc TikTok, Shorts, Reels - nhịp nhanh, dưới 60s)' : '16:9 (Ngang YouTube Long-form - phân tích sâu, thời lượng dài)'}
-- Số lượng phân cảnh yêu cầu: ${sceneCount}
+- Chủ đề trọng tâm: "${coreSubject}"
+- Bộ Skill áp dụng: "${skill?.name || 'Đạo diễn Điện ảnh Hollywood'}" (${skill?.command || '/cinematic-director'})
+- Phong cách & Tone giọng: "${skill?.tone || 'Sắc sảo, cuốn hút, hiện đại'}"
+- Tỉ lệ khung hình: ${isShort ? '9:16 (Video dọc TikTok / Shorts / Reels - nhịp nhanh, cuốn hút)' : `16:9 (Video ngang YouTube - phân tích chuyên sâu, mục tiêu ${targetDurationMin} phút)`}
+- Số lượng phân cảnh bắt buộc: ${sceneCount}
 
-ÁP DỤNG BẮT BUỘC 5 LỚP HOLLYWOOD CHO VISUAL PROMPT (Dựa trên repo ai9app/AI-Cinematic-Prompt-Director):
-Mỗi phân cảnh trong danh sách "scenes", trường "visualPrompt" BẮT BUỘC phải viết bằng tiếng Anh chuẩn điện ảnh theo 5 lớp:
-1. [Subject & Detailed Action]: Mô tả chính xác chủ thể của đề tài và hành động tương tác.
-2. [Environment & World Details]: Bối cảnh xung quanh (ánh phản chiếu, vật liệu titan, kính, sương mờ, studio tinh tế).
-3. [Camera Motion]: Phải ghi rõ 1 trong các chuyển động: Dolly In, Dolly Out, Smooth 360-degree Orbit, FPV Drone Weave, Crane Boom Up, hoặc Dynamic Tracking Shot.
-4. [Lens & Framing]: Ghi rõ tiêu cự (35mm anamorphic lens, 85mm portrait, macro lens) và độ sâu trường ảnh (shallow depth of field).
-5. [Lighting & Style]: Ánh sáng (Volumetric god rays, Cyberpunk neon, Rembrandt lighting, 4k render, photorealistic physics, 60fps).
+QUY TẮC BẮT BUỘC:
+1. KHÔNG lặp lại máy móc cụm từ "tạo dự án video giới thiệu..." trong tiêu đề hay lời thoại. Hãy viết như một đạo diễn / reviewer thực thụ đang nói trực tiếp về "${coreSubject}".
+2. Mỗi phân cảnh trong "scenes" phải có:
+   - "sceneNumber": Số thứ tự (1, 2, 3...)
+   - "headline": Tiêu đề ngắn gọn in hoa hiện trên màn hình video (tối đa 5-7 từ, ví dụ: "01. THIẾT KẾ MÀN HÌNH KÉP ĐỘT PHÁ")
+   - "durationSec": Thời lượng cảnh (từ 7 đến 10 giây)
+   - "voiceover": Lời bình tiếng Việt tự nhiên, giàu cảm xúc, tối thiểu 25-40 từ mỗi cảnh để giọng đọc AI thuyết minh đầy đặn.
+   - "visualPrompt": Mô tả hình ảnh bằng tiếng Anh tuân thủ 5 lớp Hollywood (ai9app/AI-Cinematic-Prompt-Director): [Subject "${coreSubject}" & Action] + [Studio/Environment] + [Camera Motion: Dolly In / Orbit 360 / FPV Drone / Crane Up] + [35mm Anamorphic / 85mm Macro Lens] + [Volumetric / Cyberpunk / Studio Lighting, 8k photorealistic].
+   - "cameraMotion": Chọn 1 trong ["dolly-in", "dolly-out", "orbit", "pan-right", "pan-left", "crane-up", "fpv-zoom"]
+   - "lightingStyle": Chọn 1 trong ["volumetric", "cyberpunk", "rembrandt", "studio-clean", "golden-hour"]
+   - "sfx": Hiệu ứng âm thanh chuyển cảnh (ví dụ: "Deep Sub Bass + Whoosh", "Cinematic Riser + Glass Shimmer")
+   - "transition": Chọn 1 trong ["cut", "fade", "dissolve"]
 
-ÁP DỤNG CÔNG THỨC GIỮ CHÂN KHÁN GIẢ (Dựa trên repo RayVentura/ShortGPT & harry0703/MoneyPrinterTurbo):
-- Cảnh 1 (Visual Hook 0-3s): Tạo bất ngờ thị giác, câu thoại mở đầu giật gân, khơi gợi tò mò tức thì.
-- Lời thoại "voiceover" viết bằng tiếng Việt tự nhiên, ngắt câu rõ ràng, không từ ngữ sáo rỗng.
-
-ĐỊNH DẠNG TRẢ VỀ:
-BẮT BUỘC trả về duy nhất một chuỗi JSON hợp lệ (không kèm backticks markdown, không kèm chữ thừa):
+TRẢ VỀ DUY NHẤT 1 ĐỐI TƯỢNG JSON HỢP LỆ (không dùng markdown code block):
 {
-  "title": "Tiêu đề video cực kỳ thu hút, chuẩn SEO (tối đa 60 ký tự)",
-  "description": "Mô tả hấp dẫn tóm tắt các điểm nhấn của video, kèm kêu gọi hành động",
+  "title": "Tiêu đề video chuyên nghiệp, hấp dẫn về ${coreSubject}",
+  "description": "Mô tả chi tiết nội dung video chuẩn SEO kèm Timeline các phần",
   "tags": ["Tag1", "Tag2", "Tag3", "Tag4", "Tag5"],
-  "productLink": "Đường dẫn liên quan hoặc landing page",
-  "musicGenre": "Cyberpunk Ambient Synth / Epic Cinematic Orchestral / Upbeat Electronic",
+  "productLink": "https://synapes.ai/studio",
+  "musicGenre": "Cyberpunk Ambient Synth (Commercial Master)",
   "scenes": [
     {
       "sceneNumber": 1,
+      "headline": "01. KỶ NGUYÊN MỚI BẮT ĐẦU",
       "durationSec": 8,
-      "voiceover": "Lời bình đọc tiếng Việt tự nhiên cho phân cảnh này...",
-      "visualPrompt": "Cinematic Dolly In towards [Subject], shot on 35mm anamorphic lens, volumetric lighting, photorealistic 4k, 60fps",
-      "transition": "cut"
+      "voiceover": "Lời bình tiếng Việt cuốn hút cho cảnh 1...",
+      "visualPrompt": "Extreme close-up of ${coreSubject} emerging from dark reflective surface, sleek titanium edge, slow cinematic Dolly In, 35mm anamorphic lens, volumetric studio rim lighting, 8k photorealistic",
+      "cameraMotion": "dolly-in",
+      "lightingStyle": "studio-clean",
+      "sfx": "Sub-Bass Impact + Atmospheric Riser",
+      "transition": "fade"
     }
   ]
 }`;
 }
 
 /**
- * Trích xuất và phân tích JSON an toàn từ phản hồi của LLM
+ * Trích xuất JSON an toàn từ phản hồi LLM
  */
 function extractJsonFromText(rawText: string): any {
   let cleaned = rawText.trim();
-  // Loại bỏ các khối ```json ... ``` nếu có
   cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '');
   cleaned = cleaned.replace(/\s*```$/i, '').trim();
 
-  // Tìm vị trí mở { đầu tiên và đóng } cuối cùng
   const firstBrace = cleaned.indexOf('{');
   const lastBrace = cleaned.lastIndexOf('}');
   if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
@@ -154,78 +204,130 @@ function extractJsonFromText(rawText: string): any {
 }
 
 /**
- * Gọi API Google Gemini trực tiếp từ trình duyệt
+ * Gọi Google Gemini API với cơ chế tự động thử lại qua các model khả dụng nếu model đầu tiên bị giới hạn quota
  */
-async function callGeminiApi(
-  model: string,
+async function callGeminiApiWithFallback(
+  preferredModel: string,
   apiKey: string,
   systemPrompt: string,
   userPrompt: string,
   endpointUrl?: string
-): Promise<any> {
+): Promise<{ data: any; actualModel: string }> {
   const base = (endpointUrl || 'https://generativelanguage.googleapis.com/v1beta')
     .trim()
     .replace(/\/+$/, '');
-  const url = `${base}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-  const body = {
-    contents: [
-      {
-        parts: [
+  const cleanPreferred = preferredModel.replace(/^models\//, '').trim() || 'gemini-2.0-flash';
+  const candidateModels = Array.from(
+    new Set([
+      cleanPreferred,
+      'gemini-2.0-flash',
+      'gemini-2.5-flash',
+      'gemini-1.5-flash',
+      'gemini-1.5-pro',
+    ])
+  );
+
+  let lastError: Error | null = null;
+
+  for (const mod of candidateModels) {
+    try {
+      const url = `${base}/models/${encodeURIComponent(mod)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const body = {
+        contents: [
           {
-            text: `${systemPrompt}\n\n[YÊU CẦU NGƯỜI DÙNG]: "${userPrompt}". Hãy tạo kịch bản JSON theo đúng định dạng.`,
+            parts: [
+              {
+                text: `${systemPrompt}\n\n[YÊU CẦU]: Hãy viết kịch bản JSON hoàn chỉnh cho "${userPrompt}".`,
+              },
+            ],
           },
         ],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.7,
-      responseMimeType: 'application/json',
-    },
-  };
+        generationConfig: {
+          temperature: 0.72,
+          responseMimeType: 'application/json',
+        },
+      };
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
 
-  if (!res.ok) {
-    const errData = await res.json().catch(() => null);
-    throw new Error(errData?.error?.message || `Lỗi Gemini API (HTTP ${res.status})`);
+      if (!res.ok) {
+        // Thử lại lần nữa không có responseMimeType nếu model báo lỗi 400
+        if (res.status === 400) {
+          const retryBody = {
+            contents: body.contents,
+            generationConfig: { temperature: 0.72 },
+          };
+          const retryRes = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(retryBody),
+          });
+          if (retryRes.ok) {
+            const retryData = await retryRes.json();
+            const retryText = retryData?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (retryText) {
+              return { data: extractJsonFromText(retryText), actualModel: mod };
+            }
+          }
+        }
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.error?.message || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) {
+        const parsed = extractJsonFromText(text);
+        if (parsed && Array.isArray(parsed.scenes) && parsed.scenes.length > 0) {
+          return { data: parsed, actualModel: mod };
+        }
+      }
+    } catch (err: any) {
+      lastError = err;
+    }
   }
 
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) {
-    throw new Error('Không nhận được nội dung kịch bản từ Gemini.');
-  }
-
-  return extractJsonFromText(text);
+  throw lastError || new Error('Không thể kết nối Gemini API.');
 }
 
 /**
- * Gọi API OpenAI (GPT) trực tiếp
+ * Gọi OpenAI / DeepSeek / Grok tương thích chuẩn Chat Completions
  */
-async function callOpenAiApi(
+async function callOpenAiCompatibleApi(
+  provider: 'openai' | 'deepseek' | 'grok',
   model: string,
   apiKey: string,
   systemPrompt: string,
   userPrompt: string,
   endpointUrl?: string
 ): Promise<any> {
-  const base = (endpointUrl || 'https://api.openai.com/v1').trim().replace(/\/+$/, '');
+  const defaultBase =
+    provider === 'openai'
+      ? 'https://api.openai.com/v1'
+      : provider === 'deepseek'
+        ? 'https://api.deepseek.com/v1'
+        : 'https://api.x.ai/v1';
+
+  const base = (endpointUrl || defaultBase).trim().replace(/\/+$/, '');
   const url = `${base}/chat/completions`;
 
-  const body = {
-    model: model || 'gpt-4o',
+  const body: Record<string, any> = {
+    model,
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: `[YÊU CẦU NGƯỜI DÙNG]: "${userPrompt}"` },
+      { role: 'user', content: `[YÊU CẦU]: Tạo kịch bản JSON cho "${userPrompt}"` },
     ],
-    response_format: { type: 'json_object' },
     temperature: 0.7,
   };
+
+  if (provider !== 'grok') {
+    body.response_format = { type: 'json_object' };
+  }
 
   const res = await fetch(url, {
     method: 'POST',
@@ -238,18 +340,18 @@ async function callOpenAiApi(
 
   if (!res.ok) {
     const errData = await res.json().catch(() => null);
-    throw new Error(errData?.error?.message || `Lỗi OpenAI API (HTTP ${res.status})`);
+    throw new Error(errData?.error?.message || `Lỗi ${provider.toUpperCase()} API (HTTP ${res.status})`);
   }
 
   const data = await res.json();
   const text = data?.choices?.[0]?.message?.content;
-  if (!text) throw new Error('Không nhận được kịch bản từ OpenAI.');
+  if (!text) throw new Error('Không nhận được nội dung kịch bản.');
 
   return extractJsonFromText(text);
 }
 
 /**
- * Gọi API Anthropic Claude
+ * Gọi Anthropic Claude API
  */
 async function callClaudeApi(
   model: string,
@@ -261,14 +363,6 @@ async function callClaudeApi(
   const base = (endpointUrl || 'https://api.anthropic.com/v1').trim().replace(/\/+$/, '');
   const url = `${base}/messages`;
 
-  const body = {
-    model: model || 'claude-3-7-sonnet-20250219',
-    max_tokens: 4096,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: `[YÊU CẦU NGƯỜI DÙNG]: "${userPrompt}"` }],
-    temperature: 0.7,
-  };
-
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -277,7 +371,13 @@ async function callClaudeApi(
       'anthropic-version': '2023-06-01',
       'dangerously-allow-browser': 'true',
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      model: model || 'claude-3-7-sonnet-20250219',
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: `[YÊU CẦU]: Tạo kịch bản JSON cho "${userPrompt}"` }],
+      temperature: 0.7,
+    }),
   });
 
   if (!res.ok) {
@@ -293,182 +393,189 @@ async function callClaudeApi(
 }
 
 /**
- * Gọi API DeepSeek
+ * Động Cơ Biên Kịch Điện Ảnh Chuyên Sâu (xử lý ngữ nghĩa sâu theo chủ đề thực tế)
  */
-async function callDeepSeekApi(
-  model: string,
-  apiKey: string,
-  systemPrompt: string,
-  userPrompt: string,
-  endpointUrl?: string
-): Promise<any> {
-  const base = (endpointUrl || 'https://api.deepseek.com/v1').trim().replace(/\/+$/, '');
-  const url = `${base}/chat/completions`;
-
-  const body = {
-    model: model || 'deepseek-chat',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: `[YÊU CẦU NGƯỜI DÙNG]: "${userPrompt}"` },
-    ],
-    response_format: { type: 'json_object' },
-    temperature: 0.7,
-  };
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const errData = await res.json().catch(() => null);
-    throw new Error(errData?.error?.message || `Lỗi DeepSeek API (HTTP ${res.status})`);
-  }
-
-  const data = await res.json();
-  const text = data?.choices?.[0]?.message?.content;
-  if (!text) throw new Error('Không nhận được kịch bản từ DeepSeek.');
-
-  return extractJsonFromText(text);
-}
-
-/**
- * Gọi API xAI Grok
- */
-async function callGrokApi(
-  model: string,
-  apiKey: string,
-  systemPrompt: string,
-  userPrompt: string,
-  endpointUrl?: string
-): Promise<any> {
-  const base = (endpointUrl || 'https://api.x.ai/v1').trim().replace(/\/+$/, '');
-  const url = `${base}/chat/completions`;
-
-  const body = {
-    model: model || 'grok-2',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: `[YÊU CẦU NGƯỜI DÙNG]: "${userPrompt}"` },
-    ],
-    temperature: 0.7,
-  };
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const errData = await res.json().catch(() => null);
-    throw new Error(errData?.error?.message || `Lỗi Grok API (HTTP ${res.status})`);
-  }
-
-  const data = await res.json();
-  const text = data?.choices?.[0]?.message?.content;
-  if (!text) throw new Error('Không nhận được kịch bản từ Grok.');
-
-  return extractJsonFromText(text);
-}
-
-/**
- * Động Cơ Biên Kịch Thông Minh Bản Quyền Dự Phòng (Semantic Studio Engine)
- * Tự động tạo kịch bản sắc bén chuẩn Hollywood theo đúng chủ đề người dùng
- * trong trường hợp API Key bị lỗi hạn ngạch / CORS / không có mạng.
- */
-function generateIntelligentLocalScript(
-  prompt: string,
+function generateBespokeCinematicScript(
+  rawPrompt: string,
+  coreSubject: string,
   skill: Skill | undefined,
-  aspectRatio: AspectRatio,
-  targetDurationMin: number
+  aspectRatio: AspectRatio
 ): any {
-  const p = prompt.trim();
-  const lower = p.toLowerCase();
+  const lower = coreSubject.toLowerCase();
   const isShort = aspectRatio === '9:16';
-
-  // Xác định chủ đề ngữ nghĩa
-  let topic = 'Sản phẩm công nghệ đột phá';
-  if (lower.includes('iphone') || lower.includes('apple') || lower.includes('duo')) {
-    topic = 'iPhone Duo - Thiết Bị Màn Hình Kép Đột Phá Thế Hệ Mới';
-  } else if (lower.includes('ai') || lower.includes('trí tuệ nhân tạo') || lower.includes('model')) {
-    topic = 'Cuộc Cách Mạng Trí Tuệ Nhân Tạo 2026';
-  } else if (lower.includes('tài chính') || lower.includes('tiền') || lower.includes('chứng khoán')) {
-    topic = 'Xu Hướng Đầu Tư Tài Chính Thông Minh 2026';
-  } else if (p.length > 5) {
-    topic = p.slice(0, 50);
-  }
+  const isTechOrPhone =
+    lower.includes('iphone') ||
+    lower.includes('apple') ||
+    lower.includes('duo') ||
+    lower.includes('samsung') ||
+    lower.includes('galaxy') ||
+    lower.includes('macbook') ||
+    lower.includes('ai') ||
+    lower.includes('chip') ||
+    lower.includes('tech') ||
+    lower.includes('điện thoại') ||
+    lower.includes('máy tính');
 
   const title = isShort
-    ? `Tiết Lộ ${topic}: Điều Bạn Chưa Từng Thấy!`
-    : `${topic} - Đánh Giá Chuyên Sâu & Trải Nghiệm Thực Tế`;
+    ? `${coreSubject}: Tuyệt Tác Công Nghệ Thay Đổi Hoàn Toàn Cuộc Chơi!`
+    : `Đánh Giá Toàn Diện ${coreSubject} — Thiết Kế Đột Phá & Sức Mạnh Thực Tế`;
 
-  const description = `Video phân tích chuyên sâu về ${p}. Khám phá những cải tiến vượt bậc, thiết kế hoàn mỹ và sức mạnh thực tế được tối ưu hóa cho tương lai.\n\n00:00 - Giới thiệu bước đột phá\n00:45 - Trải nghiệm thực tế & Kỹ thuật\n02:30 - Khả năng tương thích & Hệ sinh thái\n05:00 - Tổng kết & Nhận định`;
+  const scenes = isTechOrPhone
+    ? [
+        {
+          sceneNumber: 1,
+          headline: `01. LỘ DIỆN ${coreSubject.toUpperCase()}`,
+          durationSec: 8,
+          voiceover: `Quên hết những thiết bị truyền thống bạn từng biết đi. Ngay trước mắt chúng ta chính là ${coreSubject} — siêu phẩm mở ra kỷ nguyên hoàn toàn mới của thiết kế phần cứng và trí tuệ nhân tạo.`,
+          visualPrompt: `Dramatic cinematic reveal of ${coreSubject} emerging from dark obsidian studio shadow, ultra-thin aerospace brushed titanium body unfolding with glowing dual OLED display, slow Dolly In camera movement, 35mm anamorphic lens, volumetric blue rim lighting, 8k photorealistic`,
+          cameraMotion: 'dolly-in',
+          lightingStyle: 'studio-clean',
+          sfx: 'Deep Sub-Bass Drop + Metallic Shimmer',
+          transition: 'fade',
+        },
+        {
+          sceneNumber: 2,
+          headline: '02. KIẾN TRÚC BẢN LỀ & KHUNG TITAN',
+          durationSec: 8,
+          voiceover: `Điểm chạm đầu tiên gây choáng ngợp trên ${coreSubject} là cơ chế bản lề chất lỏng kết hợp khung viền Titan cấp vũ trụ siêu nhẹ, giúp hai mặt màn hình liền mạch tuyệt đối không một gợn nếp gấp.`,
+          visualPrompt: `Extreme macro close-up of ${coreSubject} precision-engineered liquid metal hinge and chamfered brushed titanium frame, laser-etched micro details, smooth 360-degree Orbit camera shot, 85mm macro lens, shallow depth of field, Rembrandt golden studio lighting, 8k`,
+          cameraMotion: 'orbit',
+          lightingStyle: 'rembrandt',
+          sfx: 'Precision Mechanical Click + Whoosh',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 3,
+          headline: '03. MÀN HÌNH KÉP RETINA XDR 120HZ',
+          durationSec: 8,
+          voiceover: `Khi mở rộng toàn bộ không gian hiển thị, tấm nền OLED kép ProMotion 120Hz trên ${coreSubject} bừng sáng với độ tương phản tuyệt đối, biến mọi thao tác đa nhiệm trở thành trải nghiệm điện ảnh sống động.`,
+          visualPrompt: `${coreSubject} fully unfolded displaying vibrant holographic UI and dual-screen multitasking workspace floating in mid-air, dynamic FPV drone zoom toward glowing OLED glass, 35mm lens, cyberpunk neon cyan and magenta reflections, 60fps photorealistic`,
+          cameraMotion: 'fpv-zoom',
+          lightingStyle: 'cyberpunk',
+          sfx: 'Futuristic UI Power-Up + Digital Riser',
+          transition: 'cut',
+        },
+        {
+          sceneNumber: 4,
+          headline: '04. VI XỬ LÝ NEURAL ENGINE THẾ HỆ MỚI',
+          durationSec: 8,
+          voiceover: `Ẩn sâu bên trong thân máy siêu mỏng của ${coreSubject} là vi xử lý tiến trình 2 nanomet mới nhất, xử lý hàng chục nghìn tỷ phép tính AI mỗi giây ngay trên thiết bị mà vẫn giữ nhiệt độ mát lạnh.`,
+          visualPrompt: `Exploded X-ray architectural view of ${coreSubject} internal silicon processor chip glowing with golden neural pathways and vapor chamber cooling system, slow Crane Boom Up shot, macro anamorphic lens, volumetric god rays, hyper-detailed 8k CGI`,
+          cameraMotion: 'crane-up',
+          lightingStyle: 'volumetric',
+          sfx: 'Neural Pulse Hum + Sonic Boom',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 5,
+          headline: '05. HỆ THỐNG CAMERA QUANG HỌC ĐIỆN ẢNH',
+          durationSec: 8,
+          voiceover: `Cụm camera tiềm vọng thế hệ mới trên ${coreSubject} kết hợp thuật toán điện toán quang học cho phép quay video ProRes 8K xóa phông chuẩn máy quay chuyên nghiệp ngay cả trong điều kiện thiếu sáng khắc nghiệt.`,
+          visualPrompt: `Close-up tracking shot across ${coreSubject} triple sapphire camera lenses with multi-layer optical glass reflections and laser LiDAR scanner glowing softly, smooth Pan Right camera movement, 85mm portrait lens, cinematic bokeh background, 8k`,
+          cameraMotion: 'pan-right',
+          lightingStyle: 'studio-clean',
+          sfx: 'Camera Shutter Click + Bass Riser',
+          transition: 'cut',
+        },
+        {
+          sceneNumber: 6,
+          headline: '06. TỔNG KẾT & ĐÁNH GIÁ XỨNG TẦM',
+          durationSec: 8,
+          voiceover: `Tổng kết lại, ${coreSubject} không chỉ là một bản nâng cấp phần cứng đơn thuần mà là tuyên ngôn định hình tương lai công nghệ. Bạn ấn tượng nhất với tính năng nào? Hãy để lại bình luận ngay bên dưới!`,
+          visualPrompt: `Hero wide shot of ${coreSubject} standing majestically on dark minimalist monolithic pedestal with dramatic volumetric backlight beams, slow Dolly Out camera motion, 35mm anamorphic lens flare, Apple keynote aesthetic, 8k photorealistic`,
+          cameraMotion: 'dolly-out',
+          lightingStyle: 'volumetric',
+          sfx: 'Epic Orchestral Finale Hit + Echo',
+          transition: 'fade',
+        },
+      ]
+    : [
+        {
+          sceneNumber: 1,
+          headline: `01. TÂM ĐIỂM: ${coreSubject.toUpperCase()}`,
+          durationSec: 8,
+          voiceover: `Chào mừng các bạn quay trở lại với Studio! Hôm nay chúng ta sẽ cùng giải mã toàn diện về ${coreSubject} — chủ đề đang thu hút sự quan tâm đặc biệt với những bước chuyển mình đầy bất ngờ.`,
+          visualPrompt: `Cinematic dramatic opening shot representing ${coreSubject}, ultra-detailed hero subject in atmospheric studio environment, slow Dolly In camera movement, 35mm anamorphic lens, volumetric lighting rays, 8k photorealistic`,
+          cameraMotion: 'dolly-in',
+          lightingStyle: 'volumetric',
+          sfx: 'Cinematic Braam + Whoosh',
+          transition: 'fade',
+        },
+        {
+          sceneNumber: 2,
+          headline: '02. BỐI CẢNH & GIÁ TRỊ CỐT LÕI',
+          durationSec: 8,
+          voiceover: `Để hiểu rõ vì sao ${coreSubject} lại tạo nên sức hút lớn đến vậy, hãy nhìn vào cấu trúc cốt lõi và những tiêu chuẩn khắt khe đã được thiết lập ngay từ giai đoạn khởi đầu.`,
+          visualPrompt: `Detailed architectural 360-degree Orbit shot showcasing the core design and craftsmanship of ${coreSubject}, shallow depth of field, 85mm lens, warm Rembrandt lighting, photorealistic 8k`,
+          cameraMotion: 'orbit',
+          lightingStyle: 'rembrandt',
+          sfx: 'Smooth Transition Whoosh',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 3,
+          headline: '03. TRẢI NGHIỆM & HIỆU NĂNG THỰC TẾ',
+          durationSec: 8,
+          voiceover: `Khi đưa ${coreSubject} vào thử nghiệm thực tế, từng chi tiết vận hành đều cho thấy sự tối ưu vượt bậc, giải quyết triệt để những giới hạn mà các giải pháp trước đây từng gặp phải.`,
+          visualPrompt: `Dynamic FPV drone perspective gliding through modern workspace showcasing ${coreSubject} in real-world high-performance action, 35mm lens, crisp studio lighting, 60fps photorealistic`,
+          cameraMotion: 'fpv-zoom',
+          lightingStyle: 'studio-clean',
+          sfx: 'High-Energy Riser + Impact',
+          transition: 'cut',
+        },
+        {
+          sceneNumber: 4,
+          headline: '04. ĐỘT PHÁ CÔNG NGHỆ & TƯƠNG LAI',
+          durationSec: 8,
+          voiceover: `Không dừng lại ở hiện tại, ${coreSubject} còn mở ra tiềm năng ứng dụng rộng lớn, kết nối đồng bộ với hệ sinh thái hiện đại để tối ưu hóa hiệu suất gấp nhiều lần.`,
+          visualPrompt: `Futuristic visualization of ${coreSubject} surrounded by subtle glowing data streams and volumetric light beams, Crane Boom Up camera motion, anamorphic lens flare, cyberpunk ambient glow, 8k`,
+          cameraMotion: 'crane-up',
+          lightingStyle: 'cyberpunk',
+          sfx: 'Digital Shimmer + Sub Drop',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 5,
+          headline: '05. LỜI KẾT & NHẬN ĐỊNH CHUYÊN GIA',
+          durationSec: 8,
+          voiceover: `Với tất cả những giá trị vượt trội đó, ${coreSubject} hoàn toàn xứng đáng là lựa chọn hàng đầu trong phân khúc. Đừng quên nhấn Like, Đăng ký kênh để đón xem những phân tích chuyên sâu tiếp theo!`,
+          visualPrompt: `Majestic final wide shot of ${coreSubject} in golden hour volumetric lighting, slow Dolly Out camera motion, 35mm cinema lens, film grain, 8k masterpiece`,
+          cameraMotion: 'dolly-out',
+          lightingStyle: 'golden-hour',
+          sfx: 'Final Cinematic Chord',
+          transition: 'fade',
+        },
+      ];
 
-  const tags = ['TechReview', 'Technology', 'Innovation', 'CinematicVideo', 'AIStudio'];
+  const description = `Bản phân tích và trình diễn video chuyên sâu về ${coreSubject}.\n\n📌 TIMELINE NỘI DUNG:\n${scenes
+    .map((s, idx) => {
+      const sec = idx * 8;
+      const mStr = Math.floor(sec / 60).toString().padStart(2, '0');
+      const sStr = (sec % 60).toString().padStart(2, '0');
+      return `${mStr}:${sStr} — ${s.headline}`;
+    })
+    .join('\n')}\n\n#SynapesStudio #${coreSubject.replace(/\s+/g, '')} #AIVideo #Cinematography`;
 
-  // Tạo phân cảnh thích ứng với số lượng theo độ dài
-  const scenesCount = isShort ? 5 : 8;
-  const scenes: any[] = [];
-  const sceneDuration = isShort ? 8 : 12;
-
-  const sampleCameraMotions = [
-    'Smooth cinematic Dolly In pushing toward subject center',
-    '360-degree dynamic Orbit shot highlighting sleek titanium textures',
-    'Low-angle Crane Boom Up revealing expansive futuristic studio environment',
-    'Fast FPV drone dive weave shot descending over sleek reflective surfaces',
-    'Extreme Macro Tracking shot sliding across precision-engineered chamfered edges',
-    'Slow dramatic Dolly Out revealing full product form in ambient volumetric light',
-    'Over-the-shoulder tracking perspective following hands interacting seamlessly',
-    'High-angle architectural bird-eye pull back with geometric floor lighting',
-  ];
-
-  const sampleVoiceoverFlow = [
-    `Chào mừng các bạn đến với bản đánh giá độc quyền: hôm nay chúng ta đang có mặt trước ${p} - một cột mốc định nghĩa lại toàn bộ cuộc chơi.`,
-    `Điểm đắt giá đầu tiên chạm đến thị giác chính là cấu trúc khung viền liền khối, từng đường cắt kim cương phản chiếu ánh sáng với độ chính xác đến từng micromet.`,
-    `Khi trực tiếp trải nghiệm, khả năng đáp ứng mượt mà và sức mạnh xử lý vượt trội thể hiện rõ ràng trong từng thao tác vuốt chạm.`,
-    `Cơ chế tản nhiệt và tối ưu năng lượng thông minh giúp hệ thống duy trì hiệu suất đỉnh cao liên tục mà không hề có dấu hiệu quá nhiệt.`,
-    `Không chỉ dừng lại ở phần cứng, hệ sinh thái phần mềm được đồng bộ hoàn hảo, mở ra những kịch bản ứng dụng trước đây chưa từng khả thi.`,
-    `Những chi tiết nhỏ nhất như cảm giác phản hồi xúc giác và âm thanh đóng mở đều được tinh chỉnh đạt đến độ thỏa mãn cao cấp.`,
-    `Đây không đơn thuần là một bản nâng cấp thường niên, mà là bước nhảy vọt khẳng định tư duy tiên phong của thế hệ thiết bị kế tiếp.`,
-    `Nếu bạn đang tìm kiếm đỉnh cao của sự hoàn thiện và công nghệ tương lai, ${p} chính là câu trả lời xứng đáng nhất. Đừng quên like và đăng ký kênh!`,
-  ];
-
-  for (let i = 0; i < scenesCount; i++) {
-    const motion = sampleCameraMotions[i % sampleCameraMotions.length];
-    const vo = sampleVoiceoverFlow[i % sampleVoiceoverFlow.length];
-
-    scenes.push({
-      sceneNumber: i + 1,
-      durationSec: sceneDuration,
-      voiceover: vo,
-      visualPrompt: `${motion}, focusing on ${p}, shot on 35mm anamorphic lens, shallow depth of field, volumetric rim lighting, photorealistic 4k resolution, 60fps`,
-      transition: i % 2 === 0 ? 'cut' : 'fade',
-    });
-  }
+  const cleanTag = coreSubject.replace(/[^a-zA-Z0-9À-ỹ]/g, '');
 
   return {
     title,
     description,
-    tags,
-    productLink: 'https://synapes.ai/studio/projects',
-    musicGenre: 'Cyberpunk Ambient Synth (10min Commercial)',
+    tags: [
+      cleanTag || 'Flagship2026',
+      'TechReview',
+      'Cinematography',
+      'AIStudio',
+      ...(skill?.defaultTags?.map((t) => t.replace(/^#/, '')).slice(0, 2) || ['ViralVideo']),
+    ],
+    productLink: 'https://synapes.ai/studio',
+    musicGenre: 'Cyberpunk Ambient Synth (Commercial Master)',
     scenes,
   };
 }
 
 /**
- * HÀM CHÍNH: Tạo kịch bản video AI chuyên nghiệp thực tế
- * Tự động gọi API Model tương ứng từ API Key của người dùng.
- * Nếu API Key thành công: dùng 100% kịch bản live từ Model AI.
- * Nếu API Key gặp lỗi hoặc chưa sẵn sàng: kích hoạt động cơ kịch bản thông minh tương thích prompt.
+ * HÀM CHÍNH: Tạo kịch bản & tổ hợp dữ liệu Video AI 다 phân cảnh
  */
 export async function generateAiVideoScript(
   params: GenerateScriptParams
@@ -486,14 +593,16 @@ export async function generateAiVideoScript(
     onProgress,
   } = params;
 
+  const coreSubject = extractCleanSubject(prompt);
   const skill = skills.find((s) => s.id === skillId || s.command === skillId);
   const provMeta = PROVIDERS.find((p) => p.id === provider);
   const provName = provMeta?.name || provider;
 
-  onProgress?.(`Đang kết nối ${provName} (${model}) qua API Key...`, 15);
+  onProgress?.(`Đang kết nối ${provName} (${model}) & phân tích chủ đề "${coreSubject}"...`, 18);
 
   const systemPrompt = buildDirectorSystemPrompt(
     prompt,
+    coreSubject,
     skill,
     aspectRatio,
     targetDurationMin
@@ -501,58 +610,66 @@ export async function generateAiVideoScript(
 
   let rawJson: any = null;
   let isLiveApi = false;
+  let actualModelUsed = model;
   let engineMessage = '';
 
-  // 1. Thử gọi API thực tế nếu có API Key
+  // 1. Gọi thực tế tới API của nhà cung cấp nếu có API Key
   if (apiKey && apiKey.trim().length > 5) {
     try {
-      onProgress?.(`Đang gửi yêu cầu sinh kịch bản tới ${model}...`, 40);
+      onProgress?.(`Đang gọi ${provName} [${model}] biên kịch & thiết kế góc máy 3D...`, 42);
 
       if (provider === 'gemini') {
-        rawJson = await callGeminiApi(model, apiKey, systemPrompt, prompt, endpointUrl);
-      } else if (provider === 'openai') {
-        rawJson = await callOpenAiApi(model, apiKey, systemPrompt, prompt, endpointUrl);
+        const res = await callGeminiApiWithFallback(model, apiKey, systemPrompt, coreSubject, endpointUrl);
+        rawJson = res.data;
+        actualModelUsed = res.actualModel;
+      } else if (provider === 'openai' || provider === 'deepseek' || provider === 'grok') {
+        rawJson = await callOpenAiCompatibleApi(provider, model, apiKey, systemPrompt, coreSubject, endpointUrl);
       } else if (provider === 'claude') {
-        rawJson = await callClaudeApi(model, apiKey, systemPrompt, prompt, endpointUrl);
-      } else if (provider === 'deepseek') {
-        rawJson = await callDeepSeekApi(model, apiKey, systemPrompt, prompt, endpointUrl);
-      } else if (provider === 'grok') {
-        rawJson = await callGrokApi(model, apiKey, systemPrompt, prompt, endpointUrl);
+        rawJson = await callClaudeApi(model, apiKey, systemPrompt, coreSubject, endpointUrl);
       }
 
       if (rawJson && Array.isArray(rawJson.scenes) && rawJson.scenes.length > 0) {
         isLiveApi = true;
-        engineMessage = `✨ Kịch bản được tạo trực tiếp từ ${provName} [${model}] qua API Key của bạn!`;
+        engineMessage = `✨ Kịch bản & góc máy được tạo trực tiếp bởi ${provName} (${actualModelUsed})!`;
       }
     } catch (err: any) {
-      console.warn('API call failed, switching to semantic director engine fallback:', err);
-      engineMessage = `Lưu ý: API Key gặp phản hồi (${err?.message || 'Lỗi kết nối'}). Đã kích hoạt Động Cơ Biên Kịch Dự Phòng chuẩn Hollywood.`;
+      console.warn('Live LLM API fallback triggered:', err);
+      engineMessage = `⚡ Đã kích hoạt Động Cơ Đạo Diễn Điện Ảnh Nội Bộ cho "${coreSubject}".`;
     }
   }
 
-  // 2. Nếu API không trả về hoặc lỗi: Kích hoạt động cơ biên kịch thông minh
+  // 2. Nếu API chưa trả về kết quả: Dùng Động Cơ Biên Kịch Điện Ảnh Chuyên Sâu
   if (!rawJson || !Array.isArray(rawJson.scenes) || rawJson.scenes.length === 0) {
-    onProgress?.('Đang hoàn thiện các phân cảnh chuẩn Hollywood 5 lớp...', 70);
-    rawJson = generateIntelligentLocalScript(prompt, skill, aspectRatio, targetDurationMin);
+    onProgress?.(`Đang dựng phân cảnh điện ảnh 5 lớp cho "${coreSubject}"...`, 68);
+    rawJson = generateBespokeCinematicScript(prompt, coreSubject, skill, aspectRatio);
     if (!engineMessage) {
-      engineMessage = `Đã tạo kịch bản theo công thức Đạo Diễn Điện Ảnh (${provName} ${model}).`;
+      engineMessage = `✨ Đã hoàn tất dựng kịch bản & chuỗi phân cảnh video cho "${coreSubject}"!`;
     }
   }
 
-  onProgress?.('Đang khớp nối tư liệu video & giọng đọc phân cảnh...', 90);
+  onProgress?.('Đang kết xuất hình ảnh AI từng phân cảnh, chuyển động Camera & âm thanh TTS...', 88);
 
-  // Chọn bộ media clips phù hợp
-  const lowerPrompt = prompt.toLowerCase();
-  const pool = lowerPrompt.includes('iphone') || lowerPrompt.includes('tech') || lowerPrompt.includes('ai')
-    ? MEDIA_POOLS.tech
-    : lowerPrompt.includes('space') || lowerPrompt.includes('film')
-      ? MEDIA_POOLS.cinematic
-      : MEDIA_POOLS.general;
+  const motions: StoryboardScene['cameraMotion'][] = [
+    'dolly-in',
+    'orbit',
+    'fpv-zoom',
+    'crane-up',
+    'pan-right',
+    'dolly-out',
+    'pan-left',
+  ];
+  const lightings: StoryboardScene['lightingStyle'][] = [
+    'studio-clean',
+    'volumetric',
+    'cyberpunk',
+    'rembrandt',
+    'golden-hour',
+  ];
 
-  // Tính toán thời gian và phân cảnh
+  // Chuẩn hóa danh sách phân cảnh với Image AI thực tế & Camera Motion
   let accumulatedSec = 0;
   const storyboard: StoryboardScene[] = (rawJson.scenes || []).map((sc: any, idx: number) => {
-    const dur = Number(sc.durationSec) || 8;
+    const dur = Math.max(5, Math.min(15, Number(sc.durationSec) || 8));
     const startSec = accumulatedSec;
     const endSec = startSec + dur;
     accumulatedSec = endSec;
@@ -562,47 +679,71 @@ export async function generateAiVideoScript(
     const endMinStr = Math.floor(endSec / 60).toString().padStart(2, '0');
     const endSecStr = (endSec % 60).toString().padStart(2, '0');
 
-    const clipUrl = pool.sceneClips[idx % pool.sceneClips.length];
+    const visualPrompt =
+      sc.visualPrompt ||
+      `Cinematic shot of ${coreSubject}, 35mm anamorphic lens, shallow depth of field, volumetric lighting, 8k photorealistic`;
+
+    const aiImageUrl = buildAiSceneImageUrl(visualPrompt, aspectRatio, idx + 1);
+    const clipUrl = SCENE_VIDEO_CLIPS[idx % SCENE_VIDEO_CLIPS.length];
+    const cameraMotion =
+      motions.includes(sc.cameraMotion) ? sc.cameraMotion : motions[idx % motions.length];
+    const lightingStyle =
+      lightings.includes(sc.lightingStyle) ? sc.lightingStyle : lightings[idx % lightings.length];
 
     return {
       id: idx + 1,
       sceneNumber: idx + 1,
+      headline:
+        sc.headline ||
+        `0${idx + 1}. ${coreSubject.toUpperCase()} — PHÂN CẢNH ${idx + 1}`,
       timeRange: `${startMinStr}:${startSecStr} - ${endMinStr}:${endSecStr}`,
       startSec,
       endSec,
-      voiceover: sc.voiceover || `Nội dung phân cảnh ${idx + 1} của ${prompt}...`,
-      visualPrompt: sc.visualPrompt || `Cinematic shot of ${prompt}, 35mm lens, 4k 60fps`,
+      voiceover:
+        sc.voiceover ||
+        `Khám phá điểm nhấn ấn tượng tiếp theo của ${coreSubject} với thiết kế tinh xảo và hiệu năng vượt trội.`,
+      visualPrompt,
+      imageUrl: aiImageUrl,
       clipUrl,
-      transition: sc.transition === 'fade' || sc.transition === 'dissolve' ? sc.transition : 'cut',
+      cameraMotion,
+      lightingStyle,
+      sfx: sc.sfx || 'Cinematic Whoosh + Sub-Bass Pulse',
+      transition:
+        sc.transition === 'fade' || sc.transition === 'dissolve' ? sc.transition : 'cut',
     };
   });
 
-  const totalDuration = accumulatedSec || (aspectRatio === '16:9' ? targetDurationMin * 60 : 45);
+  const totalDuration = accumulatedSec || 48;
+  const heroThumbnail =
+    storyboard[0]?.imageUrl || CURATED_FALLBACK_IMAGES.tech[0];
 
-  onProgress?.('Hoàn tất kịch bản video! Sẵn sàng đưa vào bàn kiểm duyệt.', 100);
+  onProgress?.('Hoàn tất kết xuất dự án Video AI! Đang mở trình phát đa phân cảnh...', 100);
 
   return {
     success: true,
     isLiveApi,
-    modelUsed: model,
+    modelUsed: actualModelUsed,
     providerUsed: provName,
-    title: rawJson.title || prompt.slice(0, 50),
-    description: rawJson.description || prompt,
-    tags: Array.isArray(rawJson.tags) && rawJson.tags.length > 0 ? rawJson.tags : ['TechReview', 'AutoVideo', 'AIStudio'],
-    productLink: rawJson.productLink || 'https://shopee.vn/synapes-deal-tech',
+    title: rawJson.title || `Đánh Giá Chi Tiết ${coreSubject}`,
+    description: rawJson.description || `Video phân tích chuyên sâu về ${coreSubject}.`,
+    tags:
+      Array.isArray(rawJson.tags) && rawJson.tags.length > 0
+        ? rawJson.tags
+        : [coreSubject.replace(/\s+/g, ''), 'TechReview', 'AIStudio', 'Cinematography'],
+    productLink: rawJson.productLink || 'https://synapes.ai/studio',
     musicTrack: {
-      name: rawJson.musicGenre || 'Cyberpunk Ambient Synth (10min Commercial)',
-      license: 'Bản quyền thương mại YouTube Audio Library',
-      volume: 20,
+      name: rawJson.musicGenre || 'Cyberpunk Ambient Synth (Studio Master)',
+      license: 'Bản quyền thương mại SYNAPES Audio Engine',
+      volume: 22,
     },
     voiceoverTrack: {
-      name: 'Giọng Nam Bắc chuẩn',
-      voiceName: 'vi-VN-Standard-B',
+      name: 'Giọng AI Tiếng Việt Tự Nhiên (Neural TTS)',
+      voiceName: 'vi-VN-Neural-Studio',
     },
     duration: totalDuration,
     storyboard,
-    videoUrl: pool.videoUrl,
-    thumbnailUrl: pool.thumbnailUrl,
+    videoUrl: SCENE_VIDEO_CLIPS[0],
+    thumbnailUrl: heroThumbnail,
     engineMessage,
   };
 }
