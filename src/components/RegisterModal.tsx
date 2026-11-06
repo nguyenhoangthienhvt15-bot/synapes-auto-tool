@@ -23,6 +23,9 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   onSwitchToLogin
 }) => {
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [draftRegId, setDraftRegId] = useState<string>(
+    () => `reg_${Date.now()}_${Math.floor(Math.random() * 10000)}`
+  );
 
   // Form inputs
   const [fullName, setFullName] = useState('');
@@ -45,6 +48,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   // Tự động dò kết nối hệ thống ngầm khi mở cửa sổ đăng ký (không hiển thị ra giao diện người dùng)
   useEffect(() => {
     if (isOpen) {
+      setDraftRegId(`reg_${Date.now()}_${Math.floor(Math.random() * 10000)}`);
       discoverWebhookUrlFromSheet().catch(() => {});
     }
   }, [isOpen]);
@@ -224,6 +228,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     // NGAY KHI BẤM SANG TRANG TIẾP THEO:
     // Cập nhật ngay thông tin lên trang tính "THÔNG TIN NGƯỜI DÙNG" trên hệ thống quản trị Google Sheet
     const initialRegData: UserRegistrationData = {
+      id: draftRegId,
       fullName: fullName.trim(),
       dob: formattedDob,
       gender,
@@ -254,6 +259,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     const formattedDob = formatDobToDDMMYYYY(dob.trim());
 
     const registrationData: UserRegistrationData = {
+      id: draftRegId,
       fullName: fullName.trim(),
       dob: formattedDob,
       gender,
