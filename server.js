@@ -157,3 +157,4 @@ process.on('SIGINT', () => {
   console.log('Received SIGINT, closing Web Service server...');
   server.close(() => process.exit(0));
 });
+

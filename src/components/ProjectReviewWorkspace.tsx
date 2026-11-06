@@ -3,7 +3,7 @@ import { Project } from '../types';
 import {
   Play, Volume2, CheckCircle2, Clock,
   Edit3, Film, ExternalLink, Smartphone, Monitor,
-  Link2, Search, Sparkles, X, Check
+  Link2, Search, Sparkles, X, Check, Camera, Terminal, Sliders
 } from 'lucide-react';
 
 interface ProjectReviewWorkspaceProps {
@@ -25,6 +25,8 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
   const [showSocialMockup, setShowSocialMockup] = useState<'none' | 'tiktok' | 'youtube'>('none');
   const [editingSceneId, setEditingSceneId] = useState<number | null>(null);
   const [editingVoiceoverText, setEditingVoiceoverText] = useState('');
+  const [editingScenePromptId, setEditingScenePromptId] = useState<number | null>(null);
+  const [editingPromptText, setEditingPromptText] = useState('');
 
   // Publishing progress modal
   const [isPublishingModalOpen, setIsPublishingModalOpen] = useState(false);
@@ -90,6 +92,31 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
     });
     onUpdateProject({ ...project, storyboard: updatedStoryboard });
     setEditingSceneId(null);
+  };
+
+  const handleSavePromptEdit = (sceneId: number) => {
+    const updatedStoryboard = project.storyboard.map((s) => {
+      if (s.id === sceneId) {
+        return { ...s, visualPrompt: editingPromptText };
+      }
+      return s;
+    });
+    onUpdateProject({ ...project, storyboard: updatedStoryboard });
+    setEditingScenePromptId(null);
+  };
+
+  const handleInjectCameraTag = (sceneId: number, tag: string) => {
+    const updatedStoryboard = project.storyboard.map((s) => {
+      if (s.id === sceneId) {
+        const cleanPrompt = s.visualPrompt.trim();
+        const hasTagAlready = cleanPrompt.toLowerCase().includes(tag.toLowerCase());
+        if (hasTagAlready) return s;
+        const separator = cleanPrompt.endsWith('.') || cleanPrompt.endsWith(',') ? ' ' : ', ';
+        return { ...s, visualPrompt: `${cleanPrompt}${separator}${tag}` };
+      }
+      return s;
+    });
+    onUpdateProject({ ...project, storyboard: updatedStoryboard });
   };
 
   const handleAddTag = () => {
@@ -448,10 +475,86 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                       )}
                     </div>
 
-                    {/* Visual Prompt Indicator */}
-                    <div className="text-[11px] text-zinc-500 flex items-start gap-1">
-                      <span className="text-zinc-700 font-medium text-[10px] font-mono">PROMPT:</span>
-                      <span className="text-zinc-500 line-clamp-2 text-[11px]">{scene.visualPrompt}</span>
+                    {/* Visual Prompt Indicator with Cinematic Quick-Inject */}
+                    <div className="pt-1.5 border-t border-black/[0.04] space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <div className="flex items-center gap-1 text-zinc-700 font-mono font-medium">
+                          <Camera className="w-3 h-3 text-indigo-600" />
+                          <span>GÓC MÁY & VISUAL PROMPT:</span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (editingScenePromptId === scene.id) {
+                              setEditingScenePromptId(null);
+                            } else {
+                              setEditingScenePromptId(scene.id);
+                              setEditingPromptText(scene.visualPrompt);
+                            }
+                          }}
+                          className="text-[10px] text-zinc-500 hover:text-zinc-900 underline cursor-pointer"
+                        >
+                          {editingScenePromptId === scene.id ? 'Đóng' : 'Chỉnh sửa'}
+                        </button>
+                      </div>
+
+                      {editingScenePromptId === scene.id ? (
+                        <div className="space-y-1.5">
+                          <textarea
+                            rows={3}
+                            value={editingPromptText}
+                            onChange={(e) => setEditingPromptText(e.target.value)}
+                            className="w-full bg-white border border-indigo-500 rounded-md p-2 text-[11px] text-zinc-900 focus:outline-none"
+                            placeholder="Mô tả phân cảnh, góc máy, ánh sáng, chi tiết..."
+                          />
+                          <div className="flex justify-end gap-1.5">
+                            <button
+                              onClick={() => setEditingScenePromptId(null)}
+                              className="px-2 py-0.5 text-[11px] text-zinc-500 hover:text-zinc-800"
+                            >
+                              Hủy
+                            </button>
+                            <button
+                              onClick={() => handleSavePromptEdit(scene.id)}
+                              className="px-2.5 py-0.5 bg-zinc-900 text-white rounded text-[11px] font-medium"
+                            >
+                              Lưu Prompt
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p
+                          onClick={() => {
+                            setEditingScenePromptId(scene.id);
+                            setEditingPromptText(scene.visualPrompt);
+                          }}
+                          className="text-[11px] text-zinc-600 leading-snug line-clamp-2 bg-white/70 p-1.5 rounded border border-black/[0.04] hover:border-black/[0.1] cursor-pointer"
+                          title="Bấm để chỉnh sửa câu lệnh góc máy"
+                        >
+                          {scene.visualPrompt}
+                        </p>
+                      )}
+
+                      {/* Quick Cinematic Camera Presets (1-Click Inject) */}
+                      <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                        <span className="text-[9px] text-zinc-400 font-mono">Gợi ý:</span>
+                        {[
+                          { label: '+ Dolly In', tag: 'Cinematic Dolly In camera motion, smooth forward push' },
+                          { label: '+ Orbit 360°', tag: 'Smooth 360-degree orbit shot around subject' },
+                          { label: '+ FPV Drone', tag: 'Dynamic FPV drone dive weave shot' },
+                          { label: '+ 35mm Lens', tag: 'Shot on 35mm anamorphic lens, shallow depth of field' },
+                          { label: '+ Volumetric Rays', tag: 'Atmospheric volumetric god rays, cinematic lighting' },
+                          { label: '+ Jump-Cut 2.5s', tag: 'Fast-paced 2.5s jump cut retention pacing' },
+                        ].map((preset, pIdx) => (
+                          <button
+                            key={pIdx}
+                            onClick={() => handleInjectCameraTag(scene.id, preset.tag)}
+                            className="px-1.5 py-0.2 rounded text-[9px] bg-zinc-100 hover:bg-indigo-50 hover:text-indigo-600 text-zinc-600 border border-black/5 transition cursor-pointer"
+                            title={`Chèn vào prompt: ${preset.tag}`}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ))}

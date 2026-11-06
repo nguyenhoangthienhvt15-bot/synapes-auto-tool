@@ -3,7 +3,7 @@ import {
   Project, UserAccount, EngineerSheetRow, Skill, AIProviderConfig, ConnectedChannelAccount
 } from './types';
 import {
-  INITIAL_SHEET_ROWS, INITIAL_SKILLS
+  INITIAL_SHEET_ROWS, INITIAL_SKILLS, MCP_VIDEO_SERVERS
 } from './data/mockData';
 import {
   fetchGoogleSheetLive, getCachedSheetRows, cacheSheetRows, getLastSyncTime,
@@ -32,6 +32,7 @@ import { SocialChannelsView } from './components/SocialChannelsView';
 import { DriveBackupView } from './components/DriveBackupView';
 import { PolicyModal } from './components/PolicyModal';
 import { UserGuideView } from './components/UserGuideView';
+import { McpVideoToolsHub } from './components/McpVideoToolsHub';
 
 // Icons
 import { CheckCircle2, Plus } from 'lucide-react';
@@ -544,6 +545,32 @@ export function App() {
               onDeleteSkill={(id) => {
                 setSkills(skills.filter((s) => s.id !== id));
                 showToast('Đã xóa skill.');
+              }}
+            />
+          )}
+
+          {/* VIEW: KHỐI MCP SERVERS & CÔNG CỤ DỰNG VIDEO CHUYÊN NGHIỆP */}
+          {activeView === 'mcp-tools' && (
+            <McpVideoToolsHub
+              servers={MCP_VIDEO_SERVERS}
+              onBack={() => setActiveView('pending-approval')}
+              onApplyPromptToProject={(promptText) => {
+                showToast('✨ Đã áp dụng câu lệnh góc máy điện ảnh Hollywood!');
+                if (selectedProject) {
+                  // Cập nhật phân cảnh đầu tiên hoặc prompt tổng thể
+                  const updatedStoryboard = selectedProject.storyboard.map((s, idx) =>
+                    idx === 0 ? { ...s, visualPrompt: promptText } : s
+                  );
+                  const updated = {
+                    ...selectedProject,
+                    storyboard: updatedStoryboard,
+                  };
+                  setSelectedProject(updated);
+                  setProjects(projects.map((p) => (p.id === updated.id ? updated : p)));
+                  setActiveView('review');
+                } else {
+                  setIsCreateModalOpen(true);
+                }
               }}
             />
           )}

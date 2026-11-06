@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserAccount } from '../types';
-import { Bell, KeyRound, LogOut, Shield, ChevronRight, BookOpen } from 'lucide-react';
+import { Bell, KeyRound, LogOut, Shield, ChevronRight, BookOpen, Terminal } from 'lucide-react';
 
 interface HeaderProps {
   currentUser: UserAccount | null;
@@ -107,6 +107,16 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
           >
             Lịch Phát Sóng
+          </button>
+
+          <button
+            onClick={() => onSelectView('mcp-tools')}
+            className={`studio-segmented-item flex items-center gap-1.5 cursor-pointer ${activeView === 'mcp-tools' ? 'active' : ''
+              }`}
+            title="Khối MCP Servers & Công cụ Video AI"
+          >
+            <Terminal className="w-3.5 h-3.5 text-zinc-500" />
+            <span>Khối MCP & Video Tools</span>
           </button>
 
           <button
