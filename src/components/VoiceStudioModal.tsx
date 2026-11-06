@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
-import { VoiceProfile } from '../types';
-import { VOICE_PROFILES, auditionVoice } from '../services/voiceStudioService';
+import { VoiceProfile, VoiceLanguage } from '../types';
+import {
+  VIETNAMESE_VOICE_PROFILES,
+  ENGLISH_VOICE_PROFILES,
+  auditionVoice,
+} from '../services/voiceStudioService';
 import {
   Mic,
   Volume2,
@@ -13,20 +17,27 @@ import {
   Radio,
   Globe,
   Layers,
+  Languages,
+  MonitorPlay,
+  FileEdit,
 } from 'lucide-react';
 
 interface VoiceStudioModalProps {
   isOpen: boolean;
   onClose: () => void;
   activeVoiceId?: string;
+  activeLanguage?: VoiceLanguage;
   currentVoiceSpeed?: number;
   currentVoicePitch?: number;
   currentSceneNumber?: number;
   currentSceneVoiceover?: string;
+  onOpenLiveDubbingModal?: () => void;
   onApplyVoice: (settings: {
     voiceId: string;
+    language: VoiceLanguage;
     speed: number;
     pitch: number;
+    updatedText?: string;
     applyToAll: boolean;
   }) => void;
 }
@@ -35,33 +46,40 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
   isOpen,
   onClose,
   activeVoiceId,
+  activeLanguage = 'vi',
   currentVoiceSpeed = 1.05,
   currentVoicePitch = 1.0,
   currentSceneNumber = 1,
   currentSceneVoiceover = '',
+  onOpenLiveDubbingModal,
   onApplyVoice,
 }) => {
   if (!isOpen) return null;
 
+  const [selectedLanguage, setSelectedLanguage] = useState<VoiceLanguage>(activeLanguage);
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>(
-    activeVoiceId || 'vi-hn-male-1'
+    activeVoiceId || (selectedLanguage === 'en' ? 'en-us-guy' : 'vi-hn-male-1')
   );
   const [speed, setSpeed] = useState<number>(currentVoiceSpeed);
   const [pitch, setPitch] = useState<number>(currentVoicePitch);
   const [applyToAll, setApplyToAll] = useState<boolean>(true);
   const [isAuditioning, setIsAuditioning] = useState<boolean>(false);
-  const [testText, setTestText] = useState<string>(
-    currentSceneVoiceover || 'Chào mừng các bạn đến với video review công nghệ AI thế hệ mới trên SYNAPES Studio.'
-  );
-  const [filterRegion, setFilterRegion] = useState<'All' | 'Bắc' | 'Nam' | 'Trung' | 'AI Neural'>('All');
+
+  // Editable scene text
+  const [editedVoiceover, setEditedVoiceover] = useState<string>(currentSceneVoiceover);
+  const [filterRegion, setFilterRegion] = useState<string>('All');
+
+  // Select current voice profiles by language
+  const availableVoices =
+    selectedLanguage === 'en' ? ENGLISH_VOICE_PROFILES : VIETNAMESE_VOICE_PROFILES;
 
   const selectedVoice =
-    VOICE_PROFILES.find((v) => v.id === selectedVoiceId) || VOICE_PROFILES[0];
+    availableVoices.find((v) => v.id === selectedVoiceId) || availableVoices[0];
 
   const filteredVoices =
     filterRegion === 'All'
-      ? VOICE_PROFILES
-      : VOICE_PROFILES.filter((v) => v.region === filterRegion);
+      ? availableVoices
+      : availableVoices.filter((v) => v.region.toLowerCase().includes(filterRegion.toLowerCase()));
 
   const handleAudition = () => {
     if (isAuditioning) {
@@ -73,7 +91,7 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
     setIsAuditioning(true);
     auditionVoice(
       selectedVoice,
-      testText,
+      editedVoiceover || selectedVoice.sampleSentence,
       speed,
       pitch,
       () => setIsAuditioning(true),
@@ -83,9 +101,11 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
 
   const handleConfirm = () => {
     onApplyVoice({
-      voiceId: selectedVoiceId,
+      voiceId: selectedVoice.id,
+      language: selectedLanguage,
       speed,
       pitch,
+      updatedText: editedVoiceover,
       applyToAll,
     });
     onClose();
@@ -96,7 +116,7 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 select-none animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-black/10 overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-black/10 overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="px-5 py-4 border-b border-black/[0.08] flex items-center justify-between bg-zinc-50">
           <div className="flex items-center gap-2.5">
@@ -105,13 +125,13 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
             </div>
             <div>
               <h2 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
-                <span>Phòng Thu Lồng Tiếng AI (Voice Studio)</span>
+                <span>Phòng Thu Lồng Tiếng AI (AI Voice Studio)</span>
                 <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-emerald-100 text-emerald-800">
-                  v3.5 Live
+                  Dữ Liệu Giọng Thực Tế
                 </span>
               </h2>
               <p className="text-[11px] text-zinc-500">
-                Tùy chỉnh giọng đọc Tiếng Việt chuẩn đa vùng miền, tốc độ & cao độ điện ảnh
+                Lồng tiếng Tiếng Việt & Tiếng Anh chuẩn phát thanh viên, phân tách tông giọng rõ rệt
               </p>
             </div>
           </div>
@@ -125,30 +145,106 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
 
         {/* Body (Scrollable) */}
         <div className="p-5 overflow-y-auto space-y-4 text-xs">
-          {/* Region Tabs */}
-          <div className="flex items-center justify-between gap-2 border-b border-black/[0.06] pb-3">
-            <div className="flex items-center gap-1">
-              {(['All', 'Bắc', 'Nam', 'Trung', 'AI Neural'] as const).map((reg) => (
+          {/* Top Bar: Language Switcher & Live Direct Dubbing Button */}
+          <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-zinc-100/80 border border-black/[0.05]">
+            {/* Language Segmented Toggle */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-zinc-700 flex items-center gap-1">
+                <Languages className="w-3.5 h-3.5 text-zinc-600" />
+                <span>Ngôn ngữ lồng tiếng:</span>
+              </span>
+              <div className="flex bg-white rounded-lg p-0.5 border border-black/[0.08]">
                 <button
-                  key={reg}
                   type="button"
-                  onClick={() => setFilterRegion(reg)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
-                    filterRegion === reg
-                      ? 'bg-zinc-900 text-white shadow-sm'
-                      : 'bg-zinc-100 text-zinc-600 hover:text-zinc-900'
+                  onClick={() => {
+                    setSelectedLanguage('vi');
+                    setSelectedVoiceId('vi-hn-male-1');
+                    setFilterRegion('All');
+                  }}
+                  className={`px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition cursor-pointer ${
+                    selectedLanguage === 'vi'
+                      ? 'bg-zinc-900 text-white shadow-xs'
+                      : 'text-zinc-600 hover:text-zinc-900'
                   }`}
                 >
-                  {reg === 'All' ? 'Tất cả' : `Miền ${reg}`}
+                  <span>🇻🇳</span>
+                  <span>Tiếng Việt</span>
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedLanguage('en');
+                    setSelectedVoiceId('en-us-guy');
+                    setFilterRegion('All');
+                  }}
+                  className={`px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition cursor-pointer ${
+                    selectedLanguage === 'en'
+                      ? 'bg-zinc-900 text-white shadow-xs'
+                      : 'text-zinc-600 hover:text-zinc-900'
+                  }`}
+                >
+                  <span>🇺🇸 🇬🇧</span>
+                  <span>Tiếng Anh (English)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Direct Microphone Live Recording Button (CỬA SỔ THỨ 3) */}
+            {onOpenLiveDubbingModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenLiveDubbingModal();
+                }}
+                className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-sm animate-pulse"
+                title="Mở cửa sổ thứ 3 vừa xem video vừa thu âm trực tiếp bằng micro"
+              >
+                <MonitorPlay className="w-3.5 h-3.5" />
+                <span>Thu Âm Trực Tiếp (Cửa Sổ Thứ 3)</span>
+              </button>
+            )}
+          </div>
+
+          {/* Region Tabs */}
+          <div className="flex items-center justify-between gap-2 border-b border-black/[0.06] pb-2">
+            <div className="flex items-center gap-1 flex-wrap">
+              {selectedLanguage === 'vi'
+                ? ['All', 'Bắc', 'Nam', 'Trung', 'AI Neural'].map((reg) => (
+                    <button
+                      key={reg}
+                      type="button"
+                      onClick={() => setFilterRegion(reg)}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                        filterRegion === reg
+                          ? 'bg-zinc-900 text-white shadow-sm'
+                          : 'bg-zinc-100 text-zinc-600 hover:text-zinc-900'
+                      }`}
+                    >
+                      {reg === 'All' ? 'Tất cả giọng Việt' : `Miền ${reg}`}
+                    </button>
+                  ))
+                : ['All', 'America', 'Kingdom', 'AI Neural'].map((reg) => (
+                    <button
+                      key={reg}
+                      type="button"
+                      onClick={() => setFilterRegion(reg)}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                        filterRegion === reg
+                          ? 'bg-zinc-900 text-white shadow-sm'
+                          : 'bg-zinc-100 text-zinc-600 hover:text-zinc-900'
+                      }`}
+                    >
+                      {reg === 'All' ? 'All English Voices' : reg === 'America' ? 'US English' : reg === 'Kingdom' ? 'UK British' : 'Fast Neural'}
+                    </button>
+                  ))}
             </div>
             <span className="text-[11px] text-zinc-400 font-mono">
               {filteredVoices.length} giọng sẵn sàng
             </span>
           </div>
 
-          {/* Voice Grid */}
+          {/* Voice Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[220px] overflow-y-auto pr-1">
             {filteredVoices.map((voice) => {
               const isSelected = selectedVoiceId === voice.id;
@@ -176,6 +272,9 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                           </span>
                         )}
                       </div>
+                      <div className="text-[10px] text-indigo-600 font-semibold mt-0.5 font-mono">
+                        {voice.toneTag}
+                      </div>
                       <p className="text-[10px] text-zinc-500 mt-0.5 line-clamp-2 leading-relaxed">
                         {voice.description}
                       </p>
@@ -201,7 +300,7 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
             <div className="flex items-center justify-between text-[11px] font-bold text-zinc-800">
               <span className="flex items-center gap-1.5">
                 <Sliders className="w-3.5 h-3.5 text-zinc-600" />
-                <span>Tinh Chỉnh Tần Số & Tốc Độ Giọng: {selectedVoice.name}</span>
+                <span>Điều Chỉnh Tần Số & Tốc Độ: {selectedVoice.name}</span>
               </span>
               <span className="font-mono text-indigo-600">
                 {speed.toFixed(2)}x Tốc độ • {pitch.toFixed(2)}x Cao độ
@@ -246,7 +345,7 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                   className="w-full accent-zinc-900 cursor-pointer"
                 />
                 <div className="flex justify-between text-[9px] text-zinc-400 font-mono mt-0.5">
-                  <span>0.8x (Trầm uy lực)</span>
+                  <span>0.8x (Trầm ấm)</span>
                   <span>1.0x (Tự nhiên)</span>
                   <span>1.25x (Sáng/Thanh)</span>
                 </div>
@@ -254,26 +353,30 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
             </div>
           </div>
 
-          {/* Test Voice Audition Section */}
+          {/* Edit Script & Test Voice Audition Section */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-zinc-700 flex items-center justify-between">
-              <span>Đoạn văn bản nghe thử (Audition Text):</span>
+            <div className="flex items-center justify-between text-[11px] font-semibold text-zinc-700">
+              <span className="flex items-center gap-1">
+                <FileEdit className="w-3.5 h-3.5 text-zinc-500" />
+                <span>Nội dung thoại Cảnh {currentSceneNumber} (Tự do chỉnh sửa):</span>
+              </span>
               <button
                 type="button"
-                onClick={() => setTestText(currentSceneVoiceover || selectedVoice.sampleSentence)}
+                onClick={() => setEditedVoiceover(selectedVoice.sampleSentence)}
                 className="text-[10px] text-indigo-600 hover:underline cursor-pointer"
               >
-                Khôi phục lời thoại cảnh {currentSceneNumber}
+                Tải câu mẫu của {selectedVoice.name}
               </button>
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={testText}
-                onChange={(e) => setTestText(e.target.value)}
-                className="flex-1 bg-white border border-black/[0.1] rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900"
-                placeholder="Nhập câu thoại muốn nghe thử..."
-              />
+            </div>
+            <textarea
+              rows={2}
+              value={editedVoiceover}
+              onChange={(e) => setEditedVoiceover(e.target.value)}
+              className="w-full bg-white border border-black/[0.1] rounded-lg p-2.5 text-xs text-zinc-900 font-medium focus:outline-none focus:border-zinc-900 leading-relaxed"
+              placeholder="Nhập nội dung thoại bạn muốn giọng đọc phát..."
+            />
+
+            <div className="flex items-center justify-between pt-1">
               <button
                 type="button"
                 onClick={handleAudition}
@@ -286,30 +389,23 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                 {isAuditioning ? (
                   <>
                     <Square className="w-3.5 h-3.5 fill-white" />
-                    <span>Dừng</span>
+                    <span>Dừng Đọc</span>
                   </>
                 ) : (
                   <>
                     <Play className="w-3.5 h-3.5 fill-white" />
-                    <span>Nghe Thử</span>
+                    <span>Nghe Thử Giọng ({selectedVoice.name})</span>
                   </>
                 )}
               </button>
-            </div>
 
-            {/* Audio Waveform Simulator */}
-            {isAuditioning && (
-              <div className="flex items-center gap-1.5 p-2 rounded-lg bg-zinc-950 text-emerald-400 text-[10px] font-mono">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                <span>Đang phát qua bộ tổng hợp giọng nói AI Studio...</span>
-                <div className="flex items-end gap-1 h-3 ml-auto">
-                  <div className="w-1 bg-emerald-400 rounded-full animate-bounce h-2"></div>
-                  <div className="w-1 bg-emerald-400 rounded-full animate-bounce h-3 delay-75"></div>
-                  <div className="w-1 bg-emerald-400 rounded-full animate-bounce h-1 delay-150"></div>
-                  <div className="w-1 bg-emerald-400 rounded-full animate-bounce h-3 delay-100"></div>
+              {isAuditioning && (
+                <div className="flex items-center gap-1 text-emerald-600 text-[11px] font-mono">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                  <span>Đang phát giọng chuẩn {selectedLanguage === 'en' ? 'English' : 'Tiếng Việt'}...</span>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Scope selection */}
@@ -324,7 +420,7 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                   onChange={() => setApplyToAll(false)}
                   className="text-zinc-900 focus:ring-0"
                 />
-                <span>Chỉ cảnh hiện tại (Cảnh {currentSceneNumber})</span>
+                <span>Chỉ cảnh {currentSceneNumber}</span>
               </label>
               <label className="flex items-center gap-1.5 cursor-pointer text-zinc-800 font-semibold">
                 <input
@@ -334,7 +430,7 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                   onChange={() => setApplyToAll(true)}
                   className="text-zinc-900 focus:ring-0"
                 />
-                <span>Toàn bộ phân cảnh ({applyToAll ? 'Đã chọn' : ''})</span>
+                <span>Toàn bộ video ({applyToAll ? 'Đã chọn' : ''})</span>
               </label>
             </div>
           </div>
@@ -343,13 +439,13 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
         {/* Footer */}
         <div className="px-5 py-3 border-t border-black/[0.08] bg-zinc-50 flex items-center justify-between">
           <span className="text-[11px] text-zinc-500 font-mono">
-            {selectedVoice.name} • {speed}x • {pitch}x
+            {selectedVoice.name} • {selectedLanguage.toUpperCase()} • {speed}x
           </span>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-600 hover:text-zinc-900 bg-zinc-100 hover:bg-zinc-200 transition cursor-pointer"
+              className="px-3.5 py-1.5 rounded-lg text-xs font-medium text-zinc-600 hover:text-zinc-900 bg-zinc-100 hover:bg-zinc-200 transition cursor-pointer"
             >
               Hủy
             </button>
