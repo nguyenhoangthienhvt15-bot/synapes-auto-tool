@@ -1084,6 +1084,10 @@ function processWebhookPayload(payload) {
       return handleForgotPasswordWebhook(ss, payload);
     }
 
+    if (action === "change_password") {
+      return handleChangePasswordWebhook(ss, payload);
+    }
+
     if (action === "approve_user") {
       var uSheet = getUsersSheet(ss, true);
       var target = findOrCreateUserRowByEmail(uSheet, payload.email);
@@ -1259,6 +1263,125 @@ function handleForgotPasswordWebhook(ss, payload) {
     status: "success",
     action: "forgot_password",
     emailSent: mailRes.success
+  };
+}
+
+/**
+ * Xử lý khi người dùng đổi mật khẩu cá nhân mới trên WebApp:
+ * - Xóa mật khẩu tạm trên cả 2 trang tính và thay bằng mã băm một chiều (🔒 Đã mã hóa [BCRYPT$...])
+ *   để Dev/Kỹ sư hoàn toàn không biết mật khẩu riêng của người dùng, nhưng người dùng đăng nhập
+ *   ở bất kỳ thiết bị nào vẫn đối chiếu mã băm thành công.
+ * - Cập nhật trạng thái "🟢 Đã tạo mật khẩu mới" / "🟢 Khách đã đổi pass riêng" trên Google Sheet.
+ */
+function handleChangePasswordWebhook(ss, payload) {
+  var code = String(payload.code || "").trim().toUpperCase();
+  var email = String(payload.email || "").trim().toLowerCase();
+  var passwordHash = String(payload.passwordHash || "").trim();
+  var fullName = String(payload.fullName || "").trim();
+
+  if (!code && !email) {
+    return { status: "error", message: "Missing code or email" };
+  }
+
+  var nowStr = Utilities.formatDate(new Date(), "GMT+7", "dd/MM/yyyy HH:mm");
+  var maskedPassValue = passwordHash
+    ? "🔒 Đã mã hóa [" + passwordHash + "]"
+    : "🔒 Đã ẩn (Khách đã đổi MK)";
+
+  // 1. Cập nhật trên trang "THÔNG TIN NGƯỜI DÙNG"
+  var uSheet = getUsersSheet(ss, false);
+  if (uSheet && uSheet.getLastRow() >= 2) {
+    var uData = uSheet.getRange(2, 1, uSheet.getLastRow() - 1, 13).getDisplayValues();
+    for (var i = 0; i < uData.length; i++) {
+      var rMail = String(uData[i][5] || "").trim().toLowerCase();
+      var rCode = String(uData[i][9] || "").trim().toUpperCase();
+      if ((code && rCode === code) || (email && rMail === email)) {
+        var rIdx = i + 2;
+        if (!code && rCode) code = rCode;
+        if (!fullName && uData[i][2]) fullName = uData[i][2];
+        if (!email && rMail) email = rMail;
+        uSheet
+          .getRange(rIdx, 11)
+          .setValue(maskedPassValue)
+          .setFontWeight("bold")
+          .setFontColor("#0f766e")
+          .setHorizontalAlignment("center");
+        uSheet
+          .getRange(rIdx, 12)
+          .setValue("🟢 Đã tạo mật khẩu mới (" + nowStr + ")")
+          .setFontColor("#15803d")
+          .setFontWeight("bold");
+        uSheet
+          .getRange(rIdx, 13)
+          .setValue("Đã ký hợp đồng | 🟢 Đã tạo mật khẩu mới");
+        break;
+      }
+    }
+  }
+
+  // 2. Cập nhật trên trang "Quản Lý Mật Khẩu"
+  var accSheet = getAccountsSheet(ss);
+  if (accSheet) {
+    var maxRow = Math.max(accSheet.getLastRow(), 5);
+    var accData = accSheet.getRange(1, 1, maxRow, 9).getDisplayValues();
+    var startDataRow = 5;
+    for (var h = 0; h < Math.min(accData.length, 6); h++) {
+      var colBHeader = String(accData[h][1] || "").toLowerCase();
+      if (colBHeader.indexOf("mã code") !== -1 || colBHeader.indexOf("mã khách hàng") !== -1) {
+        startDataRow = h + 2;
+        break;
+      }
+    }
+
+    var foundAccRow = -1;
+    for (var j = startDataRow - 1; j < accData.length; j++) {
+      var cCode = String(accData[j][1] || "").trim().toUpperCase();
+      var cMail = String(accData[j][3] || "").trim().toLowerCase();
+      if ((code && cCode === code) || (email && cMail !== "" && cMail === email)) {
+        foundAccRow = j + 1;
+        break;
+      }
+    }
+
+    if (foundAccRow !== -1) {
+      accSheet
+        .getRange(foundAccRow, 5)
+        .setValue(maskedPassValue)
+        .setFontWeight("bold")
+        .setFontColor("#0f766e");
+      accSheet.getRange(foundAccRow, 6).setValue(nowStr).setHorizontalAlignment("center");
+      try {
+        accSheet.getRange(foundAccRow, 7).setValue("🟢 Khách đã đổi pass riêng");
+      } catch (err) {}
+      if (accSheet.getMaxColumns() >= 9) {
+        accSheet
+          .getRange(foundAccRow, 9)
+          .setValue("🟢 Đã tạo mật khẩu mới (" + nowStr + ") — Mật khẩu riêng đã ẩn bảo mật");
+      }
+    } else if (code) {
+      syncAccountToMainSheet(code, fullName || "Khách hàng SYNAPES", email, maskedPassValue, "", "", false);
+      var newMaxRow = accSheet.getLastRow();
+      for (var k = startDataRow; k <= newMaxRow; k++) {
+        var checkCode = String(accSheet.getRange(k, 2).getDisplayValue() || "").trim().toUpperCase();
+        if (checkCode === code) {
+          try {
+            accSheet.getRange(k, 7).setValue("🟢 Khách đã đổi pass riêng");
+          } catch (err2) {}
+          if (accSheet.getMaxColumns() >= 9) {
+            accSheet
+              .getRange(k, 9)
+              .setValue("🟢 Đã tạo mật khẩu mới (" + nowStr + ") — Mật khẩu riêng đã ẩn bảo mật");
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  return {
+    status: "success",
+    action: "change_password",
+    code: code
   };
 }
 

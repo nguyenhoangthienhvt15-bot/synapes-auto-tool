@@ -6,8 +6,8 @@ import {
   INITIAL_SHEET_ROWS, INITIAL_SKILLS
 } from './data/mockData';
 import {
-  fetchGoogleSheetLive, getCachedSheetRows, getLastSyncTime,
-  getCustomPasswords, saveCustomPassword, getStoredRegistrations
+  fetchGoogleSheetLive, getCachedSheetRows, cacheSheetRows, getLastSyncTime,
+  saveCustomPassword, getStoredRegistrations, verifyAccountLogin
 } from './services/googleSheetService';
 import {
   getActiveSession, setActiveSession, clearActiveSession,
@@ -174,15 +174,8 @@ export function App() {
       return false;
     }
 
-    const customPasswords = getCustomPasswords();
-    const savedCustomPass = customPasswords[codeClean];
-    const rowPass = (row.currentTempPassword || '').trim();
-
-    const isTemp = rowPass === passClean || rowPass.toLowerCase() === passClean.toLowerCase();
-    const isCustomMatch = !!(savedCustomPass && savedCustomPass === passClean);
-    const isMasterFallback = passClean === 'Password123' || passClean === '123456' || passClean === 'AutoPass@8912';
-
-    if (!isTemp && !isCustomMatch && !isMasterFallback) {
+    const authCheck = verifyAccountLogin(codeClean, passClean, row);
+    if (!authCheck.valid) {
       return false;
     }
 
@@ -191,7 +184,7 @@ export function App() {
       name: row.clientName,
       email: row.registeredGmail,
       isLoggedIn: true,
-      isDefaultPassword: isTemp && row.accountStatus !== 'custom_password_active',
+      isDefaultPassword: authCheck.isDefaultPassword,
     };
 
     try {
@@ -232,26 +225,34 @@ export function App() {
   const handleForceChangePassword = (newPass: string) => {
     if (!currentUser) return;
     const now = new Date();
-    const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+    const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
 
-    saveCustomPassword(currentUser.code, newPass);
+    const passHash = saveCustomPassword(
+      currentUser.code,
+      newPass,
+      currentUser.email,
+      currentUser.name
+    );
 
     const updated = sheetRows.map((r) => {
-      if (r.code === currentUser.code) {
+      if (r.code.toUpperCase() === currentUser.code.toUpperCase()) {
         return {
           ...r,
+          currentTempPassword: `🔒 Đã mã hóa [${passHash}]`,
+          lastIssuedTime: timeString,
           accountStatus: 'custom_password_active' as const,
-          engineerNotes: `${r.engineerNotes} | [${timeString}] Đã kích hoạt mật khẩu riêng.`,
+          engineerNotes: `${r.engineerNotes} | 🟢 Đã tạo mật khẩu mới (${timeString})`,
         };
       }
       return r;
     });
 
     setSheetRows(updated);
+    cacheSheetRows(updated);
     const updatedUser = { ...currentUser, isDefaultPassword: false };
     setCurrentUser(updatedUser);
     setActiveSession(updatedUser);
-    showToast('Đã kích hoạt mật khẩu riêng thành công!');
+    showToast('🔒 Đã tạo mật khẩu cá nhân mới (mã hóa bảo mật) và cập nhật trạng thái lên Google Sheet!');
   };
 
   const handleSendTempPasswordEmail = (email: string, code: string, tempPass: string) => {

@@ -6,7 +6,7 @@ import {
   generateUserPassword,
   generateUserCode,
   getStoredRegistrations,
-  saveCustomPassword,
+  resetToTempPassword,
   fetchGoogleSheetLive,
   sendForgotPasswordViaSheet,
 } from '../services/googleSheetService';
@@ -212,7 +212,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       });
 
       onUpdateSheetRow(updatedRows);
-      saveCustomPassword(matchedCode, newDefaultPass);
+      resetToTempPassword(matchedCode, newDefaultPass);
 
       // 4. Gửi lệnh lên Google Sheet Apps Script để cập nhật mật khẩu trên cả 2 tab Sheet & gửi Gmail thực tế cho khách hàng
       await sendForgotPasswordViaSheet({
