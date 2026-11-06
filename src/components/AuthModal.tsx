@@ -66,7 +66,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return false;
     }
   });
-  const [forgotSuccessData, setForgotSuccessData] = useState<{ tempPass: string; email: string; code: string } | null>(null);
+  const [forgotSuccessData, setForgotSuccessData] = useState<{ email: string; code: string } | null>(null);
   const [forgotError, setForgotError] = useState<string | null>(null);
   const [isSubmittingForgot, setIsSubmittingForgot] = useState(false);
 
@@ -233,7 +233,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       } catch {}
 
       setForgotSuccessData({
-        tempPass: newDefaultPass,
         email: emailClean,
         code: matchedCode,
       });
@@ -613,20 +612,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </form>
             ) : (
               <div className="space-y-3 text-xs animate-in fade-in">
-                <div className="p-3.5 rounded-lg bg-zinc-50 border border-black/[0.06] space-y-2 text-zinc-800">
+                <div className="p-3.5 rounded-lg bg-zinc-50 border border-black/[0.06] space-y-2.5 text-zinc-800">
                   <div className="text-zinc-950 font-semibold flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Đã gửi mật khẩu mới về Gmail!
                   </div>
                   <p className="leading-relaxed">
-                    Hệ thống đã tạo lại mật khẩu mặc định mới cho Mã Code: <strong className="text-zinc-950 font-mono">{forgotSuccessData.code}</strong> và gửi đến Gmail: <strong className="text-zinc-950 font-mono">{forgotSuccessData.email}</strong>.
+                    Hệ thống đã tạo lại mật khẩu mặc định mới cho Mã Code: <strong className="text-zinc-950 font-mono">{forgotSuccessData.code}</strong> và gửi trực tiếp đến hộp thư Gmail: <strong className="text-zinc-950 font-mono">{forgotSuccessData.email}</strong>.
                   </p>
-                  <div className="p-2 bg-white rounded border border-black/[0.06]">
-                    <div className="text-[10px] text-zinc-500 font-mono">Mật khẩu mặc định mới cấp:</div>
-                    <div className="text-zinc-950 font-mono font-bold mt-0.5 text-sm text-emerald-600">{forgotSuccessData.tempPass}</div>
+                  <div className="p-2.5 bg-white rounded-lg border border-black/[0.06] text-[11px] text-zinc-600 leading-relaxed">
+                    🔒 <strong>Bảo mật tài khoản:</strong> Mật khẩu cấp mới không hiển thị trên trang Web. Vui lòng mở hộp thư đến (hoặc mục Spam/Quảng cáo) của Gmail đã đăng ký để nhận mật khẩu và đăng nhập.
                   </div>
-                  <p className="text-[11px] text-zinc-500 italic">
-                    Vui lòng kiểm tra hộp thư đến (hoặc hòm thư Spam) để hoàn tất đăng nhập.
-                  </p>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">
@@ -641,12 +636,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     type="button"
                     onClick={() => {
                       setLoginCode(forgotSuccessData.code);
-                      setLoginPass(forgotSuccessData.tempPass);
+                      setLoginPass('');
                       setShowForgotModal(false);
                     }}
                     className="btn-primary cursor-pointer"
                   >
-                    Điền & Đăng Nhập Ngay
+                    Quay Lại Đăng Nhập
                   </button>
                 </div>
               </div>
