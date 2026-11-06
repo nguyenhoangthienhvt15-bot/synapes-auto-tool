@@ -14,6 +14,8 @@ import {
   callAppsScriptWebhook,
   flushPendingWebhookQueue,
   isValidWebhookUrl,
+  resetToTempPassword,
+  isPasswordMaskedOrHashed,
 } from '../services/googleSheetService';
 import { APPS_SCRIPT_CODE } from '../data/appsScriptCode';
 import { downloadMasterPdfFile, printPersonalizedContractPdf } from '../utils/contractPdfGenerator';
@@ -135,6 +137,7 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
     });
 
     onUpdateSheetRow(updated);
+    resetToTempPassword(row.code, generatedPass);
     onSendTempPasswordEmail(row.registeredGmail, row.code, generatedPass);
     showToast(`Đã cấp mật khẩu [${generatedPass}] cho mã ${row.code} và đồng bộ.`);
     setSelectedRow(null);
@@ -359,16 +362,22 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
                       {row.registeredGmail}
                     </td>
                     <td className="py-2.5 px-3.5 font-mono text-zinc-800 font-medium">
-                      {row.currentTempPassword}
+                      {row.accountStatus === 'custom_password_active' || isPasswordMaskedOrHashed(row.currentTempPassword) ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 text-emerald-800 border border-emerald-200" title="Mật khẩu riêng của người dùng đã được băm bảo mật một chiều (Dev/Kỹ sư không thể xem)">
+                          <span>🔒 Đã ẩn (Khách đã đổi MK)</span>
+                        </span>
+                      ) : (
+                        row.currentTempPassword
+                      )}
                     </td>
                     <td className="py-2.5 px-3.5 text-zinc-500 font-mono text-[11px]">
                       {row.lastIssuedTime}
                     </td>
                     <td className="py-2.5 px-3.5">
-                      {row.accountStatus === 'custom_password_active' ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-zinc-100 text-zinc-800 border border-zinc-200">
-                          <CheckCircle2 className="w-2.5 h-2.5 text-zinc-700" />
-                          <span>ĐÃ ĐỔI PASS</span>
+                      {row.accountStatus === 'custom_password_active' || isPasswordMaskedOrHashed(row.currentTempPassword) ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                          <span>ĐÃ TẠO MẬT KHẨU MỚI</span>
                         </span>
                       ) : row.accountStatus === 'temp_password_active' ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-zinc-100 text-zinc-800 border border-zinc-200">
@@ -468,7 +477,11 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
                           <div>
                             <div className="font-bold text-zinc-950">{reg.assignedCode}</div>
                             {reg.assignedPassword && (
-                              <div className="text-red-600 font-medium">{reg.assignedPassword}</div>
+                              isPasswordMaskedOrHashed(reg.assignedPassword) ? (
+                                <div className="text-emerald-700 font-semibold">🔒 Đã tạo mật khẩu mới (Đã ẩn)</div>
+                              ) : (
+                                <div className="text-red-600 font-medium">{reg.assignedPassword}</div>
+                              )
                             )}
                           </div>
                         ) : (
@@ -529,7 +542,11 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-zinc-500">Pass tạm hiện tại:</span>
-                  <span className="text-zinc-900 font-medium">{selectedRow.currentTempPassword}</span>
+                  <span className="text-zinc-900 font-medium">
+                    {selectedRow.accountStatus === 'custom_password_active' || isPasswordMaskedOrHashed(selectedRow.currentTempPassword)
+                      ? '🔒 Đã ẩn (Khách đã tạo mật khẩu mới)'
+                      : selectedRow.currentTempPassword}
+                  </span>
                 </div>
               </div>
 
