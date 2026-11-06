@@ -192,18 +192,17 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   const speakSceneVoiceover = useCallback(
     (scene: StoryboardScene | undefined) => {
       if (!scene || !isPlaying || isMuted) {
-        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        synthRef.current?.stopSceneVoiceover();
         if (currentAudioElementRef.current) {
           currentAudioElementRef.current.pause();
           currentAudioElementRef.current = null;
         }
-        synthRef.current?.duckBgm(false);
         return;
       }
 
       // If user directly recorded their voice for this scene
       if (scene.customAudioUrl) {
-        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        synthRef.current?.stopSceneVoiceover();
         if (currentAudioElementRef.current) {
           currentAudioElementRef.current.pause();
         }
@@ -214,60 +213,27 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         return;
       }
 
-      // Otherwise play TTS with strict language isolation
-      if (!isTtsEnabled || !('speechSynthesis' in window)) return;
+      // Otherwise play Neural TTS through Web Audio API WSOLA Formant Vocoder
+      if (!isTtsEnabled) return;
 
-      try {
-        window.speechSynthesis.cancel();
-        const isEnglish = scene.voiceLanguage === 'en';
-        const targetLang = isEnglish ? 'en-US' : 'vi-VN';
+      const isEnglish = scene.voiceLanguage === 'en';
+      const voiceProfile =
+        ALL_VOICE_PROFILES.find((v) => v.id === scene.voiceId) ||
+        (isEnglish ? ENGLISH_VOICE_PROFILES[0] : VIETNAMESE_VOICE_PROFILES[0]);
 
-        const utterance = new SpeechSynthesisUtterance(scene.voiceover);
-        utterance.lang = targetLang;
+      const sceneDur = Math.max(3, scene.endSec - scene.startSec);
+      const wordCount = scene.voiceover.split(/\s+/).length;
+      const autoRate = Math.max(0.9, Math.min(1.4, wordCount / (sceneDur * 3.0)));
 
-        const voiceProfile =
-          ALL_VOICE_PROFILES.find((v) => v.id === scene.voiceId) ||
-          (isEnglish ? ENGLISH_VOICE_PROFILES[0] : VIETNAMESE_VOICE_PROFILES[0]);
+      const rateToUse = scene.voiceSpeed || voiceProfile.rate || autoRate;
+      const pitchToUse = scene.voicePitch || voiceProfile.pitch || 1.0;
 
-        const voices = window.speechSynthesis.getVoices();
-        if (isEnglish) {
-          const enVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
-          const matchedEn =
-            voiceProfile.gender === 'Female' || voiceProfile.gender === 'Nữ'
-              ? enVoices.find((v) => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('zira') || v.name.toLowerCase().includes('samantha')) || enVoices[0]
-              : enVoices.find((v) => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('david') || v.name.toLowerCase().includes('guy')) || enVoices[0];
-          if (matchedEn) utterance.voice = matchedEn;
-        } else {
-          const viVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('vi'));
-          const matchedVi =
-            voiceProfile.gender === 'Nữ' || voiceProfile.gender === 'Female'
-              ? viVoices.find((v) => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('nu')) || viVoices[0]
-              : viVoices.find((v) => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('nam')) || viVoices[0];
-          if (matchedVi) utterance.voice = matchedVi;
-        }
-
-        const sceneDur = Math.max(3, scene.endSec - scene.startSec);
-        const wordCount = scene.voiceover.split(/\s+/).length;
-        const autoRate = Math.max(0.9, Math.min(1.4, wordCount / (sceneDur * 3.0)));
-
-        utterance.rate = scene.voiceSpeed || voiceProfile.rate || autoRate;
-        utterance.pitch = scene.voicePitch || voiceProfile.pitch || 1.0;
-        utterance.volume = 1.0;
-
-        utterance.onstart = () => {
-          synthRef.current?.duckBgm(true);
-        };
-        utterance.onend = () => {
-          synthRef.current?.duckBgm(false);
-        };
-        utterance.onerror = () => {
-          synthRef.current?.duckBgm(false);
-        };
-
-        window.speechSynthesis.speak(utterance);
-      } catch {
-        // Ignore TTS errors
-      }
+      synthRef.current?.speakSceneWithNeuralVoice(
+        scene.voiceover,
+        voiceProfile,
+        rateToUse,
+        pitchToUse
+      );
     },
     [isPlaying, isMuted, isTtsEnabled]
   );
@@ -275,9 +241,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   // Trigger TTS & SFX when current scene changes
   useEffect(() => {
     if (!isPlaying) {
-      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      synthRef.current?.stopSceneVoiceover();
       currentSpokenSceneRef.current = null;
-      synthRef.current?.duckBgm(false);
       return;
     }
 
