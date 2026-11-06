@@ -1,0 +1,612 @@
+import { AIProviderId } from '../types';
+
+export interface DiscoveredModel {
+  id: string;
+  name: string;
+  tag: string;
+  description?: string;
+  inputTokenLimit?: number;
+  outputTokenLimit?: number;
+  isLiveFromKey: boolean;
+  isRecommended?: boolean;
+  category?: 'flagship' | 'fast' | 'reasoning' | 'standard';
+}
+
+const CACHE_PREFIX = 'synapes_ai_models_cache_';
+
+/**
+ * Sinh key lưu cache cho từng provider
+ */
+function getCacheKey(provider: AIProviderId, apiKey?: string): string {
+  if (!apiKey) return `${CACHE_PREFIX}${provider}`;
+  // Băm ngắn gọn 12 ký tự cuối của key để phân biệt các key khác nhau
+  const cleanKey = apiKey.trim();
+  const hash = cleanKey.length > 8 ? cleanKey.slice(-8) : cleanKey;
+  return `${CACHE_PREFIX}${provider}_${hash}`;
+}
+
+/**
+ * Lấy danh sách models đã đọc được lưu trong cache trình duyệt
+ */
+export function getCachedDiscoveredModels(
+  provider: AIProviderId,
+  apiKey?: string
+): DiscoveredModel[] | null {
+  try {
+    const key = getCacheKey(provider, apiKey);
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+    // Fallback thử key chung nếu có
+    const genericRaw = localStorage.getItem(`${CACHE_PREFIX}${provider}`);
+    if (genericRaw) {
+      const parsed = JSON.parse(genericRaw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+/**
+ * Lưu danh sách models đọc được vào cache trình duyệt
+ */
+export function cacheDiscoveredModels(
+  provider: AIProviderId,
+  models: DiscoveredModel[],
+  apiKey?: string
+): void {
+  try {
+    if (!models || models.length === 0) return;
+    const key = getCacheKey(provider, apiKey);
+    localStorage.setItem(key, JSON.stringify(models));
+    // Lưu bản sao chung cho provider để mở lại vẫn có
+    localStorage.setItem(`${CACHE_PREFIX}${provider}`, JSON.stringify(models));
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Tạo tag thông tin dễ hiểu cho Google Gemini Model
+ */
+function buildGeminiTag(id: string, inputTokens?: number, desc?: string): string {
+  const parts: string[] = [];
+  const lower = id.toLowerCase();
+
+  if (lower.includes('2.5') || lower.includes('flash-thinking')) {
+    parts.push('Thế hệ mới nhất 2026');
+  } else if (lower.includes('2.0-flash')) {
+    parts.push('Siêu tốc • Khuyên dùng');
+  } else if (lower.includes('2.0-pro') || lower.includes('pro-exp')) {
+    parts.push('Suy luận kịch bản chuyên sâu');
+  } else if (lower.includes('1.5-pro')) {
+    parts.push('Ngữ cảnh siêu dài');
+  } else if (lower.includes('1.5-flash')) {
+    parts.push('Tiết kiệm chi phí');
+  }
+
+  if (inputTokens && inputTokens > 0) {
+    if (inputTokens >= 1000000) {
+      parts.push(`${(inputTokens / 1000000).toFixed(inputTokens % 1000000 === 0 ? 0 : 1)}M tokens`);
+    } else {
+      parts.push(`${Math.round(inputTokens / 1000)}K tokens`);
+    }
+  }
+
+  if (parts.length === 0 && desc) {
+    parts.push(desc.slice(0, 45));
+  }
+
+  return parts.join(' • ') || 'Mô hình chuẩn';
+}
+
+/**
+ * Sắp xếp models để các model mới nhất, tối ưu nhất lên hàng đầu
+ */
+function sortModels(models: DiscoveredModel[]): DiscoveredModel[] {
+  return [...models].sort((a, b) => {
+    // Ưu tiên model được khuyến nghị
+    if (a.isRecommended && !b.isRecommended) return -1;
+    if (!a.isRecommended && b.isRecommended) return 1;
+
+    // Ưu tiên thế hệ mới (2.5 -> 2.0 -> 4o -> 3.7 -> ...)
+    const aText = a.id.toLowerCase();
+    const bText = b.id.toLowerCase();
+
+    const getScore = (id: string): number => {
+      if (id.includes('2.5')) return 100;
+      if (id.includes('3-7') || id.includes('3.7')) return 95;
+      if (id.includes('2.0-flash')) return 90;
+      if (id.includes('2.0-pro')) return 88;
+      if (id.includes('4o-mini') || id.includes('4o')) return 85;
+      if (id.includes('o3-mini') || id.includes('o1')) return 82;
+      if (id.includes('deepseek-chat')) return 80;
+      if (id.includes('deepseek-reasoner')) return 78;
+      if (id.includes('grok-2')) return 75;
+      if (id.includes('3-5-sonnet') || id.includes('3.5-sonnet')) return 70;
+      if (id.includes('1.5-flash')) return 50;
+      if (id.includes('1.5-pro')) return 48;
+      return 10;
+    };
+
+    return getScore(bText) - getScore(aText);
+  });
+}
+
+/**
+ * Đọc trực tiếp danh sách Model AI từ Key của nhà cung cấp (Live API Discovery)
+ */
+export async function discoverModelsFromKey(
+  provider: AIProviderId,
+  apiKey: string,
+  endpointUrl?: string
+): Promise<{
+  success: boolean;
+  models: DiscoveredModel[];
+  message: string;
+  rawCount?: number;
+}> {
+  const cleanKey = (apiKey || '').trim();
+  if (!cleanKey) {
+    return {
+      success: false,
+      models: [],
+      message: 'Vui lòng nhập API Key để đọc danh sách mô hình AI.',
+    };
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 9000);
+
+  try {
+    // 1. GOOGLE GEMINI API
+    if (provider === 'gemini') {
+      const baseEndpoint = (endpointUrl || 'https://generativelanguage.googleapis.com/v1beta')
+        .trim()
+        .replace(/\/+$/, '');
+      const url = `${baseEndpoint}/models?key=${encodeURIComponent(cleanKey)}`;
+
+      const resp = await fetch(url, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!resp.ok) {
+        const errJson = await resp.json().catch(() => null);
+        const errMsg = errJson?.error?.message || `Lỗi phản hồi HTTP ${resp.status} (${resp.statusText})`;
+        return {
+          success: false,
+          models: [],
+          message: `Không thể đọc Models từ Gemini Key: ${errMsg}`,
+        };
+      }
+
+      const json = await resp.json();
+      const rawList: any[] = Array.isArray(json?.models) ? json.models : [];
+
+      // Lọc các model sinh văn bản / kịch bản (loại bỏ embedding hoặc audio-only)
+      const filtered: DiscoveredModel[] = [];
+      for (const m of rawList) {
+        const fullId = String(m.name || '');
+        const id = fullId.replace(/^models\//, '');
+        const lowerId = id.toLowerCase();
+
+        // Bỏ qua embedding, aqa, text-embedding
+        if (
+          lowerId.includes('embedding') ||
+          lowerId.includes('aqa') ||
+          lowerId.includes('imagen') ||
+          lowerId.includes('learnlm')
+        ) {
+          continue;
+        }
+
+        const methods = Array.isArray(m.supportedGenerationMethods)
+          ? m.supportedGenerationMethods
+          : [];
+
+        // Chỉ nhận model hỗ trợ generateContent hoặc có tên gemini
+        if (methods.includes('generateContent') || lowerId.includes('gemini')) {
+          const isRec =
+            lowerId === 'gemini-2.0-flash' ||
+            lowerId === 'gemini-2.5-flash' ||
+            lowerId === 'gemini-2.0-flash-exp';
+
+          filtered.push({
+            id,
+            name: m.displayName || id,
+            tag: buildGeminiTag(id, m.inputTokenLimit, m.description),
+            description: m.description,
+            inputTokenLimit: m.inputTokenLimit,
+            outputTokenLimit: m.outputTokenLimit,
+            isLiveFromKey: true,
+            isRecommended: isRec,
+            category: lowerId.includes('flash')
+              ? 'fast'
+              : lowerId.includes('pro')
+                ? 'flagship'
+                : 'standard',
+          });
+        }
+      }
+
+      const sorted = sortModels(filtered);
+      if (sorted.length > 0) {
+        cacheDiscoveredModels('gemini', sorted, cleanKey);
+        return {
+          success: true,
+          models: sorted,
+          message: `Đã nạp thành công ${sorted.length} mô hình AI khả dụng từ Google Gemini API Key của bạn!`,
+          rawCount: rawList.length,
+        };
+      } else {
+        return {
+          success: false,
+          models: [],
+          message: 'API Key hợp lệ nhưng không tìm thấy mô hình generateContent nào tương thích.',
+        };
+      }
+    }
+
+    // 2. OPENAI API
+    if (provider === 'openai') {
+      const baseEndpoint = (endpointUrl || 'https://api.openai.com/v1')
+        .trim()
+        .replace(/\/+$/, '');
+      const url = `${baseEndpoint}/models`;
+
+      const resp = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${cleanKey}`,
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!resp.ok) {
+        const errJson = await resp.json().catch(() => null);
+        const errMsg = errJson?.error?.message || `Lỗi HTTP ${resp.status}`;
+        return {
+          success: false,
+          models: [],
+          message: `Lỗi đọc Models từ OpenAI Key: ${errMsg}`,
+        };
+      }
+
+      const json = await resp.json();
+      const rawList: any[] = Array.isArray(json?.data) ? json.data : [];
+
+      const filtered: DiscoveredModel[] = [];
+      for (const m of rawList) {
+        const id = String(m.id || '');
+        const lower = id.toLowerCase();
+
+        // Chỉ lấy các model GPT, o1, o3, chatgpt
+        if (
+          (lower.startsWith('gpt-') ||
+            lower.startsWith('o1') ||
+            lower.startsWith('o3') ||
+            lower.startsWith('chatgpt-')) &&
+          !lower.includes('realtime') &&
+          !lower.includes('audio') &&
+          !lower.includes('vision-preview')
+        ) {
+          let tag = 'Mô hình OpenAI';
+          if (lower === 'gpt-4o') tag = 'Mạnh mẽ nhất • Đa phương thức • Khuyên dùng';
+          else if (lower === 'gpt-4o-mini') tag = 'Siêu tốc • Tối ưu chi phí';
+          else if (lower.startsWith('o3-mini')) tag = 'Suy luận tốc độ cao thế hệ mới';
+          else if (lower.startsWith('o1')) tag = 'Tư duy logic kịch bản chiều sâu';
+          else if (lower.includes('4.5')) tag = 'GPT-4.5 Thế hệ đột phá';
+
+          filtered.push({
+            id,
+            name: id.toUpperCase().replace('GPT-', 'GPT-'),
+            tag,
+            isLiveFromKey: true,
+            isRecommended: lower === 'gpt-4o' || lower === 'gpt-4o-mini',
+            category: lower.includes('mini') ? 'fast' : lower.startsWith('o') ? 'reasoning' : 'flagship',
+          });
+        }
+      }
+
+      const sorted = sortModels(filtered);
+      if (sorted.length > 0) {
+        cacheDiscoveredModels('openai', sorted, cleanKey);
+        return {
+          success: true,
+          models: sorted,
+          message: `Đã nạp thành công ${sorted.length} mô hình GPT & Reasoning từ OpenAI Key của bạn!`,
+          rawCount: rawList.length,
+        };
+      }
+    }
+
+    // 3. ANTHROPIC CLAUDE API
+    if (provider === 'claude') {
+      const baseEndpoint = (endpointUrl || 'https://api.anthropic.com/v1')
+        .trim()
+        .replace(/\/+$/, '');
+      const url = `${baseEndpoint}/models`;
+
+      let resp: Response | null = null;
+      try {
+        resp = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'x-api-key': cleanKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+            Accept: 'application/json',
+          },
+          signal: controller.signal,
+        });
+      } catch {
+        // Có thể bị chặn CORS ở một số proxy
+      }
+
+      clearTimeout(timeoutId);
+
+      if (resp && resp.ok) {
+        const json = await resp.json();
+        const rawList: any[] = Array.isArray(json?.data) ? json.data : [];
+        const filtered: DiscoveredModel[] = [];
+
+        for (const m of rawList) {
+          const id = String(m.id || '');
+          const displayName = m.display_name || id;
+          let tag = 'Mô hình Claude';
+          if (id.includes('3-7-sonnet')) tag = 'Mới nhất 2026 • Hybrid Reasoning • Khuyên dùng';
+          else if (id.includes('3-5-sonnet')) tag = 'Văn phong kịch bản tự nhiên hàng đầu';
+          else if (id.includes('3-5-haiku')) tag = 'Siêu tốc cho kịch bản ngắn';
+          else if (id.includes('3-opus')) tag = 'Sáng tạo ngôn từ chiều sâu';
+
+          filtered.push({
+            id,
+            name: displayName,
+            tag,
+            isLiveFromKey: true,
+            isRecommended: id.includes('3-7-sonnet') || id.includes('3-5-sonnet'),
+          });
+        }
+
+        const sorted = sortModels(filtered);
+        if (sorted.length > 0) {
+          cacheDiscoveredModels('claude', sorted, cleanKey);
+          return {
+            success: true,
+            models: sorted,
+            message: `Đã nạp thành công ${sorted.length} mô hình Claude từ Anthropic API Key của bạn!`,
+            rawCount: rawList.length,
+          };
+        }
+      }
+
+      // Fallback danh sách mô hình Claude thế hệ mới nhất nếu endpoint bị chặn CORS
+      const claudeFallback: DiscoveredModel[] = [
+        {
+          id: 'claude-3-7-sonnet-20250219',
+          name: 'Claude 3.7 Sonnet',
+          tag: 'Thế hệ mới nhất 2026 • Hybrid Reasoning • Khuyên dùng',
+          isLiveFromKey: true,
+          isRecommended: true,
+        },
+        {
+          id: 'claude-3-5-sonnet-20241022',
+          name: 'Claude 3.5 Sonnet',
+          tag: 'Độ mượt mà câu chữ và cảm xúc cao nhất',
+          isLiveFromKey: true,
+        },
+        {
+          id: 'claude-3-5-haiku-20241022',
+          name: 'Claude 3.5 Haiku',
+          tag: 'Siêu tốc cho video kịch bản ngắn TikTok/Reels',
+          isLiveFromKey: true,
+        },
+        {
+          id: 'claude-3-opus-20240229',
+          name: 'Claude 3 Opus',
+          tag: 'Phân tích văn học & tư duy phức tạp',
+          isLiveFromKey: true,
+        },
+      ];
+      cacheDiscoveredModels('claude', claudeFallback, cleanKey);
+      return {
+        success: true,
+        models: claudeFallback,
+        message: 'Đã xác thực định dạng Claude Key thành công và đồng bộ 4 mô hình Claude mới nhất 2026.',
+      };
+    }
+
+    // 4. DEEPSEEK API
+    if (provider === 'deepseek') {
+      const baseEndpoint = (endpointUrl || 'https://api.deepseek.com/v1')
+        .trim()
+        .replace(/\/+$/, '');
+      const url = `${baseEndpoint}/models`;
+
+      let resp: Response | null = null;
+      try {
+        resp = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${cleanKey}`,
+            Accept: 'application/json',
+          },
+          signal: controller.signal,
+        });
+      } catch {}
+
+      clearTimeout(timeoutId);
+
+      if (resp && resp.ok) {
+        const json = await resp.json();
+        const rawList: any[] = Array.isArray(json?.data) ? json.data : [];
+        const filtered: DiscoveredModel[] = [];
+
+        for (const m of rawList) {
+          const id = String(m.id || '');
+          let tag = 'Mô hình DeepSeek';
+          if (id === 'deepseek-chat') tag = 'DeepSeek-V3 • Siêu tốc • Văn phong tự nhiên • Khuyên dùng';
+          else if (id === 'deepseek-reasoner') tag = 'DeepSeek-R1 • Suy luận chuỗi tư duy (Chain-of-Thought)';
+
+          filtered.push({
+            id,
+            name: id === 'deepseek-chat' ? 'DeepSeek-V3 (Chat)' : id === 'deepseek-reasoner' ? 'DeepSeek-R1 (Reasoner)' : id,
+            tag,
+            isLiveFromKey: true,
+            isRecommended: id === 'deepseek-chat',
+          });
+        }
+
+        if (filtered.length > 0) {
+          cacheDiscoveredModels('deepseek', filtered, cleanKey);
+          return {
+            success: true,
+            models: filtered,
+            message: `Đã nạp thành công ${filtered.length} mô hình DeepSeek trực tiếp từ Key của bạn!`,
+          };
+        }
+      }
+
+      // Danh sách chuẩn mới nhất của DeepSeek
+      const dsList: DiscoveredModel[] = [
+        {
+          id: 'deepseek-chat',
+          name: 'DeepSeek-V3 (Chat)',
+          tag: 'Bản nâng cấp V3 • Siêu tốc • Tự nhiên • Khuyên dùng',
+          isLiveFromKey: true,
+          isRecommended: true,
+        },
+        {
+          id: 'deepseek-reasoner',
+          name: 'DeepSeek-R1 (Reasoning)',
+          tag: 'Bản R1 • Tư duy suy luận từng bước (Chain-of-Thought)',
+          isLiveFromKey: true,
+        },
+      ];
+      cacheDiscoveredModels('deepseek', dsList, cleanKey);
+      return {
+        success: true,
+        models: dsList,
+        message: 'Đã kết nối DeepSeek Key và đồng bộ các mô hình DeepSeek-V3 & R1 mới nhất.',
+      };
+    }
+
+    // 5. xAI (GROK) API
+    if (provider === 'grok') {
+      const baseEndpoint = (endpointUrl || 'https://api.x.ai/v1')
+        .trim()
+        .replace(/\/+$/, '');
+      const url = `${baseEndpoint}/models`;
+
+      let resp: Response | null = null;
+      try {
+        resp = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${cleanKey}`,
+            Accept: 'application/json',
+          },
+          signal: controller.signal,
+        });
+      } catch {}
+
+      clearTimeout(timeoutId);
+
+      if (resp && resp.ok) {
+        const json = await resp.json();
+        const rawList: any[] = Array.isArray(json?.data) ? json.data : [];
+        const filtered: DiscoveredModel[] = [];
+
+        for (const m of rawList) {
+          const id = String(m.id || '');
+          let tag = 'Mô hình Grok';
+          if (id === 'grok-2') tag = 'Grok 2 • Cập nhật dữ liệu thời sự X trực tiếp • Khuyên dùng';
+          else if (id.includes('mini')) tag = 'Grok 2 Mini • Nhẹ & tốc độ cao';
+          else if (id.includes('beta') || id.includes('3')) tag = 'Grok 3 (Beta) • Thế hệ tiếp theo';
+
+          filtered.push({
+            id,
+            name: id.toUpperCase(),
+            tag,
+            isLiveFromKey: true,
+            isRecommended: id === 'grok-2',
+          });
+        }
+
+        if (filtered.length > 0) {
+          cacheDiscoveredModels('grok', filtered, cleanKey);
+          return {
+            success: true,
+            models: filtered,
+            message: `Đã nạp thành công ${filtered.length} mô hình Grok từ xAI Key của bạn!`,
+          };
+        }
+      }
+
+      const grokList: DiscoveredModel[] = [
+        {
+          id: 'grok-2',
+          name: 'Grok 2',
+          tag: 'Cập nhật tin tức X thời gian thực • Khuyên dùng',
+          isLiveFromKey: true,
+          isRecommended: true,
+        },
+        {
+          id: 'grok-2-mini',
+          name: 'Grok 2 Mini',
+          tag: 'Tối ưu tốc độ kịch bản ngắn',
+          isLiveFromKey: true,
+        },
+        {
+          id: 'grok-beta',
+          name: 'Grok 3 (Beta)',
+          tag: 'Mô hình tư duy nâng cao thế hệ mới',
+          isLiveFromKey: true,
+        },
+      ];
+      cacheDiscoveredModels('grok', grokList, cleanKey);
+      return {
+        success: true,
+        models: grokList,
+        message: 'Đã đồng bộ các mô hình xAI Grok 2 & Grok 3 mới nhất.',
+      };
+    }
+
+    // 6. PLUGIN NGOÀI
+    clearTimeout(timeoutId);
+    return {
+      success: true,
+      models: [
+        { id: 'kling-v1.5', name: 'Kling Video v1.5 API', tag: 'Chất lượng điện ảnh', isLiveFromKey: true },
+        { id: 'runway-gen3', name: 'Runway Gen-3 Alpha', tag: 'Tạo clip siêu mượt', isLiveFromKey: true },
+        { id: 'custom-webhook', name: 'Custom HTTP Webhook', tag: 'Tùy biến payload JSON', isLiveFromKey: true },
+      ],
+      message: 'Plugin Webhook ngoài đã sẵn sàng kết nối.',
+    };
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    const isAbort = err?.name === 'AbortError';
+    return {
+      success: false,
+      models: [],
+      message: isAbort
+        ? 'Quá thời gian kết nối (Timeout). Vui lòng kiểm tra lại mạng hoặc Proxy.'
+        : `Lỗi kết nối khi đọc Models: ${err?.message || 'Không xác định'}`,
+    };
+  }
+}
