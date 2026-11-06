@@ -13,7 +13,7 @@ import {
   isPasswordMaskedOrHashed,
 } from '../services/googleSheetService';
 import { APPS_SCRIPT_CODE } from '../data/appsScriptCode';
-import { downloadMasterPdfFile, printPersonalizedContractPdf } from '../utils/contractPdfGenerator';
+import { downloadPersonalizedContractPdf, printPersonalizedContractPdf } from '../utils/contractPdfGenerator';
 
 interface EngineerSheetViewProps {
   sheetRows: EngineerSheetRow[];
@@ -471,15 +471,26 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
                         )}
                       </td>
                       <td className="py-2.5 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => printPersonalizedContractPdf(reg)}
-                          className="btn-secondary py-1 px-2 text-[11px] inline-flex items-center gap-1 mx-auto cursor-pointer"
-                          title="Xem & in bản hợp đồng điện tử có dấu Trưởng ban"
-                        >
-                          <FileText className="w-3 h-3 text-zinc-600" />
-                          <span>Hợp Đồng</span>
-                        </button>
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => printPersonalizedContractPdf(reg)}
+                            className="btn-secondary py-1 px-2 text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                            title="Xem bản hợp đồng điện tử đã ký của khách hàng"
+                          >
+                            <FileText className="w-3 h-3 text-zinc-600" />
+                            <span>Xem HĐ</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => downloadPersonalizedContractPdf(reg)}
+                            className="btn-secondary py-1 px-2 text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                            title="Tải xuống file PDF hợp đồng của khách hàng (Dành cho Kỹ sư/Dev)"
+                          >
+                            <Download className="w-3 h-3 text-emerald-600" />
+                            <span>PDF</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
