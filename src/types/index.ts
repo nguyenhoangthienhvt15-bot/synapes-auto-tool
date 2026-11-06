@@ -7,6 +7,23 @@ export type ProjectStatus =
   | 'published'        // Đã xuất bản
   | 'rejected';        // Cần sửa lại
 
+export interface VoiceProfile {
+  id: string;
+  name: string;
+  gender: 'Nam' | 'Nữ';
+  region: 'Bắc' | 'Nam' | 'Trung' | 'AI Neural';
+  description: string;
+  sampleSentence: string;
+  pitch: number;
+  rate: number;
+  isRecommended?: boolean;
+}
+
+export type ColorGradeLut = 'teal-orange' | 'cyberpunk' | 'studio-clean' | 'vintage-film' | 'monochrome' | 'none';
+export type VfxOverlayType = 'film-grain' | 'light-leak' | 'vignette' | 'anamorphic' | 'none';
+export type SubtitleStyle = 'hormozi' | 'capcut' | 'netflix' | 'cyberpunk' | 'off';
+export type SubtitlePosition = 'bottom' | 'center' | 'top';
+
 export interface StoryboardScene {
   id: number;
   sceneNumber: number;
@@ -17,11 +34,20 @@ export interface StoryboardScene {
   visualPrompt: string;
   clipUrl?: string;
   imageUrl?: string;
+  customMediaUrl?: string;
+  customMediaType?: 'image' | 'video';
   cameraMotion?: 'dolly-in' | 'dolly-out' | 'orbit' | 'pan-right' | 'pan-left' | 'crane-up' | 'fpv-zoom';
   lightingStyle?: 'volumetric' | 'cyberpunk' | 'rembrandt' | 'studio-clean' | 'golden-hour';
+  colorGrade?: ColorGradeLut;
+  vfxOverlay?: VfxOverlayType;
   sfx?: string;
   headline?: string;
   transition?: 'cut' | 'fade' | 'dissolve';
+  voiceId?: string;
+  voiceSpeed?: number;
+  voicePitch?: number;
+  subtitleStyle?: SubtitleStyle;
+  subtitlePosition?: SubtitlePosition;
 }
 
 export interface ProjectMetadata {
