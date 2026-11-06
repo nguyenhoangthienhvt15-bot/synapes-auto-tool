@@ -255,8 +255,8 @@ export function App() {
     showToast('🔒 Đã tạo mật khẩu cá nhân mới (mã hóa bảo mật) và cập nhật trạng thái lên Google Sheet!');
   };
 
-  const handleSendTempPasswordEmail = (email: string, code: string, tempPass: string) => {
-    showToast(`📧 [Gmail System]: Đã gửi mật khẩu tạm [${tempPass}] đến ${email}!`);
+  const handleSendTempPasswordEmail = (email: string, _code: string, _tempPass: string) => {
+    showToast(`📧 Đã gửi mật khẩu cấp mới đến hộp thư Gmail: ${email}. Vui lòng kiểm tra email!`);
   };
 
   const handleUpdateProject = (updated: Project) => {
