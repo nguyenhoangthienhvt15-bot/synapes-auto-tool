@@ -1,93 +1,157 @@
-import { VoiceProfile } from '../types';
+import { VoiceProfile, VoiceLanguage } from '../types';
 
-export const VOICE_PROFILES: VoiceProfile[] = [
+export const VIETNAMESE_VOICE_PROFILES: VoiceProfile[] = [
   {
     id: 'vi-hn-male-1',
     name: 'Anh Hoàng (Hà Nội)',
+    language: 'vi',
     gender: 'Nam',
-    region: 'Bắc',
-    description: 'Trầm ấm, đĩnh đạc, uy lực. Chuẩn giọng review công nghệ cao cấp & phóng sự chuyên sâu.',
+    region: 'Miền Bắc',
+    toneTag: 'Trầm ấm • Uy lực',
+    description: 'Chất giọng chuẩn phát thanh viên Hà Nội, dải âm trầm uy quyền, phong thái điềm tĩnh, tối ưu cho video review công nghệ cao cấp & phóng sự chuyên sâu.',
     sampleSentence: 'Chào mừng các bạn đến với bản đánh giá chi tiết thiết bị công nghệ đột phá thế hệ mới.',
-    pitch: 0.92,
-    rate: 1.05,
+    pitch: 0.9,
+    rate: 1.02,
     isRecommended: true,
   },
   {
     id: 'vi-hn-female-1',
-    name: 'Chị Mai (Hà Nội)',
+    name: 'Chị Hoài My (Hà Nội)',
+    language: 'vi',
     gender: 'Nữ',
-    region: 'Bắc',
-    description: 'Truyền cảm, ngọt ngào, phát âm chuẩn điện ảnh. Thích hợp cho kịch bản kể chuyện & giới thiệu sản phẩm.',
-    sampleSentence: 'Khám phá sự hoàn hảo trong từng đường nét thiết kế tinh xảo và hiệu năng vượt trội.',
+    region: 'Miền Bắc',
+    toneTag: 'Truyền cảm • Tự nhiên',
+    description: 'Giọng đọc nhẹ nhàng, nhấn nhá nhịp điệu giàu cảm xúc, phát âm tròn vành rõ chữ, chuẩn phong cách podcast & kể chuyện thương hiệu.',
+    sampleSentence: 'Khám phá sự hoàn hảo trong từng đường nét thiết kế tinh xảo và trải nghiệm người dùng vượt trội.',
     pitch: 1.0,
-    rate: 1.02,
+    rate: 1.0,
+    isRecommended: true,
   },
   {
     id: 'vi-sg-male-1',
-    name: 'Anh Tuấn (Sài Gòn)',
+    name: 'Anh Nam Minh (Sài Gòn)',
+    language: 'vi',
     gender: 'Nam',
-    region: 'Nam',
-    description: 'Năng động, cuốn hút, nhịp điệu nhanh. Tối ưu chuyển đổi TikTok Shop, Reels & Shorts.',
-    sampleSentence: 'Chiếc máy này thật sự quá đỉnh các bạn ơi, xem ngay tính năng đặc biệt ở góc trái màn hình nhé!',
-    pitch: 1.02,
+    region: 'Miền Nam',
+    toneTag: 'Năng động • Hào sảng',
+    description: 'Phong cách phóng khoáng, trẻ trung, nhịp điệu nhanh và bắt tai, giữ nhịp tương tác cao cho TikTok Shop, YouTube Shorts & Reels.',
+    sampleSentence: 'Chiếc máy này thật sự quá đỉnh các bạn ơi! Xem ngay tính năng đột phá ở góc trái màn hình nhé!',
+    pitch: 1.05,
     rate: 1.18,
     isRecommended: true,
   },
   {
     id: 'vi-sg-female-1',
-    name: 'Chị Lan (Sài Gòn)',
+    name: 'Chị Diệu Thảo (Sài Gòn)',
+    language: 'vi',
     gender: 'Nữ',
-    region: 'Nam',
-    description: 'Tươi vui, trẻ trung, tự nhiên. Thích hợp cho lifestyle, bán hàng livestream & review sản phẩm.',
-    sampleSentence: 'Hôm nay mình sẽ unbox siêu phẩm mới nhất và chia sẻ trải nghiệm thực tế sau một tuần sử dụng nhé!',
-    pitch: 1.08,
+    region: 'Miền Nam',
+    toneTag: 'Tươi vui • Ngọt ngào',
+    description: 'Giọng nữ Sài Gòn ngọt ngào, tạo cảm giác thân thiện gần gũi, chuyển đổi tốt cho video ẩm thực, du lịch, đời sống và bán hàng.',
+    sampleSentence: 'Hôm nay mình sẽ unbox siêu phẩm mới nhất và chia sẻ cảm nhận thực tế sau một tuần sử dụng nha!',
+    pitch: 1.12,
     rate: 1.12,
   },
   {
     id: 'vi-dn-male-1',
-    name: 'Anh Quang (Đà Nẵng)',
+    name: 'Anh Văn Quang (Đà Nẵng)',
+    language: 'vi',
     gender: 'Nam',
-    region: 'Trung',
-    description: 'Dõng dạc, rõ ràng, dứt khoát. Chuẩn phong cách bản tin thời sự 24h & phân tích tài chính.',
-    sampleSentence: 'Toàn cảnh thị trường và những phân tích kỹ thuật đáng chú ý nhất trong phiên giao dịch hôm nay.',
+    region: 'Miền Trung',
+    toneTag: 'Dõng dạc • Rõ ràng',
+    description: 'Phát âm rành mạch, tốc độ ổn định, âm lượng dày, tạo độ tin cậy tuyệt đối cho bản tin tài chính, thời sự 24h & dữ liệu kinh tế.',
+    sampleSentence: 'Toàn cảnh chu kỳ thị trường và những phân tích kỹ thuật đáng chú ý nhất trong phiên giao dịch hôm nay.',
     pitch: 0.98,
-    rate: 1.06,
+    rate: 1.05,
   },
   {
     id: 'vi-neural-fast',
-    name: 'SYNAPES Neural Turbo',
+    name: 'SYNAPES Neural v3 Turbo',
+    language: 'vi',
     gender: 'Nam',
     region: 'AI Neural',
-    description: 'Động cơ AI đọc tốc độ cao (1.25x), ngắt nghỉ chuẩn Alex Hormozi, giữ chân người xem tối đa.',
+    toneTag: 'Tốc độ cao 1.25x • Giữ chân',
+    description: 'Mô hình AI tổng hợp âm đọc siêu tốc 1.25x theo công thức Alex Hormozi, triệt tiêu khoảng lặng thừa, tối ưu tỷ lệ xem hết video.',
     sampleSentence: 'Ba giây đầu tiên quyết định người xem ở lại hay lướt qua. Hãy nhìn vào tính năng số một ngay bây giờ!',
+    pitch: 1.04,
+    rate: 1.25,
+    isRecommended: true,
+  },
+];
+
+export const ENGLISH_VOICE_PROFILES: VoiceProfile[] = [
+  {
+    id: 'en-us-guy',
+    name: 'Guy (US Silicon Valley)',
+    language: 'en',
+    gender: 'Male',
+    region: 'North America',
+    toneTag: 'Confident • Tech Commercial',
+    description: 'Crisp, articulate American tech reviewer tone. Perfect for Silicon Valley product launches and hardware unboxings.',
+    sampleSentence: 'Welcome back to the studio. Today we are looking at the next generation of dual-screen flagship devices.',
+    pitch: 0.95,
+    rate: 1.05,
+    isRecommended: true,
+  },
+  {
+    id: 'en-us-jenny',
+    name: 'Jenny (US California)',
+    language: 'en',
+    gender: 'Female',
+    region: 'North America',
+    toneTag: 'Warm • Engaging • Lifestyle',
+    description: 'Friendly, naturally paced conversational voice. Great for tutorials, explainer videos, and social media reels.',
+    sampleSentence: 'Discover seamless multitasking with an ultra-thin foldable display engineered for creators on the go.',
+    pitch: 1.05,
+    rate: 1.08,
+    isRecommended: true,
+  },
+  {
+    id: 'en-gb-ryan',
+    name: 'Ryan (UK London)',
+    language: 'en',
+    gender: 'Male',
+    region: 'United Kingdom',
+    toneTag: 'British BBC • Sophisticated',
+    description: 'Deep, resonant British English accent with cinematic gravitas. Ideal for luxury commercials and documentary trailers.',
+    sampleSentence: 'A monumental leap forward in computational intelligence and refined industrial craftsmanship.',
+    pitch: 0.88,
+    rate: 0.98,
+  },
+  {
+    id: 'en-gb-sonia',
+    name: 'Sonia (UK Oxford)',
+    language: 'en',
+    gender: 'Female',
+    region: 'United Kingdom',
+    toneTag: 'Elegant • Professional Narration',
+    description: 'Polished British RP pronunciation with pristine clarity. Perfect for educational, corporate and historical narratives.',
+    sampleSentence: 'In the span of a single generation, artificial intelligence has fundamentally redefined human creativity.',
+    pitch: 1.0,
+    rate: 1.02,
+  },
+  {
+    id: 'en-us-tony',
+    name: 'Tony (US High-Paced)',
+    language: 'en',
+    gender: 'Male',
+    region: 'AI Neural',
+    toneTag: 'Fast Pacing • Retention Master',
+    description: 'Punchy, dynamic US male creator voice built for high retention YouTube Shorts, TikTok and fast video sales letters.',
+    sampleSentence: 'If you want to save five hours every single day, this new AI tool is about to change everything for you.',
     pitch: 1.05,
     rate: 1.25,
     isRecommended: true,
   },
-  {
-    id: 'vi-deep-cinema',
-    name: 'Cinema Trailer Deep Bass',
-    gender: 'Nam',
-    region: 'AI Neural',
-    description: 'Giọng trầm vang điện ảnh Hollywood, dải bass sâu, thích hợp cho teaser & trailer bom tấn.',
-    sampleSentence: 'Một bước nhảy vọt của tương lai. Trí tuệ nhân tạo tái định nghĩa giới hạn của con người.',
-    pitch: 0.8,
-    rate: 0.94,
-  },
-  {
-    id: 'vi-eleven-clone',
-    name: 'ElevenLabs Studio Clone',
-    gender: 'Nữ',
-    region: 'AI Neural',
-    description: 'Mượt mà, giàu cảm xúc, lọc tạp âm tuyệt đối. Giọng đọc chuẩn podcast toàn cầu.',
-    sampleSentence: 'Chúng ta đang đứng trước ngưỡng cửa của một cuộc cách mạng công nghệ chưa từng có trong lịch sử.',
-    pitch: 1.0,
-    rate: 1.08,
-  },
+];
+
+export const ALL_VOICE_PROFILES: VoiceProfile[] = [
+  ...VIETNAMESE_VOICE_PROFILES,
+  ...ENGLISH_VOICE_PROFILES,
 ];
 
 /**
- * Phát thử giọng đọc TTS tiếng Việt với các thông số Pitch & Rate cụ thể
+ * Phát thử giọng đọc TTS với bộ lọc ngôn ngữ nghiêm ngặt (không lẫn tiếng Anh vào tiếng Việt)
  */
 export function auditionVoice(
   profile: VoiceProfile,
@@ -102,29 +166,51 @@ export function auditionVoice(
   try {
     window.speechSynthesis.cancel();
 
+    const targetLang = profile.language === 'en' ? 'en-US' : 'vi-VN';
     const textToSpeak = customText?.trim() || profile.sampleSentence;
+
     const utterance = new SpeechSynthesisUtterance(textToSpeak);
-    utterance.lang = 'vi-VN';
+    utterance.lang = targetLang;
 
     const voices = window.speechSynthesis.getVoices();
-    // Ưu tiên tìm giọng Việt tự nhiên
-    const viVoices = voices.filter((v) => v.lang.toLowerCase().includes('vi'));
-    let matchedVoice: SpeechSynthesisVoice | null = null;
+    const isEnglish = profile.language === 'en';
 
-    if (profile.gender === 'Nữ') {
-      matchedVoice =
-        viVoices.find((v) => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('hoai') || v.name.toLowerCase().includes('nu')) ||
-        viVoices[0] ||
-        null;
+    if (isEnglish) {
+      // Tìm giọng tiếng Anh chuẩn US hoặc UK
+      const enVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
+      let matchedEn: SpeechSynthesisVoice | null = null;
+
+      if (profile.region.includes('Kingdom')) {
+        matchedEn = enVoices.find((v) => v.lang.toLowerCase().includes('gb') || v.name.toLowerCase().includes('uk') || v.name.toLowerCase().includes('george')) || null;
+      }
+
+      if (!matchedEn) {
+        if (profile.gender === 'Female' || profile.gender === 'Nữ') {
+          matchedEn = enVoices.find((v) => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('zira') || v.name.toLowerCase().includes('samantha') || v.name.toLowerCase().includes('jenny')) || enVoices[0] || null;
+        } else {
+          matchedEn = enVoices.find((v) => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('david') || v.name.toLowerCase().includes('guy') || v.name.toLowerCase().includes('alex')) || enVoices[0] || null;
+        }
+      }
+
+      if (matchedEn) utterance.voice = matchedEn;
     } else {
-      matchedVoice =
-        viVoices.find((v) => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('nam') || v.name.toLowerCase().includes('an')) ||
-        viVoices[0] ||
-        null;
-    }
+      // Tìm giọng tiếng Việt chuẩn
+      const viVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('vi'));
+      let matchedVi: SpeechSynthesisVoice | null = null;
 
-    if (matchedVoice) {
-      utterance.voice = matchedVoice;
+      if (profile.gender === 'Nữ' || profile.gender === 'Female') {
+        matchedVi =
+          viVoices.find((v) => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('nu') || v.name.toLowerCase().includes('hoai')) ||
+          viVoices[0] ||
+          null;
+      } else {
+        matchedVi =
+          viVoices.find((v) => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('nam') || v.name.toLowerCase().includes('an')) ||
+          viVoices[0] ||
+          null;
+      }
+
+      if (matchedVi) utterance.voice = matchedVi;
     }
 
     utterance.rate = customRate ?? profile.rate;
@@ -146,7 +232,6 @@ export function auditionVoice(
 
 /**
  * Bộ tạo âm thanh nền BGM điện ảnh & hiệu ứng SFX qua Web Audio API
- * Đưa tín hiệu vào AudioDestinationNode để trộn trực tiếp vào file Video xuất ra
  */
 export class StudioAudioSynthesizer {
   private ctx: AudioContext | null = null;
@@ -168,17 +253,15 @@ export class StudioAudioSynthesizer {
         this.ctx = new AudioCtx();
         this.destNode = this.ctx.createMediaStreamDestination();
 
-        // 3 Track riêng biệt để cân bằng âm lượng
         this.bgmGain = this.ctx.createGain();
-        this.bgmGain.gain.value = 0.22; // BGM vừa phải, không át giọng đọc
+        this.bgmGain.gain.value = 0.22;
 
         this.voiceGain = this.ctx.createGain();
-        this.voiceGain.gain.value = 0.85; // Voiceover nổi bật
+        this.voiceGain.gain.value = 0.9;
 
         this.sfxGain = this.ctx.createGain();
-        this.sfxGain.gain.value = 0.45; // SFX rõ ràng
+        this.sfxGain.gain.value = 0.45;
 
-        // Kết nối cả ra loa (destination) và ra luồng ghi hình (destNode)
         this.bgmGain.connect(this.ctx.destination);
         this.bgmGain.connect(this.destNode);
 
@@ -199,26 +282,28 @@ export class StudioAudioSynthesizer {
     return tracks.length > 0 ? tracks[0] : null;
   }
 
+  public getContext(): AudioContext | null {
+    return this.ctx;
+  }
+
+  public getVoiceGainNode(): GainNode | null {
+    return this.voiceGain;
+  }
+
   public resume() {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
   }
 
-  /**
-   * Tự động giảm âm lượng nhạc nền (Audio Ducking) khi có giọng đọc
-   */
   public duckBgm(isSpeaking: boolean) {
     if (!this.bgmGain || !this.ctx) return;
     const now = this.ctx.currentTime;
-    const target = isSpeaking ? 0.08 : 0.22;
+    const target = isSpeaking ? 0.07 : 0.22;
     this.bgmGain.gain.cancelScheduledValues(now);
     this.bgmGain.gain.linearRampToValueAtTime(target, now + 0.15);
   }
 
-  /**
-   * Phát hiệu ứng âm thanh chuyển cảnh chuyên nghiệp
-   */
   public playSfx(type: 'whoosh' | 'sub-drop' | 'camera-shutter' | 'chime' | 'glitch') {
     this.resume();
     if (!this.ctx || !this.sfxGain) return;
@@ -226,8 +311,7 @@ export class StudioAudioSynthesizer {
     const now = ctx.currentTime;
 
     if (type === 'whoosh') {
-      // Cinematic Whoosh noise
-      const bufferSize = ctx.sampleRate * 0.4;
+      const bufferSize = ctx.sampleRate * 0.38;
       const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < bufferSize; i++) {
@@ -238,23 +322,22 @@ export class StudioAudioSynthesizer {
 
       const filter = ctx.createBiquadFilter();
       filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(300, now);
-      filter.frequency.exponentialRampToValueAtTime(2800, now + 0.2);
-      filter.frequency.exponentialRampToValueAtTime(400, now + 0.38);
+      filter.frequency.setValueAtTime(320, now);
+      filter.frequency.exponentialRampToValueAtTime(2900, now + 0.18);
+      filter.frequency.exponentialRampToValueAtTime(420, now + 0.36);
 
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(0.01, now);
-      gain.gain.linearRampToValueAtTime(0.35, now + 0.18);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.39);
+      gain.gain.linearRampToValueAtTime(0.38, now + 0.16);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.37);
 
       noise.connect(filter);
       filter.connect(gain);
       gain.connect(this.sfxGain);
 
       noise.start(now);
-      noise.stop(now + 0.4);
+      noise.stop(now + 0.38);
     } else if (type === 'sub-drop') {
-      // Sub-bass drop 90Hz -> 30Hz
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
@@ -270,7 +353,6 @@ export class StudioAudioSynthesizer {
       osc.start(now);
       osc.stop(now + 0.5);
     } else if (type === 'camera-shutter') {
-      // Shutter click
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'triangle';
@@ -286,7 +368,6 @@ export class StudioAudioSynthesizer {
       osc.start(now);
       osc.stop(now + 0.09);
     } else if (type === 'chime') {
-      // Positive notification chime
       [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -306,9 +387,6 @@ export class StudioAudioSynthesizer {
     }
   }
 
-  /**
-   * Tạo âm thanh tổng hợp BGM Studio điện ảnh liên tục đồng bộ vào audio destination
-   */
   public startCinematicSoundtrack(bpm: number = 118) {
     if (this.isBgmPlaying) return;
     this.resume();
@@ -316,14 +394,13 @@ export class StudioAudioSynthesizer {
 
     this.isBgmPlaying = true;
     const ctx = this.ctx;
-    const stepDuration = 60 / bpm / 2; // 1/8 note
+    const stepDuration = 60 / bpm / 2;
 
-    // Các hợp âm synthwave hiện đại: Am -> F -> C -> G
     const chords = [
-      [220, 261.63, 329.63], // Am
-      [174.61, 220, 261.63], // F
-      [261.63, 329.63, 392], // C
-      [196, 246.94, 293.66], // G
+      [220, 261.63, 329.63],
+      [174.61, 220, 261.63],
+      [261.63, 329.63, 392],
+      [196, 246.94, 293.66],
     ];
 
     let step = 0;
@@ -333,7 +410,6 @@ export class StudioAudioSynthesizer {
       const chordIdx = Math.floor((step % 32) / 8);
       const chord = chords[chordIdx];
 
-      // Bassline pulse
       const bassOsc = ctx.createOscillator();
       const bassGain = ctx.createGain();
       bassOsc.type = 'sawtooth';
@@ -353,7 +429,6 @@ export class StudioAudioSynthesizer {
       bassOsc.start(now);
       bassOsc.stop(now + stepDuration);
 
-      // Hi-Hat click on 16th notes
       const hatOsc = ctx.createOscillator();
       const hatGain = ctx.createGain();
       hatOsc.type = 'highpass' as any;
@@ -381,63 +456,32 @@ export class StudioAudioSynthesizer {
   }
 
   /**
-   * Sinh luồng phát âm thanh Voiceover vào Web Audio Destination Node
-   * để khi ghi hình MediaRecorder, file video chứa cả âm thanh thuyết minh
+   * Phát file âm thanh thu âm trực tiếp của người dùng vào kênh lồng tiếng
    */
-  public playSynthesizedVoiceoverTrack(text: string, durationSec: number, pitchMultiplier: number = 1.0) {
-    this.resume();
-    if (!this.ctx || !this.voiceGain) return;
-    const ctx = this.ctx;
-    const now = ctx.currentTime;
-
-    const words = text.trim().split(/\s+/).filter(Boolean);
-    if (words.length === 0) return;
-
-    const wordDuration = Math.min(0.45, Math.max(0.18, durationSec / words.length));
-    this.duckBgm(true);
-
-    // Kích hoạt chuỗi formant vocal harmonics mô phỏng nhịp đọc tiếng nói
-    words.forEach((_, idx) => {
-      const wordTime = now + idx * wordDuration;
-      if (wordTime > now + durationSec) return;
-
-      const osc = ctx.createOscillator();
-      const formant1 = ctx.createBiquadFilter();
-      const formant2 = ctx.createBiquadFilter();
-      const gain = ctx.createGain();
-
-      // Giọng đọc có cao độ linh hoạt
-      const baseFreq = (165 + (idx % 3) * 12 - (idx % 5) * 8) * pitchMultiplier;
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(baseFreq, wordTime);
-      osc.frequency.linearRampToValueAtTime(baseFreq * 0.94, wordTime + wordDuration * 0.85);
-
-      // Formants lọc tần số nguyên âm F1 & F2 (tần số vòm họng người)
-      formant1.type = 'bandpass';
-      formant1.frequency.setValueAtTime(700, wordTime);
-      formant1.Q.setValueAtTime(5, wordTime);
-
-      formant2.type = 'bandpass';
-      formant2.frequency.setValueAtTime(1800, wordTime);
-      formant2.Q.setValueAtTime(4, wordTime);
-
-      gain.gain.setValueAtTime(0.001, wordTime);
-      gain.gain.linearRampToValueAtTime(0.25, wordTime + 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.01, wordTime + wordDuration * 0.92);
-
-      osc.connect(formant1);
-      formant1.connect(formant2);
-      formant2.connect(gain);
-      gain.connect(this.voiceGain!);
-
-      osc.start(wordTime);
-      osc.stop(wordTime + wordDuration);
-    });
-
-    // Sau khi đọc xong, nâng lại nhạc nền
-    setTimeout(() => {
+  public playCustomAudioBlob(blobUrl: string, onEnd?: () => void): HTMLAudioElement | null {
+    try {
+      this.resume();
+      this.duckBgm(true);
+      const audio = new Audio(blobUrl);
+      audio.volume = 1.0;
+      audio.onended = () => {
+        this.duckBgm(false);
+        onEnd?.();
+      };
+      audio.onerror = () => {
+        this.duckBgm(false);
+        onEnd?.();
+      };
+      audio.play().catch(() => {
+        this.duckBgm(false);
+        onEnd?.();
+      });
+      return audio;
+    } catch {
       this.duckBgm(false);
-    }, durationSec * 1000);
+      onEnd?.();
+      return null;
+    }
   }
 
   public destroy() {

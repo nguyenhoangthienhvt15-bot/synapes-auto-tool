@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { Project, StoryboardScene } from '../types';
+import { Project, StoryboardScene, VoiceLanguage } from '../types';
 import { AiCinemaPlayer } from './AiCinemaPlayer';
 import { VoiceStudioModal } from './VoiceStudioModal';
+import { LiveDubbingStudioModal } from './LiveDubbingStudioModal';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import { buildAiSceneImageUrl } from '../services/aiScriptGeneratorService';
 import {
   Volume2, CheckCircle2, Clock,
   Edit3, Film, ExternalLink, Smartphone, Monitor,
   Link2, Sparkles, X, Check, Camera, RefreshCw,
-  Mic, Keyboard, Plus, Scissors, Trash2, Copy
+  Mic, Keyboard, Plus, Scissors, Trash2, Copy, MonitorPlay
 } from 'lucide-react';
 
 interface ProjectReviewWorkspaceProps {
@@ -35,8 +36,9 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
   const [editingScenePromptId, setEditingScenePromptId] = useState<number | null>(null);
   const [editingPromptText, setEditingPromptText] = useState('');
 
-  // Voice Studio & Keyboard Shortcuts Modals
+  // Voice Studio, Live Dubbing (3rd Window), & Keyboard Shortcuts Modals
   const [isVoiceStudioOpen, setIsVoiceStudioOpen] = useState(false);
+  const [isLiveDubbingOpen, setIsLiveDubbingOpen] = useState(false);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [voiceStudioTargetSceneId, setVoiceStudioTargetSceneId] = useState<number | null>(null);
 
@@ -61,22 +63,30 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
 
   const handleApplyVoiceSettings = ({
     voiceId,
+    language,
     speed,
     pitch,
+    updatedText,
     applyToAll,
   }: {
     voiceId: string;
+    language: VoiceLanguage;
     speed: number;
     pitch: number;
+    updatedText?: string;
     applyToAll: boolean;
   }) => {
+    const targetSceneId = voiceStudioTargetSceneId || activeSceneId;
     const updated = project.storyboard.map((s) => {
-      if (applyToAll || s.id === (voiceStudioTargetSceneId || activeSceneId)) {
+      const isTarget = applyToAll || s.id === targetSceneId;
+      if (isTarget) {
         return {
           ...s,
           voiceId,
+          voiceLanguage: language,
           voiceSpeed: speed,
           voicePitch: pitch,
+          voiceover: !applyToAll && updatedText && s.id === targetSceneId ? updatedText : s.voiceover,
         };
       }
       return s;
@@ -88,6 +98,31 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
         name: `Voice AI (${voiceId})`,
         voiceName: voiceId,
       },
+      storyboard: updated,
+    });
+  };
+
+  const handleSaveLiveRecordedVoice = (
+    sceneId: number,
+    audioBlobUrl: string,
+    durationSec: number,
+    updatedText: string
+  ) => {
+    const updated = project.storyboard.map((s) => {
+      if (s.id === sceneId) {
+        return {
+          ...s,
+          customAudioUrl: audioBlobUrl,
+          customAudioDurationSec: durationSec,
+          isCustomRecorded: true,
+          voiceover: updatedText || s.voiceover,
+        };
+      }
+      return s;
+    });
+
+    onUpdateProject({
+      ...project,
       storyboard: updated,
     });
   };
@@ -381,6 +416,10 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                 setVoiceStudioTargetSceneId(activeSceneId || project.storyboard[0]?.id || 1);
                 setIsVoiceStudioOpen(true);
               }}
+              onOpenLiveDubbingModal={() => {
+                setVoiceStudioTargetSceneId(activeSceneId || project.storyboard[0]?.id || 1);
+                setIsLiveDubbingOpen(true);
+              }}
               onOpenShortcutsModal={() => setIsShortcutsModalOpen(true)}
             />
 
@@ -538,8 +577,32 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                               B-Roll riêng
                             </span>
                           )}
+                          {scene.customAudioUrl && (
+                            <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 font-mono text-[9px] flex items-center gap-1 font-bold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse"></span>
+                              Thu âm mic
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveSceneId(scene.id);
+                              setVoiceStudioTargetSceneId(scene.id);
+                              setIsLiveDubbingOpen(true);
+                            }}
+                            className={`px-1.5 py-0.5 rounded border text-[9px] font-mono flex items-center gap-0.5 transition cursor-pointer ${
+                              scene.customAudioUrl
+                                ? 'bg-rose-50 text-rose-700 border-rose-300 font-bold'
+                                : 'bg-white hover:bg-rose-50 text-zinc-600 hover:text-rose-600 border-black/[0.06]'
+                            }`}
+                            title="Mở cửa sổ thứ 3 vừa xem video vừa thu âm trực tiếp cho cảnh này"
+                          >
+                            <Mic className="w-2.5 h-2.5" />
+                            <span>{scene.customAudioUrl ? 'Thu Lại' : 'Thu Mic'}</span>
+                          </button>
                           <button
                             type="button"
                             onClick={(e) => {
@@ -550,8 +613,8 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                             className="px-1.5 py-0.5 rounded bg-white hover:bg-indigo-50 text-indigo-600 border border-black/[0.06] text-[9px] font-mono flex items-center gap-0.5 transition cursor-pointer"
                             title="Tùy chỉnh giọng đọc riêng cho cảnh này"
                           >
-                            <Mic className="w-2.5 h-2.5" />
-                            <span>Giọng</span>
+                            <Sparkles className="w-2.5 h-2.5" />
+                            <span>Giọng AI</span>
                           </button>
                           <button
                             type="button"
@@ -977,6 +1040,9 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
           project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voiceId ||
           project.voiceoverTrack?.voiceName
         }
+        activeLanguage={
+          project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voiceLanguage || 'vi'
+        }
         currentVoiceSpeed={
           project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voiceSpeed || 1.05
         }
@@ -989,8 +1055,24 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
         currentSceneVoiceover={
           project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voiceover || ''
         }
+        onOpenLiveDubbingModal={() => setIsLiveDubbingOpen(true)}
         onApplyVoice={handleApplyVoiceSettings}
       />
+
+      {/* CỬA SỔ THỨ 3: PHÒNG THU ÂM TRỰC TIẾP LIVE DUBBING STUDIO */}
+      {isLiveDubbingOpen && (
+        <LiveDubbingStudioModal
+          isOpen={isLiveDubbingOpen}
+          onClose={() => setIsLiveDubbingOpen(false)}
+          project={project}
+          scene={
+            project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId)) ||
+            project.storyboard[0]
+          }
+          aspectRatio={aspectRatio}
+          onSaveRecordedVoice={handleSaveLiveRecordedVoice}
+        />
+      )}
 
       {/* BẢNG TRA CỨU PHÍM TẮT NLE */}
       <KeyboardShortcutsModal

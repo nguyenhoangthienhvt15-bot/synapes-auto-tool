@@ -7,11 +7,15 @@ export type ProjectStatus =
   | 'published'        // Đã xuất bản
   | 'rejected';        // Cần sửa lại
 
+export type VoiceLanguage = 'vi' | 'en';
+
 export interface VoiceProfile {
   id: string;
   name: string;
-  gender: 'Nam' | 'Nữ';
-  region: 'Bắc' | 'Nam' | 'Trung' | 'AI Neural';
+  language: VoiceLanguage;
+  gender: 'Nam' | 'Nữ' | 'Male' | 'Female';
+  region: string;
+  toneTag: string;
   description: string;
   sampleSentence: string;
   pitch: number;
@@ -36,6 +40,9 @@ export interface StoryboardScene {
   imageUrl?: string;
   customMediaUrl?: string;
   customMediaType?: 'image' | 'video';
+  customAudioUrl?: string;
+  customAudioDurationSec?: number;
+  isCustomRecorded?: boolean;
   cameraMotion?: 'dolly-in' | 'dolly-out' | 'orbit' | 'pan-right' | 'pan-left' | 'crane-up' | 'fpv-zoom';
   lightingStyle?: 'volumetric' | 'cyberpunk' | 'rembrandt' | 'studio-clean' | 'golden-hour';
   colorGrade?: ColorGradeLut;
@@ -44,6 +51,7 @@ export interface StoryboardScene {
   headline?: string;
   transition?: 'cut' | 'fade' | 'dissolve';
   voiceId?: string;
+  voiceLanguage?: VoiceLanguage;
   voiceSpeed?: number;
   voicePitch?: number;
   subtitleStyle?: SubtitleStyle;

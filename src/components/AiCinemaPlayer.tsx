@@ -31,7 +31,12 @@ import {
   FileVideo,
 } from 'lucide-react';
 import { buildAiSceneImageUrl } from '../services/aiScriptGeneratorService';
-import { StudioAudioSynthesizer, VOICE_PROFILES } from '../services/voiceStudioService';
+import {
+  StudioAudioSynthesizer,
+  ALL_VOICE_PROFILES,
+  VIETNAMESE_VOICE_PROFILES,
+  ENGLISH_VOICE_PROFILES,
+} from '../services/voiceStudioService';
 
 interface AiCinemaPlayerProps {
   project: Project;
@@ -42,6 +47,7 @@ interface AiCinemaPlayerProps {
   onUpdateProject?: (updated: Project) => void;
   onOpenVoiceStudio?: () => void;
   onOpenShortcutsModal?: () => void;
+  onOpenLiveDubbingModal?: () => void;
 }
 
 export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
@@ -53,6 +59,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   onUpdateProject,
   onOpenVoiceStudio,
   onOpenShortcutsModal,
+  onOpenLiveDubbingModal,
 }) => {
   const scenes = project.storyboard && project.storyboard.length > 0 ? project.storyboard : [];
   const totalDuration = scenes.reduce((acc, s) => Math.max(acc, s.endSec || 0), 0) || project.duration || 48;
@@ -178,46 +185,72 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     }
   }, [activeSceneId, scenes]);
 
-  // Speak Vietnamese Voiceover (TTS) when scene changes during playback
+  // Reference to user custom recorded audio element if currently playing
+  const currentAudioElementRef = useRef<HTMLAudioElement | null>(null);
+
+  // Speak Voiceover or Play User Custom Recording
   const speakSceneVoiceover = useCallback(
     (scene: StoryboardScene | undefined) => {
-      if (!('speechSynthesis' in window)) return;
-      if (!isPlaying || isMuted || !isTtsEnabled || !scene) {
-        window.speechSynthesis.cancel();
+      if (!scene || !isPlaying || isMuted) {
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        if (currentAudioElementRef.current) {
+          currentAudioElementRef.current.pause();
+          currentAudioElementRef.current = null;
+        }
         synthRef.current?.duckBgm(false);
         return;
       }
 
+      // If user directly recorded their voice for this scene
+      if (scene.customAudioUrl) {
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        if (currentAudioElementRef.current) {
+          currentAudioElementRef.current.pause();
+        }
+        const audio = synthRef.current?.playCustomAudioBlob(scene.customAudioUrl, () => {
+          currentAudioElementRef.current = null;
+        });
+        currentAudioElementRef.current = audio || null;
+        return;
+      }
+
+      // Otherwise play TTS with strict language isolation
+      if (!isTtsEnabled || !('speechSynthesis' in window)) return;
+
       try {
         window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(scene.voiceover);
-        utterance.lang = 'vi-VN';
+        const isEnglish = scene.voiceLanguage === 'en';
+        const targetLang = isEnglish ? 'en-US' : 'vi-VN';
 
-        // Match assigned voice profile if any
+        const utterance = new SpeechSynthesisUtterance(scene.voiceover);
+        utterance.lang = targetLang;
+
         const voiceProfile =
-          VOICE_PROFILES.find((v) => v.id === scene.voiceId) ||
-          VOICE_PROFILES.find((v) => v.id === project.voiceoverTrack?.voiceName) ||
-          VOICE_PROFILES[0];
+          ALL_VOICE_PROFILES.find((v) => v.id === scene.voiceId) ||
+          (isEnglish ? ENGLISH_VOICE_PROFILES[0] : VIETNAMESE_VOICE_PROFILES[0]);
 
         const voices = window.speechSynthesis.getVoices();
-        const viVoices = voices.filter((v) => v.lang.toLowerCase().includes('vi'));
-        if (viVoices.length > 0) {
-          if (voiceProfile.gender === 'Nữ') {
-            utterance.voice =
-              viVoices.find((v) => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('nu')) ||
-              viVoices[0];
-          } else {
-            utterance.voice =
-              viVoices.find((v) => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('nam')) ||
-              viVoices[0];
-          }
+        if (isEnglish) {
+          const enVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
+          const matchedEn =
+            voiceProfile.gender === 'Female' || voiceProfile.gender === 'Nữ'
+              ? enVoices.find((v) => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('zira') || v.name.toLowerCase().includes('samantha')) || enVoices[0]
+              : enVoices.find((v) => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('david') || v.name.toLowerCase().includes('guy')) || enVoices[0];
+          if (matchedEn) utterance.voice = matchedEn;
+        } else {
+          const viVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('vi'));
+          const matchedVi =
+            voiceProfile.gender === 'Nữ' || voiceProfile.gender === 'Female'
+              ? viVoices.find((v) => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('nu')) || viVoices[0]
+              : viVoices.find((v) => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('nam')) || viVoices[0];
+          if (matchedVi) utterance.voice = matchedVi;
         }
 
         const sceneDur = Math.max(3, scene.endSec - scene.startSec);
         const wordCount = scene.voiceover.split(/\s+/).length;
         const autoRate = Math.max(0.9, Math.min(1.4, wordCount / (sceneDur * 3.0)));
 
-        utterance.rate = scene.voiceSpeed || autoRate;
+        utterance.rate = scene.voiceSpeed || voiceProfile.rate || autoRate;
         utterance.pitch = scene.voicePitch || voiceProfile.pitch || 1.0;
         utterance.volume = 1.0;
 
@@ -236,7 +269,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         // Ignore TTS errors
       }
     },
-    [isPlaying, isMuted, isTtsEnabled, project.voiceoverTrack?.voiceName]
+    [isPlaying, isMuted, isTtsEnabled]
   );
 
   // Trigger TTS & SFX when current scene changes
@@ -1260,6 +1293,19 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
             <Mic className="w-3.5 h-3.5 text-emerald-400" />
             <span>Phòng Thu Giọng</span>
           </button>
+
+          {/* Live Mic Direct Dubbing Button (CỬA SỔ THỨ 3) */}
+          {onOpenLiveDubbingModal && (
+            <button
+              type="button"
+              onClick={onOpenLiveDubbingModal}
+              className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold flex items-center gap-1.5 transition cursor-pointer shadow-sm animate-pulse"
+              title="Mở cửa sổ thứ 3 vừa xem video vừa thu âm lồng tiếng trực tiếp bằng micro"
+            >
+              <Mic className="w-3.5 h-3.5 fill-white" />
+              <span>Thu Âm Trực Tiếp</span>
+            </button>
+          )}
 
           {/* LUT & VFX palette */}
           <button
