@@ -419,8 +419,8 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
                   type="button"
                   onClick={() => setActiveProvider(prov.id)}
                   className={`p-3 rounded-xl border text-left transition relative cursor-pointer flex flex-col justify-between ${isCurrent
-                      ? 'bg-white border-zinc-950 ring-2 ring-zinc-950/10 shadow-sm'
-                      : 'bg-zinc-50 hover:bg-white border-black/[0.08] text-zinc-600'
+                    ? 'bg-white border-zinc-950 ring-2 ring-zinc-950/10 shadow-sm'
+                    : 'bg-zinc-50 hover:bg-white border-black/[0.08] text-zinc-600'
                     }`}
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -621,10 +621,10 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
           {discoveryStatus[activeProvider] && (
             <div
               className={`p-3 rounded-xl text-xs flex items-center justify-between gap-2.5 transition animate-in fade-in ${discoveryStatus[activeProvider]?.type === 'loading'
-                  ? 'bg-blue-50 border border-blue-200 text-blue-900'
-                  : discoveryStatus[activeProvider]?.type === 'success'
-                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-950'
-                    : 'bg-rose-50 border border-rose-200 text-rose-950'
+                ? 'bg-blue-50 border border-blue-200 text-blue-900'
+                : discoveryStatus[activeProvider]?.type === 'success'
+                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-950'
+                  : 'bg-rose-50 border border-rose-200 text-rose-950'
                 }`}
             >
               <div className="flex items-center gap-2">
@@ -730,8 +730,8 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
                     key={m.id}
                     onClick={() => setModels((prev) => ({ ...prev, [activeProvider]: m.id }))}
                     className={`p-3 rounded-xl border text-left transition relative cursor-pointer flex flex-col justify-between ${isSelected
-                        ? 'bg-zinc-950 text-white border-zinc-950 shadow-md ring-2 ring-zinc-950/20'
-                        : 'bg-zinc-50/80 hover:bg-white border-black/[0.08] text-zinc-800 hover:shadow-2xs'
+                      ? 'bg-zinc-950 text-white border-zinc-950 shadow-md ring-2 ring-zinc-950/20'
+                      : 'bg-zinc-50/80 hover:bg-white border-black/[0.08] text-zinc-800 hover:shadow-2xs'
                       }`}
                   >
                     <div>
