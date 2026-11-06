@@ -80,8 +80,9 @@ function setupUserRegistrationSheet() {
   var bridgeUrl = setupGoogleFormBridge(ss);
   var detectedUrl = bridgeUrl || autoPublishWebhookUrlToSheet(ss);
 
-  // Quét ngay các hồ sơ đang chờ trong Cầu nối (nếu có)
+  // Quét ngay các hồ sơ đang chờ trong Cầu nối (nếu có) và trải đều các tài khoản đã duyệt
   syncPendingFormBridgeResponses();
+  reconcileAllApprovedUsersToAccountsSheet(ss);
 
   try {
     var msg =
@@ -111,6 +112,7 @@ function onOpen() {
   try {
     autoPublishWebhookUrlToSheet(ss);
     syncPendingFormBridgeResponses();
+    reconcileAllApprovedUsersToAccountsSheet(ss);
   } catch (e) {}
 
   var ui = SpreadsheetApp.getUi();
@@ -526,7 +528,7 @@ function handleSheetCheckboxEdit(e, canSendMail) {
  * Chuẩn hóa chuỗi ngày sinh DD/MM/YYYY và trích xuất 4 chữ số DDMM
  */
 function parseDobToDDMM(dobRaw, nowDate) {
-  var dobStr = String(dobRaw || "").trim();
+  var dobStr = String(dobRaw || "").replace(/^'+/, "").trim();
   var defaultDDMM = Utilities.formatDate(nowDate || new Date(), "GMT+7", "ddMM");
   if (!dobStr) return { formattedDob: "", ddmm: defaultDDMM };
 
@@ -554,6 +556,55 @@ function parseDobToDDMM(dobRaw, nowDate) {
   }
 
   return { formattedDob: dobStr, ddmm: defaultDDMM };
+}
+
+/**
+ * Đảm bảo mỗi khách hàng (mỗi dòng trên THÔNG TIN NGƯỜI DÙNG) có một Mã Code duy nhất,
+ * không bao giờ bị trùng Mã Code với khách hàng ở dòng khác (kể cả khi trùng ngày sinh và duyệt cùng ngày).
+ */
+function ensureUniqueUserCode(ss, baseCode, currentUserSheetRow, currentFullName) {
+  var candidate = String(baseCode || "").trim().toUpperCase();
+  if (!candidate) return candidate;
+
+  var usedCodes = {};
+  var nameClean = String(currentFullName || "").trim().toLowerCase();
+
+  // 1. Quét các dòng khác trên trang "THÔNG TIN NGƯỜI DÙNG"
+  var uSheet = getUsersSheet(ss, false);
+  if (uSheet && uSheet.getLastRow() >= 2) {
+    var uData = uSheet.getRange(2, 1, uSheet.getLastRow() - 1, 11).getDisplayValues();
+    for (var i = 0; i < uData.length; i++) {
+      var rIdx = i + 2;
+      if (rIdx === currentUserSheetRow) continue;
+      var cCode = String(uData[i][9] || "").trim().toUpperCase();
+      if (cCode) {
+        usedCodes[cCode] = true;
+      }
+    }
+  }
+
+  // 2. Quét các dòng của người dùng khác trên trang "Quản Lý Mật Khẩu"
+  var accSheet = getAccountsSheet(ss);
+  if (accSheet && accSheet.getLastRow() >= 5) {
+    var accData = accSheet.getRange(1, 1, accSheet.getLastRow(), 4).getDisplayValues();
+    for (var j = 4; j < accData.length; j++) {
+      var aCode = String(accData[j][1] || "").trim().toUpperCase();
+      var aName = String(accData[j][2] || "").trim().toLowerCase();
+      if (aCode && aName && aName !== nameClean) {
+        usedCodes[aCode] = true;
+      }
+    }
+  }
+
+  if (!usedCodes[candidate]) {
+    return candidate;
+  }
+
+  var suffix = 2;
+  while (usedCodes[candidate + "_" + suffix]) {
+    suffix++;
+  }
+  return candidate + "_" + suffix;
 }
 
 /**
@@ -590,15 +641,16 @@ function processUserApproval(sheet, row, canSendMail) {
   var dob = dobParsed.formattedDob || dobRaw;
 
   // Sinh Mã Code: SNP_[6 số ngày tháng năm YYMMDD + 4 chữ số ngày tháng sinh DDMM]
-  var code = existingCode;
-  if (!code || code.indexOf("SNP_") !== 0) {
-    var yymmdd = Utilities.formatDate(now, "GMT+7", "yyMMdd");
-    code = "SNP_" + yymmdd + dobParsed.ddmm;
-  }
+  // Đồng thời kiểm tra chống trùng lặp với các dòng khác để không bao giờ ghi đè người dùng trước
+  var yymmdd = Utilities.formatDate(now, "GMT+7", "yyMMdd");
+  var baseCode = (existingCode && existingCode.indexOf("SNP_") === 0)
+    ? existingCode
+    : ("SNP_" + yymmdd + dobParsed.ddmm);
+  var code = ensureUniqueUserCode(ss, baseCode, row, fullName);
 
   // Sinh Mật khẩu: SNP_[3 chữ số ngẫu nhiên + 3 chữ cái in hoa ngẫu nhiên]
   var password = existingPass;
-  if (!password || password.indexOf("SNP_") !== 0) {
+  if (!password || (password.indexOf("SNP_") !== 0 && password.indexOf("BCRYPT$") === -1)) {
     var randomDigits = Math.floor(100 + Math.random() * 900);
     var chars = "ABCDEFGHJKLMNPQRSTUVWXYZ";
     var randomLetters = "";
@@ -612,8 +664,9 @@ function processUserApproval(sheet, row, canSendMail) {
   sheet.getRange(row, 10).setValue(code).setFontWeight("bold").setHorizontalAlignment("center");
   sheet.getRange(row, 11).setValue(password).setFontWeight("bold").setFontColor("#b91c1c").setHorizontalAlignment("center");
 
-  // Lưu tài khoản sang trang tính "Quản Lý Mật Khẩu"
+  // Lưu tài khoản sang trang tính "Quản Lý Mật Khẩu" (trải đều từng hàng riêng biệt)
   syncAccountToMainSheet(code, fullName, email, password, phone, address, false);
+  reconcileAllApprovedUsersToAccountsSheet(ss);
 
   var nowStr = Utilities.formatDate(now, "GMT+7", "dd/MM/yyyy HH:mm:ss");
 
@@ -828,15 +881,15 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
 
 /**
  * 8. ĐỒNG BỘ TÀI KHOẢN SANG TRANG TÍNH "Quản Lý Mật Khẩu" (GID = 0)
- * Tự động tìm dòng trống đầu tiên từ dòng 5 trở đi (nơi cột B chưa có Mã Code)
- * và tuân thủ tuyệt đối Data Validation của Cột G ("⚪ Dùng mặc định" / "🟡 Vừa cấp lại pass tạm")
+ * Tự động tìm dòng trống đầu tiên từ dòng 5 trở đi (STT 1, 2, 3, 4...)
+ * Tuyệt đối KHÔNG ghi đè người dùng B lên hàng của người dùng A (kể cả khi dùng chung Gmail test)
  */
 function syncAccountToMainSheet(code, name, email, password, phone, address, isReset) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = getAccountsSheet(ss);
   if (!sheet) return;
 
-  var maxRow = Math.max(sheet.getLastRow(), 10);
+  var maxRow = Math.max(sheet.getLastRow(), 15);
   var data = sheet.getRange(1, 1, maxRow, 9).getDisplayValues();
 
   // Xác định dòng tiêu đề "MÃ CODE KHÁCH HÀNG" (thường ở dòng 4 trên "Quản Lý Mật Khẩu" hoặc dòng 1)
@@ -844,31 +897,35 @@ function syncAccountToMainSheet(code, name, email, password, phone, address, isR
   for (var h = 0; h < Math.min(data.length, 6); h++) {
     var colBHeader = String(data[h][1] || "").toLowerCase();
     if (colBHeader.indexOf("mã code") !== -1 || colBHeader.indexOf("mã khách hàng") !== -1) {
-      startDataRow = h + 2; // Dòng ngay sau tiêu đề
+      startDataRow = h + 2; // Dòng ngay sau tiêu đề (dòng 5 = STT 1)
       break;
     }
   }
 
+  var codeClean = String(code || "").trim().toUpperCase();
+  var nameClean = String(name || "").trim().toLowerCase();
+
   var targetRow = -1;
   var existingRow = -1;
 
-  // Bước 1: Kiểm tra xem Mã Code hoặc Gmail đã tồn tại chưa
+  // Bước 1: Chỉ cập nhật lại dòng cũ nếu TRÙNG MÃ CODE và CÙNG TÊN KHÁCH HÀNG (hoặc khi cấp lại pass cho đúng Mã Code đó)
+  // Tuyệt đối KHÔNG gộp theo Gmail để tránh ghi đè khi nhiều khách hàng / tài khoản dùng chung Gmail
   for (var i = startDataRow - 1; i < data.length; i++) {
     var rowCode = String(data[i][1] || "").trim().toUpperCase();
-    var rowEmail = String(data[i][3] || "").trim().toLowerCase();
-    if (
-      (code && rowCode === code.toUpperCase()) ||
-      (email && rowEmail !== "" && rowEmail === email.toLowerCase())
-    ) {
-      existingRow = i + 1;
-      break;
+    var rowName = String(data[i][2] || "").trim().toLowerCase();
+    if (codeClean && rowCode === codeClean) {
+      if (isReset || !rowName || !nameClean || rowName === nameClean) {
+        existingRow = i + 1;
+        break;
+      }
     }
   }
 
   if (existingRow !== -1) {
     targetRow = existingRow;
   } else {
-    // Bước 2: Tìm dòng đầu tiên từ startDataRow mà Cột B (Mã Code) đang trống
+    // Bước 2: Tìm dòng trống đầu tiên từ startDataRow (dòng 5 = STT 1, dòng 6 = STT 2, dòng 7 = STT 3...)
+    // nơi Cột B (Mã Code) và Cột C (Tên khách hàng) đang trống để trải đều dữ liệu
     for (var j = startDataRow - 1; j < data.length; j++) {
       var cCode = String(data[j][1] || "").trim();
       var cName = String(data[j][2] || "").trim();
@@ -884,7 +941,10 @@ function syncAccountToMainSheet(code, name, email, password, phone, address, isR
 
   var stt = targetRow - startDataRow + 1;
   var nowStr = Utilities.formatDate(new Date(), "GMT+7", "dd/MM/yyyy HH:mm");
-  var statusText = isReset ? "🟡 Vừa cấp lại pass tạm" : "⚪ Dùng mặc định";
+  var isHashedPass = String(password || "").indexOf("BCRYPT$") !== -1 || String(password || "").indexOf("🔒") !== -1;
+  var statusText = isHashedPass
+    ? "🟢 Khách đã đổi pass riêng"
+    : (isReset ? "🟡 Vừa cấp lại pass tạm" : "⚪ Dùng mặc định");
   var noteText = "SĐT: " + (phone || "N/A") + (address ? " | Đ/c: " + address : "");
 
   sheet.getRange(targetRow, 1).setValue(stt).setHorizontalAlignment("center");
@@ -903,9 +963,54 @@ function syncAccountToMainSheet(code, name, email, password, phone, address, isR
   // Kiểm tra số cột của bảng (9 cột trên Quản Lý Mật Khẩu)
   if (sheet.getMaxColumns() >= 9) {
     sheet.getRange(targetRow, 8).setValue("Pro Studio");
-    sheet.getRange(targetRow, 9).setValue(noteText);
+    if (!existingRow || isReset) {
+      sheet.getRange(targetRow, 9).setValue(noteText);
+    }
   } else if (sheet.getMaxColumns() >= 8) {
     sheet.getRange(targetRow, 8).setValue(noteText);
+  }
+}
+
+/**
+ * Đối soát và trải đều toàn bộ các hồ sơ đã duyệt từ "THÔNG TIN NGƯỜI DÙNG" sang "Quản Lý Mật Khẩu"
+ * Đảm bảo mọi người dùng A, B, C... đã được tích duyệt đều xuất hiện đầy đủ ở các hàng 1, 2, 3...
+ */
+function reconcileAllApprovedUsersToAccountsSheet(ss) {
+  try {
+    if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
+    var uSheet = getUsersSheet(ss, false);
+    if (!uSheet || uSheet.getLastRow() < 2) return;
+
+    var lastRow = uSheet.getLastRow();
+    var uData = uSheet.getRange(2, 1, lastRow - 1, 13).getDisplayValues();
+    var uRaw = uSheet.getRange(2, 1, lastRow - 1, 13).getValues();
+
+    for (var i = 0; i < uData.length; i++) {
+      var rIdx = i + 2;
+      var fullName = String(uData[i][2] || "").trim();
+      var email = String(uData[i][5] || "").trim();
+      if (!fullName || !email) continue;
+
+      var isChecked = uRaw[i][8] === true || String(uData[i][8]).toUpperCase() === "TRUE";
+      var code = String(uData[i][9] || "").trim();
+      var pass = String(uData[i][10] || "").trim();
+      var phone = String(uData[i][6] || "").trim();
+      var address = String(uData[i][7] || "").trim();
+
+      if (isChecked || (code && code.indexOf("SNP_") === 0)) {
+        // Đảm bảo mã code của dòng này không trùng với dòng phía trên
+        if (code) {
+          var uniqueCode = ensureUniqueUserCode(ss, code, rIdx, fullName);
+          if (uniqueCode !== code) {
+            code = uniqueCode;
+            uSheet.getRange(rIdx, 10).setValue(code);
+          }
+          syncAccountToMainSheet(code, fullName, email, pass || "SNP_DEFAULT", phone, address, false);
+        }
+      }
+    }
+  } catch (err) {
+    Logger.log("reconcileAllApprovedUsersToAccountsSheet error: " + err);
   }
 }
 
@@ -1133,7 +1238,7 @@ function processWebhookPayload(payload) {
 
     if (action === "approve_user") {
       var uSheet = getUsersSheet(ss, true);
-      var target = findOrCreateUserRowByEmail(uSheet, payload.email);
+      var target = findOrCreateUserRowByEmail(uSheet, payload.email, payload.fullName, true);
       if (!target.isExisting && payload.email) {
         handleUserRegistrationWebhook(ss, {
           fullName: payload.fullName || "Khách hàng SYNAPES",
@@ -1145,7 +1250,7 @@ function processWebhookPayload(payload) {
           termsAccepted: true,
           notes: "📄 HOP_DONG_DICH_VU_SYNAPES.pdf (Đã ký — Chờ duyệt)"
         });
-        target = findOrCreateUserRowByEmail(uSheet, payload.email);
+        target = findOrCreateUserRowByEmail(uSheet, payload.email, payload.fullName, true);
       }
       if (target.row >= 2) {
         if (payload.code) {
@@ -1172,28 +1277,48 @@ function processWebhookPayload(payload) {
 }
 
 /**
- * Tìm dòng của người dùng theo Email hoặc tìm dòng trống đầu tiên (từ dòng 2 trở đi)
+ * Tìm dòng của người dùng hoặc tìm dòng trống đầu tiên (từ dòng 2 trở đi)
+ * - Khi đăng ký mới (isApprovalLookup = false): Chỉ cập nhật dòng cũ nếu CÙNG HỌ TÊN + CÙNG GMAIL
+ *   VÀ dòng đó CHƯA ĐƯỢC DUYỆT (để Bước 2 "Ký hợp đồng" cập nhật tiếp vào dòng nháp vừa tạo ở Bước 1).
+ *   Nếu là người dùng khác (họ tên khác) hoặc dòng trước đã được duyệt cấp mã, BẮT BUỘC ghi xuống hàng mới tiếp theo!
  */
-function findOrCreateUserRowByEmail(sheet, email) {
+function findOrCreateUserRowByEmail(sheet, email, fullName, isApprovalLookup) {
   var maxRow = Math.max(sheet.getLastRow(), 2);
   var data = sheet.getRange(2, 1, maxRow - 1, 13).getDisplayValues();
+  var rawApprovedVals = sheet.getRange(2, 9, maxRow - 1, 1).getValues();
   var emailClean = String(email || "").trim().toLowerCase();
+  var nameClean = String(fullName || "").trim().toLowerCase();
 
-  // 1. Tìm xem email đã tồn tại chưa (nếu đã tạo ở Bước 1 thì Bước 2 cập nhật đúng dòng đó)
+  // 1. Tìm từ dưới lên dòng nháp của đúng người dùng này (cùng Họ tên + cùng Gmail)
   if (emailClean) {
-    for (var i = 0; i < data.length; i++) {
+    for (var i = data.length - 1; i >= 0; i--) {
+      var rowName = String(data[i][2] || "").trim().toLowerCase();
       var rowEmail = String(data[i][5] || "").trim().toLowerCase();
-      if (rowEmail === emailClean) {
-        return { row: i + 2, isExisting: true };
+      var rowCode = String(data[i][9] || "").trim();
+      var isRowApproved =
+        rawApprovedVals[i][0] === true ||
+        String(data[i][8] || "").toUpperCase() === "TRUE" ||
+        rowCode !== "";
+
+      if (rowEmail === emailClean && (!nameClean || rowName === nameClean)) {
+        if (isApprovalLookup) {
+          return { row: i + 2, isExisting: true };
+        }
+        // Khi đăng ký trên WebApp: Chỉ ghi cập nhật vào dòng CHƯA DUYỆT của đúng người đó
+        // Tuyệt đối không ghi đè vào dòng đã duyệt trước đó
+        if (!isRowApproved) {
+          return { row: i + 2, isExisting: true };
+        }
       }
     }
   }
 
-  // 2. Tìm dòng đầu tiên từ dòng 2 mà cả Họ tên (Cột C) và Gmail (Cột F) đều đang trống
+  // 2. Tìm dòng trống đầu tiên từ dòng 2 trở đi (Hàng 1 -> Hàng 2 -> Hàng 3...) để trải đều dữ liệu
   for (var j = 0; j < data.length; j++) {
-    var rowName = String(data[j][2] || "").trim();
-    var rowMail = String(data[j][5] || "").trim();
-    if (rowName === "" && rowMail === "") {
+    var rName = String(data[j][2] || "").trim();
+    var rMail = String(data[j][5] || "").trim();
+    var rCode = String(data[j][9] || "").trim();
+    if (rName === "" && rMail === "" && rCode === "") {
       return { row: j + 2, isExisting: false };
     }
   }
@@ -1210,7 +1335,7 @@ function handleUserRegistrationWebhook(ss, payload) {
   var nowStr = Utilities.formatDate(now, "GMT+7", "dd/MM/yyyy HH:mm:ss");
   var dobParsed = parseDobToDDMM(payload.dob || "", now);
 
-  var target = findOrCreateUserRowByEmail(sheet, payload.email);
+  var target = findOrCreateUserRowByEmail(sheet, payload.email, payload.fullName, false);
   var targetRow = target.row;
   var stt = targetRow - 1;
 
@@ -1319,7 +1444,7 @@ function handleForgotPasswordWebhook(ss, payload) {
     for (var i = 0; i < uData.length; i++) {
       var rMail = String(uData[i][5] || "").trim().toLowerCase();
       var rCode = String(uData[i][9] || "").trim().toUpperCase();
-      if (rMail === email.toLowerCase() || (code && rCode === code)) {
+      if ((code && rCode === code) || (!code && rMail === email.toLowerCase())) {
         var rIdx = i + 2;
         if (!code && rCode) code = rCode;
         if (uData[i][2]) fullName = uData[i][2];
@@ -1374,7 +1499,7 @@ function handleChangePasswordWebhook(ss, payload) {
     for (var i = 0; i < uData.length; i++) {
       var rMail = String(uData[i][5] || "").trim().toLowerCase();
       var rCode = String(uData[i][9] || "").trim().toUpperCase();
-      if ((code && rCode === code) || (email && rMail === email)) {
+      if ((code && rCode === code) || (!code && email && rMail === email)) {
         var rIdx = i + 2;
         if (!code && rCode) code = rCode;
         if (!fullName && uData[i][2]) fullName = uData[i][2];
@@ -1416,7 +1541,7 @@ function handleChangePasswordWebhook(ss, payload) {
     for (var j = startDataRow - 1; j < accData.length; j++) {
       var cCode = String(accData[j][1] || "").trim().toUpperCase();
       var cMail = String(accData[j][3] || "").trim().toLowerCase();
-      if ((code && cCode === code) || (email && cMail !== "" && cMail === email)) {
+      if ((code && cCode === code) || (!code && email && cMail !== "" && cMail === email)) {
         foundAccRow = j + 1;
         break;
       }
@@ -1472,6 +1597,7 @@ function syncToWebApp() {
   installAutoEditTrigger(ss);
   var bridgeUrl = setupGoogleFormBridge(ss);
   var syncedCount = syncPendingFormBridgeResponses();
+  reconcileAllApprovedUsersToAccountsSheet(ss);
   var url = bridgeUrl || autoPublishWebhookUrlToSheet(ss);
 
   SpreadsheetApp.getUi().alert(

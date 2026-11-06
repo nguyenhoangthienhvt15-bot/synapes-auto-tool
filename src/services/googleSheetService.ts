@@ -475,13 +475,16 @@ export async function saveUserRegistration(
 
     const existingIndex = current.findIndex(
       (r) =>
-        (normalizedData.email && r.email.toLowerCase() === normalizedData.email.toLowerCase()) ||
-        (normalizedData.id && r.id === normalizedData.id)
+        (normalizedData.id && r.id === normalizedData.id) ||
+        (!r.isApproved &&
+          normalizedData.email &&
+          r.email.toLowerCase() === normalizedData.email.toLowerCase() &&
+          r.fullName.toLowerCase() === normalizedData.fullName.toLowerCase())
     );
     if (existingIndex >= 0) {
       current[existingIndex] = { ...current[existingIndex], ...normalizedData };
     } else {
-      current.unshift(normalizedData);
+      current.push(normalizedData);
     }
 
     localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(current));
@@ -550,7 +553,20 @@ export function approveStoredRegistration(id: string): {
     const item = list.find((r) => r.id === id);
     if (!item) return { success: false };
 
-    const code = item.assignedCode || generateUserCode(item.dob);
+    const baseCode = item.assignedCode || generateUserCode(item.dob);
+    let code = baseCode;
+    let suffix = 2;
+    while (
+      list.some(
+        (other) =>
+          other.id !== item.id &&
+          other.assignedCode &&
+          other.assignedCode.toUpperCase() === code.toUpperCase()
+      )
+    ) {
+      code = `${baseCode}_${suffix}`;
+      suffix++;
+    }
     const password = item.assignedPassword || generateUserPassword();
 
     item.isApproved = true;
@@ -919,7 +935,11 @@ export function parseUsersSheetGvizResponse(response: any): {
       const merged = [...registrations];
       for (const localItem of localRegs) {
         const exists = merged.some(
-          (m) => m.email && localItem.email && m.email.toLowerCase() === localItem.email.toLowerCase()
+          (m) =>
+            m.email &&
+            localItem.email &&
+            m.email.toLowerCase() === localItem.email.toLowerCase() &&
+            m.fullName.trim().toLowerCase() === localItem.fullName.trim().toLowerCase()
         );
         if (!exists) {
           merged.push(localItem);
@@ -1234,13 +1254,17 @@ export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): P
         for (const localReg of localRegs) {
           if (!localReg.email || !localReg.fullName) continue;
           const emailKey = localReg.email.trim().toLowerCase();
+          const nameKey = localReg.fullName.trim().toLowerCase();
           const onSheet = sheetRegistrations.find(
-            (sr) => sr.email && sr.email.trim().toLowerCase() === emailKey
+            (sr) =>
+              sr.email &&
+              sr.email.trim().toLowerCase() === emailKey &&
+              sr.fullName.trim().toLowerCase() === nameKey
           );
 
           const needsSync =
             !onSheet || (localReg.termsAccepted && !onSheet.termsAccepted);
-          const syncHash = `${emailKey}_${localReg.termsAccepted ? 'signed' : 'draft'}_${webhookUrl.slice(-16)}`;
+          const syncHash = `${emailKey}_${nameKey}_${localReg.termsAccepted ? 'signed' : 'draft'}_${webhookUrl.slice(-16)}`;
           const lastAttempt = syncedMap[syncHash] || 0;
 
           if (needsSync && nowMs - lastAttempt > 45000) {
@@ -1248,7 +1272,7 @@ export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): P
             localStorage.setItem(SYNCED_REG_HASH_KEY, JSON.stringify(syncedMap));
             callAppsScriptWebhook({
               action: 'register',
-              requestId: `autosync_${emailKey}_${localReg.termsAccepted ? 'signed' : 'draft'}`,
+              requestId: `autosync_${emailKey}_${nameKey}_${localReg.termsAccepted ? 'signed' : 'draft'}`,
               ...localReg,
             }).catch(() => {});
           }
