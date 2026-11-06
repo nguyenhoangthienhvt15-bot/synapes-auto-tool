@@ -9,11 +9,6 @@ import {
   GOOGLE_SHEET_URL,
   getStoredRegistrations,
   approveStoredRegistration,
-  getAppsScriptWebhookUrl,
-  setAppsScriptWebhookUrl,
-  callAppsScriptWebhook,
-  flushPendingWebhookQueue,
-  isValidWebhookUrl,
   resetToTempPassword,
   isPasswordMaskedOrHashed,
 } from '../services/googleSheetService';
@@ -43,22 +38,9 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
   const [isAddingNewRow, setIsAddingNewRow] = useState(false);
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
-  const [webhookUrl, setWebhookUrl] = useState(() => getAppsScriptWebhookUrl());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'accounts' | 'registrations'>('accounts');
   const [registrations, setRegistrations] = useState<UserRegistrationData[]>(() => getStoredRegistrations());
-
-  const handleSaveWebhook = async () => {
-    const clean = webhookUrl.trim();
-    if (!isValidWebhookUrl(clean)) {
-      showToast('⚠️ Vui lòng nhập URL Cầu nối Google Form hoặc Web App hợp lệ!');
-      return;
-    }
-    setAppsScriptWebhookUrl(clean);
-    await callAppsScriptWebhook({ action: 'save_webhook_url', webhookUrl: clean });
-    await flushPendingWebhookQueue(clean);
-    showToast('✅ Đã lưu kết nối 2 chiều với Google Sheet!');
-  };
 
   const [newCode, setNewCode] = useState('');
   const [newClientName, setNewClientName] = useState('');
@@ -720,34 +702,8 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
                   <li>Mở bảng tính Google Sheets: <a href={GOOGLE_SHEET_URL} target="_blank" rel="noopener noreferrer" className="text-zinc-900 font-medium underline">Bấm vào đây để mở Sheet</a>.</li>
                   <li>Trên thanh menu trên cùng, bấm <strong>Tiện ích mở rộng</strong> (Extensions) ➔ <strong>Apps Script</strong>.</li>
                   <li>Xóa toàn bộ mã cũ trong tệp <code>Code.gs</code>, dán đoạn mã bên dưới vào và bấm <strong>💾 Lưu</strong> (Ctrl + S).</li>
-                  <li>Đảm bảo ô hàm bên cạnh nút Chạy đang chọn <strong><code>setupUserRegistrationSheet</code></strong>, bấm <strong>▶ Chạy (Run)</strong> và cấp quyền Google (để bật quyền gửi Gmail tự động khi tích Checkbox Cột I).</li>
-                  <li>Bấm nút <strong>Triển khai (Deploy)</strong> ở góc trên bên phải ➔ <strong>Triển khai mới (New deployment)</strong> ➔ Loại: <strong>Ứng dụng web (Web app)</strong> ➔ Quyền truy cập: <strong>Bất kỳ ai (Anyone)</strong> ➔ Bấm <strong>Triển khai</strong>, rồi dán URL <code>/exec</code> vào ô bên dưới:</li>
+                  <li>Đảm bảo ô hàm bên cạnh nút Chạy đang chọn <strong><code>setupUserRegistrationSheet</code></strong>, bấm <strong>▶ Chạy (Run)</strong> và cấp quyền Google (hệ thống sẽ tự động thiết lập cầu nối ngầm và bật quyền gửi Gmail tự động khi tích Checkbox Cột I).</li>
                 </ol>
-              </div>
-
-              <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-lg space-y-2">
-                <div className="flex items-center justify-between font-semibold text-emerald-950">
-                  <span>🔗 URL Web App (Google Apps Script Webhook):</span>
-                  <span className="text-[11px] font-mono">
-                    {webhookUrl ? '🟢 Đã kết nối' : '⚪ Chưa gắn URL'}
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={webhookUrl}
-                    onChange={(e) => setWebhookUrl(e.target.value)}
-                    placeholder="https://script.google.com/macros/s/.../exec"
-                    className="flex-1 bg-white border border-emerald-300 rounded-lg px-3 py-1.5 text-xs font-mono text-zinc-900 focus:outline-none focus:border-zinc-900"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSaveWebhook}
-                    className="btn-primary py-1.5 px-3 text-xs font-semibold cursor-pointer"
-                  >
-                    Lưu & Đồng Bộ
-                  </button>
-                </div>
               </div>
 
               <div>
