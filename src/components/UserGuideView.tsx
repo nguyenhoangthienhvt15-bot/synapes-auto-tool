@@ -3,7 +3,7 @@ import {
   BookOpen, Search, ArrowRight, CheckCircle2,
   Sparkles, KeyRound, Clock, Folder, Calendar, Share2, HardDrive,
   Cpu, FileText, ExternalLink, ShieldCheck, HelpCircle, Eye, EyeOff,
-  ChevronRight, ArrowLeft, Layers, Video, Monitor, AlertCircle
+  ChevronRight, ArrowLeft, Layers, Video, Monitor, AlertCircle, Globe
 } from 'lucide-react';
 
 interface UserGuideViewProps {
@@ -16,7 +16,7 @@ interface UserGuideViewProps {
 interface GuideModule {
   id: string;
   stepNumber: string;
-  category: 'auth' | 'ai' | 'skills' | 'review' | 'stitcher' | 'traffic' | 'calendar' | 'channels' | 'drive' | 'legal' | 'changelog';
+  category: 'auth' | 'ai' | 'skills' | 'review' | 'stitcher' | 'traffic' | 'calendar' | 'channels' | 'drive' | 'legal' | 'changelog' | 'plugin';
   title: string;
   shortDesc: string;
   badge: string;
@@ -29,7 +29,7 @@ interface GuideModule {
   actionLabel?: string;
   actionView?: string;
   proTips: string[];
-  mockupType: 'auth' | 'ai' | 'skills' | 'review' | 'stitcher' | 'traffic' | 'calendar' | 'channels' | 'drive' | 'legal' | 'changelog';
+  mockupType: 'auth' | 'ai' | 'skills' | 'review' | 'stitcher' | 'traffic' | 'calendar' | 'channels' | 'drive' | 'legal' | 'changelog' | 'plugin';
 }
 
 export const UserGuideView: React.FC<UserGuideViewProps> = ({
@@ -46,17 +46,18 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
     { id: 'all', label: 'Tất Cả Hướng Dẫn' },
     { id: 'auth', label: '1. Đăng Nhập & Mật Khẩu' },
     { id: 'ai', label: '2. Kịch Bản AI & Prompt' },
-    { id: 'review', label: '3. Kiểm Duyệt & Ghép Video' },
-    { id: 'traffic', label: '4. Giờ Vàng & Lịch Đăng' },
-    { id: 'channels', label: '5. Mạng Xã Hội & Google Drive' },
-    { id: 'legal', label: '6. Hồ Sơ Pháp Lý PDF' },
-    { id: 'changelog', label: '7. Nhật Ký Cập Nhật Mới' },
+    { id: 'plugin', label: '3. Tạo Plugin Từ URL Web (Video AI)' },
+    { id: 'review', label: '4. Kiểm Duyệt & Ghép Video' },
+    { id: 'traffic', label: '5. Giờ Vàng & Lịch Đăng' },
+    { id: 'channels', label: '6. Mạng Xã Hội & Google Drive' },
+    { id: 'legal', label: '7. Hồ Sơ Pháp Lý PDF' },
+    { id: 'changelog', label: '8. Nhật Ký Cập Nhật Mới' },
   ];
 
   const guideModules: GuideModule[] = [
     {
       id: 'auth-guide',
-      stepNumber: 'BƯỚC 01 / 10',
+      stepNumber: 'BƯỚC 01 / 11',
       category: 'auth',
       title: 'Đăng Nhập Studio & Quản Lý Mật Khẩu Khách Hàng',
       shortDesc: 'Xác thực tài khoản bằng Mã Code định danh được cấp, cơ chế xem/ẩn mật khẩu an toàn và đồng bộ tức thời từ Google Sheet.',
@@ -94,7 +95,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
     },
     {
       id: 'ai-prompt-guide',
-      stepNumber: 'BƯỚC 02 / 10',
+      stepNumber: 'BƯỚC 02 / 11',
       category: 'ai',
       title: 'Tạo Dự Án Kịch Bản Video Mới Với Động Cơ AI',
       shortDesc: 'Khởi tạo kịch bản video phân rã đa phân cảnh hoàn chỉnh chỉ từ một câu Prompt mô tả ngắn gọn và tùy chọn tỉ lệ chuẩn đa nền tảng.',
@@ -130,8 +131,57 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
       mockupType: 'ai',
     },
     {
+      id: 'plugin-url-guide',
+      stepNumber: 'BƯỚC 03 / 11',
+      category: 'plugin',
+      title: 'Tạo Plugin Từ URL Các Web Khác (Tự Động Hóa Sinh Video Khép Kín)',
+      shortDesc: 'Kết nối URL Webhook, REST API hoặc công cụ tạo video AI từ các trang web bên ngoài (Kling AI, Runway Gen-3, Luma Dream Machine, Pika, n8n, Make...) vào SYNAPES Studio để hoàn thiện toàn trình tự động sinh video từ kịch bản.',
+      badge: 'Tự Động Hóa Web Ngoài',
+      steps: [
+        {
+          number: 1,
+          title: 'Lấy URL Webhook / Endpoint từ web công cụ bên ngoài',
+          description: 'Đăng nhập vào trang web dịch vụ AI video bạn đang dùng (ví dụ: Kling AI Developer Portal, Runway Gen-3 API, Luma Dream Machine, n8n webhook, Make.com hoặc custom Web App của riêng bạn). Sao chép đường dẫn API Endpoint (dạng https://.../v1/videos/text2video hoặc URL Webhook tiếp nhận request) kèm Secret Token xác thực.',
+        },
+        {
+          number: 2,
+          title: 'Mở "API Keys AI Module" và chọn "Plugin Webhook Ngoài"',
+          description: 'Trên thanh Header hoặc Cài đặt Studio, nhấp nút "API Keys AI Module". Tại danh sách nhà cung cấp, nhấp chọn thẻ màu tím "Plugin Webhook Ngoài (Kling / Runway / Custom)".',
+        },
+        {
+          number: 3,
+          title: 'Dán Web URL vào ô "API Endpoint Base URL" và nạp Secret Token',
+          description: 'Dán đường dẫn URL vừa lấy từ trang web bên ngoài vào ô "API Endpoint Base URL". Sau đó nhập API Key / Bearer Token của trang web đó vào ô "Khóa Xác Thực".',
+          note: 'Mọi khóa xác thực và URL Webhook được bảo vệ mã hóa cục bộ tại trình duyệt, không bị lộ ra bên ngoài.',
+        },
+        {
+          number: 4,
+          title: 'Thiết lập cấu hình Payload JSON Input & Output Mapping',
+          description: 'Thiết lập mẫu JSON gửi đi (Input Mapping) chứa biến kịch bản tự động {{prompt}}, tỉ lệ {{aspect_ratio}}, thời lượng {{duration}}. Đồng thời cấu hình đường dẫn Output Mapping (ví dụ: data.output.video_url) để hệ thống tự động bóc tách link tải video thành phẩm trả về từ trang web đối tác.',
+        },
+        {
+          number: 5,
+          title: 'Kiểm tra Ping Webhook & Bấm "Lưu Cấu Hình & Kích Hoạt"',
+          description: 'Bấm nút "Kiểm Tra Kết Nối (Ping)" để gửi tín hiệu kiểm tra định dạng và trạng thái sẵn sàng của URL web ngoài (HTTP 200 OK). Sau đó bấm "Lưu Cấu Hình & Kích Hoạt" hoặc "Đặt Làm Động Cơ Mặc Định".',
+        },
+        {
+          number: 6,
+          title: 'Vận hành quy trình tự động hóa tạo video khép kín',
+          description: 'Khi kịch bản được phê duyệt, hệ thống sẽ tự động gọi URL web ngoài để tạo clip cho từng phân cảnh ➔ Nhận video thành phẩm ➔ Tự động nạp thẳng vào Phòng Dựng Stitcher Studio để ghép nối, hòa âm giọng đọc và phát sóng đa nền tảng mà không cần người dùng phải tải qua lại thủ công!',
+        },
+      ],
+      actionLabel: 'Mở Cấu Hình Plugin URL',
+      actionView: 'ai-engine',
+      proTips: [
+        'Bạn có thể dùng n8n hoặc Make.com làm webhook trung chuyển để liên kết chuỗi nhiều công cụ web (Midjourney tạo ảnh -> Runway tạo video -> ElevenLabs tạo voice) trong 1 URL duy nhất.',
+        'Video sau khi công cụ web ngoài render xong sẽ tự động được đồng bộ lưu trữ an toàn lên Google Drive Cloud của bạn.',
+        'Các biến template hỗ trợ sẵn: {{prompt}}, {{aspect_ratio}}, {{duration}}, {{scene_number}}.',
+      ],
+      mockupType: 'plugin',
+    },
+    {
       id: 'skills-guide',
-      stepNumber: 'BƯỚC 03 / 10',
+      stepNumber: 'BƯỚC 04 / 11',
       category: 'skills',
       title: 'Kho Skills & Prompts Bản Quyền Chuyên Biệt',
       shortDesc: 'Sử dụng các bộ công thức prompt chuẩn đã tối ưu tỷ lệ tương tác và giữ chân người xem theo từng nhóm ngành nghề.',
@@ -162,7 +212,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
     },
     {
       id: 'review-workspace-guide',
-      stepNumber: 'BƯỚC 04 / 10',
+      stepNumber: 'BƯỚC 05 / 11',
       category: 'review',
       title: 'Bàn Làm Việc Kiểm Duyệt & Thẩm Định Kịch Bản (Review Workspace)',
       shortDesc: 'Kiểm duyệt chi tiết từng phân cảnh (Scene Breakdown), nghe thử voiceover, điều chỉnh thời lượng và bấm nút phê duyệt kịch bản.',
@@ -198,7 +248,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
     },
     {
       id: 'stitcher-guide',
-      stepNumber: 'BƯỚC 05 / 10',
+      stepNumber: 'BƯỚC 06 / 11',
       category: 'stitcher',
       title: 'Phòng Dựng & Ghép Video Đa Phân Đoạn (Multi-Clip Stitcher Studio)',
       shortDesc: 'Cửa sổ biên tập chuyên sâu ghép nối các đoạn video thành phẩm, kiểm tra âm lượng Voiceover/BGM và xuất file 1080p hoàn chỉnh.',
@@ -234,7 +284,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
     },
     {
       id: 'traffic-chart-guide',
-      stepNumber: 'BƯỚC 06 / 10',
+      stepNumber: 'BƯỚC 07 / 11',
       category: 'traffic',
       title: 'Biểu Đồ Miền Lưu Lượng Giờ Vàng Thời Gian Thực (TikTok, YouTube, Facebook)',
       shortDesc: 'Theo dõi lưu lượng người xem hoạt động theo thời gian thực (quét chu kỳ 10 phút/lần) để chọn thời điểm đăng video đạt triệu view.',
@@ -271,7 +321,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
     },
     {
       id: 'calendar-guide',
-      stepNumber: 'BƯỚC 07 / 10',
+      stepNumber: 'BƯỚC 08 / 11',
       category: 'traffic',
       title: 'Lịch Phát Sóng Tự Động & Hàng Đợi Xuất Bản Đa Kênh',
       shortDesc: 'Lên lịch xuất bản tự động theo lịch ngày/tuần, video tự động kích hoạt API phát sóng khi đến đúng mốc giờ tối ưu.',
@@ -302,7 +352,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
     },
     {
       id: 'channels-guide',
-      stepNumber: 'BƯỚC 08 / 10',
+      stepNumber: 'BƯỚC 09 / 11',
       category: 'channels',
       title: 'Liên Kết Mạng Xã Hội, Đăng Nhập Kênh & Nút "Đổi Tài Khoản"',
       shortDesc: 'Ủy quyền tài khoản YouTube, TikTok, Facebook an toàn. Thao tác nút "Đổi tài khoản" chuyên nghiệp và "Thử đăng video" kiểm tra kết nối.',
@@ -334,7 +384,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
     },
     {
       id: 'drive-guide',
-      stepNumber: 'BƯỚC 09 / 10',
+      stepNumber: 'BƯỚC 10 / 11',
       category: 'channels',
       title: 'Thư Viện Sao Lưu Google Drive Cloud & Nút "Đăng Nhập Tài Khoản"',
       shortDesc: 'Lưu trữ tự động kịch bản và video hoàn chỉnh lên Google Drive của khách hàng với phạm vi bảo mật tối cao drive.file.',
@@ -370,7 +420,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
     },
     {
       id: 'legal-guide',
-      stepNumber: 'BƯỚC 10 / 10',
+      stepNumber: 'BƯỚC 11 / 11',
       category: 'legal',
       title: 'Tra Cứu 4 Tài Liệu Pháp Lý, Bản Quyền & Trách Nhiệm Chuẩn Báo Cáo (PDF)',
       shortDesc: 'Đọc và tải về 4 tập tài liệu PDF soạn thảo chuẩn font Times New Roman, dẫn chú đầy đủ Luật An ninh mạng, Luật Sở hữu trí tuệ và Bộ luật Dân sự.',
@@ -426,6 +476,11 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
           number: 4,
           title: 'Biểu Đồ Miền Lưu Lượng Giờ Vàng Telemetry Realtime 10p/lần',
           description: 'Hệ thống tự động theo dõi và cập nhật lưu lượng TikTok, YouTube, Facebook cứ mỗi 10 phút/lần kèm giờ thực tế.',
+        },
+        {
+          number: 5,
+          title: 'Cẩm nang Plugin Web URL: Kết nối công cụ video từ các web khác',
+          description: 'Bổ sung hướng dẫn chi tiết cách tạo Plugin từ Webhook URL ngoài (Kling, Runway, Luma, n8n) để hoàn thiện quy trình sinh video tự động khép kín.',
         },
       ],
       actionLabel: 'Quay Lại Bàn Làm Việc',
@@ -563,6 +618,68 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
               <div className="p-2 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
                 <span>AI tự động phân tích: 6 Phân Cảnh • Voiceover AI • SFX • Gợi ý hình ảnh</span>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'plugin':
+        return (
+          <div className="bg-white rounded-lg border border-black/10 p-4 shadow-xs space-y-3 font-sans">
+            <div className="flex items-center justify-between border-b border-black/5 pb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded bg-purple-600 text-white flex items-center justify-center text-xs shadow-xs">
+                  <Globe className="w-3.5 h-3.5" />
+                </div>
+                <span className="text-xs font-semibold text-zinc-900 font-mono">
+                  Plugin Webhook URL (Kling / Runway / Web AI)
+                </span>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 font-semibold">
+                ⚡ Auto Bridge
+              </span>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div>
+                <label className="text-[11px] text-zinc-500 block mb-0.5 font-medium">
+                  API Endpoint Webhook URL (Từ web công cụ khác):
+                </label>
+                <div className="px-2.5 py-1.5 rounded bg-zinc-50 border border-black/10 font-mono text-zinc-800 text-[11px] truncate flex items-center justify-between">
+                  <span className="truncate">https://api.klingai.com/v1/videos/text2video</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 ml-1" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-zinc-500 block mb-0.5 font-mono">
+                    Input Mapping (Payload JSON)
+                  </label>
+                  <div className="p-2 rounded bg-zinc-900 text-emerald-400 font-mono text-[9px] leading-tight space-y-0.5">
+                    <div>&#123;</div>
+                    <div className="pl-2">"prompt": "&#123;&#123;prompt&#125;&#125;",</div>
+                    <div className="pl-2">"ratio": "&#123;&#123;aspect_ratio&#125;&#125;",</div>
+                    <div className="pl-2">"duration": 5</div>
+                    <div>&#125;</div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-zinc-500 block mb-0.5 font-mono">
+                    Output Video URL Mapping
+                  </label>
+                  <div className="p-2 rounded bg-zinc-50 border border-black/10 font-mono text-[10px] text-zinc-700 space-y-1">
+                    <div className="text-[9px] text-zinc-400">Đường dẫn JSON bóc tách:</div>
+                    <div className="text-purple-700 font-semibold text-[10px]">data.output.video_url</div>
+                    <div className="text-[9px] text-emerald-600">● Tự động nạp vào Stitcher</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-2 rounded bg-purple-50/80 border border-purple-200 text-purple-900 text-[11px] flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+                <span>Tự động kích hoạt: Kịch bản AI ➔ Gửi URL web ngoài sinh clip ➔ Nạp thẳng phòng dựng.</span>
               </div>
             </div>
           </div>
@@ -909,6 +1026,10 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                 <span>Cơ chế xem/ẩn mật khẩu an toàn & 4 tệp PDF pháp lý chuẩn Times New Roman.</span>
               </div>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>Bổ sung cẩm nang tạo Plugin từ URL các web khác để tự động hóa tạo video.</span>
+              </div>
             </div>
           </div>
         );
@@ -947,7 +1068,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">
-                Hướng dẫn chi tiết từng tính năng, quy trình vận hành tự động hóa từ phân rã kịch bản AI, kiểm duyệt phòng dựng, theo dõi lưu lượng giờ vàng đến xuất bản và sao lưu đám mây.
+                Hướng dẫn chi tiết từng tính năng, quy trình vận hành tự động hóa từ phân rã kịch bản AI, tạo plugin từ URL các web khác, kiểm duyệt phòng dựng, theo dõi lưu lượng giờ vàng đến xuất bản và sao lưu đám mây.
               </p>
             </div>
           </div>
@@ -955,7 +1076,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
           <div className="flex items-center gap-2 self-start sm:self-auto">
             <span className="px-2.5 py-1 rounded-md bg-zinc-100 text-zinc-700 font-mono text-xs border border-black/5 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span>10 Module Chuẩn Nghiệp Vụ</span>
+              <span>11 Module Chuẩn Nghiệp Vụ</span>
             </span>
           </div>
         </div>
@@ -966,7 +1087,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
             <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Tìm kiếm chức năng... (ví dụ: tạo kịch bản, giờ vàng, đổi tài khoản, google drive, stitcher)"
+              placeholder="Tìm kiếm chức năng... (ví dụ: tạo plugin web, kịch bản, giờ vàng, đổi tài khoản, google drive, stitcher)"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-2 rounded-lg bg-zinc-50 border border-black/10 text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:bg-white focus:border-zinc-900 transition"
