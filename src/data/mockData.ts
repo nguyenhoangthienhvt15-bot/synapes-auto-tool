@@ -1,4 +1,4 @@
-import { Project, EngineerSheetRow, Skill, AIProviderConfig } from '../types';
+import { Project, EngineerSheetRow, Skill, AIProviderConfig, McpVideoServer } from '../types';
 
 export const INITIAL_USER: { code: string; name: string; email: string; isDefaultPassword: boolean } = {
   code: 'VIP-001',
@@ -133,6 +133,56 @@ export const INITIAL_SKILLS: Skill[] = [
     defaultTags: ['#BaiHocCuocSong', '#TuDuyTichCuc', '#PhatTrienBanThan', '#DongLuc'],
     tone: 'Trầm ấm, chiêm nghiệm, giàu cảm xúc',
     systemPrompt: 'Kể chuyện bằng hình ảnh và lời thoại giàu triết lý. Nhịp điệu chậm rãi, kết thúc bằng một thông điệp đắt giá.',
+  },
+  {
+    id: 'skill-cinematic-director',
+    name: 'Đạo Diễn Điện Ảnh & Chuyển Động Camera 3D',
+    command: '/cinematic-director',
+    description: 'Cấu trúc 5 lớp Hollywood: [Chủ thể] + [Bối cảnh] + [Chuyển động Camera Dolly/Orbit/Crane/FPV Drone] + [Ống kính Anamorphic 35mm] + [Ánh sáng Volumetric/Cyberpunk/Rembrandt] (dựa trên repo ai9app/AI-Cinematic-Prompt-Director & geekjourneyx/awesome-ai-video-prompts).',
+    category: 'Điện ảnh',
+    defaultTags: ['#Cinematography', '#DollyShot', '#FPVDrone', '#AnamorphicLens', '#SoraPrompt', '#KlingAI', '#RunwayGen3'],
+    tone: 'Hoành tráng, điện ảnh, góc máy chuyển động kịch tính',
+    systemPrompt: 'Đạo diễn điện ảnh và chuyên gia quay phim (Cinematographer). Mọi phân cảnh đều phải chỉ định rõ: 1) Chuyển động máy quay (Dolly In/Out, Tracking, Orbit 360, FPV Drone); 2) Tiêu cự & Ống kính (35mm Anamorphic, 85mm Portrait); 3) Ánh sáng & Bầu không khí (Volumetric god rays, Cyberpunk neon, Rembrandt lighting); 4) Chi tiết vật lý siêu thực.',
+  },
+  {
+    id: 'skill-retention-master',
+    name: 'Tối Ưu Giữ Chân & B-Roll Nhịp Nhanh 2.5s',
+    command: '/retention-master',
+    description: 'Công thức giữ chân người xem đỉnh cao: Visual Hook 3 giây đầu, cắt cảnh B-Roll liên tục mỗi 2.5 giây, hiệu ứng âm thanh SFX Riser/Whoosh, kích thích dopamin người xem TikTok & Shorts (dựa trên repo RayVentura/ShortGPT & harry0703/MoneyPrinterTurbo).',
+    category: 'Viral Video',
+    defaultTags: ['#HighRetention', '#Hook3s', '#BRollPacing', '#ShortFormFormula', '#ViralTikTok', '#ShortsGrowth'],
+    tone: 'Dồn dập, lôi cuốn, tạo sự tò mò cao độ',
+    systemPrompt: 'Chuyên gia tăng trưởng thuật toán video ngắn TikTok & YouTube Shorts. Phân rã kịch bản với hook thị giác gây sốc 3 giây đầu tiên. Mỗi phân đoạn thoại tối đa 2.5 - 3 giây kèm gợi ý B-roll bổ trợ, âm thanh hiệu ứng (Whoosh, Cash Register, Pop, Risers) giữ chân người xem đến giây cuối cùng.',
+  },
+  {
+    id: 'skill-remotion-motion',
+    name: 'Đồ Họa Động & Kinetic Typography (Alex Hormozi Style)',
+    command: '/remotion-motion',
+    description: 'Kịch bản tối ưu hóa cho đồ họa động và chữ nhảy theo nhịp nói (Kinetic Subtitles), thanh tiến trình visual bar, sticker nảy bouncy và hiệu ứng spotlight từ khóa (dựa trên repo remotion-dev/remotion).',
+    category: 'Đồ họa động',
+    defaultTags: ['#Remotion', '#KineticTypography', '#HormoziCaptions', '#MotionGraphics', '#ProgressPill'],
+    tone: 'Năng lượng cao, rõ ràng, dứt khoát, hiện đại',
+    systemPrompt: 'Kỹ sư đồ họa video Remotion & Motion Designer. Thiết kế phân cảnh tương thích hiệu ứng chữ động nhảy theo nhịp nói: đánh dấu từ khóa [KEYWORD] để đổi màu nổi bật (Vàng neon / Xanh ngọc), gợi ý vị trí chèn emoji động và thanh tiến trình thời lượng.',
+  },
+  {
+    id: 'skill-autocut-pacing',
+    name: 'Nhịp Điệu Dứt Khoát & Lọc Khoảng Lặng (Jump-Cut)',
+    command: '/autocut-pacing',
+    description: 'Kỹ thuật dựng nhịp độ cao: tự động đánh dấu và triệt tiêu toàn bộ khoảng lặng thừa (>0.3s), tạo bước chuyển Jump-Cut dứt khoát đẩy năng lượng câu chuyện (dựa trên repo AutoCut & pedromarianoalmeida/ffmpeg-mcp-server).',
+    category: 'Dựng phim',
+    defaultTags: ['#JumpCut', '#SilenceRemoval', '#FastPacing', '#HighEnergy', '#PodcastCut'],
+    tone: 'Gãy gọn, đanh thép, không một giây thừa',
+    systemPrompt: 'Chuyên gia biên tập nhịp điệu (Pacing Editor). Loại bỏ triệt để câu từ rườm rà, khoảng lặng và từ đệm. Cấu trúc câu dứt khoát, nhịp điệu nhanh, phối hợp các điểm cắt Jump-Cut mượt mà.',
+  },
+  {
+    id: 'skill-videolingo-dub',
+    name: 'Bản Địa Hóa Phụ Đề & Lồng Tiếng Chuẩn Netflix',
+    command: '/videolingo-dub',
+    description: 'Chuyển ngữ văn phong điện ảnh, đồng bộ phụ đề Whisper chính xác đến từng mili-giây, lồng tiếng voice clone tự nhiên không gượng gạo phục vụ kênh phân phối toàn cầu (dựa trên repo Huanshere/VideoLingo).',
+    category: 'Bản địa hóa',
+    defaultTags: ['#VideoLingo', '#NetflixSubtitles', '#WhisperSync', '#MultiLanguage', '#VoiceClone'],
+    tone: 'Chuẩn xác, tự nhiên, đa ngữ điệu, quốc tế',
+    systemPrompt: 'Đạo diễn bản địa hóa đa ngôn ngữ và phụ đề chuẩn điện ảnh Netflix. Tự động chia dòng phụ đề theo cụm nghĩa tự nhiên, không ngắt đôi ngữ pháp, tối ưu khớp khẩu hình và nhịp thở của diễn viên lồng tiếng.',
   },
 ];
 
@@ -402,4 +452,266 @@ export const DEFAULT_AI_CONFIG: AIProviderConfig = {
     timeoutSeconds: 120,
   },
 };
+
+export const MCP_VIDEO_SERVERS: McpVideoServer[] = [
+  {
+    id: 'mcp-ffmpeg-llm',
+    name: 'FFmpeg LLM Timeline MCP Server',
+    repo: 'Mnehmos/mnehmos.ffmpeg-llm.mcp',
+    repoUrl: 'https://github.com/Mnehmos/mnehmos.ffmpeg-llm.mcp',
+    author: 'Mnehmos',
+    category: 'mcp-ffmpeg',
+    badge: '47 Tools • Timeline JSON',
+    description: 'Cung cấp quyền kiểm soát timeline có cấu trúc JSON cho Agent AI thay vì sinh câu lệnh thô. Biên soạn filtergraph tối ưu, tích hợp OpenRouter vision AI phát hiện điểm nhấn cảnh quay và tự động render.',
+    techStack: ['Python', 'FastMCP', 'FFmpeg', 'OpenRouter Vision'],
+    keyTools: [
+      'timeline_create',
+      'timeline_add_track',
+      'timeline_split_clip',
+      'detect_highlights',
+      'apply_filtergraph',
+      'timeline_render_1080p'
+    ],
+    sampleConfig: {
+      serverKey: 'ffmpeg-llm',
+      command: 'uvx',
+      args: ['mnehmos.ffmpeg-llm.mcp'],
+      env: { FFMPEG_PATH: '/usr/bin/ffmpeg' }
+    },
+    useCases: [
+      'Tự động dựng timeline đa lớp từ kịch bản phân cảnh',
+      'Cắt gọt và ghép nối nhiều video thành phẩm theo frame chính xác',
+      'Tự động phát hiện highlight video bằng thị giác máy tính'
+    ],
+    status: 'recommended'
+  },
+  {
+    id: 'mcp-vfx',
+    name: 'VFX Video Manipulator MCP',
+    repo: 'conneroisu/vfx-mcp',
+    repoUrl: 'https://github.com/conneroisu/vfx-mcp',
+    author: 'conneroisu',
+    category: 'mcp-vfx',
+    badge: 'FastMCP • Python VFX',
+    description: 'Máy chủ MCP xây dựng trên FastMCP và ffmpeg-python: thực hiện các thao tác biến đổi video, tăng/giảm tốc độ (speed ramp), thay thế luồng âm thanh, đảo ngược clip và co giãn độ phân giải.',
+    techStack: ['Python', 'FastMCP', 'ffmpeg-python'],
+    keyTools: [
+      'vfx_trim_video',
+      'vfx_concat_clips',
+      'vfx_speed_ramp',
+      'vfx_swap_audio',
+      'vfx_reverse_clip',
+      'vfx_scale_resolution'
+    ],
+    sampleConfig: {
+      serverKey: 'vfx-editor',
+      command: 'uv',
+      args: ['run', 'vfx-mcp']
+    },
+    useCases: [
+      'Tạo hiệu ứng slow-motion và speed-up theo nhịp điệu',
+      'Thay thế nhạc nền hoặc hòa âm giọng đọc tự động',
+      'Ghép nối các clip ngắn thành một video liền mạch'
+    ],
+    status: 'ready'
+  },
+  {
+    id: 'mcp-ffmpeg-ops',
+    name: 'MCP-FFmpeg 30+ Operations Engine',
+    repo: 'kevinten-ai/mcp-ffmpeg',
+    repoUrl: 'https://github.com/kevinten-ai/mcp-ffmpeg',
+    author: 'kevinten-ai',
+    category: 'mcp-ffmpeg',
+    badge: '30+ Thao Tác FFmpeg',
+    description: 'Đóng gói hơn 30 thao tác FFmpeg chuyên sâu qua giao thức JSON-RPC: lồng ghép video (overlay), chuyển cảnh mềm (dissolve/fade), đóng dấu bản quyền động (watermark) và chuẩn hoá âm lượng EBU R128.',
+    techStack: ['TypeScript', 'JSON-RPC', 'FFmpeg'],
+    keyTools: [
+      'ffmpeg_overlay',
+      'ffmpeg_transition',
+      'ffmpeg_normalize_audio',
+      'ffmpeg_transcode',
+      'ffmpeg_extract_frames'
+    ],
+    sampleConfig: {
+      serverKey: 'mcp-ffmpeg',
+      command: 'npx',
+      args: ['-y', 'mcp-ffmpeg']
+    },
+    useCases: [
+      'Chèn B-Roll và hình ảnh minh họa đè lên video chính',
+      'Tạo các hiệu ứng chuyển cảnh mượt mà giữa các phân đoạn',
+      'Cân bằng âm lượng chuẩn phát sóng TikTok / YouTube'
+    ],
+    status: 'ready'
+  },
+  {
+    id: 'mcp-ffmpeg-node',
+    name: 'FFmpeg Node.js & Auto Silence Cutter',
+    repo: 'pedromarianoalmeida/ffmpeg-mcp-server',
+    repoUrl: 'https://github.com/pedromarianoalmeida/ffmpeg-mcp-server',
+    author: 'pedromarianoalmeida',
+    category: 'mcp-ffmpeg',
+    badge: 'Bundled ffmpeg-static • Auto Silence Cut',
+    description: 'Máy chủ MCP chạy qua npx đóng gói sẵn binary ffmpeg-static (không cần cài FFmpeg vào máy). Có tính năng tự động nhận diện và cắt bỏ khoảng lặng dưới 0.3s, tự dán phụ đề.',
+    techStack: ['Node.js', 'npx', 'ffmpeg-static'],
+    keyTools: [
+      'silence_detect_and_cut',
+      'concat_videos',
+      'extract_audio',
+      'convert_format',
+      'burn_subtitles'
+    ],
+    sampleConfig: {
+      serverKey: 'ffmpeg-static-mcp',
+      command: 'npx',
+      args: ['-y', 'ffmpeg-mcp-server']
+    },
+    useCases: [
+      'Tự động cắt bỏ khoảng lặng thừa khi thu âm podcast hoặc voice',
+      'Chạy trực tiếp trên mọi hệ điều hành không cần cài FFmpeg',
+      'Ghép nối video siêu tốc'
+    ],
+    status: 'recommended'
+  },
+  {
+    id: 'pipeline-remotion',
+    name: 'Remotion - Video In React Framework',
+    repo: 'remotion-dev/remotion',
+    repoUrl: 'https://github.com/remotion-dev/remotion',
+    author: 'remotion-dev',
+    category: 'pipeline-remotion',
+    badge: 'React 19 • Headless Chrome Render',
+    description: 'Framework lập trình video bằng React & TypeScript hàng đầu thế giới: tạo chuyển động chữ động (Kinetic Typography), thanh tiến trình video, sticker nảy bouncy và xuất file 1080p 60fps.',
+    techStack: ['React', 'TypeScript', 'Chromium Headless', 'WebGL'],
+    keyTools: [
+      'render_composition',
+      'calculate_fps',
+      'generate_dynamic_subtitles',
+      'stitch_canvas_layers'
+    ],
+    sampleConfig: {
+      serverKey: 'remotion-cli',
+      command: 'npx',
+      args: ['remotion', 'render', 'src/index.ts', 'VideoRoot', 'out.mp4']
+    },
+    useCases: [
+      'Hiển thị chữ nhảy nhịp điệu phong cách Alex Hormozi',
+      'Tạo thanh đo tiến trình xem video (Progress Bar)',
+      'Tạo intro/outro đồ họa động mượt mà 60fps'
+    ],
+    status: 'recommended'
+  },
+  {
+    id: 'pipeline-moneyprinter',
+    name: 'MoneyPrinterTurbo Automated Short Engine',
+    repo: 'harry0703/MoneyPrinterTurbo',
+    repoUrl: 'https://github.com/harry0703/MoneyPrinterTurbo',
+    author: 'harry0703',
+    category: 'pipeline-short',
+    badge: 'One-Click Short Video Pipeline',
+    description: 'Hệ thống tự động hóa toàn diện từ chủ đề/từ khóa: gọi LLM viết kịch bản, chuyển văn bản thành giọng nói (EdgeTTS/ElevenLabs), tìm kiếm B-roll footage và tự động dán phụ đề.',
+    techStack: ['Python', 'MoviePy', 'EdgeTTS', 'Whisper'],
+    keyTools: [
+      'auto_generate_short',
+      'voice_synthesis',
+      'stock_video_matcher',
+      'subtitle_styler'
+    ],
+    sampleConfig: {
+      serverKey: 'money-printer-turbo',
+      command: 'python',
+      args: ['main.py', '--config', 'config.json']
+    },
+    useCases: [
+      'Sản xuất video ngắn tự động số lượng lớn cho TikTok / Shorts',
+      'Tự động chọn nhạc nền và ghép lời đọc khớp từng giây',
+      'Tối ưu hóa thời gian sản xuất nội dung'
+    ],
+    status: 'ready'
+  },
+  {
+    id: 'pipeline-videolingo',
+    name: 'VideoLingo - Netflix Quality Localization',
+    repo: 'Huanshere/VideoLingo',
+    repoUrl: 'https://github.com/Huanshere/VideoLingo',
+    author: 'Huanshere',
+    category: 'pipeline-subtitle',
+    badge: 'Netflix Subtitles • Whisper • AI Dubbing',
+    description: 'Hệ thống dịch thuật, tạo phụ đề Whisper chuẩn xác từng mili-giây và lồng tiếng AI đa ngôn ngữ không bị cứng nhắc, tự động căn chỉnh nhịp thở và ngắt dòng tự nhiên.',
+    techStack: ['Python', 'Whisper', 'NLP Chunking', 'Voice Cloning'],
+    keyTools: [
+      'whisper_timestamp_transcribe',
+      'nlp_subtitle_split',
+      'ai_dubbing_align',
+      'dual_language_subtitles'
+    ],
+    sampleConfig: {
+      serverKey: 'videolingo',
+      command: 'streamlit',
+      args: ['run', 'st.py']
+    },
+    useCases: [
+      'Dịch phụ đề song ngữ chuẩn điện ảnh quốc tế',
+      'Cắt dòng phụ đề theo cụm từ ngữ pháp tự nhiên',
+      'Lồng tiếng AI giọng đọc bản xứ phục vụ kênh toàn cầu'
+    ],
+    status: 'recommended'
+  },
+  {
+    id: 'pipeline-shortgpt',
+    name: 'ShortGPT Automated Content Framework',
+    repo: 'RayVentura/ShortGPT',
+    repoUrl: 'https://github.com/RayVentura/ShortGPT',
+    author: 'RayVentura',
+    category: 'pipeline-short',
+    badge: 'Channel Automation • Asset Scraper',
+    description: 'Framework thử nghiệm tự động hóa kênh video ngắn: biên kịch chuyên nghiệp, tìm kiếm tư liệu Pexels/Web tự động, xuất bản đa nền tảng.',
+    techStack: ['Python', 'Pexels API', 'MoviePy', 'OpenAI'],
+    keyTools: [
+      'automated_broll_scraper',
+      'elevenlabs_voice_gen',
+      'short_clip_stitcher'
+    ],
+    sampleConfig: {
+      serverKey: 'shortgpt',
+      command: 'python',
+      args: ['run_shortgpt.py']
+    },
+    useCases: [
+      'Tự động hóa kênh YouTube Shorts / Reels vệ tinh',
+      'Gắn thẻ tag và mô tả SEO video tự động',
+      'Ghép nối đa nguồn tư liệu'
+    ],
+    status: 'community'
+  },
+  {
+    id: 'cinematic-director-tools',
+    name: 'AI Cinematic Prompt Director Toolkit',
+    repo: 'ai9app/AI-Cinematic-Prompt-Director',
+    repoUrl: 'https://github.com/ai9app/AI-Cinematic-Prompt-Director',
+    author: 'ai9app',
+    category: 'cinematography',
+    badge: 'Camera Motion • 35mm Lens • Lighting',
+    description: 'Kho kỹ thuật góc máy điện ảnh, chuyển động camera 3D (Dolly In/Out, Orbit, Crane, FPV Drone) và ánh sáng Hollywood chuẩn cho Sora, Kling, Runway, Luma.',
+    techStack: ['Cinematography', 'Prompt Architecture', 'Multi-modal Diffusion'],
+    keyTools: [
+      'camera_motion_builder',
+      'anamorphic_lens_tuning',
+      'lighting_atmosphere_preset',
+      'shot_type_selector'
+    ],
+    sampleConfig: {
+      serverKey: 'cinematic-director',
+      command: 'node',
+      args: ['director_prompt_builder.js']
+    },
+    useCases: [
+      'Tạo câu lệnh mô tả chuyển động camera chính xác tuyệt đối',
+      'Tối ưu ánh sáng Rembrandt, Cyberpunk, Volumetric Rays',
+      'Chuẩn hóa tiêu cự ống kính 35mm / 85mm xóa phông'
+    ],
+    status: 'recommended'
+  }
+];
+
 

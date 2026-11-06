@@ -16,7 +16,7 @@ interface UserGuideViewProps {
 interface GuideModule {
   id: string;
   stepNumber: string;
-  category: 'auth' | 'ai' | 'skills' | 'review' | 'stitcher' | 'traffic' | 'calendar' | 'channels' | 'drive' | 'legal' | 'changelog' | 'plugin';
+  category: 'auth' | 'ai' | 'skills' | 'review' | 'stitcher' | 'traffic' | 'calendar' | 'channels' | 'drive' | 'legal' | 'changelog' | 'plugin' | 'mcp';
   title: string;
   shortDesc: string;
   badge: string;
@@ -29,7 +29,7 @@ interface GuideModule {
   actionLabel?: string;
   actionView?: string;
   proTips: string[];
-  mockupType: 'auth' | 'ai' | 'skills' | 'review' | 'stitcher' | 'traffic' | 'calendar' | 'channels' | 'drive' | 'legal' | 'changelog' | 'plugin';
+  mockupType: 'auth' | 'ai' | 'skills' | 'review' | 'stitcher' | 'traffic' | 'calendar' | 'channels' | 'drive' | 'legal' | 'changelog' | 'plugin' | 'mcp';
 }
 
 export const UserGuideView: React.FC<UserGuideViewProps> = ({
@@ -47,11 +47,12 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
     { id: 'auth', label: '1. Đăng Nhập & Mật Khẩu' },
     { id: 'ai', label: '2. Kịch Bản AI & Prompt' },
     { id: 'plugin', label: '3. Tạo Plugin Từ URL Web (Video AI)' },
-    { id: 'review', label: '4. Kiểm Duyệt & Ghép Video' },
-    { id: 'traffic', label: '5. Giờ Vàng & Lịch Đăng' },
-    { id: 'channels', label: '6. Mạng Xã Hội & Google Drive' },
-    { id: 'legal', label: '7. Hồ Sơ Pháp Lý PDF' },
-    { id: 'changelog', label: '8. Nhật Ký Cập Nhật Mới' },
+    { id: 'mcp', label: '4. Khối MCP & Tools Video (9 Repos)' },
+    { id: 'review', label: '5. Kiểm Duyệt & Ghép Video' },
+    { id: 'traffic', label: '6. Giờ Vàng & Lịch Đăng' },
+    { id: 'channels', label: '7. Mạng Xã Hội & Google Drive' },
+    { id: 'legal', label: '8. Hồ Sơ Pháp Lý PDF' },
+    { id: 'changelog', label: '9. Nhật Ký Cập Nhật Mới' },
   ];
 
   const guideModules: GuideModule[] = [
@@ -178,6 +179,54 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
         'Các biến template hỗ trợ sẵn: {{prompt}}, {{aspect_ratio}}, {{duration}}, {{scene_number}}.',
       ],
       mockupType: 'plugin',
+    },
+    {
+      id: 'mcp-tools-guide',
+      stepNumber: 'BƯỚC 04 / 12',
+      category: 'mcp',
+      title: 'Khối MCP Servers & Bộ Công Cụ Dựng Video AI Chuyên Nghiệp (9 Repos GitHub)',
+      shortDesc: 'Kho công cụ mã nguồn mở hàng đầu thế giới về Model Context Protocol (MCP), FFmpeg Timeline, Motion Graphics (Remotion), Subtitle & Dubbing (VideoLingo), Tự động hóa video ngắn (MoneyPrinterTurbo, ShortGPT, AutoCut) và Kỹ thuật góc máy điện ảnh 5 lớp Hollywood.',
+      badge: '9 Open-Source Repos • FastMCP',
+      steps: [
+        {
+          number: 1,
+          title: 'Truy cập "Khối MCP & Video Tools" trên thanh Sidebar hoặc Header',
+          description: 'Mở trang Khối MCP Server để tra cứu 9 bộ công cụ và repo GitHub chuyên sâu đã được tích hợp sẵn sàng vào Studio.',
+        },
+        {
+          number: 2,
+          title: 'Khám phá các MCP Server dựng phim & xử lý Timeline JSON',
+          description: 'Bao gồm Mnehmos FFmpeg LLM MCP (47 công cụ timeline), Conner O\'Isu FastMCP VFX (xử lý hiệu ứng thị giác), và Pedro Mariano Almeida FFmpeg MCP Server (chạy ngay qua npx với ffmpeg-static tích hợp, tự động lọc khoảng lặng silence cut).',
+        },
+        {
+          number: 3,
+          title: 'Khai thác các Engine tự động hóa: Remotion, VideoLingo, MoneyPrinter, AutoCut',
+          description: 'Remotion (đồ họa động React & chữ nhảy Alex Hormozi), VideoLingo (phụ đề Whisper chuẩn mili-giây và lồng tiếng đa ngôn ngữ), MoneyPrinterTurbo (quy trình sản xuất video ngắn 1-click), ShortGPT và AutoCut (jump-cut loại bỏ khoảng lặng thừa).',
+        },
+        {
+          number: 4,
+          title: 'Sao chép cấu hình MCP Server (claude_desktop_config.json / Cursor)',
+          description: 'Mỗi card công cụ cung cấp nút "Cấu Hình MCP" để sao chép khối JSON định dạng chuẩn MCP nạp vào Claude Desktop, Cursor, Roo-Code hoặc Antigravity chỉ bằng 1 cú nhấp chuột.',
+        },
+        {
+          number: 5,
+          title: 'Sử dụng Trình Tạo Câu Lệnh Đạo Diễn Điện Ảnh 5 Lớp Hollywood',
+          description: 'Tại đỉnh trang Khối MCP, sử dụng Director Builder để ghép nối: [Chủ thể] + [Chuyển động Camera Dolly/Orbit/FPV] + [Ống kính Anamorphic 35mm] + [Ánh sáng Volumetric] + [Nhịp điệu 60fps] để tạo prompt chuẩn điện ảnh cho Sora, Kling, Runway, Luma.',
+        },
+        {
+          number: 6,
+          title: 'Chèn nhanh góc máy điện ảnh trong Trình Duyệt Kịch Bản',
+          description: 'Tại từng phân cảnh kịch bản, nhấp vào các nút gợi ý: "+ Dolly In", "+ Orbit 360°", "+ FPV Drone", "+ 35mm Lens", "+ Volumetric Rays" để nâng cấp chất lượng hình ảnh ngay tức khắc.',
+        },
+      ],
+      actionLabel: 'Mở Khối MCP & Tools Video',
+      actionView: 'mcp-tools',
+      proTips: [
+        'Công thức 5 lớp Hollywood giúp video AI đạt độ sâu trường ảnh (DoF) và chuyển động máy quay mượt mà, loại bỏ hiện tượng méo hình giật cục.',
+        'Sử dụng ffmpeg-mcp-server để tự động bóc tách âm thanh, nén video dung lượng tối ưu và xuất bản nhanh gấp 3 lần.',
+        'Kết hợp Skill /cinematic-director và /retention-master trong Kho Skills để kịch bản vừa có tính nghệ thuật điện ảnh vừa giữ chân người xem tối đa.',
+      ],
+      mockupType: 'mcp',
     },
     {
       id: 'skills-guide',
@@ -680,6 +729,62 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
               <div className="p-2 rounded bg-purple-50/80 border border-purple-200 text-purple-900 text-[11px] flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
                 <span>Tự động kích hoạt: Kịch bản AI ➔ Gửi URL web ngoài sinh clip ➔ Nạp thẳng phòng dựng.</span>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'mcp':
+        return (
+          <div className="bg-white rounded-lg border border-black/10 p-3.5 shadow-xs space-y-3 font-sans">
+            <div className="flex items-center justify-between border-b border-black/5 pb-2">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
+                <span className="text-xs font-semibold text-zinc-900 font-mono">Khối MCP Servers & Video Tools</span>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                9 Repos Curated
+              </span>
+            </div>
+
+            {/* Hollywood 5-layer prompt preview */}
+            <div className="p-2.5 rounded-lg bg-zinc-950 text-white space-y-1.5 text-xs font-mono">
+              <div className="text-[10px] text-zinc-400 flex items-center justify-between">
+                <span>CÔNG THỨC 5 LỚP HOLLYWOOD:</span>
+                <span className="text-emerald-400 text-[9px]">Sora • Kling • Runway</span>
+              </div>
+              <div className="text-[11px] text-indigo-200 leading-snug">
+                [Phi thuyền lướt qua sao Thổ] + [Dolly In towards cockpit] + [35mm anamorphic lens] + [Volumetric starlight rays]
+              </div>
+            </div>
+
+            {/* MCP Server Cards preview */}
+            <div className="space-y-1.5 text-xs">
+              <div className="p-2 rounded bg-zinc-50 border border-black/5 flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-zinc-900 text-xs flex items-center gap-1.5">
+                    <span>ffmpeg-mcp-server</span>
+                    <span className="px-1.5 py-0.2 rounded bg-zinc-200 text-[9px] font-mono">FastMCP</span>
+                  </div>
+                  <div className="text-[10px] text-zinc-500">Silence removal • Auto jump-cut • MP4 optimization</div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="px-1.5 py-0.5 rounded bg-zinc-200 text-zinc-700 text-[9px]">Ping OK</span>
+                  <span className="px-2 py-0.5 rounded bg-zinc-900 text-white text-[9px] font-medium">Copy JSON</span>
+                </div>
+              </div>
+
+              <div className="p-2 rounded bg-zinc-50 border border-black/5 flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-zinc-900 text-xs flex items-center gap-1.5">
+                    <span>VideoLingo & Whisper</span>
+                    <span className="px-1.5 py-0.2 rounded bg-zinc-200 text-[9px] font-mono">Netflix Grade</span>
+                  </div>
+                  <div className="text-[10px] text-zinc-500">Phụ đề ngắt chuẩn ngữ pháp • Lồng tiếng AI đa ngôn ngữ</div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="px-2 py-0.5 rounded bg-zinc-900 text-white text-[9px] font-medium">Copy JSON</span>
+                </div>
               </div>
             </div>
           </div>

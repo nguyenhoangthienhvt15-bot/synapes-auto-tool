@@ -112,6 +112,27 @@ export interface ConnectedChannelAccount {
   };
 }
 
+export interface McpVideoServer {
+  id: string;
+  name: string;
+  repo: string;
+  repoUrl: string;
+  author: string;
+  category: 'mcp-ffmpeg' | 'mcp-vfx' | 'pipeline-remotion' | 'pipeline-subtitle' | 'pipeline-short' | 'cinematography';
+  badge: string;
+  description: string;
+  techStack: string[];
+  keyTools: string[];
+  sampleConfig: {
+    serverKey: string;
+    command: string;
+    args: string[];
+    env?: Record<string, string>;
+  };
+  useCases: string[];
+  status: 'ready' | 'recommended' | 'community';
+}
+
 export type AIProviderId = 'gemini' | 'openai' | 'claude' | 'deepseek' | 'grok' | 'plugin';
 
 export interface AIProviderConfig {

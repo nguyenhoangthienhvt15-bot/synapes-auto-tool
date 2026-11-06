@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Plus, Sparkles, Clock, Calendar, Folder, Share2,
-  HardDrive, Cpu, BookOpen, ChevronDown, Key
+  HardDrive, Cpu, BookOpen, ChevronDown, Key, Terminal
 } from 'lucide-react';
 import { MiniPeakHoursAreaChart } from './MiniPeakHoursAreaChart';
 
@@ -61,6 +61,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Sparkles className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Kho Skills & Prompts</span>
               </div>
+            </button>
+
+            <button
+              onClick={() => onSelectView('mcp-tools')}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${activeView === 'mcp-tools'
+                  ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
+                  : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
+                }`}
+              title="Khối MCP Server & Bộ công cụ dựng video AI chuyên nghiệp"
+            >
+              <div className="flex items-center gap-2.5">
+                <Terminal className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Khối MCP & Video Tools</span>
+              </div>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-medium bg-indigo-50 text-indigo-600 border border-indigo-200/50">
+                9 Repos
+              </span>
             </button>
           </div>
         </div>
