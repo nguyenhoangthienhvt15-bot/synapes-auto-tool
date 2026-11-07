@@ -106,8 +106,8 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
     filterRegion === 'All'
       ? availableVoices
       : availableVoices.filter((v) =>
-          v.region.toLowerCase().includes(filterRegion.toLowerCase())
-        );
+        v.region.toLowerCase().includes(filterRegion.toLowerCase())
+      );
 
   // Trigger audition for any specific voice card (or the currently selected voice)
   const triggerVoicePreview = (
@@ -225,11 +225,10 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                     setPitch(firstVi.pitch);
                     setFilterRegion('All');
                   }}
-                  className={`px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition cursor-pointer ${
-                    selectedLanguage === 'vi'
+                  className={`px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition cursor-pointer ${selectedLanguage === 'vi'
                       ? 'bg-zinc-900 text-white shadow-xs'
                       : 'text-zinc-600 hover:text-zinc-900'
-                  }`}
+                    }`}
                 >
                   <span>🇻🇳</span>
                   <span>Tiếng Việt (6 Giọng Thực)</span>
@@ -247,11 +246,10 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                     setPitch(firstEn.pitch);
                     setFilterRegion('All');
                   }}
-                  className={`px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition cursor-pointer ${
-                    selectedLanguage === 'en'
+                  className={`px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition cursor-pointer ${selectedLanguage === 'en'
                       ? 'bg-zinc-900 text-white shadow-xs'
                       : 'text-zinc-600 hover:text-zinc-900'
-                  }`}
+                    }`}
                 >
                   <span>🇺🇸 🇬🇧</span>
                   <span>English (5 Voices)</span>
@@ -281,43 +279,41 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
             <div className="flex items-center gap-1 flex-wrap">
               {selectedLanguage === 'vi'
                 ? ['All', 'Bắc', 'Nam', 'Trung', 'AI Neural'].map((reg) => (
-                    <button
-                      key={reg}
-                      type="button"
-                      onClick={() => setFilterRegion(reg)}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
-                        filterRegion === reg
-                          ? 'bg-zinc-900 text-white shadow-sm'
-                          : 'bg-zinc-100 text-zinc-600 hover:text-zinc-900'
+                  <button
+                    key={reg}
+                    type="button"
+                    onClick={() => setFilterRegion(reg)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${filterRegion === reg
+                        ? 'bg-zinc-900 text-white shadow-sm'
+                        : 'bg-zinc-100 text-zinc-600 hover:text-zinc-900'
                       }`}
-                    >
-                      {reg === 'All'
-                        ? 'Tất cả giọng Việt'
-                        : reg === 'AI Neural'
+                  >
+                    {reg === 'All'
+                      ? 'Tất cả giọng Việt'
+                      : reg === 'AI Neural'
                         ? 'AI Neural'
                         : `Miền ${reg}`}
-                    </button>
-                  ))
+                  </button>
+                ))
                 : ['All', 'America', 'Kingdom', 'AI Neural'].map((reg) => (
-                    <button
-                      key={reg}
-                      type="button"
-                      onClick={() => setFilterRegion(reg)}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
-                        filterRegion === reg
-                          ? 'bg-zinc-900 text-white shadow-sm'
-                          : 'bg-zinc-100 text-zinc-600 hover:text-zinc-900'
+                  <button
+                    key={reg}
+                    type="button"
+                    onClick={() => setFilterRegion(reg)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${filterRegion === reg
+                        ? 'bg-zinc-900 text-white shadow-sm'
+                        : 'bg-zinc-100 text-zinc-600 hover:text-zinc-900'
                       }`}
-                    >
-                      {reg === 'All'
-                        ? 'All English Voices'
-                        : reg === 'America'
+                  >
+                    {reg === 'All'
+                      ? 'All English Voices'
+                      : reg === 'America'
                         ? 'US English'
                         : reg === 'Kingdom'
-                        ? 'UK British'
-                        : 'Fast Neural'}
-                    </button>
-                  ))}
+                          ? 'UK British'
+                          : 'Fast Neural'}
+                  </button>
+                ))}
             </div>
             <span className="text-[11px] text-zinc-500 font-mono">
               Bấm <b>Nghe thử</b> trên từng thẻ để so sánh tông giọng
@@ -339,11 +335,10 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                     setSpeed(voice.rate);
                     setPitch(voice.pitch);
                   }}
-                  className={`p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-2 ${
-                    isSelected
+                  className={`p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-2 ${isSelected
                       ? 'bg-indigo-50/80 border-indigo-500 ring-2 ring-indigo-500/20'
                       : 'bg-zinc-50/70 border-black/[0.07] hover:bg-zinc-100/70 hover:border-black/[0.15]'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -364,11 +359,10 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <span
-                        className={`px-1.5 py-0.5 rounded border text-[9px] font-mono font-semibold ${
-                          isMale
+                        className={`px-1.5 py-0.5 rounded border text-[9px] font-mono font-semibold ${isMale
                             ? 'bg-sky-50 text-sky-800 border-sky-200'
                             : 'bg-pink-50 text-pink-800 border-pink-200'
-                        }`}
+                          }`}
                       >
                         {voice.gender} • {voice.region}
                       </span>
@@ -391,11 +385,10 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                         e.stopPropagation();
                         triggerVoicePreview(voice, true, voice.rate, voice.pitch);
                       }}
-                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold flex items-center gap-1 transition cursor-pointer shrink-0 ${
-                        isThisCardPlaying
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold flex items-center gap-1 transition cursor-pointer shrink-0 ${isThisCardPlaying
                           ? 'bg-rose-600 text-white shadow-xs animate-pulse'
                           : 'bg-zinc-900 hover:bg-indigo-600 text-white shadow-xs'
-                      }`}
+                        }`}
                     >
                       {isThisCardPlaying ? (
                         <>
@@ -505,11 +498,10 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                 <button
                   type="button"
                   onClick={() => triggerVoicePreview(selectedVoice, false, speed, pitch)}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-sm ${
-                    isAuditioning
+                  className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-sm ${isAuditioning
                       ? 'bg-rose-600 text-white'
                       : 'bg-zinc-900 hover:bg-zinc-800 text-white'
-                  }`}
+                    }`}
                 >
                   {isAuditioning ? (
                     <>
@@ -532,10 +524,9 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                   {spectrumBars.map((val, idx) => (
                     <div
                       key={idx}
-                      style={{ height: `${ isAuditioning ? val : 15 }%` }}
-                      className={`flex-1 rounded-t transition-all duration-75 ${
-                        isAuditioning ? 'bg-emerald-400' : 'bg-zinc-700'
-                      }`}
+                      style={{ height: `${isAuditioning ? val : 15}%` }}
+                      className={`flex-1 rounded-t transition-all duration-75 ${isAuditioning ? 'bg-emerald-400' : 'bg-zinc-700'
+                        }`}
                     />
                   ))}
                 </div>

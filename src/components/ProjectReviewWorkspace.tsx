@@ -386,8 +386,8 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                 <button
                   onClick={() => setShowSocialMockup(showSocialMockup === 'tiktok' ? 'none' : 'tiktok')}
                   className={`px-2 py-0.5 rounded text-[11px] font-medium transition cursor-pointer ${showSocialMockup === 'tiktok'
-                      ? 'bg-zinc-900 text-white'
-                      : 'bg-zinc-100 text-zinc-600 hover:text-zinc-900'
+                    ? 'bg-zinc-900 text-white'
+                    : 'bg-zinc-100 text-zinc-600 hover:text-zinc-900'
                     }`}
                 >
                   TikTok
@@ -395,8 +395,8 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                 <button
                   onClick={() => setShowSocialMockup(showSocialMockup === 'youtube' ? 'none' : 'youtube')}
                   className={`px-2 py-0.5 rounded text-[11px] font-medium transition cursor-pointer ${showSocialMockup === 'youtube'
-                      ? 'bg-zinc-900 text-white'
-                      : 'bg-zinc-100 text-zinc-600 hover:text-zinc-900'
+                    ? 'bg-zinc-900 text-white'
+                    : 'bg-zinc-100 text-zinc-600 hover:text-zinc-900'
                     }`}
                 >
                   YouTube
@@ -552,15 +552,15 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                       key={scene.id}
                       onClick={() => setActiveSceneId(scene.id)}
                       className={`p-3 rounded-lg border transition space-y-1.5 cursor-pointer ${isCurrentScene
-                          ? 'bg-indigo-50/40 border-indigo-400 shadow-sm'
-                          : 'bg-zinc-50/70 border-black/[0.05] hover:border-black/[0.14]'
+                        ? 'bg-indigo-50/40 border-indigo-400 shadow-sm'
+                        : 'bg-zinc-50/70 border-black/[0.05] hover:border-black/[0.14]'
                         }`}
                     >
                       <div className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-mono font-bold ${isCurrentScene
-                              ? 'bg-indigo-600 text-white'
-                              : 'bg-white border border-black/[0.08] text-zinc-700'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-white border border-black/[0.08] text-zinc-700'
                             }`}>
                             {scene.sceneNumber}
                           </span>
@@ -593,11 +593,10 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                               setVoiceStudioTargetSceneId(scene.id);
                               setIsLiveDubbingOpen(true);
                             }}
-                            className={`px-1.5 py-0.5 rounded border text-[9px] font-mono flex items-center gap-0.5 transition cursor-pointer ${
-                              scene.customAudioUrl
+                            className={`px-1.5 py-0.5 rounded border text-[9px] font-mono flex items-center gap-0.5 transition cursor-pointer ${scene.customAudioUrl
                                 ? 'bg-rose-50 text-rose-700 border-rose-300 font-bold'
                                 : 'bg-white hover:bg-rose-50 text-zinc-600 hover:text-rose-600 border-black/[0.06]'
-                            }`}
+                              }`}
                             title="Mở cửa sổ thứ 3 vừa xem video vừa thu âm trực tiếp cho cảnh này"
                           >
                             <Mic className="w-2.5 h-2.5" />

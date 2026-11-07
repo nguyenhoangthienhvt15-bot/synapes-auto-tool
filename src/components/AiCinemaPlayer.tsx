@@ -90,6 +90,11 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   const [exportScope, setExportScope] = useState<'full' | 'current'>('full');
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
 
+  // Walkthrough / Session screen recording state
+  const [isRecordingSession, setIsRecordingSession] = useState<boolean>(false);
+  const sessionRecorderRef = useRef<MediaRecorder | null>(null);
+  const sessionChunksRef = useRef<BlobPart[]>([]);
+
   // Color Grade & VFX quick modal
   const [showLutPaletteModal, setShowLutPaletteModal] = useState<boolean>(false);
 
@@ -619,9 +624,11 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     ctx.scale(scale, scale);
     ctx.translate(-W / 2, -H / 2);
 
-    // 3. Draw Image Media OR High-End 3D Holographic Product Stage
+    // 3. Draw Image Media OR High-End 3D Cinema Motion Graphics Stage
+    const isCustomMedia = Boolean(scene.customMediaUrl);
     const img = loadedImagesRef.current[scene.id];
-    if (img && img.complete && img.naturalWidth > 0) {
+
+    if (isCustomMedia && img && img.complete && img.naturalWidth > 0) {
       const imgRatio = img.naturalWidth / img.naturalHeight;
       const canvasRatio = W / H;
       let drawW = W;
@@ -641,8 +648,17 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
       ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
     } else {
-      // High-End 3D Flagship Dual-Screen Stage (iPhone Duo / Tech)
-      drawHighEnd3DProductStage(ctx, W, H, clockSec, currentSceneIndex, progress);
+      // If backdrop image is loaded, draw it as a subtle ambient blurred backdrop
+      if (img && img.complete && img.naturalWidth > 0) {
+        ctx.save();
+        ctx.globalAlpha = 0.22;
+        ctx.filter = 'blur(16px)';
+        ctx.drawImage(img, 0, 0, W, H);
+        ctx.restore();
+      }
+
+      // Draw Tailor-Made 3D Cinema Motion Graphics Stage for this Scene
+      drawCinematicSceneStage(ctx, W, H, clockSec, currentSceneIndex, progress, scene);
     }
 
     // Atmospheric light particles
@@ -686,56 +702,747 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     ctx.restore();
   };
 
-  // High-End 3D Product Stage (Renders an ultra-slick dual-screen titanium smartphone in 3D perspective)
-  const drawHighEnd3DProductStage = (
+  // MASTER 3D CINEMATIC PROCEDURAL STAGE COMPOSITOR (6 Distinct High-Tech Scenes)
+  const drawCinematicSceneStage = (
     ctx: CanvasRenderingContext2D,
     W: number,
     H: number,
     t: number,
     sceneIdx: number,
+    progress: number,
+    scene: StoryboardScene
+  ) => {
+    const headline = (scene.headline || '').toUpperCase();
+    const isScene1 = sceneIdx === 0 || headline.includes('01') || headline.includes('LỘ DIỆN') || headline.includes('KỶ NGUYÊN');
+    const isScene2 = sceneIdx === 1 || headline.includes('02') || headline.includes('BẢN LỀ') || headline.includes('TITAN');
+    const isScene3 = sceneIdx === 2 || headline.includes('03') || headline.includes('MÀN HÌNH') || headline.includes('OLED') || headline.includes('120HZ');
+    const isScene4 = sceneIdx === 3 || headline.includes('04') || headline.includes('NEURAL') || headline.includes('CHIP') || headline.includes('A19') || headline.includes('VI XỬ LÝ');
+    const isScene5 = sceneIdx === 4 || headline.includes('05') || headline.includes('CAMERA') || headline.includes('QUANG HỌC');
+    const isScene6 = sceneIdx >= 5 || headline.includes('06') || headline.includes('TỔNG KẾT') || headline.includes('ĐÁNH GIÁ');
+
+    if (isScene1) {
+      drawScene1_ObsidianReveal(ctx, W, H, t, progress);
+    } else if (isScene2) {
+      drawScene2_LiquidMetalHinge(ctx, W, H, t, progress);
+    } else if (isScene3) {
+      drawScene3_DualOledMultitasking(ctx, W, H, t, progress);
+    } else if (isScene4) {
+      drawScene4_SiliconNeuralDie(ctx, W, H, t, progress);
+    } else if (isScene5) {
+      drawScene5_TripleOpticsLidar(ctx, W, H, t, progress);
+    } else {
+      drawScene6_KeynoteGrandFinale(ctx, W, H, t, progress);
+    }
+  };
+
+  // SCENE 1: THE OBSIDIAN REVEAL
+  const drawScene1_ObsidianReveal = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    t: number,
     progress: number
   ) => {
-    // 3D Perspective Grid
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.15)';
-    ctx.lineWidth = 1;
-    const horizon = H * 0.65;
-    for (let i = -14; i <= 14; i++) {
+    const cx = W * 0.5;
+    const cy = H * 0.5;
+
+    // Perspective floor with laser grid
+    ctx.strokeStyle = 'rgba(14, 165, 233, 0.22)';
+    ctx.lineWidth = 1.2;
+    const horizon = H * 0.62;
+    for (let i = -16; i <= 16; i++) {
       ctx.beginPath();
-      ctx.moveTo(W * 0.5 + i * (W * 0.025), horizon);
-      ctx.lineTo(W * 0.5 + i * (W * 0.16), H);
+      ctx.moveTo(cx + i * (W * 0.022), horizon);
+      ctx.lineTo(cx + i * (W * 0.17), H);
       ctx.stroke();
     }
 
-    // Center Glow
-    const cx = W * 0.5;
-    const cy = H * 0.46;
-    const glow = ctx.createRadialGradient(cx, cy, 10, cx, cy, W * 0.35);
-    glow.addColorStop(0, 'rgba(56, 189, 248, 0.32)');
-    glow.addColorStop(0.5, 'rgba(168, 85, 247, 0.12)');
-    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, W, H);
+    // Glowing Circular LED Ring on Floor
+    ctx.save();
+    ctx.translate(cx, horizon + (H - horizon) * 0.42);
+    ctx.scale(1, 0.28);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 4;
+    ctx.shadowColor = '#0ea5e9';
+    ctx.shadowBlur = 24;
+    ctx.beginPath();
+    ctx.arc(0, 0, Math.min(W, H) * 0.44, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
 
-    // Unfolding 3D Flagship Body
-    const phoneW = Math.min(W, H) * 0.24;
-    const phoneH = phoneW * 1.62;
-    const unfoldAngle = Math.sin(t * 1.5) * 0.22;
+    // Volumetric God Rays from top
+    ctx.save();
+    const rayGrad = ctx.createLinearGradient(cx, 0, cx, H * 0.7);
+    rayGrad.addColorStop(0, 'rgba(56, 189, 248, 0.18)');
+    rayGrad.addColorStop(0.5, 'rgba(99, 102, 241, 0.08)');
+    rayGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = rayGrad;
+    ctx.beginPath();
+    ctx.moveTo(cx - W * 0.15, 0);
+    ctx.lineTo(cx + W * 0.15, 0);
+    ctx.lineTo(cx + W * 0.38, H * 0.7);
+    ctx.lineTo(cx - W * 0.38, H * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Rising & Unfolding iPhone Duo
+    const phoneW = Math.min(W, H) * 0.21;
+    const phoneH = phoneW * 1.68;
+    const riseY = cy + (1 - Math.min(1, progress * 1.8)) * 35;
+    const unfoldAngle = (0.2 + progress * 0.45) * Math.sin(t * 1.2);
+
+    ctx.save();
+    ctx.translate(cx, riseY);
+
+    // Dynamic Pedestal Shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.beginPath();
+    ctx.ellipse(0, phoneH * 0.54, phoneW * 1.4, 24, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // LEFT WING (Folded Titanium + Rear Ceramic Glass)
+    ctx.save();
+    ctx.rotate(unfoldAngle * 0.3);
+    ctx.fillStyle = '#181920';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(-phoneW - 4, -phoneH / 2, phoneW, phoneH, 18);
+    ctx.fill();
+    ctx.stroke();
+
+    // Rear Matte Finish & Glowing Insignia
+    const matteGrad = ctx.createLinearGradient(-phoneW, -phoneH / 2, 0, phoneH / 2);
+    matteGrad.addColorStop(0, '#0f172a');
+    matteGrad.addColorStop(0.5, '#1e293b');
+    matteGrad.addColorStop(1, '#090d16');
+    ctx.fillStyle = matteGrad;
+    ctx.beginPath();
+    ctx.roundRect(-phoneW + 4, -phoneH / 2 + 8, phoneW - 12, phoneH - 16, 14);
+    ctx.fill();
+
+    // Apple & Duo Emblem
+    ctx.fillStyle = '#38bdf8';
+    ctx.shadowColor = '#0284c7';
+    ctx.shadowBlur = 10;
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText(' DUO PRO', -phoneW * 0.75, 0);
+    ctx.restore();
+
+    // RIGHT WING (Luminous OLED Active)
+    ctx.save();
+    ctx.rotate(-unfoldAngle * 0.3);
+    ctx.fillStyle = '#181920';
+    ctx.strokeStyle = '#818cf8';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(4, -phoneH / 2, phoneW, phoneH, 18);
+    ctx.fill();
+    ctx.stroke();
+
+    const oledGrad = ctx.createLinearGradient(0, -phoneH / 2, phoneW, phoneH / 2);
+    oledGrad.addColorStop(0, '#090d16');
+    oledGrad.addColorStop(0.4, '#38bdf8');
+    oledGrad.addColorStop(0.8, '#6366f1');
+    oledGrad.addColorStop(1, '#a855f7');
+    ctx.fillStyle = oledGrad;
+    ctx.beginPath();
+    ctx.roundRect(8, -phoneH / 2 + 8, phoneW - 12, phoneH - 16, 14);
+    ctx.fill();
+
+    // Live Vertical Scanning Laser across chassis
+    const laserY = -phoneH / 2 + ((Math.sin(t * 3.5) + 1) / 2) * phoneH;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#38bdf8';
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.moveTo(8, laserY);
+    ctx.lineTo(phoneW - 4, laserY);
+    ctx.stroke();
+    ctx.restore();
+
+    // Center Titanium Liquid Hinge Spine
+    const spineGrad = ctx.createLinearGradient(-4, 0, 4, 0);
+    spineGrad.addColorStop(0, '#0284c7');
+    spineGrad.addColorStop(0.5, '#7dd3fc');
+    spineGrad.addColorStop(1, '#0284c7');
+    ctx.fillStyle = spineGrad;
+    ctx.fillRect(-3, -phoneH / 2 + 10, 6, phoneH - 20);
+
+    ctx.restore();
+
+    // Floating Holographic Tech Tags
+    ctx.save();
+    ctx.font = 'bold 10px monospace';
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText('◆ SYSTEM: AEROSPACE GRADE 5 TITANIUM', W * 0.06, horizon - 20);
+    ctx.fillStyle = '#facc15';
+    ctx.fillText('◆ ZERO-CREASE DUAL RETINA XDR 120HZ', W * 0.06, horizon);
+    ctx.restore();
+  };
+
+  // SCENE 2: LIQUID-METAL HINGE & MACRO TITANIUM TOLERANCE
+  const drawScene2_LiquidMetalHinge = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    t: number,
+    progress: number
+  ) => {
+    const cx = W * 0.5;
+    const cy = H * 0.5;
+
+    // Technical CAD Blueprint Background Grid
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.12)';
+    ctx.lineWidth = 1;
+    const gridSize = 40;
+    for (let x = 0; x < W; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+    for (let y = 0; y < H; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
+    }
+
+    // Macro Spine Plate
+    const spineW = Math.min(W, H) * 0.48;
+    const spineH = spineW * 0.85;
 
     ctx.save();
     ctx.translate(cx, cy);
 
-    // Shadow on floor
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    // Titanium Outer Bevels
+    const titanGrad = ctx.createLinearGradient(-spineW / 2, 0, spineW / 2, 0);
+    titanGrad.addColorStop(0, '#334155');
+    titanGrad.addColorStop(0.25, '#64748b');
+    titanGrad.addColorStop(0.5, '#cbd5e1');
+    titanGrad.addColorStop(0.75, '#64748b');
+    titanGrad.addColorStop(1, '#334155');
+
+    ctx.fillStyle = titanGrad;
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.ellipse(0, phoneH * 0.55, phoneW * 1.6, 22, 0, 0, Math.PI * 2);
+    ctx.roundRect(-spineW / 2, -spineH / 2, spineW, spineH, 16);
+    ctx.fill();
+    ctx.stroke();
+
+    // 4 Intermeshing Rotating Mechanical Gears (Smooth 60fps Rotation)
+    const gearRadius = spineW * 0.11;
+    const gearYPositions = [-spineH * 0.32, -spineH * 0.11, spineH * 0.11, spineH * 0.32];
+
+    gearYPositions.forEach((gy, idx) => {
+      const gearAngle = t * 2.5 * (idx % 2 === 0 ? 1 : -1);
+      ctx.save();
+      ctx.translate(0, gy);
+      ctx.rotate(gearAngle);
+
+      // Gear Body
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, gearRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Gear Teeth (12 cogs)
+      for (let c = 0; c < 12; c++) {
+        ctx.save();
+        ctx.rotate((c * Math.PI) / 6);
+        ctx.fillStyle = '#facc15';
+        ctx.fillRect(-3, -gearRadius - 5, 6, 8);
+        ctx.restore();
+      }
+
+      // Center Titanium Pivot
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(0, 0, gearRadius * 0.38, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    });
+
+    // Precision Measuring Caliper Overlays
+    const caliperW = spineW * 0.65;
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-caliperW / 2, -spineH * 0.44);
+    ctx.lineTo(caliperW / 2, -spineH * 0.44);
+    ctx.moveTo(-caliperW / 2, -spineH * 0.44 - 8);
+    ctx.lineTo(-caliperW / 2, -spineH * 0.44 + 8);
+    ctx.moveTo(caliperW / 2, -spineH * 0.44 - 8);
+    ctx.lineTo(caliperW / 2, -spineH * 0.44 + 8);
+    ctx.stroke();
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('0.005mm ZERO-GAP TOLERANCE', 0, -spineH * 0.44 - 14);
+
+    // Caliper for Thinness
+    ctx.strokeStyle = '#ec4899';
+    ctx.beginPath();
+    ctx.moveTo(-spineW / 2 - 20, -spineH * 0.25);
+    ctx.lineTo(-spineW / 2 - 20, spineH * 0.25);
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(-spineW / 2 - 32, 0);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = '#ec4899';
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('4.8mm ULTRA-SLIM PROFILE', 0, 0);
+    ctx.restore();
+
+    ctx.restore();
+
+    // Blueprint Callout Labels
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px monospace';
+    ctx.fillText('ARCHITECTURE: MULTI-AXIS LIQUID METAL GEARS', W * 0.05, H * 0.88);
+    ctx.fillText('CYCLE RATING: 500,000+ FOLD CERTIFIED', W * 0.05, H * 0.92);
+    ctx.restore();
+  };
+
+  // SCENE 3: DUAL 120HZ OLED MULTITASKING (NLE Video Timeline + 3D CAD Wireframe)
+  const drawScene3_DualOledMultitasking = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    t: number,
+    progress: number
+  ) => {
+    const cx = W * 0.5;
+    const cy = H * 0.5;
+
+    // Floor Reflection Glow
+    const floorGlow = ctx.createLinearGradient(0, H * 0.65, 0, H);
+    floorGlow.addColorStop(0, 'rgba(56, 189, 248, 0.2)');
+    floorGlow.addColorStop(0.5, 'rgba(168, 85, 247, 0.15)');
+    floorGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = floorGlow;
+    ctx.fillRect(0, H * 0.65, W, H * 0.35);
+
+    const screenW = Math.min(W, H) * 0.34;
+    const screenH = screenW * 1.52;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // LEFT SCREEN: 4K NLE Video Editor Workspace
+    ctx.save();
+    ctx.translate(-screenW / 2 - 3, 0);
+
+    // Bezel
+    ctx.fillStyle = '#090d16';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.roundRect(-screenW / 2, -screenH / 2, screenW, screenH, 14);
+    ctx.fill();
+    ctx.stroke();
+
+    // Screen Content
+    const innerPad = 8;
+    const inW = screenW - innerPad * 2;
+    const inH = screenH - innerPad * 2;
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.roundRect(-screenW / 2 + innerPad, -screenH / 2 + innerPad, inW, inH, 10);
     ctx.fill();
 
-    // LEFT SCREEN (Titanium Bezel + Dynamic OLED)
-    ctx.save();
-    ctx.rotate(unfoldAngle * 0.4);
+    // Video Monitor inside screen
+    const monH = inH * 0.48;
+    const monGrad = ctx.createLinearGradient(-inW / 2, -inH / 2, inW / 2, -inH / 2 + monH);
+    monGrad.addColorStop(0, '#1e1b4b');
+    monGrad.addColorStop(0.5, '#0284c7');
+    monGrad.addColorStop(1, '#06b6d4');
+    ctx.fillStyle = monGrad;
+    ctx.fillRect(-inW / 2 + 6, -inH / 2 + 6, inW - 12, monH);
 
-    // Titanium frame
-    ctx.fillStyle = '#1c1d24';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 9px monospace';
+    ctx.fillText('4K PRORES TIMELINE • 60FPS', -inW / 2 + 12, -inH / 2 + 20);
+
+    // Audio Waveforms (3 tracks)
+    const waveY = -inH / 2 + monH + 20;
+    ctx.fillStyle = '#10b981';
+    for (let w = 0; w < inW - 20; w += 4) {
+      const h = (Math.sin(w * 0.15 + t * 4) + 1) * 7 + 3;
+      ctx.fillRect(-inW / 2 + 10 + w, waveY - h / 2, 2.5, h);
+    }
+
+    // Playhead red line
+    const playheadX = -inW / 2 + 10 + ((t * 40) % (inW - 20));
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(playheadX, -inH / 2 + monH + 10);
+    ctx.lineTo(playheadX, inH / 2 - 10);
+    ctx.stroke();
+
+    ctx.restore();
+
+    // RIGHT SCREEN: 3D Holographic CAD Viewport
+    ctx.save();
+    ctx.translate(screenW / 2 + 3, 0);
+
+    ctx.fillStyle = '#090d16';
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.roundRect(-screenW / 2, -screenH / 2, screenW, screenH, 14);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#0a0915';
+    ctx.beginPath();
+    ctx.roundRect(-screenW / 2 + innerPad, -screenH / 2 + innerPad, inW, inH, 10);
+    ctx.fill();
+
+    // Rotating 3D Holographic Wireframe Cube
+    const cubeSize = inW * 0.35;
+    ctx.save();
+    ctx.translate(0, -inH * 0.08);
+    ctx.rotate(t * 0.8);
+
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.8;
+    ctx.strokeRect(-cubeSize / 2, -cubeSize / 2, cubeSize, cubeSize);
+
+    ctx.rotate(Math.PI / 4 + t * 0.4);
+    ctx.strokeStyle = '#ec4899';
+    ctx.strokeRect(-cubeSize * 0.4, -cubeSize * 0.4, cubeSize * 0.8, cubeSize * 0.8);
+
+    // Glowing Vertex Dots
+    [-cubeSize / 2, cubeSize / 2].forEach((vx) => {
+      [-cubeSize / 2, cubeSize / 2].forEach((vy) => {
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath();
+        ctx.arc(vx, vy, 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    });
+    ctx.restore();
+
+    // CAD Telemetry HUD
+    ctx.fillStyle = '#c084fc';
+    ctx.font = 'bold 9px monospace';
+    ctx.fillText('3D VIEWPORT • METAL RAY TRACING', -inW / 2 + 12, inH / 2 - 28);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '8px monospace';
+    ctx.fillText('VERTICES: 124,800 • FPS: 120.0', -inW / 2 + 12, inH / 2 - 14);
+
+    ctx.restore();
+
+    // Glowing Seamless Energy Seam Bridge
+    const seamGrad = ctx.createLinearGradient(0, -screenH / 2, 0, screenH / 2);
+    seamGrad.addColorStop(0, '#38bdf8');
+    seamGrad.addColorStop(0.5, '#ffffff');
+    seamGrad.addColorStop(1, '#a855f7');
+    ctx.fillStyle = seamGrad;
+    ctx.shadowColor = '#38bdf8';
+    ctx.shadowBlur = 12;
+    ctx.fillRect(-1.5, -screenH / 2 + 12, 3, screenH - 24);
+
+    ctx.restore();
+
+    // HUD Top Tags
+    ctx.save();
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('120Hz PROMOTION • DUAL RETINA XDR', W * 0.06, H * 0.14);
+    ctx.fillStyle = '#facc15';
+    ctx.fillText('3,200 NITS PEAK OUTDOOR HDR BRIGHTNESS', W * 0.06, H * 0.18);
+    ctx.restore();
+  };
+
+  // SCENE 4: A19 PRO 2NM NEURAL SILICON DIE
+  const drawScene4_SiliconNeuralDie = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    t: number,
+    progress: number
+  ) => {
+    const cx = W * 0.5;
+    const cy = H * 0.5;
+
+    // Translucent Motherboard Circuit Board
+    const chipW = Math.min(W, H) * 0.38;
+    const chipH = chipW;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // Silicon Substrate
+    ctx.fillStyle = '#060a12';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.roundRect(-chipW * 0.85, -chipH * 0.85, chipW * 1.7, chipH * 1.7, 20);
+    ctx.fill();
+    ctx.stroke();
+
+    // Branching Neural Synaptic Pathways (16 routes)
+    for (let r = 0; r < 16; r++) {
+      const angle = (r * Math.PI) / 8;
+      const startDist = chipW * 0.52;
+      const endDist = chipW * 0.82;
+
+      ctx.save();
+      ctx.rotate(angle);
+
+      // Gold circuit trace
+      ctx.strokeStyle = 'rgba(250, 204, 21, 0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(startDist, 0);
+      ctx.lineTo(startDist + 18, 14);
+      ctx.lineTo(endDist, 14);
+      ctx.stroke();
+
+      // Glowing Photon Data Pulse traveling outward
+      const pulseT = ((t * 1.8 + r * 0.25) % 1.0);
+      const px = startDist + pulseT * (endDist - startDist);
+      ctx.fillStyle = '#38bdf8';
+      ctx.shadowColor = '#38bdf8';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(px, 14 * pulseT, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // A19 Pro Heat Spreader Chip
+    const dieGrad = ctx.createLinearGradient(-chipW / 2, -chipH / 2, chipW / 2, chipH / 2);
+    dieGrad.addColorStop(0, '#1e293b');
+    dieGrad.addColorStop(0.3, '#334155');
+    dieGrad.addColorStop(0.7, '#0f172a');
+    dieGrad.addColorStop(1, '#020617');
+
+    ctx.fillStyle = dieGrad;
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 3.5;
+    ctx.shadowColor = '#eab308';
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.roundRect(-chipW / 2, -chipH / 2, chipW, chipH, 14);
+    ctx.fill();
+    ctx.stroke();
+
+    // Inner Silicon Die
+    const innerW = chipW * 0.72;
+    ctx.fillStyle = '#020617';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(-innerW / 2, -innerW / 2, innerW, innerW, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    // Laser Engraved Chip Branding
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 18px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('A19 PRO', 0, -12);
+
+    ctx.fillStyle = '#facc15';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('2NM • 68 TOPS NEURAL', 0, 10);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = '9px monospace';
+    ctx.fillText('6-CORE RAY TRACING GPU', 0, 26);
+
+    ctx.restore();
+
+    // Real-time Thermal Telemetry
+    ctx.save();
+    ctx.fillStyle = '#10b981';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('● CRYOGENIC VAPOR CHAMBER: 31.4°C STABLE', W * 0.06, H * 0.88);
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText('● HARDWARE ENCODING: 8K PRORES REAL-TIME', W * 0.06, H * 0.92);
+    ctx.restore();
+  };
+
+  // SCENE 5: TRIPLE SAPPHIRE OPTICS & LIDAR 3D SPATIAL SCANNER
+  const drawScene5_TripleOpticsLidar = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    t: number,
+    progress: number
+  ) => {
+    const cx = W * 0.5;
+    const cy = H * 0.5;
+
+    // Macro Camera Island Base
+    const islandRadius = Math.min(W, H) * 0.36;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // Ceramic Brushed Island Bump
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#0284c7';
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.roundRect(-islandRadius, -islandRadius, islandRadius * 2, islandRadius * 2, 28);
+    ctx.fill();
+    ctx.stroke();
+
+    // 3 Large Lenses (Top-Left, Bottom-Left, Center-Right)
+    const lensPositions = [
+      { x: -islandRadius * 0.45, y: -islandRadius * 0.45, label: '48MP WIDE' },
+      { x: -islandRadius * 0.45, y: islandRadius * 0.45, label: '48MP ULTRA' },
+      { x: islandRadius * 0.42, y: 0, label: '120MM PERISCOPE' },
+    ];
+
+    const lensR = islandRadius * 0.36;
+
+    lensPositions.forEach((lp, idx) => {
+      ctx.save();
+      ctx.translate(lp.x, lp.y);
+
+      // Titanium Rim
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(0, 0, lensR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Deep Multi-Layer Anti-Reflective Sapphire Coating
+      const lensGrad = ctx.createRadialGradient(0, 0, 5, 0, 0, lensR);
+      lensGrad.addColorStop(0, '#090d16');
+      lensGrad.addColorStop(0.5, idx === 0 ? '#047857' : idx === 1 ? '#4338ca' : '#0369a1');
+      lensGrad.addColorStop(0.85, '#020617');
+      lensGrad.addColorStop(1, '#1e293b');
+      ctx.fillStyle = lensGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, lensR - 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Animated 8-Blade Mechanical Iris Aperture
+      const irisR = lensR * 0.45 * (0.65 + 0.35 * Math.sin(t * 2 + idx));
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.lineWidth = 1.2;
+      for (let b = 0; b < 8; b++) {
+        ctx.save();
+        ctx.rotate((b * Math.PI) / 4);
+        ctx.beginPath();
+        ctx.moveTo(irisR, 0);
+        ctx.lineTo(lensR * 0.8, 8);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Specular Glass Arc Highlight
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, lensR * 0.78, -Math.PI * 0.35, -Math.PI * 0.1);
+      ctx.stroke();
+
+      ctx.restore();
+    });
+
+    // Central Flash & LiDAR Sensor
+    ctx.save();
+    ctx.translate(-islandRadius * 0.05, -islandRadius * 0.05);
+
+    // LiDAR circular sensor
+    ctx.fillStyle = '#020617';
+    ctx.strokeStyle = '#06b6d4';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, islandRadius * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Animated LiDAR 3D Spatial Conical Beams
+    const lidarWave = ((t * 2.2) % 1.0);
+    ctx.strokeStyle = `rgba(56, 189, 248, ${1 - lidarWave})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, islandRadius * 0.18 + lidarWave * 80, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
+
+    ctx.restore();
+
+    // Camera Optics Telemetry
+    ctx.save();
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('TRIPLE 48MP QUAD-PIXEL OPTICS • SENSOR-SHIFT OIS', W * 0.06, H * 0.88);
+    ctx.fillStyle = '#facc15';
+    ctx.fillText('LiDAR 3D SPATIAL DEPTH SCANNER • 8K PRORES VIDEO', W * 0.06, H * 0.92);
+    ctx.restore();
+  };
+
+  // SCENE 6: THE KEYNOTE GRAND FINALE
+  const drawScene6_KeynoteGrandFinale = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    t: number,
+    progress: number
+  ) => {
+    const cx = W * 0.5;
+    const cy = H * 0.48;
+
+    // Anamorphic Blue Flare sweeping horizontally
+    const flareY = H * 0.44;
+    const flareGrad = ctx.createLinearGradient(0, flareY, W, flareY);
+    flareGrad.addColorStop(0, 'rgba(56, 189, 248, 0)');
+    flareGrad.addColorStop(0.35, 'rgba(56, 189, 248, 0.15)');
+    flareGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.4)');
+    flareGrad.addColorStop(0.65, 'rgba(56, 189, 248, 0.15)');
+    flareGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+    ctx.fillStyle = flareGrad;
+    ctx.fillRect(0, flareY - 5, W, 10);
+
+    // Floating 3D Showcase of iPhone Duo
+    const phoneW = Math.min(W, H) * 0.22;
+    const phoneH = phoneW * 1.65;
+    const floatY = cy + Math.sin(t * 1.5) * 8;
+    const rotate3D = Math.sin(t * 0.8) * 0.18;
+
+    ctx.save();
+    ctx.translate(cx, floatY);
+    ctx.rotate(rotate3D);
+
+    // Glowing Pedestal Base
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
+    ctx.beginPath();
+    ctx.ellipse(0, phoneH * 0.55, phoneW * 1.6, 20, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Dual Screen Wings Flexing
+    const flexAngle = 0.28 + Math.sin(t * 1.2) * 0.12;
+
+    // Left Wing
+    ctx.save();
+    ctx.rotate(flexAngle);
+    ctx.fillStyle = '#0f172a';
     ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -743,31 +1450,20 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     ctx.fill();
     ctx.stroke();
 
-    // OLED Screen Left
-    const oledGradL = ctx.createLinearGradient(-phoneW, -phoneH / 2, 0, phoneH / 2);
-    oledGradL.addColorStop(0, '#090d16');
-    oledGradL.addColorStop(0.5, '#0ea5e9');
-    oledGradL.addColorStop(1, '#6366f1');
-    ctx.fillStyle = oledGradL;
+    const oledL = ctx.createLinearGradient(-phoneW, -phoneH / 2, 0, phoneH / 2);
+    oledL.addColorStop(0, '#0284c7');
+    oledL.addColorStop(0.5, '#6366f1');
+    oledL.addColorStop(1, '#a855f7');
+    ctx.fillStyle = oledL;
     ctx.beginPath();
     ctx.roundRect(-phoneW + 4, -phoneH / 2 + 8, phoneW - 12, phoneH - 16, 12);
     ctx.fill();
-
-    // Widget text inside screen
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 10px monospace';
-    ctx.fillText('IPHONE DUO PRO', -phoneW + 14, -phoneH / 2 + 28);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.font = '8px monospace';
-    ctx.fillText('A19 BIONIC 3NM', -phoneW + 14, -phoneH / 2 + 44);
-
     ctx.restore();
 
-    // RIGHT SCREEN
+    // Right Wing
     ctx.save();
-    ctx.rotate(-unfoldAngle * 0.4);
-
-    ctx.fillStyle = '#1c1d24';
+    ctx.rotate(-flexAngle);
+    ctx.fillStyle = '#0f172a';
     ctx.strokeStyle = '#c084fc';
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -775,36 +1471,68 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     ctx.fill();
     ctx.stroke();
 
-    // OLED Screen Right
-    const oledGradR = ctx.createLinearGradient(0, -phoneH / 2, phoneW, phoneH / 2);
-    oledGradR.addColorStop(0, '#1e1b4b');
-    oledGradR.addColorStop(0.5, '#a855f7');
-    oledGradR.addColorStop(1, '#ec4899');
-    ctx.fillStyle = oledGradR;
+    const oledR = ctx.createLinearGradient(0, -phoneH / 2, phoneW, phoneH / 2);
+    oledR.addColorStop(0, '#ec4899');
+    oledR.addColorStop(0.5, '#f59e0b');
+    oledR.addColorStop(1, '#10b981');
+    ctx.fillStyle = oledR;
     ctx.beginPath();
     ctx.roundRect(8, -phoneH / 2 + 8, phoneW - 12, phoneH - 16, 12);
     ctx.fill();
-
-    // Holographic Telemetry HUD
-    ctx.fillStyle = '#facc15';
-    ctx.font = 'bold 10px monospace';
-    ctx.fillText('DUAL OLED 120HZ', 18, -phoneH / 2 + 28);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.font = '8px monospace';
-    ctx.fillText('NEURAL VIDEO STITCH', 18, -phoneH / 2 + 44);
-
     ctx.restore();
 
-    // Center Glowing Hinge Spine
-    const spineGrad = ctx.createLinearGradient(-3, 0, 3, 0);
-    spineGrad.addColorStop(0, '#0284c7');
-    spineGrad.addColorStop(0.5, '#38bdf8');
-    spineGrad.addColorStop(1, '#0284c7');
-    ctx.fillStyle = spineGrad;
+    // Central Titanium Hinge
+    ctx.fillStyle = '#38bdf8';
     ctx.fillRect(-3, -phoneH / 2 + 10, 6, phoneH - 20);
 
     ctx.restore();
+
+    // Floating Glassmorphic Feature Badges (Left & Right)
+    const cardW = Math.min(W, H) * 0.28;
+    const cardH = 34;
+
+    const cards = [
+      { text: 'MÀN HÌNH KÉP OLED 120HZ', x: W * 0.18, y: H * 0.32, color: '#38bdf8' },
+      { text: 'CHIP A19 PRO 2NM SILICON', x: W * 0.18, y: H * 0.44, color: '#facc15' },
+      { text: 'KHUNG TITAN HÀNG KHÔNG', x: W * 0.82, y: H * 0.32, color: '#10b981' },
+      { text: 'CAMERA ĐIỆN ẢNH 8K PRORES', x: W * 0.82, y: H * 0.44, color: '#ec4899' },
+    ];
+
+    cards.forEach((c) => {
+      ctx.save();
+      ctx.fillStyle = 'rgba(9, 9, 11, 0.78)';
+      ctx.strokeStyle = c.color;
+      ctx.lineWidth = 1.2;
+      ctx.shadowColor = c.color;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.roundRect(c.x - cardW / 2, c.y - cardH / 2, cardW, cardH, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(c.text, c.x, c.y);
+      ctx.restore();
+    });
+
+    // Grand Keynote Headline
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = '800 20px Inter, sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#38bdf8';
+    ctx.shadowBlur = 14;
+    ctx.fillText('IPHONE DUO • KỶ NGUYÊN MỚI ĐÃ ĐẾN', cx, H * 0.86);
+
+    ctx.font = 'bold 11px monospace';
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText('SẢN XUẤT BỞI SYNAPES AI STUDIO • HOÀN TẤT XUẤT BẢN', cx, H * 0.91);
+    ctx.restore();
   };
+
 
   // Atmospheric bokeh & volumetric dust particles
   const drawAtmosphericParticles = (
@@ -1032,16 +1760,25 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
       ctx.save();
       if (isCurrent) {
+        // High-retention pop bounce scale
+        const bounceScale = 1.15;
+        const wordCenterX = cursorX + wordWidths[idx] / 2;
+        ctx.translate(wordCenterX, targetY);
+        ctx.scale(bounceScale, bounceScale);
+        ctx.translate(-wordCenterX, -targetY);
+
         if (style === 'hormozi') {
           ctx.fillStyle = '#facc15';
-          ctx.shadowColor = 'rgba(250, 204, 21, 0.6)';
-          ctx.shadowBlur = 10;
+          ctx.shadowColor = 'rgba(250, 204, 21, 0.9)';
+          ctx.shadowBlur = 14;
         } else if (style === 'cyberpunk') {
           ctx.fillStyle = '#38bdf8';
-          ctx.shadowColor = 'rgba(56, 189, 248, 0.8)';
-          ctx.shadowBlur = 12;
+          ctx.shadowColor = 'rgba(56, 189, 248, 0.95)';
+          ctx.shadowBlur = 16;
         } else {
-          ctx.fillStyle = '#ffffff';
+          ctx.fillStyle = '#38bdf8';
+          ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+          ctx.shadowBlur = 8;
         }
       } else if (isPast) {
         ctx.fillStyle = '#ffffff';
@@ -1058,6 +1795,61 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     ctx.restore();
   };
 
+  // Walkthrough / Session screen recording
+  const handleStartSessionRecording = async () => {
+    if (isRecordingSession) {
+      if (sessionRecorderRef.current && sessionRecorderRef.current.state === 'recording') {
+        sessionRecorderRef.current.stop();
+      }
+      setIsRecordingSession(false);
+      return;
+    }
+
+    try {
+      let stream: MediaStream;
+      if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: 30 },
+          audio: true,
+        });
+      } else {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        stream = canvas.captureStream(30);
+      }
+
+      sessionChunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : 'video/webm';
+      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4000000 });
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) sessionChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        stream.getTracks().forEach((tr) => tr.stop());
+        const blob = new Blob(sessionChunksRef.current, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Ghi_Hinh_Thao_Tac_${(project.title || 'Studio').slice(0, 20).replace(/\s+/g, '_')}_${Date.now()}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setIsRecordingSession(false);
+      };
+
+      sessionRecorderRef.current = recorder;
+      recorder.start(1000);
+      setIsRecordingSession(true);
+    } catch (err) {
+      console.warn('Session recording cancelled or failed:', err);
+      setIsRecordingSession(false);
+    }
+  };
+
   // Real Video Export with Complete Mixed Stereo Audio
   const handleExportFullTimelineVideo = () => {
     const canvas = canvasRef.current;
@@ -1067,7 +1859,10 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       setIsExportingVideo(true);
       setShowExportModal(true);
       setExportProgress(0);
-      setExportStatusText('Khởi tạo bộ kết xuất âm thanh Stereo & hình ảnh 1080p...');
+      setExportStatusText('Đang nạp trước bộ âm thanh Neural TTS & giải mã DSP...');
+
+      // Preload voiceover for all scenes
+      synthRef.current?.preloadScenesVoiceover(scenes);
 
       // Resume synthesizer and start soundtrack
       synthRef.current?.resume();
@@ -1161,9 +1956,9 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   const handleToggleFullscreen = () => {
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().catch(() => {});
+      containerRef.current.requestFullscreen().catch(() => { });
     } else {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => { });
     }
   };
 
@@ -1307,6 +2102,21 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
             <Keyboard className="w-4 h-4 text-zinc-400" />
           </button>
 
+          {/* Record Screen / Session Button */}
+          <button
+            type="button"
+            onClick={handleStartSessionRecording}
+            className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition cursor-pointer border shadow-sm ${
+              isRecordingSession
+                ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-400 animate-pulse'
+                : 'bg-zinc-800 hover:bg-zinc-700 text-rose-300 border-rose-500/30'
+            }`}
+            title="Ghi hình toàn bộ quá trình thao tác trên màn hình (Lưu file .webm)"
+          >
+            <span className={`w-2.5 h-2.5 rounded-full ${isRecordingSession ? 'bg-white animate-ping' : 'bg-rose-500'}`}></span>
+            <span>{isRecordingSession ? 'ĐANG GHI MÀN HÌNH...' : 'GHI THAO TÁC'}</span>
+          </button>
+
           {/* Export Video Master Button */}
           <button
             type="button"
@@ -1322,9 +2132,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
       {/* 2. MAIN VIDEO VIEWPORT (HTML5 Canvas 60fps) */}
       <div
-        className={`w-full mx-auto bg-zinc-950 rounded-2xl overflow-hidden relative border border-black/20 shadow-2xl flex items-center justify-center ${
-          aspectRatio === '16:9' ? 'aspect-video' : 'aspect-[9/16] max-h-[520px]'
-        }`}
+        className={`w-full mx-auto bg-zinc-950 rounded-2xl overflow-hidden relative border border-black/20 shadow-2xl flex items-center justify-center ${aspectRatio === '16:9' ? 'aspect-video' : 'aspect-[9/16] max-h-[520px]'
+          }`}
       >
         <canvas
           ref={canvasRef}
@@ -1364,9 +2173,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                   setCurrentTime(s.startSec + 0.05);
                   onSelectScene?.(s.id);
                 }}
-                className={`absolute top-0 bottom-0 border-r border-zinc-950 transition ${
-                  isCurrent ? 'bg-indigo-600/35' : 'bg-transparent hover:bg-white/10'
-                }`}
+                className={`absolute top-0 bottom-0 border-r border-zinc-950 transition ${isCurrent ? 'bg-indigo-600/35' : 'bg-transparent hover:bg-white/10'
+                  }`}
                 style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                 title={`Cảnh ${s.sceneNumber}: ${s.headline || s.timeRange}`}
               />
@@ -1440,9 +2248,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                   key={sp}
                   type="button"
                   onClick={() => setPlaybackSpeed(sp)}
-                  className={`px-1.5 py-0.5 rounded cursor-pointer ${
-                    playbackSpeed === sp ? 'bg-indigo-600 text-white font-bold' : 'text-zinc-400 hover:text-white'
-                  }`}
+                  className={`px-1.5 py-0.5 rounded cursor-pointer ${playbackSpeed === sp ? 'bg-indigo-600 text-white font-bold' : 'text-zinc-400 hover:text-white'
+                    }`}
                 >
                   {sp}x
                 </button>
@@ -1460,9 +2267,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                   key={style}
                   type="button"
                   onClick={() => setSubtitleStyle(style)}
-                  className={`px-2 py-0.5 rounded capitalize transition cursor-pointer ${
-                    subtitleStyle === style ? 'bg-zinc-950 text-white font-semibold shadow-xs' : 'text-zinc-400 hover:text-white'
-                  }`}
+                  className={`px-2 py-0.5 rounded capitalize transition cursor-pointer ${subtitleStyle === style ? 'bg-zinc-950 text-white font-semibold shadow-xs' : 'text-zinc-400 hover:text-white'
+                    }`}
                 >
                   {style}
                 </button>
@@ -1486,9 +2292,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
               <button
                 type="button"
                 onClick={() => setAnamoLetterbox((b) => !b)}
-                className={`px-2 py-1 rounded-lg text-[10px] font-mono transition cursor-pointer ${
-                  anamoLetterbox ? 'bg-indigo-600 text-white font-bold' : 'bg-zinc-800 text-zinc-400 hover:text-white'
-                }`}
+                className={`px-2 py-1 rounded-lg text-[10px] font-mono transition cursor-pointer ${anamoLetterbox ? 'bg-indigo-600 text-white font-bold' : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                  }`}
                 title="Bật/Tắt vạch đen điện ảnh 2.39:1"
               >
                 2.39:1
@@ -1499,9 +2304,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
             <button
               type="button"
               onClick={() => setIsMuted((m) => !m)}
-              className={`p-1.5 rounded-lg transition cursor-pointer ${
-                isMuted ? 'bg-rose-950 text-rose-300' : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'
-              }`}
+              className={`p-1.5 rounded-lg transition cursor-pointer ${isMuted ? 'bg-rose-950 text-rose-300' : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white'
+                }`}
               title={isMuted ? 'Bật tiếng (Phím M)' : 'Tắt tiếng (Phím M)'}
             >
               {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
@@ -1556,11 +2360,10 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                       key={lut.id}
                       type="button"
                       onClick={() => setActiveLut(lut.id as any)}
-                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                        activeLut === lut.id
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${activeLut === lut.id
                           ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-500/20'
                           : 'bg-zinc-50 border-black/[0.06] hover:bg-zinc-100'
-                      }`}
+                        }`}
                     >
                       <div className="font-bold text-zinc-900">{lut.name}</div>
                       <div className="text-[10px] text-zinc-500 mt-0.5">{lut.desc}</div>
@@ -1582,11 +2385,10 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                       key={fx.id}
                       type="button"
                       onClick={() => setActiveVfx(fx.id as any)}
-                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                        activeVfx === fx.id
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${activeVfx === fx.id
                           ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-500/20'
                           : 'bg-zinc-50 border-black/[0.06] hover:bg-zinc-100'
-                      }`}
+                        }`}
                     >
                       <div className="font-bold text-zinc-900">{fx.name}</div>
                       <div className="text-[10px] text-zinc-500 mt-0.5">{fx.desc}</div>
