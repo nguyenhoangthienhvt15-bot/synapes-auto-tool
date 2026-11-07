@@ -29,8 +29,10 @@ import {
   Sliders,
   X,
   FileVideo,
+  Globe,
+  Search,
 } from 'lucide-react';
-import { buildAiSceneImageUrl } from '../services/aiScriptGeneratorService';
+import { buildAiSceneImageUrl, REAL_IPHONE_18_INTERNET_IMAGES } from '../services/aiScriptGeneratorService';
 import {
   StudioAudioSynthesizer,
   ALL_VOICE_PROFILES,
@@ -98,10 +100,45 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   // Color Grade & VFX quick modal
   const [showLutPaletteModal, setShowLutPaletteModal] = useState<boolean>(false);
 
+  // Real Internet Image Search modal
+  const [showInternetImageModal, setShowInternetImageModal] = useState<boolean>(false);
+  const [internetSearchQuery, setInternetSearchQuery] = useState<string>('iPhone 18 Pro Max Apple Flagship');
+  const [internetImages, setInternetImages] = useState<
+    Array<{ id: string; title: string; url: string; proxyUrl: string; source: string }>
+  >([]);
+  const [isSearchingInternet, setIsSearchingInternet] = useState<boolean>(false);
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const lastFrameTimeRef = useRef<number>(performance.now());
   const currentSpokenSceneRef = useRef<number | null>(null);
+
+  // Stable refs for 60fps requestAnimationFrame loop (prevents re-render teardown bug!)
+  const currentTimeRef = useRef<number>(0);
+  const isPlayingRef = useRef<boolean>(isPlaying);
+  const playbackSpeedRef = useRef<number>(playbackSpeed);
+  const totalDurationRef = useRef<number>(totalDuration);
+  const drawCinemaCanvasRef = useRef<(clockSec: number, overrideTimeSec?: number) => void>(() => {});
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  useEffect(() => {
+    playbackSpeedRef.current = playbackSpeed;
+  }, [playbackSpeed]);
+
+  useEffect(() => {
+    totalDurationRef.current = totalDuration;
+  }, [totalDuration]);
+
+  const seekToTime = useCallback((newTimeSec: number) => {
+    const clamped = Math.max(0, Math.min(totalDurationRef.current || 48, newTimeSec));
+    currentTimeRef.current = clamped;
+    setCurrentTime(clamped);
+    lastFrameTimeRef.current = performance.now();
+    drawCinemaCanvasRef.current(performance.now() / 1000, clamped);
+  }, []);
 
   // Web Audio Studio Synthesizer Ref (BGM + Voice Formant + SFX)
   const synthRef = useRef<StudioAudioSynthesizer | null>(null);
@@ -129,27 +166,27 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   const currentSceneIndex = getCurrentSceneIndex(currentTime);
   const currentScene: StoryboardScene | undefined = scenes[currentSceneIndex] || scenes[0];
 
-  // Preload Images
+  // Preload Real Internet Images via CORS-Safe Proxy
   useEffect(() => {
     let isMounted = true;
     loadedImagesRef.current = {};
     setLoadedCount(0);
 
-    const curatedPool = [
-      'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=1280&q=85',
-      'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1280&q=85',
-      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1280&q=85',
-      'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1280&q=85',
-      'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=1280&q=85',
-      'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1280&q=85',
-    ];
+    const curatedPool = REAL_IPHONE_18_INTERNET_IMAGES.map(
+      (u) => `/api/image-proxy?url=${encodeURIComponent(u)}`
+    );
 
     scenes.forEach((sc, idx) => {
-      // If user uploaded a custom media URL, load that directly
-      const mediaSource =
+      const rawSource =
         sc.customMediaUrl ||
         sc.imageUrl ||
         buildAiSceneImageUrl(sc.visualPrompt, aspectRatio, idx + 1 + regenVersion * 17);
+
+      // Route external http/https URLs through /api/image-proxy so Canvas is never CORS-tainted
+      const mediaSource =
+        rawSource.startsWith('http://') || rawSource.startsWith('https://')
+          ? `/api/image-proxy?url=${encodeURIComponent(rawSource)}`
+          : rawSource;
 
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -159,11 +196,11 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         if (!isMounted) return;
         loadedImagesRef.current[sc.id] = img;
         setLoadedCount((c) => Math.min(scenes.length, c + 1));
+        drawCinemaCanvasRef.current(performance.now() / 1000, currentTimeRef.current);
       };
 
       img.onerror = () => {
         if (!isMounted) return;
-        // Fallback to high-res curated tech asset
         const fb = new Image();
         fb.crossOrigin = 'anonymous';
         fb.src = curatedPool[idx % curatedPool.length];
@@ -171,6 +208,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           if (!isMounted) return;
           loadedImagesRef.current[sc.id] = fb;
           setLoadedCount((c) => Math.min(scenes.length, c + 1));
+          drawCinemaCanvasRef.current(performance.now() / 1000, currentTimeRef.current);
         };
       };
     });
@@ -185,10 +223,52 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     if (activeSceneId != null) {
       const target = scenes.find((s) => s.id === activeSceneId);
       if (target) {
-        setCurrentTime(target.startSec + 0.05);
+        seekToTime(target.startSec + 0.08);
       }
     }
-  }, [activeSceneId, scenes]);
+  }, [activeSceneId, scenes, seekToTime]);
+
+  // Search Internet Images Handler
+  const handleSearchInternetImages = useCallback(async (queryStr: string) => {
+    setIsSearchingInternet(true);
+    try {
+      const res = await fetch(`/api/image-search?q=${encodeURIComponent(queryStr)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.images)) {
+          setInternetImages(data.images);
+        }
+      }
+    } catch (err) {
+      console.warn('Internet image search fallback:', err);
+    } finally {
+      setIsSearchingInternet(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showInternetImageModal && internetImages.length === 0) {
+      handleSearchInternetImages(internetSearchQuery);
+    }
+  }, [showInternetImageModal, internetImages.length, internetSearchQuery, handleSearchInternetImages]);
+
+  const handleApplyInternetImageToScene = (proxyUrl: string) => {
+    if (!currentScene || !onUpdateProject) return;
+    const updatedStoryboard = project.storyboard.map((s) =>
+      s.id === currentScene.id ? { ...s, customMediaUrl: proxyUrl, imageUrl: proxyUrl } : s
+    );
+    onUpdateProject({ ...project, storyboard: updatedStoryboard });
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = proxyUrl;
+    img.onload = () => {
+      loadedImagesRef.current[currentScene.id] = img;
+      drawCinemaCanvasRef.current(performance.now() / 1000, currentTimeRef.current);
+    };
+    synthRef.current?.playSfx('chime');
+    setShowInternetImageModal(false);
+  };
 
   // Reference to user custom recorded audio element if currently playing
   const currentAudioElementRef = useRef<HTMLAudioElement | null>(null);
@@ -259,33 +339,51 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     }
   }, [currentSceneIndex, currentScene, isPlaying, speakSceneVoiceover, onSelectScene]);
 
-  // Main 60fps Playback & Canvas Loop
+  // Persistent 60fps Playback & Canvas Loop (Never torn down on React state re-renders!)
   useEffect(() => {
     let animId: number;
+    lastFrameTimeRef.current = performance.now();
 
     const renderFrame = (now: number) => {
-      const dt = Math.min(0.1, (now - lastFrameTimeRef.current) / 1000) * playbackSpeed;
+      const rawDt = Math.max(0, (now - lastFrameTimeRef.current) / 1000);
+      const dt = Math.min(0.12, rawDt) * playbackSpeedRef.current;
       lastFrameTimeRef.current = now;
 
-      if (isPlaying) {
-        setCurrentTime((prev) => {
-          const next = prev + dt;
-          if (next >= totalDuration) {
-            currentSpokenSceneRef.current = null;
-            return 0; // Loop seamlessly
-          }
-          return next;
-        });
+      if (isPlayingRef.current) {
+        const dur = totalDurationRef.current || 48;
+        let next = currentTimeRef.current + dt;
+        if (next >= dur) {
+          next = 0;
+          currentSpokenSceneRef.current = null;
+        }
+        currentTimeRef.current = next;
+        setCurrentTime(next);
       }
 
-      drawCinemaCanvas(now / 1000);
+      drawCinemaCanvasRef.current(now / 1000, currentTimeRef.current);
       animId = requestAnimationFrame(renderFrame);
     };
 
-    lastFrameTimeRef.current = performance.now();
     animId = requestAnimationFrame(renderFrame);
     return () => cancelAnimationFrame(animId);
-  });
+  }, []);
+
+  // Expose deterministic control hook for automated verification & timeline scrubbing
+  useEffect(() => {
+    (window as any).__SYNAPES_PLAYER = {
+      seekTo: (sec: number) => seekToTime(sec),
+      setPlaying: (play: boolean) => {
+        isPlayingRef.current = play;
+        setIsPlaying(play);
+      },
+      getState: () => ({
+        currentTime: currentTimeRef.current,
+        totalDuration: totalDurationRef.current,
+        currentSceneIndex: getCurrentSceneIndex(currentTimeRef.current),
+        loadedImagesCount: Object.keys(loadedImagesRef.current).length,
+      }),
+    };
+  }, [seekToTime, getCurrentSceneIndex]);
 
   // Hotkey listener (Space, S, Shift+S, Left/Right, J/K/L, M, F, ?)
   useEffect(() => {
@@ -315,26 +413,26 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         handleDuplicateScene();
       } else if (e.code === 'KeyJ') {
         e.preventDefault();
-        setCurrentTime((t) => Math.max(0, t - 3));
+        seekToTime(Math.max(0, currentTimeRef.current - 3));
       } else if (e.code === 'KeyK') {
         e.preventDefault();
         setIsPlaying(false);
       } else if (e.code === 'KeyL') {
         e.preventDefault();
-        setCurrentTime((t) => Math.min(totalDuration, t + 3));
+        seekToTime(Math.min(totalDuration, currentTimeRef.current + 3));
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault();
         if (e.shiftKey) {
           jumpScene(-1);
         } else {
-          setCurrentTime((t) => Math.max(0, t - 1));
+          seekToTime(Math.max(0, currentTimeRef.current - 1));
         }
       } else if (e.code === 'ArrowRight') {
         e.preventDefault();
         if (e.shiftKey) {
           jumpScene(1);
         } else {
-          setCurrentTime((t) => Math.min(totalDuration, t + 1));
+          seekToTime(Math.min(totalDuration, currentTimeRef.current + 1));
         }
       } else if (e.code === 'KeyR' && !e.ctrlKey) {
         e.preventDefault();
@@ -350,13 +448,13 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [totalDuration, currentSceneIndex, scenes]);
+  }, [totalDuration, currentSceneIndex, scenes, seekToTime]);
 
   const jumpScene = (direction: -1 | 1) => {
     const nextIdx = currentSceneIndex + direction;
     if (nextIdx >= 0 && nextIdx < scenes.length) {
       const target = scenes[nextIdx];
-      setCurrentTime(target.startSec + 0.05);
+      seekToTime(target.startSec + 0.08);
       onSelectScene?.(target.id);
     }
   };
@@ -556,8 +654,177 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     }, 'image/png');
   };
 
-  // DRAW CANVAS COMPOSITOR
-  const drawCinemaCanvas = (clockSec: number) => {
+  // Helper: Draw cover-fit image on canvas
+  const drawCoverImage = (
+    ctx: CanvasRenderingContext2D,
+    img: HTMLImageElement,
+    W: number,
+    H: number
+  ) => {
+    const imgRatio = img.naturalWidth / img.naturalHeight;
+    const canvasRatio = W / H;
+    let drawW = W;
+    let drawH = H;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (imgRatio > canvasRatio) {
+      drawH = H;
+      drawW = H * imgRatio;
+      offsetX = -(drawW - W) / 2;
+    } else {
+      drawW = W;
+      drawH = W / imgRatio;
+      offsetY = -(drawH - H) / 2;
+    }
+
+    ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
+  };
+
+  // Apple Keynote Broadcast Technical Spec Callout Card (Top-Right HUD)
+  const drawKeynoteSpecCalloutCard = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    sceneIdx: number,
+    progress: number,
+    clockSec: number
+  ) => {
+    const specPresets = [
+      {
+        badge: 'AEROSPACE TITANIUM GRADE 6',
+        specs: ['CHASSIS: GRADE 6 BRUSHED TITAN', 'SHIELD: CERAMIC GLASS GEN 3', 'PROFILE: 7.4MM • 218G ULTRA-LIGHT'],
+        accent: '#38bdf8',
+      },
+      {
+        badge: 'SUPER RETINA XDR ZERO-BEZEL',
+        specs: ['PANEL: 6.9" LTPO OLED 120HZ', 'FACE ID: UNDER-DISPLAY 3D SENSOR', 'BRIGHTNESS: 3,500 NITS PEAK HDR'],
+        accent: '#c084fc',
+      },
+      {
+        badge: 'APPLE A20 PRO • 2NM SILICON',
+        specs: ['NODE: TSMC 2NM GAA ARCHITECTURE', 'NEURAL ENGINE: 85 TOPS ON-DEVICE', 'RAY TRACING: +40% GPU THROUGHPUT'],
+        accent: '#facc15',
+      },
+      {
+        badge: 'TRIPLE 48MP PRO OPTICS ARRAY',
+        specs: ['MAIN: 48MP VARIABLE APERTURE', 'TELEPHOTO: 48MP 10X PERISCOPE', 'VIDEO: 8K 60FPS PRORES RAW LOG'],
+        accent: '#10b981',
+      },
+      {
+        badge: 'SILICON-CARBON POWER SYSTEM',
+        specs: ['CAPACITY: 5,600mAh Si-C DENSITY', 'MAGSAFE: 65W WIRELESS TURBO', 'THERMAL: GRAPHENE VAPOR CHAMBER'],
+        accent: '#f97316',
+      },
+      {
+        badge: 'IPHONE 18 PRO MAX • MASTERPIECE',
+        specs: ['DESIGN: ZERO-BEZEL TITANIUM', 'CHIP: A20 PRO 2NM APPLE AI 2.0', 'VERDICT: 9.9 / 10 FLAGSHIP KING'],
+        accent: '#38bdf8',
+      },
+    ];
+
+    const preset = specPresets[sceneIdx % specPresets.length];
+    const cardW = Math.min(310, W * 0.27);
+    const cardH = 108;
+    const cardX = W - cardW - W * 0.035;
+    const cardY = anamoLetterbox && aspectRatio === '16:9' ? H * 0.13 : H * 0.05;
+
+    ctx.save();
+    const slideAlpha = Math.min(1, progress * 6);
+    ctx.globalAlpha = slideAlpha * 0.94;
+
+    // Glassmorphic dark container
+    ctx.fillStyle = 'rgba(9, 9, 15, 0.78)';
+    ctx.strokeStyle = preset.accent;
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
+    ctx.shadowBlur = 16;
+    ctx.beginPath();
+    ctx.roundRect(cardX, cardY, cardW, cardH, 12);
+    ctx.fill();
+    ctx.stroke();
+
+    // Header bar
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = preset.accent;
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText(`◆ ${preset.badge}`, cardX + 12, cardY + 20);
+
+    // Spec rows
+    ctx.fillStyle = '#f4f4f5';
+    ctx.font = '600 10px Inter, system-ui, monospace';
+    preset.specs.forEach((line, idx) => {
+      ctx.fillText(line, cardX + 12, cardY + 40 + idx * 17);
+    });
+
+    // Animated telemetry bar at bottom of card
+    const barW = cardW - 24;
+    const barY = cardY + cardH - 14;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
+    ctx.beginPath();
+    ctx.roundRect(cardX + 12, barY, barW, 4, 2);
+    ctx.fill();
+
+    const fillW = barW * Math.min(1, 0.25 + progress * 0.75);
+    ctx.fillStyle = preset.accent;
+    ctx.beginPath();
+    ctx.roundRect(cardX + 12, barY, fillW, 4, 2);
+    ctx.fill();
+
+    // Live pulse dot
+    const pulse = 0.5 + 0.5 * Math.sin(clockSec * 6);
+    ctx.fillStyle = preset.accent;
+    ctx.globalAlpha = pulse;
+    ctx.beginPath();
+    ctx.arc(cardX + cardW - 14, cardY + 16, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  };
+
+  // Live 16-Band Audio Spectrum Visualizer (Bottom-Right HUD)
+  const drawLiveAudioSpectrumHud = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    clockSec: number,
+    accentColor: string
+  ) => {
+    const barCount = 16;
+    const barW = 3.5;
+    const gap = 2.5;
+    const totalW = barCount * (barW + gap) + 16;
+    const boxH = 34;
+    const boxX = W - totalW - W * 0.035;
+    const boxY = (anamoLetterbox && aspectRatio === '16:9' ? H * 0.86 : H * 0.91) - boxH;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(9, 9, 15, 0.72)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, totalW, boxH, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    for (let i = 0; i < barCount; i++) {
+      const wave =
+        Math.abs(Math.sin(clockSec * 7.5 + i * 0.55)) * 0.65 +
+        Math.abs(Math.cos(clockSec * 4.2 - i * 0.3)) * 0.35;
+      const h = Math.max(4, wave * (boxH - 10));
+      const bx = boxX + 8 + i * (barW + gap);
+      const by = boxY + (boxH - h) / 2;
+
+      ctx.fillStyle = i % 3 === 0 ? '#facc15' : accentColor;
+      ctx.beginPath();
+      ctx.roundRect(bx, by, barW, h, 1.5);
+      ctx.fill();
+    }
+    ctx.restore();
+  };
+
+  // DRAW CANVAS COMPOSITOR (60FPS REAL INTERNET PHOTOGRAPHY + BROADCAST HUD)
+  const drawCinemaCanvas = (clockSec: number, overrideTimeSec?: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -566,11 +833,13 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     const W = canvas.width;
     const H = canvas.height;
 
-    const scene = currentScene;
+    const activeTime = overrideTimeSec !== undefined ? overrideTimeSec : currentTimeRef.current;
+    const activeIdx = getCurrentSceneIndex(activeTime);
+    const scene = scenes[activeIdx] || scenes[0];
     if (!scene) return;
 
     const sceneDur = Math.max(1, scene.endSec - scene.startSec);
-    const sceneElapsed = Math.max(0, currentTime - scene.startSec);
+    const sceneElapsed = Math.max(0, activeTime - scene.startSec);
     const progress = Math.min(1, sceneElapsed / sceneDur);
 
     ctx.save();
@@ -591,32 +860,32 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     let rot = 0;
 
     if (motion === 'dolly-in') {
-      scale = 1.02 + progress * 0.22;
+      scale = 1.03 + progress * 0.16;
     } else if (motion === 'dolly-out') {
-      scale = 1.24 - progress * 0.22;
+      scale = 1.2 - progress * 0.16;
     } else if (motion === 'orbit') {
-      scale = 1.15;
-      tx = Math.sin(progress * Math.PI * 2) * (W * 0.04);
-      ty = Math.cos(progress * Math.PI * 2) * (H * 0.018);
-      rot = Math.sin(progress * Math.PI) * 0.02;
+      scale = 1.12;
+      tx = Math.sin(progress * Math.PI * 2) * (W * 0.032);
+      ty = Math.cos(progress * Math.PI * 2) * (H * 0.015);
+      rot = Math.sin(progress * Math.PI) * 0.014;
     } else if (motion === 'fpv-zoom') {
-      scale = 1.0 + Math.pow(progress, 1.4) * 0.35;
-      rot = Math.sin(progress * Math.PI * 2) * 0.03;
-      tx = Math.cos(progress * Math.PI) * (W * 0.025);
+      scale = 1.02 + Math.pow(progress, 1.3) * 0.24;
+      rot = Math.sin(progress * Math.PI * 2) * 0.018;
+      tx = Math.cos(progress * Math.PI) * (W * 0.02);
     } else if (motion === 'crane-up') {
       scale = 1.12;
-      ty = (0.5 - progress) * (H * 0.08);
+      ty = (0.5 - progress) * (H * 0.065);
     } else if (motion === 'pan-right') {
-      scale = 1.14;
-      tx = (0.5 - progress) * (W * 0.08);
+      scale = 1.12;
+      tx = (0.5 - progress) * (W * 0.065);
     } else if (motion === 'pan-left') {
-      scale = 1.14;
-      tx = (progress - 0.5) * (W * 0.08);
+      scale = 1.12;
+      tx = (progress - 0.5) * (W * 0.065);
     }
 
-    // Natural camera floating breathing shake
-    const breathX = Math.sin(clockSec * 1.8) * 1.5;
-    const breathY = Math.cos(clockSec * 1.4) * 1.5;
+    // Subtle cinematic floating camera breathing
+    const breathX = Math.sin(clockSec * 1.6) * 1.2;
+    const breathY = Math.cos(clockSec * 1.3) * 1.2;
 
     ctx.save();
     ctx.translate(W / 2 + tx + breathX, H / 2 + ty + breathY);
@@ -624,44 +893,30 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     ctx.scale(scale, scale);
     ctx.translate(-W / 2, -H / 2);
 
-    // 3. Draw Image Media OR High-End 3D Cinema Motion Graphics Stage
-    const isCustomMedia = Boolean(scene.customMediaUrl);
+    // 3. Draw Real High-Resolution Internet Photograph at 100% Crisp Clarity!
     const img = loadedImagesRef.current[scene.id];
+    const prevScene = activeIdx > 0 ? scenes[activeIdx - 1] : null;
+    const prevImg = prevScene ? loadedImagesRef.current[prevScene.id] : null;
 
-    if (isCustomMedia && img && img.complete && img.naturalWidth > 0) {
-      const imgRatio = img.naturalWidth / img.naturalHeight;
-      const canvasRatio = W / H;
-      let drawW = W;
-      let drawH = H;
-      let offsetX = 0;
-      let offsetY = 0;
-
-      if (imgRatio > canvasRatio) {
-        drawH = H;
-        drawW = H * imgRatio;
-        offsetX = -(drawW - W) / 2;
+    if (img && img.complete && img.naturalWidth > 0) {
+      // Smooth Cross-Dissolve from previous scene image during first 0.55s
+      if (sceneElapsed < 0.55 && prevImg && prevImg.complete && prevImg.naturalWidth > 0) {
+        const blend = sceneElapsed / 0.55;
+        ctx.globalAlpha = 1.0;
+        drawCoverImage(ctx, prevImg, W, H);
+        ctx.globalAlpha = blend;
+        drawCoverImage(ctx, img, W, H);
+        ctx.globalAlpha = 1.0;
       } else {
-        drawW = W;
-        drawH = W / imgRatio;
-        offsetY = -(drawH - H) / 2;
+        ctx.globalAlpha = 1.0;
+        drawCoverImage(ctx, img, W, H);
       }
-
-      ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
     } else {
-      // If backdrop image is loaded, draw it as a subtle ambient blurred backdrop
-      if (img && img.complete && img.naturalWidth > 0) {
-        ctx.save();
-        ctx.globalAlpha = 0.22;
-        ctx.filter = 'blur(16px)';
-        ctx.drawImage(img, 0, 0, W, H);
-        ctx.restore();
-      }
-
-      // Draw Tailor-Made 3D Cinema Motion Graphics Stage for this Scene
-      drawCinematicSceneStage(ctx, W, H, clockSec, currentSceneIndex, progress, scene);
+      // Fallback procedural 3D stage only while image is still loading
+      drawCinematicSceneStage(ctx, W, H, clockSec, activeIdx, progress, scene);
     }
 
-    // Atmospheric light particles
+    // Subtle atmospheric bokeh particles over the real photograph
     drawAtmosphericParticles(ctx, W, H, clockSec, scene.lightingStyle || 'volumetric');
 
     ctx.restore();
@@ -672,16 +927,18 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     // 5. Optical VFX Overlays (Film grain, light leaks, vignette)
     drawVfxOverlay(ctx, W, H, clockSec, activeVfx);
 
-    // 6. Transition Crossfade / Cut Flash
-    if (sceneElapsed < 0.35) {
-      const fadeInAlpha = 1 - sceneElapsed / 0.35;
-      ctx.fillStyle = scene.transition === 'cut' ? `rgba(255, 255, 255, ${fadeInAlpha * 0.3})` : `rgba(0, 0, 0, ${fadeInAlpha * 0.8})`;
-      ctx.fillRect(0, 0, W, H);
-    } else if (sceneDur - sceneElapsed < 0.3) {
-      const fadeOutAlpha = 1 - (sceneDur - sceneElapsed) / 0.3;
-      ctx.fillStyle = `rgba(0, 0, 0, ${fadeOutAlpha * 0.7})`;
-      ctx.fillRect(0, 0, W, H);
-    }
+    // 6. Subtle Top & Bottom Broadcast Gradient Scrim for 100% Text Readability
+    const topScrim = ctx.createLinearGradient(0, 0, 0, H * 0.24);
+    topScrim.addColorStop(0, 'rgba(0, 0, 0, 0.62)');
+    topScrim.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = topScrim;
+    ctx.fillRect(0, 0, W, H * 0.24);
+
+    const botScrim = ctx.createLinearGradient(0, H * 0.72, 0, H);
+    botScrim.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    botScrim.addColorStop(1, 'rgba(0, 0, 0, 0.72)');
+    ctx.fillStyle = botScrim;
+    ctx.fillRect(0, H * 0.72, W, H * 0.28);
 
     // 7. Cinema Letterbox 2.39:1
     if (anamoLetterbox && aspectRatio === '16:9') {
@@ -691,8 +948,10 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       ctx.fillRect(0, H - barH, W, barH);
     }
 
-    // 8. On-Screen HUD & Scene Headline
-    drawCinemaHudAndHeadline(ctx, W, H, scene, currentSceneIndex, scenes.length, progress);
+    // 8. Top-Left On-Screen HUD & Scene Headline + Top-Right Keynote Spec Card + Audio Spectrum
+    drawCinemaHudAndHeadline(ctx, W, H, scene, activeIdx, scenes.length, progress);
+    drawKeynoteSpecCalloutCard(ctx, W, H, activeIdx, progress, clockSec);
+    drawLiveAudioSpectrumHud(ctx, W, H, clockSec, '#38bdf8');
 
     // 9. Kinetic Typography Subtitles
     if (subtitleStyle !== 'off') {
@@ -701,6 +960,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
     ctx.restore();
   };
+
+  drawCinemaCanvasRef.current = drawCinemaCanvas;
 
   // MASTER 3D CINEMATIC PROCEDURAL STAGE COMPOSITOR (6 Distinct High-Tech Scenes)
   const drawCinematicSceneStage = (
@@ -1916,7 +2177,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       };
 
       // Set playback to start
-      setCurrentTime(exportScope === 'current' ? currentScene.startSec : 0);
+      seekToTime(exportScope === 'current' ? currentScene.startSec : 0);
       setIsPlaying(true);
 
       recorder.start(250);
@@ -2042,6 +2303,17 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
             accept="image/*,video/*"
             className="hidden"
           />
+
+          {/* Internet Real Image Search Button */}
+          <button
+            type="button"
+            onClick={() => setShowInternetImageModal(true)}
+            className="px-2.5 py-1.5 rounded-lg bg-sky-950 hover:bg-sky-900 text-sky-200 font-semibold flex items-center gap-1.5 transition cursor-pointer border border-sky-500/30 shadow-xs"
+            title="Tìm và nạp dữ liệu hình ảnh sản phẩm thực tế từ Internet cho phân cảnh này"
+          >
+            <Globe className="w-3.5 h-3.5 text-sky-400" />
+            <span>Kho Ảnh Internet</span>
+          </button>
 
           {/* Voice Studio Modal Button */}
           <button
@@ -2170,7 +2442,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                 key={s.id}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setCurrentTime(s.startSec + 0.05);
+                  seekToTime(s.startSec + 0.08);
                   onSelectScene?.(s.id);
                 }}
                 className={`absolute top-0 bottom-0 border-r border-zinc-950 transition ${isCurrent ? 'bg-indigo-600/35' : 'bg-transparent hover:bg-white/10'
@@ -2200,7 +2472,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
             max={totalDuration}
             step="0.05"
             value={currentTime}
-            onChange={(e) => setCurrentTime(parseFloat(e.target.value))}
+            onChange={(e) => seekToTime(parseFloat(e.target.value))}
             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
           />
         </div>
@@ -2510,6 +2782,83 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                 <div className="font-mono text-zinc-400 text-xs">{exportProgress}% hoàn tất</div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 6. MODAL KHO ẢNH THỰC TẾ INTERNET (REAL INTERNET IMAGE SEARCH & PROXY) */}
+      {showInternetImageModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 select-none animate-in fade-in duration-150"
+          onClick={(e) => e.target === e.currentTarget && setShowInternetImageModal(false)}
+        >
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-black/10 overflow-hidden flex flex-col p-5 space-y-4 max-h-[85vh]">
+            <div className="flex items-center justify-between border-b border-black/[0.08] pb-3">
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-sky-600" />
+                <div>
+                  <h3 className="font-bold text-zinc-950 text-sm">
+                    Kho Dữ Liệu Hình Ảnh Thực Tế Trên Internet (CORS-Safe HD Proxy)
+                  </h3>
+                  <p className="text-[11px] text-zinc-500">
+                    Đang chọn ảnh cho: <strong>Cảnh {currentSceneIndex + 1} ({currentScene?.headline})</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowInternetImageModal(false)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-800 hover:bg-zinc-100 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={internetSearchQuery}
+                  onChange={(e) => setInternetSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearchInternetImages(internetSearchQuery)}
+                  placeholder="Nhập từ khóa tìm ảnh trên Internet (VD: iPhone 18 Pro Max, Apple A20 Chip, OLED...)"
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-black/15 focus:outline-none focus:border-zinc-900 text-zinc-900"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => handleSearchInternetImages(internetSearchQuery)}
+                disabled={isSearchingInternet}
+                className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-bold cursor-pointer transition"
+              >
+                {isSearchingInternet ? 'Đang tìm...' : 'Tìm Trên Internet'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto pr-1 max-h-[420px]">
+              {internetImages.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => handleApplyInternetImageToScene(item.proxyUrl)}
+                  className="group rounded-xl overflow-hidden border border-black/10 hover:border-sky-500 bg-zinc-950 cursor-pointer transition flex flex-col shadow-xs"
+                >
+                  <div className="aspect-video w-full overflow-hidden bg-zinc-900 relative">
+                    <img
+                      src={item.proxyUrl}
+                      alt={item.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                    />
+                    <span className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded bg-black/75 text-white text-[9px] font-mono">
+                      Áp dụng ngay
+                    </span>
+                  </div>
+                  <div className="p-2 bg-white">
+                    <div className="text-[11px] font-bold text-zinc-900 line-clamp-1">{item.title}</div>
+                    <div className="text-[9px] text-zinc-500 mt-0.5">{item.source}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
