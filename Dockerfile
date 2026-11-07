@@ -28,6 +28,7 @@ RUN npm ci --omit=dev --prefer-offline --no-audit || npm install --omit=dev
 # Copy built distribution and server
 COPY --from=builder /app/dist ./dist
 COPY server.js ./
+COPY server ./server
 
 EXPOSE 10000
 
