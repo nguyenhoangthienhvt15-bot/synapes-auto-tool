@@ -1,4 +1,4 @@
-import { AIProviderId, AIProviderConfig } from '../types';
+import type { AIProviderId, AIProviderConfig } from '../types';
 
 export interface DiscoveredModel {
   id: string;
@@ -162,10 +162,7 @@ export function isProviderKeyConfigured(
     case 'grok':
       return Boolean(config.grok?.apiKey && config.grok.apiKey.trim().length > 5);
     case 'plugin':
-      return Boolean(
-        (config.plugin?.apiToken && config.plugin.apiToken.trim().length > 3) ||
-        (config.plugin?.endpointUrl && config.plugin.endpointUrl.trim().length > 5)
-      );
+      return Boolean(config.plugin?.apiToken && config.plugin.apiToken.trim().length > 5);
     default:
       return false;
   }
@@ -220,14 +217,23 @@ export function getProviderModels(
   }));
 }
 
-const CACHE_PREFIX = 'synapes_ai_models_cache_';
+const CACHE_PREFIX = 'synapes_ai_models_v4_';
+
+/**
+ * Kiểm tra xem ID model có phải model chuyên biệt không sinh kịch bản JSON hay không
+ */
+export function isNonScriptModelId(modelId: string): boolean {
+  const lower = (modelId || '').toLowerCase();
+  return /embedding|aqa|imagen|-image|-tts|tts-|veo|audio|-live|realtime|robotics|computer-use|learnlm|whisper|dall-e|moderation|transcribe|babbage|davinci/.test(
+    lower
+  );
+}
 
 /**
  * Sinh key lưu cache cho từng provider
  */
 function getCacheKey(provider: AIProviderId, apiKey?: string): string {
   if (!apiKey) return `${CACHE_PREFIX}${provider}`;
-  // Băm ngắn gọn 12 ký tự cuối của key để phân biệt các key khác nhau
   const cleanKey = apiKey.trim();
   const hash = cleanKey.length > 8 ? cleanKey.slice(-8) : cleanKey;
   return `${CACHE_PREFIX}${provider}_${hash}`;
@@ -246,15 +252,16 @@ export function getCachedDiscoveredModels(
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        const clean = parsed.filter((m) => m?.id && !isNonScriptModelId(m.id));
+        if (clean.length > 0) return clean;
       }
     }
-    // Fallback thử key chung nếu có
     const genericRaw = localStorage.getItem(`${CACHE_PREFIX}${provider}`);
     if (genericRaw) {
       const parsed = JSON.parse(genericRaw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        const clean = parsed.filter((m) => m?.id && !isNonScriptModelId(m.id));
+        if (clean.length > 0) return clean;
       }
     }
   } catch {
@@ -403,20 +410,14 @@ export async function discoverModelsFromKey(
       const json = await resp.json();
       const rawList: any[] = Array.isArray(json?.models) ? json.models : [];
 
-      // Lọc các model sinh văn bản / kịch bản (loại bỏ embedding hoặc audio-only)
+      // Lọc các model sinh văn bản / kịch bản JSON hợp lệ
       const filtered: DiscoveredModel[] = [];
       for (const m of rawList) {
         const fullId = String(m.name || '');
         const id = fullId.replace(/^models\//, '');
         const lowerId = id.toLowerCase();
 
-        // Bỏ qua embedding, aqa, text-embedding
-        if (
-          lowerId.includes('embedding') ||
-          lowerId.includes('aqa') ||
-          lowerId.includes('imagen') ||
-          lowerId.includes('learnlm')
-        ) {
+        if (!id || isNonScriptModelId(lowerId) || lowerId.startsWith('gemma-3n')) {
           continue;
         }
 
@@ -424,12 +425,15 @@ export async function discoverModelsFromKey(
           ? m.supportedGenerationMethods
           : [];
 
-        // Chỉ nhận model hỗ trợ generateContent hoặc có tên gemini
-        if (methods.includes('generateContent') || lowerId.includes('gemini')) {
+        // Bắt buộc hỗ trợ generateContent nếu API có trả về danh sách methods
+        const supportsGenerate =
+          methods.length > 0 ? methods.includes('generateContent') : lowerId.startsWith('gemini');
+
+        if (supportsGenerate && lowerId.includes('gemini')) {
           const isRec =
-            lowerId === 'gemini-2.0-flash' ||
             lowerId === 'gemini-2.5-flash' ||
-            lowerId === 'gemini-2.0-flash-exp';
+            lowerId === 'gemini-2.5-pro' ||
+            lowerId === 'gemini-2.0-flash';
 
           filtered.push({
             id,
@@ -508,9 +512,10 @@ export async function discoverModelsFromKey(
           (lower.startsWith('gpt-') ||
             lower.startsWith('o1') ||
             lower.startsWith('o3') ||
+            lower.startsWith('o4') ||
             lower.startsWith('chatgpt-')) &&
-          !lower.includes('realtime') &&
-          !lower.includes('audio') &&
+          !isNonScriptModelId(lower) &&
+          !lower.includes('search') &&
           !lower.includes('vision-preview')
         ) {
           let tag = 'Mô hình OpenAI';

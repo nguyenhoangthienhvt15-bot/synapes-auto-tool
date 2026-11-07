@@ -1540,8 +1540,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                                             type="button"
                                             onClick={() => setActiveLut(lut.id as any)}
                                             className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${activeLut === lut.id
-                                                    ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-500/20'
-                                                    : 'bg-zinc-50 border-black/[0.06] hover:bg-zinc-100'
+                                                ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-500/20'
+                                                : 'bg-zinc-50 border-black/[0.06] hover:bg-zinc-100'
                                                 }`}
                                         >
                                             <div className="font-bold text-zinc-900">{lut.name}</div>
@@ -1565,8 +1565,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                                             type="button"
                                             onClick={() => setActiveVfx(fx.id as any)}
                                             className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${activeVfx === fx.id
-                                                    ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-500/20'
-                                                    : 'bg-zinc-50 border-black/[0.06] hover:bg-zinc-100'
+                                                ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-500/20'
+                                                : 'bg-zinc-50 border-black/[0.06] hover:bg-zinc-100'
                                                 }`}
                                         >
                                             <div className="font-bold text-zinc-900">{fx.name}</div>

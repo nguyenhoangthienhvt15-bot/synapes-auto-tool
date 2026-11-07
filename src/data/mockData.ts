@@ -184,6 +184,46 @@ export const INITIAL_SKILLS: Skill[] = [
     tone: 'Chuẩn xác, tự nhiên, đa ngữ điệu, quốc tế',
     systemPrompt: 'Đạo diễn bản địa hóa đa ngôn ngữ và phụ đề chuẩn điện ảnh Netflix. Tự động chia dòng phụ đề theo cụm nghĩa tự nhiên, không ngắt đôi ngữ pháp, tối ưu khớp khẩu hình và nhịp thở của diễn viên lồng tiếng.',
   },
+  {
+    id: 'skill-apple-keynote-3d',
+    name: 'Apple Keynote 3D Hardware & Exploded View',
+    command: '/apple-keynote-3d',
+    description: 'Kỹ thuật diễn họa phần cứng 3D chuẩn Apple: phân rã các lớp linh kiện (Exploded View), ốc vít titanium bay vào cố định, chip Silicon A-Series lộ diện trên bo mạch và cụm lá khẩu cơ học thấu kính (dựa trên repo zhuyansen/awesome-claude-video-skills & remotion).',
+    category: 'Cao cấp',
+    defaultTags: ['#AppleKeynote', '#ExplodedView', '#SiliconDie', '#ApertureBlades', '#TitaniumFrame', '#Motion3D'],
+    tone: 'Uy lực, tĩnh tại, đỉnh cao cơ khí chính xác',
+    systemPrompt: 'Đạo diễn Keynote Apple và Kỹ sư 3D Motion Design. Thiết kế các phân cảnh mở bóc tách linh kiện (3D exploded view), phóng to vi mạch bán dẫn 2nm siêu thực, ánh sáng rim-light trên cạnh viền titan chải xước và mô tả cơ chế lá khẩu quang học chuyển động đóng mở.',
+  },
+  {
+    id: 'skill-apple-subtitles',
+    name: 'Phụ Đề Điện Ảnh Tối Giản Apple & Netflix',
+    command: '/apple-subtitles',
+    description: 'Phong cách phụ đề tối giản thanh lịch: phông chữ SF Pro / Inter mảnh dẻ, khung nền bo tròn mờ mỏng tinh tế, không giật chữ màu vàng, hiển thị câu chữ trang nhã theo cụm ngữ pháp tự nhiên.',
+    category: 'Đồ họa động',
+    defaultTags: ['#AppleSubtitles', '#MinimalTypography', '#CleanAesthetics', '#NetflixStandard', '#NoAISlop'],
+    tone: 'Thanh lịch, hiện đại, trang nhã, không gây phân tâm',
+    systemPrompt: 'Chuyên gia Typography tối giản chuẩn Apple. Phụ đề được thiết kế tinh tế với độ dày nét chữ vừa phải, nền kính mờ nhẹ nhàng, câu chữ ngắt đúng nhịp thở, bảo toàn 100% sự tập trung vào vẻ đẹp của sản phẩm.',
+  },
+  {
+    id: 'skill-haptic-sound-design',
+    name: 'Âm Thanh Cơ Học Haptic & Sub-bass Ambient',
+    command: '/haptic-sound-design',
+    description: 'Thiết kế âm thanh đẳng cấp: tiếng lẫy cơ học Camera Control, click phản hồi haptic, tiếng thấu kính đóng mở và lớp đệm synth sub-bass ambient điện tử tạo chiều sâu không gian.',
+    category: 'Âm thanh',
+    defaultTags: ['#HapticAudio', '#CameraControlClick', '#MechanicalSFX', '#SubBassAmbient', '#SoundDesign'],
+    tone: 'Sâu lắng, đanh thép, tinh tế, chuẩn xác cơ khí',
+    systemPrompt: 'Kỹ sư âm thanh điện ảnh (Foley & Sound Designer). Mọi hành động thị giác (bấm nút camera, xoay lá khẩu, ốc vít ăn khớp) đều được gắn hiệu ứng âm thanh cơ học chân thực, kết hợp dải âm trầm sub-bass ấm áp đặc trưng của video ra mắt sản phẩm Apple.',
+  },
+  {
+    id: 'skill-cinematic-pacing',
+    name: 'Dựng Nhịp Phim Điện Ảnh Apple Keynote',
+    command: '/cinematic-pacing',
+    description: 'Quy luật nhịp dựng 4 - 8 giây cho từng cú máy: dolly in chậm rãi, chuyển động xoay 360 độ quanh sản phẩm, chuyển cảnh dissolve mượt mà không cắt xổi, tạo cảm giác sang trọng bậc nhất.',
+    category: 'Điện ảnh',
+    defaultTags: ['#KeynotePacing', '#CinematicTiming', '#SmoothDolly', '#LuxuryProduct', '#FilmPacing'],
+    tone: 'Đĩnh đạc, thong thả, tự tin, cuốn hút',
+    systemPrompt: 'Đạo diễn dựng phim thương mại cao cấp. Không cắt cảnh giật cục, mỗi phân cảnh duy trì 6-8 giây cho người xem chiêm ngưỡng từng chi tiết gia công tinh xảo, phối hợp nhịp nhàng giữa lời dẫn giọng phát thanh viên và chuyển động máy quay.',
+  },
 ];
 
 export const INITIAL_PROJECTS: Project[] = [
@@ -203,8 +243,8 @@ export const INITIAL_PROJECTS: Project[] = [
       volume: 20,
     },
     voiceoverTrack: {
-      name: 'Anh Hoàng (Hà Nội) — Neural Studio v4.0',
-      voiceName: 'vi-VN-NamMinhNeural',
+      name: 'Anh Tuấn Kiệt (Apple Keynote Master — Giọng Trầm Điện Ảnh)',
+      voiceName: 'vi-apple-keynote-male',
     },
     metadata: {
       title: 'Siêu Phẩm iPhone 18 Pro Max — Đột Phá Màn Hình Zero-Bezel, Chip A20 Pro 2nm & Camera 48MP',
@@ -272,6 +312,9 @@ export const INITIAL_PROJECTS: Project[] = [
         lightingStyle: 'volumetric',
         sfx: 'Neural Pulse Hum + Sonic Boom',
         imageUrl: '/api/image-proxy?url=' + encodeURIComponent('https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1400&q=85'),
+        explodedView: true,
+        appleMotion3d: 'exploded-chip',
+        voiceId: 'vi-apple-keynote-male',
       },
       {
         id: 4,
@@ -289,6 +332,9 @@ export const INITIAL_PROJECTS: Project[] = [
         lightingStyle: 'rembrandt',
         sfx: 'Camera Shutter Click + Sub-Bass Riser',
         imageUrl: '/api/image-proxy?url=' + encodeURIComponent('https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=1400&q=85'),
+        apertureBlades: true,
+        appleMotion3d: 'aperture-zoom',
+        voiceId: 'vi-apple-keynote-male',
       },
       {
         id: 5,
@@ -893,6 +939,62 @@ export const MCP_VIDEO_SERVERS: McpVideoServer[] = [
       'Tạo câu lệnh mô tả chuyển động camera chính xác tuyệt đối',
       'Tối ưu ánh sáng Rembrandt, Cyberpunk, Volumetric Rays',
       'Chuẩn hóa tiêu cự ống kính 35mm / 85mm xóa phông'
+    ],
+    status: 'recommended'
+  },
+  {
+    id: 'repo-awesome-claude-video-skills',
+    name: 'Awesome Claude Video Skills & Keynote Prompts',
+    repo: 'zhuyansen/awesome-claude-video-skills',
+    repoUrl: 'https://github.com/zhuyansen/awesome-claude-video-skills',
+    author: 'zhuyansen',
+    category: 'cinematography',
+    badge: '180+ Video Agent Skills • Apple Hardware 3D',
+    description: 'Bộ sưu tập hơn 180 Agent Skills và cấu trúc kịch bản chuyên sâu cho video thương mại: kỹ thuật 3D Exploded View linh kiện, bóc tách chip A-Series, tạo video giới thiệu sản phẩm phong cách Apple và B-Roll hiện trường.',
+    techStack: ['Video Agent Skills', 'Prompt Engineering', 'Keynote Motion', 'Sora/Kling Cinematography'],
+    keyTools: [
+      'exploded_hardware_view_prompt',
+      'macro_lens_aperture_simulator',
+      'subtle_captions_formatter',
+      'commercial_pacing_orchestrator'
+    ],
+    sampleConfig: {
+      serverKey: 'claude-video-skills',
+      command: 'npx',
+      args: ['awesome-claude-video-skills', 'sync']
+    },
+    useCases: [
+      'Sinh kịch bản bóc tách linh kiện 3D cho các sản phẩm công nghệ cao',
+      'Tự động áp dụng chuẩn ngôn ngữ giới thiệu sản phẩm của Apple',
+      'Định hình góc máy quay Macro 85mm cận cảnh vi cơ khí'
+    ],
+    status: 'recommended'
+  },
+  {
+    id: 'repo-motion-design-agent-skills',
+    name: 'Awesome Motion Design Agent Skills & GSAP/Remotion',
+    repo: 'frankxai/awesome-motion-design-agent-skills',
+    repoUrl: 'https://github.com/frankxai/awesome-motion-design-agent-skills',
+    author: 'frankxai',
+    category: 'pipeline-remotion',
+    badge: 'Motion Design • Kinetic Typography • Easing Math',
+    description: 'Kho lưu trữ toàn diện về các kỹ năng thiết kế chuyển động cho AI Agent: các hàm Easing chuyển động mượt (Cubic-Bezier chuẩn Apple), lá khẩu máy ảnh đóng mở, đồng bộ SFX Haptic và hiệu ứng chữ tinh tế không giật giật.',
+    techStack: ['Remotion', 'GSAP', 'CSS Motion Path', 'Web Audio API'],
+    keyTools: [
+      'apple_ease_curve_generator',
+      'mechanical_aperture_rotator',
+      'haptic_audio_sync_pulse',
+      'smooth_pill_caption_render'
+    ],
+    sampleConfig: {
+      serverKey: 'motion-design-skills',
+      command: 'npx',
+      args: ['motion-design-agent-skills', 'init']
+    },
+    useCases: [
+      'Tạo đường cong gia tốc (Easing curve) siêu mượt chuẩn Apple Fluid',
+      'Tự động đồng bộ tiếng click cơ học với khung hình mở thấu kính',
+      'Render phụ đề viền mờ cao cấp không gây mỏi mắt'
     ],
     status: 'recommended'
   }
