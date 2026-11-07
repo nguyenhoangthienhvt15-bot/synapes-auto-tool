@@ -662,6 +662,10 @@ export function App() {
           aiConfig={aiConfig}
           onClose={() => setIsCreateModalOpen(false)}
           onCreateProject={handleCreateProject}
+          onAddSkill={(newSkill) => {
+            setSkills((prev) => [newSkill, ...prev.filter((item) => item.id !== newSkill.id)]);
+            showToast(`Đã lưu phong cách biên tập: ${newSkill.name}`);
+          }}
           onOpenAiSettings={(prov) => {
             setIsCreateModalOpen(false);
             if (prov) {
