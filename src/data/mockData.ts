@@ -188,6 +188,145 @@ export const INITIAL_SKILLS: Skill[] = [
 
 export const INITIAL_PROJECTS: Project[] = [
   {
+    id: 'proj-iphone-18',
+    code: 'VIP-001',
+    title: 'Siêu Phẩm iPhone 18 Pro Max — Đột Phá Màn Hình Zero-Bezel, Chip A20 Pro 2nm & Camera 48MP',
+    status: 'pending_approval',
+    aspectRatio: '16:9',
+    duration: 48,
+    targetChannels: ['youtube', 'tiktok', 'facebook'],
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    thumbnailUrl: '/api/image-proxy?url=' + encodeURIComponent('https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=1400&q=85'),
+    musicTrack: {
+      name: 'Apple Keynote Orchestral Ambient Synth (Commercial Master)',
+      license: 'Royalty-Free Commercial License',
+      volume: 20,
+    },
+    voiceoverTrack: {
+      name: 'Anh Hoàng (Hà Nội) — Neural Studio v4.0',
+      voiceName: 'vi-VN-NamMinhNeural',
+    },
+    metadata: {
+      title: 'Siêu Phẩm iPhone 18 Pro Max — Đột Phá Màn Hình Zero-Bezel, Chip A20 Pro 2nm & Camera 48MP',
+      description:
+        'Bản phân tích và trình diễn chuyên sâu về iPhone 18 Pro Max.\n\n📌 TIMELINE NỘI DUNG:\n00:00 — 01. LỘ DIỆN IPHONE 18 PRO MAX — KHUNG TITAN GRADE 6\n00:08 — 02. MÀN HÌNH ZERO-BEZEL OLED 120HZ & FACE ID ẨN\n00:16 — 03. SIÊU CHIP APPLE A20 PRO TIẾN TRÌNH 2NM TSMC\n00:24 — 04. BỘ BA CAMERA 48MP TIỀM VỌNG ZOOM QUANG 10X\n00:32 — 05. PIN SILICON-CARBON 5600MAH & SẠC MAGSAFE 65W\n00:40 — 06. TỔNG KẾT SIÊU PHẨM IPHONE 18 — ĐỊNH HÌNH TƯƠNG LAI\n\n#iPhone18 #iPhone18ProMax #AppleA20Pro #TechReview #SynapesStudio',
+      tags: ['iPhone18', 'iPhone18ProMax', 'AppleA20Pro', 'TechReview', 'AIStudio'],
+      productLink: 'https://synapes.ai/studio/iphone-18-pro-max',
+    },
+    aiSource: {
+      type: 'gemini',
+      name: 'Google Gemini 2.5 Flash Cinema Director',
+      model: 'gemini-2.5-flash',
+    },
+    createdAt: '2026-11-07 09:00',
+    scheduledTime: '20:00 - Tối nay (Khung giờ vàng YouTube & TikTok)',
+    driveBackupUrl: 'https://drive.google.com/drive/folders/AutoVideo_Backup_VIP001',
+    storyboard: [
+      {
+        id: 1,
+        sceneNumber: 1,
+        timeRange: '00:00 - 00:08 (8s)',
+        startSec: 0,
+        endSec: 8,
+        headline: '01. LỘ DIỆN IPHONE 18 PRO MAX — KHUNG TITAN GRADE 6',
+        voiceover:
+          'Chào mừng kỷ nguyên mới của thế giới di động. Ngay trước mắt chúng ta chính là iPhone 18 Pro Max — tuyệt tác phần cứng hội tụ khung viền Titan cấp vũ trụ thế hệ thứ sáu siêu nhẹ cùng mặt lưng kính Ceramic Shield ba lớp bền bỉ gấp đôi.',
+        visualPrompt:
+          'Dramatic Apple keynote studio reveal of iPhone 18 Pro Max Desert Titanium flagship, brushed Grade 6 aerospace titanium frame, slow Dolly In camera movement, 35mm anamorphic lens, 8k photorealistic',
+        transition: 'fade',
+        cameraMotion: 'dolly-in',
+        lightingStyle: 'studio-clean',
+        sfx: 'Deep Sub-Bass Drop + Metallic Shimmer',
+        imageUrl: '/api/image-proxy?url=' + encodeURIComponent('https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=1400&q=85'),
+      },
+      {
+        id: 2,
+        sceneNumber: 2,
+        timeRange: '00:08 - 00:16 (8s)',
+        startSec: 8,
+        endSec: 16,
+        headline: '02. MÀN HÌNH ZERO-BEZEL OLED 120HZ & FACE ID ẨN',
+        voiceover:
+          'Lần đầu tiên trong lịch sử Apple, toàn bộ cụm cảm biến Face ID đã được đặt ẩn hoàn toàn dưới tấm nền Super Retina XDR sáu phẩy chín inch tràn viền không khuyết điểm, đạt độ sáng đỉnh ba nghìn năm trăm nits rực rỡ.',
+        visualPrompt:
+          'Close-up of iPhone 18 Pro Max Zero-Bezel 6.9-inch Super Retina XDR ProMotion 120Hz OLED display with under-display Face ID and vibrant HDR wallpaper, smooth 360 Orbit camera shot, 85mm lens, 8k',
+        transition: 'dissolve',
+        cameraMotion: 'orbit',
+        lightingStyle: 'cyberpunk',
+        sfx: 'Futuristic UI Power-Up + Optical Shimmer',
+        imageUrl: '/api/image-proxy?url=' + encodeURIComponent('https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?auto=format&fit=crop&w=1400&q=85'),
+      },
+      {
+        id: 3,
+        sceneNumber: 3,
+        timeRange: '00:16 - 00:24 (8s)',
+        startSec: 16,
+        endSec: 24,
+        headline: '03. SIÊU CHIP APPLE A20 PRO TIẾN TRÌNH 2NM TSMC',
+        voiceover:
+          'Trái tim sức mạnh của iPhone 18 là siêu vi xử lý Apple A20 Pro sản xuất trên tiến trình hai nanomet đầu tiên trên thế giới, tăng bốn mươi phần trăm tốc độ xử lý đồ họa Ray Tracing và vận hành mượt mà hệ sinh thái Apple Intelligence hai chấm không.',
+        visualPrompt:
+          'Extreme macro architectural shot of Apple A20 Pro 2nm silicon wafer processor glowing with neural engine pathways inside iPhone 18, FPV zoom camera motion, volumetric lighting, 8k photorealistic',
+        transition: 'cut',
+        cameraMotion: 'fpv-zoom',
+        lightingStyle: 'volumetric',
+        sfx: 'Neural Pulse Hum + Sonic Boom',
+        imageUrl: '/api/image-proxy?url=' + encodeURIComponent('https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1400&q=85'),
+      },
+      {
+        id: 4,
+        sceneNumber: 4,
+        timeRange: '00:24 - 00:32 (8s)',
+        startSec: 24,
+        endSec: 32,
+        headline: '04. BỘ BA CAMERA 48MP TIỀM VỌNG ZOOM QUANG 10X',
+        voiceover:
+          'Hệ thống nhiếp ảnh điện ảnh trên iPhone 18 Pro Max nâng cấp toàn bộ ba ống kính lên độ phân giải bốn mươi tám chấm, tích hợp khẩu độ cơ học biến thiên và ống kính tiềm vọng Telephoto zoom quang học mười ích sắc nét tuyệt đối.',
+        visualPrompt:
+          'Macro tracking shot across iPhone 18 Pro Max triple 48MP sapphire camera array with 10x tetraprism periscope lens and LiDAR scanner, smooth Pan Right camera movement, 85mm macro lens, 8k',
+        transition: 'dissolve',
+        cameraMotion: 'pan-right',
+        lightingStyle: 'rembrandt',
+        sfx: 'Camera Shutter Click + Sub-Bass Riser',
+        imageUrl: '/api/image-proxy?url=' + encodeURIComponent('https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=1400&q=85'),
+      },
+      {
+        id: 5,
+        sceneNumber: 5,
+        timeRange: '00:32 - 00:40 (8s)',
+        startSec: 32,
+        endSec: 40,
+        headline: '05. PIN SILICON-CARBON 5600MAH & SẠC MAGSAFE 65W',
+        voiceover:
+          'Nhờ công nghệ pin vật liệu Silicon-Carbon mật độ cao dung lượng năm nghìn sáu trăm mili-ampe-giờ kết hợp buồng tản nhiệt hơi nước Graphene, iPhone 18 mang lại thời lượng sử dụng kỷ lục lên tới ba mươi sáu giờ liên tục.',
+        visualPrompt:
+          'Precision engineering showcase of iPhone 18 Pro Max ultra-thin chassis, Silicon-Carbon 5600mAh battery architecture and 65W MagSafe wireless charging coil, Crane Boom Up shot, studio clean lighting, 8k',
+        transition: 'cut',
+        cameraMotion: 'crane-up',
+        lightingStyle: 'studio-clean',
+        sfx: 'Magnetic Lock Chime + Energy Charge Whoosh',
+        imageUrl: '/api/image-proxy?url=' + encodeURIComponent('https://images.unsplash.com/photo-1585060544812-6b45742d762f?auto=format&fit=crop&w=1400&q=85'),
+      },
+      {
+        id: 6,
+        sceneNumber: 6,
+        timeRange: '00:40 - 00:48 (8s)',
+        startSec: 40,
+        endSec: 48,
+        headline: '06. TỔNG KẾT SIÊU PHẨM IPHONE 18 — ĐỊNH HÌNH TƯƠNG LAI',
+        voiceover:
+          'Với thiết kế tràn viền hoàn mỹ, hiệu năng hai nanomet vô đối và cụm camera chuẩn máy quay chuyên nghiệp, iPhone 18 chính là bước nhảy vọt vĩ đại nhất thập kỷ. Bạn ấn tượng nhất với nâng cấp nào? Hãy để lại bình luận ngay bên dưới!',
+        visualPrompt:
+          'Hero wide shot of iPhone 18 Pro Max flagship lineup standing majestically on dark minimalist studio pedestal with dramatic backlight beams, slow Dolly Out camera motion, 35mm anamorphic flare, 8k',
+        transition: 'fade',
+        cameraMotion: 'dolly-out',
+        lightingStyle: 'golden-hour',
+        sfx: 'Epic Orchestral Finale Hit + Echo',
+        imageUrl: '/api/image-proxy?url=' + encodeURIComponent('https://images.unsplash.com/photo-1678685888221-cda773a3dcdb?auto=format&fit=crop&w=1400&q=85'),
+      },
+    ],
+  },
+  {
     id: 'proj-101',
     code: 'VIP-001',
     title: 'Top 5 Công nghệ AI Đột phá Thay đổi Thế giới 2026',
