@@ -13,9 +13,7 @@ import {
   RefreshCw,
   ExternalLink,
   ShieldAlert,
-  Shuffle,
-  Radio,
-  Newspaper,
+  Info,
 } from 'lucide-react';
 import {
   PROVIDERS,
@@ -25,11 +23,7 @@ import {
   getProviderModels,
   discoverModelsFromKey,
 } from '../services/aiModelDiscoveryService';
-import {
-  generateAiVideoScript,
-  RANDOM_TOPIC_PRESETS,
-  RandomTopicPreset,
-} from '../services/aiScriptGeneratorService';
+import { generateAiVideoScript } from '../services/aiScriptGeneratorService';
 import { AiProviderDropdown, AiModelDropdown } from './AiProviderDropdown';
 
 interface CreateProjectModalProps {
@@ -40,15 +34,6 @@ interface CreateProjectModalProps {
   onOpenAiSettings?: (provider?: AIProviderId) => void;
 }
 
-const TOPIC_CATEGORIES = [
-  'Thời sự Quốc tế',
-  'Tài chính & Vĩ mô',
-  'Khoa học & Vũ trụ',
-  'Lịch sử & Hồ sơ',
-  'Ẩm thực & Du lịch',
-  'Công nghệ & AI',
-] as const;
-
 export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   skills,
   aiConfig,
@@ -57,15 +42,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   onOpenAiSettings,
 }) => {
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
-  const [selectedSkillId, setSelectedSkillId] = useState<string>(
-    () => skills.find((s) => s.command === '/daily-news')?.id || skills[0]?.id || 'skill-news'
-  );
+  const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
+  const [hoveredSkill, setHoveredSkill] = useState<Skill | null>(null);
   const [promptText, setPromptText] = useState('');
   const [targetDurationMin, setTargetDurationMin] = useState<number>(8);
   const [attachedFileName, setAttachedFileName] = useState<string | null>(null);
-  const [activeTopicCategory, setActiveTopicCategory] = useState<string | null>(null);
-  const [lastPresetId, setLastPresetId] = useState<string | null>(null);
-  const [isLoadingLiveNews, setIsLoadingLiveNews] = useState(false);
 
   // AI Provider & Models Selection state
   const [selectedProvider, setSelectedProvider] = useState<AIProviderId>(() => {
@@ -155,93 +136,29 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     }
   };
 
-  const applySkillByCommand = (cmd: string) => {
+  // Chọn hoặc Hủy chọn phong cách biên tập (Toggle)
+  const handleQuickCommandSelect = (cmd: string) => {
     const skill = skills.find((s) => s.command === cmd);
-    if (skill) {
+    if (!skill) return;
+
+    if (selectedSkillId === skill.id) {
+      // Bấm lần thứ hai: HỦY CHỌN phong cách
+      setSelectedSkillId(null);
+    } else {
+      // Bấm lần đầu: CHỌN phong cách
       setSelectedSkillId(skill.id);
     }
   };
 
-  const handleQuickCommandSelect = (cmd: string) => {
-    const skill = skills.find((s) => s.command === cmd);
-    if (!skill) return;
-    setSelectedSkillId(skill.id);
-    setPromptText((prev) => {
-      const stripped = prev.replace(/^\/[a-z0-9-_]+:\s*/i, '').trim();
-      if (!stripped) return '';
-      return stripped;
-    });
-  };
+  const activeSkill = skills.find((s) => s.id === selectedSkillId) || null;
+  const displaySkillInfo = hoveredSkill || activeSkill;
 
-  const applyRandomPreset = (categoryFilter?: string): RandomTopicPreset => {
-    const pool = categoryFilter
-      ? RANDOM_TOPIC_PRESETS.filter((item) => item.category === categoryFilter)
-      : RANDOM_TOPIC_PRESETS;
-    const filtered = pool.filter((item) => item.id !== lastPresetId);
-    const source = filtered.length > 0 ? filtered : pool;
-    const picked = source[Math.floor(Math.random() * source.length)] || RANDOM_TOPIC_PRESETS[0];
-
-    setLastPresetId(picked.id);
-    setActiveTopicCategory(picked.category);
-    setPromptText(picked.prompt);
-    applySkillByCommand(picked.suggestedCommand);
-    return picked;
-  };
-
-  const handlePickLiveBreakingNews = async (): Promise<string> => {
-    setIsLoadingLiveNews(true);
-    applySkillByCommand('/daily-news');
-    setActiveTopicCategory('Thời sự Quốc tế');
-    try {
-      const queries = [
-        'thời sự thế giới địa chính trị mới nhất',
-        'tin nóng quốc tế kinh tế quân sự hôm nay',
-        'biến động kinh tế thế giới giá vàng dầu mỏ',
-      ];
-      const q = queries[Math.floor(Math.random() * queries.length)];
-      const resp = await fetch(`/api/topic-research?q=${encodeURIComponent(q)}`);
-      if (resp.ok) {
-        const data = await resp.json();
-        const headlines: Array<{ title: string; source?: string }> = Array.isArray(data?.headlines)
-          ? data.headlines
-          : [];
-        if (headlines.length > 0) {
-          const item = headlines[Math.floor(Math.random() * Math.min(headlines.length, 6))];
-          const cleanHeadline = String(item.title || '')
-            .replace(/\s+-\s+[^-]+$/, '')
-            .trim();
-          if (cleanHeadline.length > 8) {
-            const nextPrompt = `Tạo bản tin thời sự phân tích chuyên sâu: ${cleanHeadline}`;
-            setPromptText(nextPrompt);
-            setScanMessage(
-              `Đã lấy tin nóng trực tiếp${item.source ? ` từ ${item.source}` : ''}: "${cleanHeadline}"`
-            );
-            return nextPrompt;
-          }
-        }
-      }
-    } catch {
-      // Fallback sang kho chủ đề thời sự chuẩn bên dưới
-    } finally {
-      setIsLoadingLiveNews(false);
-    }
-
-    const fallback = applyRandomPreset('Thời sự Quốc tế');
-    return fallback.prompt;
-  };
-
-  const executeGeneration = async (overridePrompt?: string) => {
-    const finalPrompt = (overridePrompt ?? promptText).trim();
+  const executeGeneration = async () => {
+    const finalPrompt = promptText.trim();
     if (!finalPrompt) return;
 
-    if (!isCurrentKeyConfigured) {
-      setScanMessage(
-        'Đang khởi chạy Động cơ Biên kịch Báo chí & Điện ảnh Thời gian thực (tự động tra cứu Google News RSS & Wikipedia)...'
-      );
-    }
-
     setIsGenerating(true);
-    setGenerationStep('Đang kết nối Động cơ AI & phân tích chủ đề thực tế...');
+    setGenerationStep('Đang khởi tạo cấu trúc kịch bản và phân tích dữ liệu chủ đề...');
     setGenerationPercent(15);
     setKeyErrorNotice(null);
 
@@ -251,7 +168,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
       const generated = await generateAiVideoScript({
         prompt: finalPrompt,
-        skillId: selectedSkillId,
+        skillId: selectedSkillId || undefined,
         skills,
         aspectRatio,
         targetDurationMin,
@@ -311,15 +228,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     }
   };
 
-  const handleSimulateCreate = async (e: React.FormEvent) => {
+  const handleSubmitCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     await executeGeneration();
-  };
-
-  const handleOneClickRandomNewsBroadcast = async () => {
-    if (isGenerating) return;
-    const chosenPrompt = await handlePickLiveBreakingNews();
-    await executeGeneration(chosenPrompt);
   };
 
   useEffect(() => {
@@ -346,10 +257,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-zinc-950 tracking-tight">
-                Khởi Tạo Dự Án Video & Bản Tin Đa Lĩnh Vực
+                Khởi Tạo Dự Án Video
               </h2>
               <p className="text-zinc-500 text-xs">
-                Tự động nghiên cứu tin tức thời gian thực, đồng bộ nhà cung cấp AI & hình ảnh đúng 100% chủ đề
+                Thiết lập khuôn mẫu định dạng, phong cách biên tập và cấu hình mô hình AI
               </p>
             </div>
           </div>
@@ -363,27 +274,30 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSimulateCreate} className="space-y-4 text-xs">
-          {/* 1. Định dạng xuất bản */}
+        <form onSubmit={handleSubmitCreate} className="space-y-4 text-xs">
+          {/* 1. KHUÔN MẪU ĐỊNH DẠNG VIDEO */}
           <div>
-            <label className="text-zinc-800 font-semibold block mb-1.5">1. Định dạng khung hình *</label>
+            <label className="text-zinc-800 font-semibold block mb-1.5">
+              1. Khuôn mẫu định dạng video *
+            </label>
             <div className="grid grid-cols-2 gap-2.5">
               <div
                 onClick={() => {
                   setAspectRatio('16:9');
                   setTargetDurationMin(8);
                 }}
-                className={`p-3 rounded-xl border cursor-pointer transition ${
+                className={`p-3.5 rounded-xl border cursor-pointer transition ${
                   aspectRatio === '16:9'
-                    ? 'border-zinc-950 bg-zinc-50/90 text-zinc-950 shadow-2xs'
+                    ? 'border-zinc-950 bg-zinc-50/90 text-zinc-950 shadow-2xs ring-1 ring-zinc-950/5'
                     : 'border-black/[0.08] bg-white text-zinc-600 hover:border-black/[0.18]'
                 }`}
               >
-                <div className="font-semibold flex items-center gap-1.5 text-zinc-950">
-                  <Monitor className="w-3.5 h-3.5 text-zinc-700" /> Bản Tin / YouTube Ngang (16:9)
+                <div className="font-semibold flex items-center gap-1.5 text-zinc-950 text-xs">
+                  <Monitor className="w-4 h-4 text-zinc-800" />
+                  <span>Khuôn Mẫu Video Dài (16:9)</span>
                 </div>
-                <div className="text-[11px] text-zinc-500 mt-0.5">
-                  Chuẩn truyền hình HD, phỏng vấn, phim tài liệu & đánh giá sâu
+                <div className="text-[11px] text-zinc-500 mt-1 leading-relaxed">
+                  Định dạng màn hình ngang 16:9 tiêu chuẩn cho YouTube và các nền tảng truyền hình
                 </div>
               </div>
 
@@ -392,106 +306,124 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                   setAspectRatio('9:16');
                   setTargetDurationMin(1);
                 }}
-                className={`p-3 rounded-xl border cursor-pointer transition ${
+                className={`p-3.5 rounded-xl border cursor-pointer transition ${
                   aspectRatio === '9:16'
-                    ? 'border-zinc-950 bg-zinc-50/90 text-zinc-950 shadow-2xs'
+                    ? 'border-zinc-950 bg-zinc-50/90 text-zinc-950 shadow-2xs ring-1 ring-zinc-950/5'
                     : 'border-black/[0.08] bg-white text-zinc-600 hover:border-black/[0.18]'
                 }`}
               >
-                <div className="font-semibold flex items-center gap-1.5 text-zinc-950">
-                  <Smartphone className="w-3.5 h-3.5 text-zinc-700" /> Shorts / TikTok / Reels Dọc (9:16)
+                <div className="font-semibold flex items-center gap-1.5 text-zinc-950 text-xs">
+                  <Smartphone className="w-4 h-4 text-zinc-800" />
+                  <span>Khuôn Mẫu Video Ngắn (9:16)</span>
                 </div>
-                <div className="text-[11px] text-zinc-500 mt-0.5">
-                  Điểm tin nhanh 60s, nhịp cắt dồn dập giữ chân người xem
+                <div className="text-[11px] text-zinc-500 mt-1 leading-relaxed">
+                  Định dạng màn hình dọc 9:16 tiêu chuẩn cho Shorts, TikTok và Meta Reels
                 </div>
               </div>
             </div>
           </div>
 
-          {/* 2. Chọn Bộ Skill / Phong cách đạo diễn */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-zinc-800 font-semibold">2. Phong cách biên tập (Skills)</label>
-              <span className="text-[10px] text-zinc-400 font-mono">
-                Đang chọn: {skills.find((s) => s.id === selectedSkillId)?.name || 'Mặc định'}
+          {/* 2. CHỌN PHONG CÁCH BIÊN TẬP (TOGGLE & HOVER TOOLTIP CARD) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <label className="text-zinc-800 font-semibold">2. Phong cách biên tập (Skills)</label>
+                <span className="text-[10px] text-zinc-400 font-normal">
+                  (Bấm để chọn, bấm lại để hủy)
+                </span>
+              </div>
+              <span className="text-[10px] text-zinc-500 font-mono">
+                {selectedSkillId
+                  ? `Đang áp dụng: ${activeSkill?.name || 'Đã chọn'}`
+                  : 'Mặc định (Tự do)'}
               </span>
             </div>
+
             <div className="flex flex-wrap gap-1.5">
-              {skills.map((s) => (
-                <button
-                  type="button"
-                  key={s.id}
-                  onClick={() => handleQuickCommandSelect(s.command)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition cursor-pointer ${
-                    selectedSkillId === s.id
-                      ? 'bg-zinc-900 text-white font-medium shadow-2xs'
-                      : 'bg-zinc-100 text-zinc-600 hover:text-zinc-950 border border-black/[0.06]'
-                  }`}
-                  title={s.description}
-                >
-                  {s.command}
-                </button>
-              ))}
+              {skills.map((s) => {
+                const isSelected = selectedSkillId === s.id;
+                const isHovered = hoveredSkill?.id === s.id;
+                return (
+                  <div key={s.id} className="relative inline-block">
+                    <button
+                      type="button"
+                      onClick={() => handleQuickCommandSelect(s.command)}
+                      onMouseEnter={() => setHoveredSkill(s)}
+                      onMouseOver={() => setHoveredSkill(s)}
+                      onMouseLeave={() => setHoveredSkill((cur) => (cur?.id === s.id ? null : cur))}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-zinc-950 text-white font-medium shadow-2xs ring-1 ring-zinc-950'
+                          : 'bg-zinc-100 text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/70 border border-black/[0.06]'
+                      }`}
+                    >
+                      {s.command}
+                    </button>
+
+                    {/* Khung thông tin nhỏ tóm tắt nội dung phong cách khi di chuột */}
+                    {isHovered && (
+                      <div className="absolute left-0 top-full mt-1.5 z-50 w-72 p-2.5 bg-zinc-950 text-white rounded-xl shadow-2xl text-left pointer-events-none border border-white/10 animate-in fade-in zoom-in-95 duration-100">
+                        <div className="flex items-center justify-between gap-1.5 border-b border-white/10 pb-1 mb-1">
+                          <span className="font-semibold text-[11px] text-zinc-100 truncate">
+                            {s.name}
+                          </span>
+                          <span className="font-mono text-[9px] text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-1.5 py-0.2 rounded flex-shrink-0">
+                            {s.command}
+                          </span>
+                        </div>
+                        <p className="text-[10.5px] text-zinc-300 leading-relaxed line-clamp-3">
+                          {s.description || 'Phong cách biên tập nội dung chuyên nghiệp.'}
+                        </p>
+                        <div className="mt-1 pt-1 border-t border-white/10 text-[9px] text-zinc-400 font-mono flex items-center justify-between">
+                          <span>{isSelected ? 'Đang được chọn' : 'Nhấp để kích hoạt'}</span>
+                          <span>{isSelected ? 'Bấm để hủy chọn' : 'Tùy chọn'}</span>
+                        </div>
+                        {/* Mũi tên chỉ lên */}
+                        <div className="absolute left-4 bottom-full w-0 h-0 border-x-4 border-x-transparent border-b-4 border-b-zinc-950" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
+
+            {/* Khung tóm tắt phong cách đang xem hoặc đang kích hoạt */}
+            {displaySkillInfo && (
+              <div className="p-2.5 rounded-lg bg-zinc-50 border border-black/[0.07] text-xs flex items-start gap-2 animate-in fade-in duration-100">
+                <Info className="w-3.5 h-3.5 text-zinc-500 mt-0.5 flex-shrink-0" />
+                <div className="min-w-0 flex-1 leading-snug">
+                  <div className="font-semibold text-zinc-900 text-[11px] flex items-center gap-1.5">
+                    <span>{displaySkillInfo.name}</span>
+                    <span className="font-mono text-[9px] text-zinc-500 font-normal">
+                      ({displaySkillInfo.command})
+                    </span>
+                    {selectedSkillId === displaySkillInfo.id && (
+                      <span className="text-[9px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded font-medium">
+                        Đang chọn
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-zinc-600 mt-0.5 leading-relaxed">
+                    {displaySkillInfo.description}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* 3. Câu lệnh ý tưởng & Bộ tạo Bản tin Ngẫu nhiên */}
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="text-zinc-800 font-semibold">
-                3. Chủ đề hoặc Câu lệnh kịch bản (Mọi lĩnh vực) *
-              </label>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={handlePickLiveBreakingNews}
-                  disabled={isLoadingLiveNews || isGenerating}
-                  className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100/80 text-red-700 border border-red-200/80 text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer"
-                  title="Quét tin nóng thực tế mới nhất từ Google News RSS"
-                >
-                  <Radio className={`w-3 h-3 text-red-600 ${isLoadingLiveNews ? 'animate-spin' : 'animate-pulse'}`} />
-                  <span>{isLoadingLiveNews ? 'Đang lấy tin...' : 'Lấy Tin Nóng Live'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyRandomPreset()}
-                  disabled={isGenerating}
-                  className="px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200/80 text-zinc-800 border border-black/[0.08] text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer"
-                  title="Đổi ngẫu nhiên một chủ đề hấp dẫn từ 6 lĩnh vực"
-                >
-                  <Shuffle className="w-3 h-3 text-zinc-700" />
-                  <span>Đổi Chủ Đề Ngẫu Nhiên</span>
-                </button>
-              </div>
-            </div>
-
+          {/* 3. CHỦ ĐỀ HOẶC KỊCH BẢN NỘI DUNG */}
+          <div className="space-y-1.5">
+            <label className="text-zinc-800 font-semibold block">
+              3. Chủ đề hoặc Kịch bản nội dung *
+            </label>
             <textarea
-              rows={3}
+              rows={4}
               required
-              placeholder='Nhập bất kỳ chủ đề nào (VD: "Tạo bản tin về tình hình chiến sự Iran và Mỹ", "Biến động giá vàng thế giới", "Giải mã Kim Tự Tháp Ai Cập", hoặc gõ "Tạo bản tin ngẫu nhiên")...'
+              placeholder="Nhập nội dung, đề tài hoặc dàn ý kịch bản bạn muốn sản xuất (Ví dụ: Giới thiệu kiến trúc vi xử lý mới, Phân tích thị trường tài chính, Phim tư liệu lịch sử...)..."
               value={promptText}
               onChange={(e) => setPromptText(e.target.value)}
               className="w-full bg-white border border-black/[0.12] rounded-xl p-3 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950/5 leading-relaxed transition"
             />
-
-            {/* Các chip chọn nhanh theo Lĩnh vực */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] text-zinc-400 font-mono mr-0.5">Gợi ý nhanh:</span>
-              {TOPIC_CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => applyRandomPreset(cat)}
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition cursor-pointer ${
-                    activeTopicCategory === cat
-                      ? 'bg-sky-50 text-sky-800 border-sky-300 font-semibold'
-                      : 'bg-white text-zinc-600 border-black/[0.08] hover:border-zinc-400 hover:text-zinc-900'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* 4. ĐỘNG CƠ AI & CHỌN MODEL CÓ LOGO THƯƠNG HIỆU */}
@@ -506,7 +438,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                   type="button"
                   onClick={() => onOpenAiSettings(selectedProvider)}
                   className="text-[11px] text-zinc-600 hover:text-zinc-950 flex items-center gap-1 cursor-pointer font-medium"
-                  title="Mở trang cấu hình nạp API Keys AI Module"
+                  title="Mở trang cấu hình API Keys"
                 >
                   <Key className="w-3 h-3 text-zinc-500" />
                   <span>Quản lý API Keys</span>
@@ -565,7 +497,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 <div className="flex items-start sm:items-center gap-2">
                   <ShieldAlert className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5 sm:mt-0" />
                   <span className="leading-snug text-[11px]">
-                    <strong>{PROVIDERS.find((p) => p.id === selectedProvider)?.name}</strong> chưa gắn API Key. Hệ thống vẫn cho phép tạo ngay bằng <strong>Động cơ Biên kịch Thời sự & Điện ảnh Nội bộ</strong>, hoặc bạn có thể gắn Key để gọi trực tiếp LLM hãng.
+                    <strong>{PROVIDERS.find((p) => p.id === selectedProvider)?.name}</strong> chưa gắn API Key riêng. Hệ thống sẽ tự động kích hoạt Động cơ Biên kịch Studio Nội bộ để khởi tạo dự án.
                   </span>
                 </div>
                 {onOpenAiSettings && (
@@ -642,40 +574,27 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           )}
 
           {/* Action buttons */}
-          <div className="pt-3 border-t border-black/[0.06] flex flex-wrap items-center justify-between gap-2">
+          <div className="pt-3 border-t border-black/[0.06] flex items-center justify-end gap-2">
             <button
               type="button"
-              onClick={handleOneClickRandomNewsBroadcast}
-              disabled={isGenerating || isLoadingLiveNews}
-              className="px-3 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-200 font-semibold text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
-              title="Tự động săn tin nóng mới nhất và dựng ngay một dự án Bản tin 24h hoàn chỉnh"
+              onClick={onClose}
+              disabled={isGenerating}
+              className="btn-secondary cursor-pointer"
             >
-              <Newspaper className="w-3.5 h-3.5 text-sky-700" />
-              <span>Tạo Bản Tin Ngẫu Nhiên 1-Chạm</span>
+              Hủy
             </button>
-
-            <div className="flex items-center gap-2 ml-auto">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isGenerating}
-                className="btn-secondary cursor-pointer"
-              >
-                Hủy
-              </button>
-              <button
-                type="submit"
-                disabled={isGenerating || !promptText.trim()}
-                className={
-                  isGenerating || !promptText.trim()
-                    ? 'px-3.5 py-1.5 rounded-lg bg-zinc-200 text-zinc-400 text-xs font-medium cursor-not-allowed border border-black/5 flex items-center gap-1.5'
-                    : 'btn-primary cursor-pointer flex items-center gap-1.5 px-4 py-1.5'
-                }
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>{isGenerating ? 'Đang Dựng Dự Án...' : 'Tạo Kịch Bản & Video'}</span>
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={isGenerating || !promptText.trim()}
+              className={
+                isGenerating || !promptText.trim()
+                  ? 'px-3.5 py-1.5 rounded-lg bg-zinc-200 text-zinc-400 text-xs font-medium cursor-not-allowed border border-black/5 flex items-center gap-1.5'
+                  : 'btn-primary cursor-pointer flex items-center gap-1.5 px-4 py-1.5'
+              }
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{isGenerating ? 'Đang Dựng Dự Án...' : 'Tạo Kịch Bản & Video'}</span>
+            </button>
           </div>
         </form>
       </div>

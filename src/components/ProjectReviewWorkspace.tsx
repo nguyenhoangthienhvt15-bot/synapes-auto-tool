@@ -1155,7 +1155,7 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
             <div className="flex flex-wrap gap-1.5">
               {[
                 'Chuẩn Bản Tin Thời Sự 24h (Góc máy phóng sự, dải tin nóng)',
-                'Nhịp nhanh 5 giây/cảnh tối ưu giữ chân TikTok/Reels',
+                'Nhịp chuyển cảnh nhanh 5 giây/cảnh chuẩn Shorts & Reels',
                 'Phim tài liệu điện ảnh (Ánh sáng chiều sâu, góc máy Crane & Orbit)',
               ].map((presetText) => (
                 <button
