@@ -4,12 +4,17 @@ import { AiCinemaPlayer } from './AiCinemaPlayer';
 import { VoiceStudioModal } from './VoiceStudioModal';
 import { LiveDubbingStudioModal } from './LiveDubbingStudioModal';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
-import { buildAiSceneImageUrl } from '../services/aiScriptGeneratorService';
+import {
+  buildAiSceneImageUrl,
+  classifyTopicDomainClient,
+  extractCleanSubject,
+} from '../services/aiScriptGeneratorService';
+import { ProviderBrandLogo } from './AiProviderDropdown';
 import {
   Volume2, CheckCircle2, Clock,
   Edit3, Film, ExternalLink, Smartphone, Monitor,
   Link2, Sparkles, X, Check, Camera, RefreshCw,
-  Mic, Keyboard, Plus, Scissors, Trash2, Copy, MonitorPlay
+  Mic, Keyboard, Plus, Scissors, Trash2, Copy, MonitorPlay, Download
 } from 'lucide-react';
 
 interface ProjectReviewWorkspaceProps {
@@ -127,23 +132,37 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
     });
   };
 
+  const projDomain = classifyTopicDomainClient(
+    `${project.title} ${(project.metadata?.tags || []).join(' ')}`
+  );
+
   const handleAddNewScene = () => {
     const newId = Math.max(0, ...project.storyboard.map((s) => s.id)) + 1;
     const lastScene = project.storyboard[project.storyboard.length - 1];
     const startSec = lastScene ? lastScene.endSec : 0;
     const endSec = startSec + 8;
+    const cleanTopic = extractCleanSubject(project.title);
+    const visualPrompt = `Editorial documentary photography of ${cleanTopic}, dramatic natural lighting, 8k photojournalism`;
     const newScene: StoryboardScene = {
       id: newId,
       sceneNumber: project.storyboard.length + 1,
       startSec,
       endSec,
       timeRange: `${formatSeconds(startSec)} - ${formatSeconds(endSec)} (8s)`,
-      headline: `CẢNH MỚI ${project.storyboard.length + 1}`,
-      voiceover: 'Tiếp tục phân tích chi tiết về giá trị đột phá và trải nghiệm thực tế.',
-      visualPrompt: 'Cinematic 8k commercial close up of modern high-tech device, studio lighting, depth of field',
+      headline: `0${project.storyboard.length + 1}. DIỄN BIẾN TIẾP THEO`,
+      voiceover: `Tiếp nối bức tranh toàn cảnh về ${cleanTopic}, các dữ kiện thực tế mới nhất đang mở ra những góc nhìn đáng chú ý.`,
+      visualPrompt,
+      imageUrl: buildAiSceneImageUrl(visualPrompt, aspectRatio, project.storyboard.length + 1, projDomain),
       cameraMotion: 'dolly-in',
-      lightingStyle: 'studio-clean',
+      lightingStyle: 'volumetric',
       transition: 'dissolve',
+      voiceId: lastScene?.voiceId,
+      voiceLanguage: lastScene?.voiceLanguage || 'vi',
+      voiceSpeed: lastScene?.voiceSpeed,
+      voicePitch: lastScene?.voicePitch,
+      explodedView: false,
+      apertureBlades: false,
+      appleMotion3d: project.videoGenre === 'apple-keynote' ? 'titanium-orbit' : 'none',
     };
     onUpdateProject({
       ...project,
@@ -225,13 +244,14 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
   const handleSavePromptEdit = (sceneId: number) => {
     const updatedStoryboard = project.storyboard.map((s) => {
       if (s.id === sceneId) {
-        const newSeed = (Date.now() % 8000) + sceneId * 37;
+        const newSeed = (Date.now() % 8000) + sceneId * 37 + 20;
         return {
           ...s,
+          customMediaUrl: undefined,
           visualPrompt: editingPromptText,
           cameraMotion: inferCameraFromPrompt(editingPromptText, s.cameraMotion),
           lightingStyle: inferLightingFromPrompt(editingPromptText, s.lightingStyle),
-          imageUrl: buildAiSceneImageUrl(editingPromptText, aspectRatio, newSeed),
+          imageUrl: buildAiSceneImageUrl(editingPromptText, aspectRatio, newSeed, projDomain),
         };
       }
       return s;
@@ -268,7 +288,8 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
         const newSeed = Math.floor(Math.random() * 90000) + 1000;
         return {
           ...s,
-          imageUrl: buildAiSceneImageUrl(s.visualPrompt, aspectRatio, newSeed),
+          customMediaUrl: undefined,
+          imageUrl: buildAiSceneImageUrl(s.visualPrompt, aspectRatio, newSeed, projDomain),
         };
       }
       return s;
@@ -334,12 +355,15 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                 </span>
               )}
             </div>
-            <p className="text-zinc-500 text-xs mt-1 flex items-center gap-2">
+            <p className="text-zinc-500 text-xs mt-1 flex flex-wrap items-center gap-2">
               <span>Thời lượng:</span>
               <strong className="text-zinc-900 font-mono font-medium">{formatSeconds(project.duration)}</strong>
               <span>•</span>
               <span>Động cơ:</span>
-              <span className="text-zinc-700 font-medium">{project.aiSource.name}</span>
+              <span className="inline-flex items-center gap-1.5 text-zinc-800 font-medium">
+                <ProviderBrandLogo provider={project.aiSource.type} size="xs" withBadge={false} />
+                <span>{project.aiSource.name}</span>
+              </span>
             </p>
           </div>
         </div>
@@ -731,21 +755,115 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                           </p>
                         )}
 
+                        {/* Direct Apple 3D Motion Stage & Scene Duration Controls */}
+                        <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-black/[0.04]">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className="text-[9px] text-zinc-500 font-mono">Đồ họa 3D:</span>
+                            {[
+                              { id: 'exploded-chip', label: '3D Bóc Tách Chip' },
+                              { id: 'aperture-zoom', label: 'Lá Khẩu Cơ Học' },
+                              { id: 'titanium-orbit', label: 'Quỹ Đạo Titan' },
+                              { id: 'none', label: 'Tắt 3D' },
+                            ].map((m3d) => {
+                              const current3d =
+                                scene.appleMotion3d ||
+                                (scene.explodedView
+                                  ? 'exploded-chip'
+                                  : scene.apertureBlades
+                                    ? 'aperture-zoom'
+                                    : 'titanium-orbit');
+                              const isActive3d = current3d === m3d.id;
+                              return (
+                                <button
+                                  key={m3d.id}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const updated = project.storyboard.map((s) =>
+                                      s.id === scene.id
+                                        ? {
+                                            ...s,
+                                            appleMotion3d: m3d.id as any,
+                                            explodedView: m3d.id === 'exploded-chip',
+                                            apertureBlades: m3d.id === 'aperture-zoom',
+                                          }
+                                        : s
+                                    );
+                                    onUpdateProject({ ...project, storyboard: updated });
+                                  }}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-mono transition cursor-pointer border ${
+                                    isActive3d
+                                      ? 'bg-zinc-900 text-white border-zinc-900 font-semibold'
+                                      : 'bg-white text-zinc-600 border-black/[0.08] hover:bg-zinc-100'
+                                  }`}
+                                >
+                                  {m3d.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Scene Duration Quick Selector */}
+                          <div className="flex items-center gap-1">
+                            <span className="text-[9px] text-zinc-400 font-mono">Thời lượng:</span>
+                            {[5, 8, 10, 12].map((durSec) => {
+                              const currentDur = Math.round((scene.endSec || 8) - (scene.startSec || 0));
+                              return (
+                                <button
+                                  key={durSec}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    let acc = 0;
+                                    const reindexed = project.storyboard.map((s) => {
+                                      const d = s.id === scene.id ? durSec : Math.max(3, (s.endSec || 8) - (s.startSec || 0));
+                                      const st = acc;
+                                      const en = st + d;
+                                      acc = en;
+                                      const sm = Math.floor(st / 60).toString().padStart(2, '0');
+                                      const ss = Math.floor(st % 60).toString().padStart(2, '0');
+                                      const em = Math.floor(en / 60).toString().padStart(2, '0');
+                                      const es = Math.floor(en % 60).toString().padStart(2, '0');
+                                      return {
+                                        ...s,
+                                        startSec: st,
+                                        endSec: en,
+                                        timeRange: `${sm}:${ss} - ${em}:${es}`,
+                                      };
+                                    });
+                                    onUpdateProject({
+                                      ...project,
+                                      duration: acc,
+                                      storyboard: reindexed,
+                                    });
+                                  }}
+                                  className={`px-1.5 py-0.2 rounded text-[9px] font-mono transition cursor-pointer border ${
+                                    currentDur === durSec
+                                      ? 'bg-zinc-900 text-white border-zinc-900 font-bold'
+                                      : 'bg-white text-zinc-600 border-black/[0.06] hover:bg-zinc-100'
+                                  }`}
+                                >
+                                  {durSec}s
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
                         {/* Quick Cinematic Camera Presets (1-Click Inject) */}
                         <div className="flex flex-wrap items-center gap-1 pt-0.5">
-                          <span className="text-[9px] text-zinc-400 font-mono">Gợi ý:</span>
+                          <span className="text-[9px] text-zinc-400 font-mono">Góc máy:</span>
                           {[
                             { label: '+ Dolly In', tag: 'Cinematic Dolly In camera motion, smooth forward push' },
                             { label: '+ Orbit 360°', tag: 'Smooth 360-degree orbit shot around subject' },
                             { label: '+ FPV Drone', tag: 'Dynamic FPV drone dive weave shot' },
                             { label: '+ 35mm Lens', tag: 'Shot on 35mm anamorphic lens, shallow depth of field' },
                             { label: '+ Volumetric Rays', tag: 'Atmospheric volumetric god rays, cinematic lighting' },
-                            { label: '+ Jump-Cut 2.5s', tag: 'Fast-paced 2.5s jump cut retention pacing' },
                           ].map((preset, pIdx) => (
                             <button
                               key={pIdx}
                               onClick={() => handleInjectCameraTag(scene.id, preset.tag)}
-                              className="px-1.5 py-0.2 rounded text-[9px] bg-zinc-100 hover:bg-indigo-50 hover:text-indigo-600 text-zinc-600 border border-black/5 transition cursor-pointer"
+                              className="px-1.5 py-0.2 rounded text-[9px] bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-600 border border-black/5 transition cursor-pointer"
                               title={`Chèn vào prompt: ${preset.tag}`}
                             >
                               {preset.label}
@@ -876,6 +994,54 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                     ))}
                   </div>
                 </div>
+
+                {/* Export SRT Subtitles & Project Blueprint JSON */}
+                <div className="pt-3 border-t border-black/[0.06] space-y-2">
+                  <label className="text-zinc-700 font-medium block">Tài nguyên Hậu kỳ & Phụ đề:</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const toSrtTime = (sec: number) => {
+                          const hrs = Math.floor(sec / 3600).toString().padStart(2, '0');
+                          const mins = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
+                          const secs = Math.floor(sec % 60).toString().padStart(2, '0');
+                          return `${hrs}:${mins}:${secs},000`;
+                        };
+                        const srtContent = project.storyboard
+                          .map((s, idx) => `${idx + 1}\n${toSrtTime(s.startSec)} --> ${toSrtTime(s.endSec)}\n${s.voiceover}\n`)
+                          .join('\n');
+                        const blob = new Blob([srtContent], { type: 'text/plain;charset=utf-8' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${project.code || 'SYNAPES'}_Subtitles.srt`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="btn-secondary text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 text-zinc-600" />
+                      <span>Tải Phụ Đề (.SRT)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${project.code || 'SYNAPES'}_Master_Blueprint.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="btn-secondary text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 text-zinc-600" />
+                      <span>Xuất Kịch Bản (.JSON)</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -979,15 +1145,33 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
 
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-zinc-700" />
-              <h3 className="text-zinc-950 font-bold text-sm">Chỉnh Sửa Kịch Bản AI</h3>
+              <h3 className="text-zinc-950 font-bold text-sm">Chỉnh Sửa Kịch Bản & Đồ Họa AI</h3>
             </div>
             <p className="text-zinc-500 text-xs">
-              Nhập chỉ dẫn biên tập các phân cảnh kịch bản:
+              Chọn nhanh mẫu tối ưu hoặc nhập chỉ dẫn biên tập cho toàn bộ phân cảnh:
             </p>
+
+            {/* Quick AI Revision Presets */}
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                'Chuẩn Bản Tin Thời Sự 24h (Góc máy phóng sự, dải tin nóng)',
+                'Nhịp nhanh 5 giây/cảnh tối ưu giữ chân TikTok/Reels',
+                'Phim tài liệu điện ảnh (Ánh sáng chiều sâu, góc máy Crane & Orbit)',
+              ].map((presetText) => (
+                <button
+                  key={presetText}
+                  type="button"
+                  onClick={() => setRevisionPrompt(presetText)}
+                  className="px-2 py-1 rounded-md bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-700 text-[10px] font-medium transition cursor-pointer border border-black/[0.06]"
+                >
+                  + {presetText}
+                </button>
+              ))}
+            </div>
 
             <textarea
               rows={4}
-              placeholder="VD: Rút ngắn cảnh mở đầu còn 5 giây, đổi phong cách dẫn truyện sang sôi nổi hơn..."
+              placeholder="VD: Chuyển sang phong cách bản tin thời sự 24h, rút ngắn mỗi cảnh còn 6 giây, đổi góc máy Orbit..."
               value={revisionPrompt}
               onChange={(e) => setRevisionPrompt(e.target.value)}
               className="w-full bg-white border border-black/[0.1] rounded-lg p-3 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900"
@@ -1003,19 +1187,52 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
               <button
                 onClick={() => {
                   if (revisionPrompt.trim()) {
+                    const lowerRev = revisionPrompt.toLowerCase();
+                    const numMatch = lowerRev.match(/(\d+)\s*(giây|s\b)/);
+                    const requestedDur = numMatch ? Math.max(4, Math.min(15, parseInt(numMatch[1], 10))) : null;
+                    const wantApple3d =
+                      projDomain === 'hardware' &&
+                      (lowerRev.includes('3d') || lowerRev.includes('apple') || lowerRev.includes('bóc tách'));
+                    const wantNews = lowerRev.includes('bản tin') || lowerRev.includes('thời sự');
+
+                    let acc = 0;
                     const updatedStoryboard = project.storyboard.map((s, idx) => {
                       const nextPrompt = `${s.visualPrompt}, ${revisionPrompt.trim()}`;
-                      const newSeed = (Date.now() % 9000) + idx * 101;
+                      const newSeed = (Date.now() % 900) + idx * 7 + 20;
+                      const dur = requestedDur || Math.max(5, (s.endSec || 8) - (s.startSec || 0));
+                      const st = acc;
+                      const en = st + dur;
+                      acc = en;
+                      const sm = Math.floor(st / 60).toString().padStart(2, '0');
+                      const ss = Math.floor(st % 60).toString().padStart(2, '0');
+                      const em = Math.floor(en / 60).toString().padStart(2, '0');
+                      const es = Math.floor(en % 60).toString().padStart(2, '0');
+
                       return {
                         ...s,
+                        customMediaUrl: undefined,
+                        startSec: st,
+                        endSec: en,
+                        timeRange: `${sm}:${ss} - ${em}:${es}`,
                         visualPrompt: nextPrompt,
                         cameraMotion: inferCameraFromPrompt(nextPrompt, s.cameraMotion),
                         lightingStyle: inferLightingFromPrompt(nextPrompt, s.lightingStyle),
-                        imageUrl: buildAiSceneImageUrl(nextPrompt, aspectRatio, newSeed),
+                        imageUrl: buildAiSceneImageUrl(nextPrompt, aspectRatio, newSeed, projDomain),
+                        explodedView: wantApple3d ? idx === 3 || s.explodedView : false,
+                        apertureBlades: wantApple3d ? idx === 4 || s.apertureBlades : false,
+                        appleMotion3d: (wantApple3d
+                          ? idx === 3
+                            ? 'exploded-chip'
+                            : idx === 4
+                              ? 'aperture-zoom'
+                              : 'titanium-orbit'
+                          : 'none') as StoryboardScene['appleMotion3d'],
                       };
                     });
                     onUpdateProject({
                       ...project,
+                      videoGenre: wantNews ? 'news-broadcast' : project.videoGenre,
+                      duration: acc,
                       storyboard: updatedStoryboard,
                     });
                   }

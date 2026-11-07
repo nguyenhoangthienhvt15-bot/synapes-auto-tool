@@ -106,7 +106,9 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
     filterRegion === 'All'
       ? availableVoices
       : availableVoices.filter((v) =>
-        v.region.toLowerCase().includes(filterRegion.toLowerCase())
+        filterRegion === 'Apple Keynote'
+          ? v.id.includes('apple') || v.region.toLowerCase().includes('apple')
+          : v.region.toLowerCase().includes(filterRegion.toLowerCase())
       );
 
   // Trigger audition for any specific voice card (or the currently selected voice)
@@ -231,7 +233,7 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                     }`}
                 >
                   <span>🇻🇳</span>
-                  <span>Tiếng Việt (6 Giọng Thực)</span>
+                  <span>Tiếng Việt (8 Giọng Chuẩn Studio)</span>
                 </button>
                 <button
                   type="button"
@@ -278,7 +280,7 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
           <div className="flex items-center justify-between gap-2 border-b border-black/[0.06] pb-2">
             <div className="flex items-center gap-1 flex-wrap">
               {selectedLanguage === 'vi'
-                ? ['All', 'Bắc', 'Nam', 'Trung', 'AI Neural'].map((reg) => (
+                ? ['All', 'Apple Keynote', 'Bắc', 'Nam', 'Trung', 'AI Neural'].map((reg) => (
                   <button
                     key={reg}
                     type="button"
@@ -289,10 +291,12 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                       }`}
                   >
                     {reg === 'All'
-                      ? 'Tất cả giọng Việt'
-                      : reg === 'AI Neural'
-                        ? 'AI Neural'
-                        : `Miền ${reg}`}
+                      ? 'Tất cả 8 giọng'
+                      : reg === 'Apple Keynote'
+                        ? 'Apple Keynote'
+                        : reg === 'AI Neural'
+                          ? 'AI Neural'
+                          : `Miền ${reg}`}
                   </button>
                 ))
                 : ['All', 'America', 'Kingdom', 'AI Neural'].map((reg) => (

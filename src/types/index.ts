@@ -38,10 +38,11 @@ export interface VoiceProfile {
   acousticSignature?: string;
 }
 
-export type ColorGradeLut = 'teal-orange' | 'cyberpunk' | 'studio-clean' | 'vintage-film' | 'monochrome' | 'none';
-export type VfxOverlayType = 'film-grain' | 'light-leak' | 'vignette' | 'anamorphic' | 'none';
-export type SubtitleStyle = 'hormozi' | 'capcut' | 'netflix' | 'cyberpunk' | 'off';
+export type ColorGradeLut = 'teal-orange' | 'cyberpunk' | 'studio-clean' | 'vintage-film' | 'monochrome' | 'apple-keynote' | 'none';
+export type VfxOverlayType = 'film-grain' | 'light-leak' | 'vignette' | 'anamorphic' | 'apple-lens-flare' | 'none';
+export type SubtitleStyle = 'hormozi' | 'capcut' | 'netflix' | 'cyberpunk' | 'apple-minimal' | 'off';
 export type SubtitlePosition = 'bottom' | 'center' | 'top';
+export type VideoGenre = 'news-broadcast' | 'documentary' | 'apple-keynote' | 'finance-analysis' | 'viral-social';
 
 export interface StoryboardScene {
   id: number;
@@ -71,6 +72,9 @@ export interface StoryboardScene {
   voicePitch?: number;
   subtitleStyle?: SubtitleStyle;
   subtitlePosition?: SubtitlePosition;
+  explodedView?: boolean;
+  apertureBlades?: boolean;
+  appleMotion3d?: 'exploded-chip' | 'aperture-zoom' | 'titanium-orbit' | 'none';
 }
 
 export interface ProjectMetadata {
@@ -86,6 +90,8 @@ export interface Project {
   title: string;
   status: ProjectStatus;
   aspectRatio: AspectRatio;
+  videoGenre?: VideoGenre;
+  newsTickerText?: string;
   duration: number; // in seconds
   targetChannels: ('youtube' | 'tiktok' | 'facebook')[];
   videoUrl: string;

@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Project, StoryboardScene, ColorGradeLut, VfxOverlayType, SubtitleStyle, SubtitlePosition } from '../types';
+import {
+  Project,
+  StoryboardScene,
+  ColorGradeLut,
+  VfxOverlayType,
+  SubtitleStyle,
+  SubtitlePosition,
+  VideoGenre,
+} from '../types';
 import {
   Play,
   Pause,
@@ -32,7 +40,13 @@ import {
   Globe,
   Search,
 } from 'lucide-react';
-import { buildAiSceneImageUrl, REAL_IPHONE_18_INTERNET_IMAGES } from '../services/aiScriptGeneratorService';
+import {
+  buildAiSceneImageUrl,
+  classifyTopicDomainClient,
+  detectVideoGenre,
+  extractCleanSubject,
+  CLIENT_DOMAIN_PHOTO_POOLS,
+} from '../services/aiScriptGeneratorService';
 import {
   StudioAudioSynthesizer,
   ALL_VOICE_PROFILES,
@@ -66,16 +80,36 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   const scenes = project.storyboard && project.storyboard.length > 0 ? project.storyboard : [];
   const totalDuration = scenes.reduce((acc, s) => Math.max(acc, s.endSec || 0), 0) || project.duration || 48;
 
+  const effectiveDomain = classifyTopicDomainClient(
+    `${project.title} ${(project.metadata?.tags || []).join(' ')}`
+  );
+  const effectiveGenre: VideoGenre =
+    project.videoGenre || detectVideoGenre(project.title, project.title, effectiveDomain);
+  const isHardwareKeynoteProject =
+    effectiveGenre === 'apple-keynote' && effectiveDomain === 'hardware';
+
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isTtsEnabled, setIsTtsEnabled] = useState<boolean>(true);
-  const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>('hormozi');
+  const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>('apple-minimal');
   const [subtitlePosition, setSubtitlePosition] = useState<SubtitlePosition>('bottom');
-  const [activeLut, setActiveLut] = useState<ColorGradeLut>('teal-orange');
-  const [activeVfx, setActiveVfx] = useState<VfxOverlayType>('film-grain');
+  const [activeLut, setActiveLut] = useState<ColorGradeLut>(() =>
+    effectiveGenre === 'news-broadcast' || effectiveGenre === 'finance-analysis'
+      ? 'studio-clean'
+      : 'apple-keynote'
+  );
+  const [activeVfx, setActiveVfx] = useState<VfxOverlayType>(() =>
+    effectiveGenre === 'news-broadcast' || effectiveGenre === 'finance-analysis'
+      ? 'vignette'
+      : 'apple-lens-flare'
+  );
   const [anamoLetterbox, setAnamoLetterbox] = useState<boolean>(false);
+  const [visualRenderMode, setVisualRenderMode] = useState<
+    'auto-genre' | 'news-24h' | 'hybrid-3d' | 'clean-photo'
+  >('auto-genre');
+  const [showBroadcastHud, setShowBroadcastHud] = useState<boolean>(false);
 
   // File upload ref for custom B-roll media
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -102,11 +136,27 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
   // Real Internet Image Search modal
   const [showInternetImageModal, setShowInternetImageModal] = useState<boolean>(false);
-  const [internetSearchQuery, setInternetSearchQuery] = useState<string>('iPhone 18 Pro Max Apple Flagship');
+  const [internetSearchQuery, setInternetSearchQuery] = useState<string>(() =>
+    extractCleanSubject(project.title)
+  );
   const [internetImages, setInternetImages] = useState<
     Array<{ id: string; title: string; url: string; proxyUrl: string; source: string }>
   >([]);
   const [isSearchingInternet, setIsSearchingInternet] = useState<boolean>(false);
+
+  // Tự động đồng bộ từ khóa tìm kiếm ảnh & bộ lọc màu khi chuyển sang dự án mới
+  useEffect(() => {
+    setInternetSearchQuery(extractCleanSubject(project.title));
+    setInternetImages([]);
+    setVisualRenderMode('auto-genre');
+    if (effectiveGenre === 'news-broadcast' || effectiveGenre === 'finance-analysis') {
+      setActiveLut('studio-clean');
+      setActiveVfx('vignette');
+    } else {
+      setActiveLut('apple-keynote');
+      setActiveVfx('apple-lens-flare');
+    }
+  }, [project.id, project.title, effectiveGenre]);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -166,26 +216,34 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   const currentSceneIndex = getCurrentSceneIndex(currentTime);
   const currentScene: StoryboardScene | undefined = scenes[currentSceneIndex] || scenes[0];
 
-  // Preload Real Internet Images via CORS-Safe Proxy
+  // Preload Real Internet Images via CORS-Safe Proxy (Phân tách 100% theo lĩnh vực dự án)
   useEffect(() => {
     let isMounted = true;
     loadedImagesRef.current = {};
     setLoadedCount(0);
 
-    const curatedPool = REAL_IPHONE_18_INTERNET_IMAGES.map(
-      (u) => `/api/image-proxy?url=${encodeURIComponent(u)}`
+    const domainPhotos =
+      CLIENT_DOMAIN_PHOTO_POOLS[effectiveDomain] || CLIENT_DOMAIN_PHOTO_POOLS.news;
+    const curatedPool = domainPhotos.map(
+      (u, poolIdx) =>
+        `/api/image-proxy?domain=${effectiveDomain}&idx=${poolIdx}&url=${encodeURIComponent(u)}`
     );
 
     scenes.forEach((sc, idx) => {
       const rawSource =
         sc.customMediaUrl ||
         sc.imageUrl ||
-        buildAiSceneImageUrl(sc.visualPrompt, aspectRatio, idx + 1 + regenVersion * 17);
+        buildAiSceneImageUrl(
+          sc.visualPrompt,
+          aspectRatio,
+          idx + 1 + regenVersion * 17,
+          effectiveDomain
+        );
 
       // Route external http/https URLs through /api/image-proxy so Canvas is never CORS-tainted
       const mediaSource =
         rawSource.startsWith('http://') || rawSource.startsWith('https://')
-          ? `/api/image-proxy?url=${encodeURIComponent(rawSource)}`
+          ? `/api/image-proxy?domain=${effectiveDomain}&idx=${idx}&url=${encodeURIComponent(rawSource)}`
           : rawSource;
 
       const img = new Image();
@@ -216,7 +274,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [project.id, scenes, aspectRatio, regenVersion]);
+  }, [project.id, scenes, aspectRatio, regenVersion, effectiveDomain]);
 
   // Jump to scene when activeSceneId changes
   useEffect(() => {
@@ -681,51 +739,75 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
   };
 
-  // Apple Keynote Broadcast Technical Spec Callout Card (Top-Right HUD)
-  const drawKeynoteSpecCalloutCard = (
+  // Dynamic Context Callout Card (Top-Right HUD — tự động thích ứng theo đúng Chủ đề & Thể loại dự án)
+  const drawDynamicContextCalloutCard = (
     ctx: CanvasRenderingContext2D,
     W: number,
     H: number,
+    scene: StoryboardScene,
     sceneIdx: number,
+    totalScenes: number,
     progress: number,
     clockSec: number
   ) => {
-    const specPresets = [
-      {
-        badge: 'AEROSPACE TITANIUM GRADE 6',
-        specs: ['CHASSIS: GRADE 6 BRUSHED TITAN', 'SHIELD: CERAMIC GLASS GEN 3', 'PROFILE: 7.4MM • 218G ULTRA-LIGHT'],
-        accent: '#38bdf8',
-      },
-      {
-        badge: 'SUPER RETINA XDR ZERO-BEZEL',
-        specs: ['PANEL: 6.9" LTPO OLED 120HZ', 'FACE ID: UNDER-DISPLAY 3D SENSOR', 'BRIGHTNESS: 3,500 NITS PEAK HDR'],
-        accent: '#c084fc',
-      },
-      {
-        badge: 'APPLE A20 PRO • 2NM SILICON',
-        specs: ['NODE: TSMC 2NM GAA ARCHITECTURE', 'NEURAL ENGINE: 85 TOPS ON-DEVICE', 'RAY TRACING: +40% GPU THROUGHPUT'],
-        accent: '#facc15',
-      },
-      {
-        badge: 'TRIPLE 48MP PRO OPTICS ARRAY',
-        specs: ['MAIN: 48MP VARIABLE APERTURE', 'TELEPHOTO: 48MP 10X PERISCOPE', 'VIDEO: 8K 60FPS PRORES RAW LOG'],
-        accent: '#10b981',
-      },
-      {
-        badge: 'SILICON-CARBON POWER SYSTEM',
-        specs: ['CAPACITY: 5,600mAh Si-C DENSITY', 'MAGSAFE: 65W WIRELESS TURBO', 'THERMAL: GRAPHENE VAPOR CHAMBER'],
-        accent: '#f97316',
-      },
-      {
-        badge: 'IPHONE 18 PRO MAX • MASTERPIECE',
-        specs: ['DESIGN: ZERO-BEZEL TITANIUM', 'CHIP: A20 PRO 2NM APPLE AI 2.0', 'VERDICT: 9.9 / 10 FLAGSHIP KING'],
-        accent: '#38bdf8',
-      },
-    ];
+    let badge = 'THÔNG TIN PHÂN CẢNH';
+    let specs: string[] = [];
+    let accent = '#38bdf8';
 
-    const preset = specPresets[sceneIdx % specPresets.length];
-    const cardW = Math.min(310, W * 0.27);
-    const cardH = 108;
+    if (isHardwareKeynoteProject) {
+      const hwPresets = [
+        {
+          badge: 'AEROSPACE TITANIUM ARCHITECTURE',
+          specs: ['CHASSIS: BRUSHED TITANIUM', 'DISPLAY: LTPO OLED 120HZ', 'HDR PEAK: 3,000+ NITS'],
+          accent: '#38bdf8',
+        },
+        {
+          badge: 'NEXT-GEN 2NM SILICON ENGINE',
+          specs: ['PROCESS: 2NM GAA ARCHITECTURE', 'NEURAL NPU: ON-DEVICE AI', 'RAY TRACING: HARDWARE ACCEL'],
+          accent: '#facc15',
+        },
+        {
+          badge: 'PRO OPTICAL CAMERA SYSTEM',
+          specs: ['MAIN SENSOR: 48MP RAW LOG', 'TELEPHOTO: PERISCOPE ZOOM', 'STABILIZATION: 3D SENSOR SHIFT'],
+          accent: '#10b981',
+        },
+      ];
+      const p = hwPresets[sceneIdx % hwPresets.length];
+      badge = p.badge;
+      specs = p.specs;
+      accent = p.accent;
+    } else {
+      const domainLabels: Record<string, { label: string; color: string }> = {
+        geopolitics: { label: 'HỒ SƠ ĐỊA CHÍNH TRỊ • 24H', color: '#ef4444' },
+        news: { label: 'BẢN TIN THỜI SỰ TRỰC TIẾP', color: '#dc2626' },
+        finance: { label: 'DỮ LIỆU VĨ MÔ & THỊ TRƯỜNG', color: '#0ea5e9' },
+        science: { label: 'TƯ LIỆU KHOA HỌC & VŨ TRỤ', color: '#38bdf8' },
+        history: { label: 'HỒ SƠ LỊCH SỬ & DI SẢN', color: '#f59e0b' },
+        food: { label: 'VĂN HÓA ẨM THỰC ĐẶC SẮC', color: '#f97316' },
+        travel: { label: 'HÀNH TRÌNH KHÁM PHÁ', color: '#10b981' },
+        sports: { label: 'TIÊU ĐIỂM THỂ THAO', color: '#22c55e' },
+        'ai-cyber': { label: 'CÔNG NGHỆ & BÁN DẪN AI', color: '#06b6d4' },
+      };
+      const meta = domainLabels[effectiveDomain] || domainLabels.news;
+      badge = meta.label;
+      accent = meta.color;
+
+      const cleanSubj = extractCleanSubject(project.title).slice(0, 28).toUpperCase();
+      const tagStr =
+        (project.metadata?.tags || [])
+          .slice(0, 2)
+          .map((t) => `#${t.replace(/^#/, '')}`)
+          .join(' ') || '#TinNong24h';
+
+      specs = [
+        `CHỦ ĐỀ: ${cleanSubj}`,
+        `CẢNH: 0${sceneIdx + 1}/0${totalScenes} • ${(scene.cameraMotion || 'DOLLY-IN').toUpperCase()}`,
+        `TAGS: ${tagStr.slice(0, 30)}`,
+      ];
+    }
+
+    const cardW = Math.min(315, W * 0.28);
+    const cardH = 106;
     const cardX = W - cardW - W * 0.035;
     const cardY = anamoLetterbox && aspectRatio === '16:9' ? H * 0.13 : H * 0.05;
 
@@ -733,31 +815,27 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     const slideAlpha = Math.min(1, progress * 6);
     ctx.globalAlpha = slideAlpha * 0.94;
 
-    // Glassmorphic dark container
-    ctx.fillStyle = 'rgba(9, 9, 15, 0.78)';
-    ctx.strokeStyle = preset.accent;
+    ctx.fillStyle = 'rgba(9, 9, 15, 0.82)';
+    ctx.strokeStyle = accent;
     ctx.lineWidth = 1.5;
     ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
-    ctx.shadowBlur = 16;
+    ctx.shadowBlur = 14;
     ctx.beginPath();
-    ctx.roundRect(cardX, cardY, cardW, cardH, 12);
+    ctx.roundRect(cardX, cardY, cardW, cardH, 10);
     ctx.fill();
     ctx.stroke();
 
-    // Header bar
     ctx.shadowBlur = 0;
-    ctx.fillStyle = preset.accent;
+    ctx.fillStyle = accent;
     ctx.font = 'bold 10px monospace';
-    ctx.fillText(`◆ ${preset.badge}`, cardX + 12, cardY + 20);
+    ctx.fillText(`◆ ${badge}`, cardX + 12, cardY + 20);
 
-    // Spec rows
     ctx.fillStyle = '#f4f4f5';
-    ctx.font = '600 10px Inter, system-ui, monospace';
-    preset.specs.forEach((line, idx) => {
+    ctx.font = '600 10px Inter, system-ui, sans-serif';
+    specs.forEach((line, idx) => {
       ctx.fillText(line, cardX + 12, cardY + 40 + idx * 17);
     });
 
-    // Animated telemetry bar at bottom of card
     const barW = cardW - 24;
     const barY = cardY + cardH - 14;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
@@ -766,18 +844,217 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     ctx.fill();
 
     const fillW = barW * Math.min(1, 0.25 + progress * 0.75);
-    ctx.fillStyle = preset.accent;
+    ctx.fillStyle = accent;
     ctx.beginPath();
     ctx.roundRect(cardX + 12, barY, fillW, 4, 2);
     ctx.fill();
 
-    // Live pulse dot
     const pulse = 0.5 + 0.5 * Math.sin(clockSec * 6);
-    ctx.fillStyle = preset.accent;
+    ctx.fillStyle = accent;
     ctx.globalAlpha = pulse;
     ctx.beginPath();
     ctx.arc(cardX + cardW - 14, cardY + 16, 4, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.restore();
+  };
+
+  // Trường quay Đồ họa Thời sự & Phim tài liệu khi ảnh đang tải (Không bao giờ vẽ nhầm mô hình iPhone)
+  const drawEditorialBroadcastStage = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    clockSec: number,
+    scene: StoryboardScene
+  ) => {
+    ctx.save();
+    const isNewsLike =
+      effectiveGenre === 'news-broadcast' ||
+      effectiveDomain === 'geopolitics' ||
+      effectiveDomain === 'news';
+    const primaryHue = isNewsLike ? '220, 38, 38' : '14, 165, 233';
+
+    const bg = ctx.createRadialGradient(W * 0.5, H * 0.45, W * 0.05, W * 0.5, H * 0.5, W * 0.8);
+    bg.addColorStop(0, isNewsLike ? '#1e1b2e' : '#0f172a');
+    bg.addColorStop(0.65, '#090d16');
+    bg.addColorStop(1, '#030712');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // World coordinate grid lines
+    ctx.strokeStyle = `rgba(${primaryHue}, 0.14)`;
+    ctx.lineWidth = 1;
+    const step = Math.max(36, Math.round(W / 22));
+    const drift = (clockSec * 14) % step;
+    for (let x = -step + drift; x < W + step; x += step) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+    for (let y = step * 0.5; y < H; y += step) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
+    }
+
+    // Rotating global radar / latitude rings
+    const cx = W * 0.5;
+    const cy = H * 0.46;
+    const baseR = Math.min(W, H) * 0.24;
+    for (let i = 0; i < 3; i++) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(clockSec * (0.18 + i * 0.07) * (i % 2 === 0 ? 1 : -1));
+      ctx.strokeStyle = `rgba(${primaryHue}, ${0.32 - i * 0.08})`;
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([10 + i * 6, 12]);
+      ctx.beginPath();
+      ctx.arc(0, 0, baseR + i * 28, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Center headline preview while HD photo streams in
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.textAlign = 'center';
+    ctx.font = `700 ${Math.max(15, Math.round(W * 0.022))}px Inter, system-ui, sans-serif`;
+    const cleanHead = (scene.headline || extractCleanSubject(project.title)).slice(0, 56);
+    ctx.fillText(cleanHead, cx, cy + 6);
+    ctx.restore();
+  };
+
+  // GÓI ĐỒ HỌA BẢN TIN TRUYỀN HÌNH 24H (Live Bug + Lower-Third + Dải chữ chạy Tin nóng 60fps)
+  const drawNewsBroadcastPackage = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    scene: StoryboardScene,
+    sceneIdx: number,
+    totalScenes: number,
+    progress: number,
+    clockSec: number
+  ) => {
+    ctx.save();
+    const isFinance = effectiveGenre === 'finance-analysis' || effectiveDomain === 'finance';
+    const primaryColor = isFinance ? '#0284c7' : '#dc2626';
+    const padX = W * 0.04;
+    const topY = anamoLetterbox && aspectRatio === '16:9' ? H * 0.13 : H * 0.045;
+
+    // 1. Top-Left Live Broadcast Pill + Clock
+    const livePulse = 0.45 + 0.55 * Math.abs(Math.sin(clockSec * 4.2));
+    const badgeH = Math.max(24, Math.round(H * 0.04));
+    const liveBoxW = Math.max(92, Math.round(W * 0.095));
+
+    ctx.fillStyle = primaryColor;
+    ctx.beginPath();
+    ctx.roundRect(padX, topY, liveBoxW, badgeH, 5);
+    ctx.fill();
+
+    ctx.fillStyle = `rgba(255, 255, 255, ${livePulse})`;
+    ctx.beginPath();
+    ctx.arc(padX + 12, topY + badgeH / 2, 3.8, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `800 ${Math.max(10, Math.round(badgeH * 0.46))}px Inter, system-ui, sans-serif`;
+    ctx.textBaseline = 'middle';
+    ctx.fillText('TRỰC TIẾP', padX + 21, topY + badgeH / 2 + 0.5);
+
+    // Sub-pill right next to TRỰC TIẾP
+    const channelLabel = isFinance ? 'TIÊU ĐIỂM VĨ MÔ & TÀI CHÍNH' : 'BẢN TIN THỜI SỰ QUỐC TẾ 24H';
+    ctx.font = `700 ${Math.max(10, Math.round(badgeH * 0.44))}px Inter, system-ui, monospace`;
+    const chanW = ctx.measureText(channelLabel).width + 22;
+    ctx.fillStyle = 'rgba(9, 9, 14, 0.82)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(padX + liveBoxW + 6, topY, chanW, badgeH, 5);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#f4f4f5';
+    ctx.fillText(channelLabel, padX + liveBoxW + 17, topY + badgeH / 2 + 0.5);
+
+    // 2. Broadcast Lower-Third Headline Banner (positioned cleanly above ticker)
+    const tickerH = Math.max(28, Math.round(H * 0.048));
+    const tickerY = H - tickerH - (anamoLetterbox && aspectRatio === '16:9' ? H * 0.11 : 0);
+
+    if (scene.headline) {
+      const cleanHeadline = scene.headline.replace(/^\d+\.\s*/, '').trim();
+      const bannerH = Math.max(36, Math.round(H * 0.062));
+      const bannerY = tickerY - bannerH - Math.max(8, H * 0.014);
+      const bannerW = Math.min(W - padX * 2, Math.max(W * 0.58, 420));
+      const slideIn = Math.min(1, progress * 6);
+
+      ctx.save();
+      ctx.globalAlpha = 0.96 * slideIn;
+      ctx.fillStyle = 'rgba(10, 12, 18, 0.88)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(padX, bannerY, bannerW, bannerH, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      // Left crimson/cobalt accent bar
+      ctx.fillStyle = primaryColor;
+      ctx.beginPath();
+      ctx.roundRect(padX, bannerY, 6, bannerH, [6, 0, 0, 6]);
+      ctx.fill();
+
+      // Scene index tag
+      ctx.fillStyle = isFinance ? '#38bdf8' : '#fca5a5';
+      ctx.font = `700 ${Math.max(9, Math.round(bannerH * 0.25))}px monospace`;
+      ctx.fillText(
+        `PHÂN ĐOẠN 0${sceneIdx + 1}/0${totalScenes} • ${extractCleanSubject(project.title).slice(0, 38).toUpperCase()}`,
+        padX + 16,
+        bannerY + bannerH * 0.3
+      );
+
+      // Bold headline text
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `800 ${Math.max(12, Math.round(bannerH * 0.4))}px Inter, system-ui, sans-serif`;
+      ctx.fillText(cleanHeadline.slice(0, 68), padX + 16, bannerY + bannerH * 0.73);
+      ctx.restore();
+    }
+
+    // 3. Bottom Scrolling Breaking News Ticker (60fps smooth marquee)
+    ctx.fillStyle = 'rgba(8, 10, 15, 0.94)';
+    ctx.fillRect(0, tickerY, W, tickerH);
+    ctx.fillStyle = primaryColor;
+    ctx.fillRect(0, tickerY, W, 2);
+
+    const tagBoxW = Math.max(96, Math.round(W * 0.1));
+    ctx.fillStyle = primaryColor;
+    ctx.fillRect(0, tickerY, tagBoxW, tickerH);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `800 ${Math.max(10, Math.round(tickerH * 0.44))}px Inter, system-ui, sans-serif`;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(isFinance ? 'THỊ TRƯỜNG' : 'TIN NÓNG 24H', 12, tickerY + tickerH / 2 + 1);
+
+    const rawTicker =
+      project.newsTickerText ||
+      scenes
+        .map((s) => (s.headline || '').replace(/^\d+\.\s*/, '').trim())
+        .filter(Boolean)
+        .join('   •   ') ||
+      extractCleanSubject(project.title);
+    const fullTickerStr = `${rawTicker}   •   ${rawTicker}   •   `;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(tagBoxW, tickerY, W - tagBoxW, tickerH);
+    ctx.clip();
+
+    ctx.fillStyle = '#f4f4f5';
+    ctx.font = `600 ${Math.max(11, Math.round(tickerH * 0.44))}px Inter, system-ui, sans-serif`;
+    const singleWidth = Math.max(300, ctx.measureText(`${rawTicker}   •   `).width);
+    const scrollPx = (clockSec * 72) % singleWidth;
+    ctx.fillText(fullTickerStr, tagBoxW + 16 - scrollPx, tickerY + tickerH / 2 + 1);
+    ctx.restore();
 
     ctx.restore();
   };
@@ -893,10 +1170,19 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     ctx.scale(scale, scale);
     ctx.translate(-W / 2, -H / 2);
 
-    // 3. Draw Real High-Resolution Internet Photograph at 100% Crisp Clarity!
+    // 3. Render Visual Layer based on Genre & Visual Render Mode
     const img = loadedImagesRef.current[scene.id];
     const prevScene = activeIdx > 0 ? scenes[activeIdx - 1] : null;
     const prevImg = prevScene ? loadedImagesRef.current[prevScene.id] : null;
+
+    const isNewsOverlayActive =
+      visualRenderMode === 'news-24h' ||
+      (visualRenderMode === 'auto-genre' &&
+        (effectiveGenre === 'news-broadcast' || effectiveGenre === 'finance-analysis'));
+
+    const allowHardware3dOverlays =
+      isHardwareKeynoteProject &&
+      (visualRenderMode === 'hybrid-3d' || visualRenderMode === 'auto-genre');
 
     if (img && img.complete && img.naturalWidth > 0) {
       // Smooth Cross-Dissolve from previous scene image during first 0.55s
@@ -911,32 +1197,63 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         ctx.globalAlpha = 1.0;
         drawCoverImage(ctx, img, W, H);
       }
-    } else {
-      // Fallback procedural 3D stage only while image is still loading
+
+      // Chỉ phủ đồ họa 3D linh kiện Apple khi dự án thực sự là phần cứng Apple Keynote!
+      if (allowHardware3dOverlays) {
+        const isExplodedScene =
+          scene.explodedView === true || scene.appleMotion3d === 'exploded-chip';
+        const isApertureScene =
+          scene.apertureBlades === true || scene.appleMotion3d === 'aperture-zoom';
+
+        if (isExplodedScene) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(3, 7, 18, 0.58)';
+          ctx.fillRect(0, 0, W, H);
+          drawAppleExplodedHardwareView(ctx, W, H, clockSec, progress);
+          ctx.restore();
+        } else if (isApertureScene) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(3, 7, 18, 0.52)';
+          ctx.fillRect(0, 0, W, H);
+          drawAppleMechanicalApertureBlades(ctx, W, H, clockSec, progress);
+          ctx.restore();
+        } else if (scene.appleMotion3d && scene.appleMotion3d !== 'none') {
+          drawAppleKeynoteSubtleMotionOverlay(ctx, W, H, clockSec, progress, activeIdx);
+        }
+      } else if (visualRenderMode === 'hybrid-3d' && !isHardwareKeynoteProject) {
+        // Hiệu ứng quét ánh sáng điện ảnh trung tính cho các chủ đề không phải điện thoại
+        drawAppleKeynoteSubtleMotionOverlay(ctx, W, H, clockSec, progress, activeIdx);
+      }
+    } else if (isHardwareKeynoteProject) {
       drawCinematicSceneStage(ctx, W, H, clockSec, activeIdx, progress, scene);
+    } else {
+      // Trường quay đồ họa Thời sự / Phim tài liệu trong lúc nạp ảnh HD (tuyệt đối không hiện iPhone)
+      drawEditorialBroadcastStage(ctx, W, H, clockSec, scene);
     }
 
-    // Subtle atmospheric bokeh particles over the real photograph
-    drawAtmosphericParticles(ctx, W, H, clockSec, scene.lightingStyle || 'volumetric');
+    // Subtle atmospheric bokeh particles over the frame (nhẹ hơn khi ở chế độ bản tin)
+    if (!isNewsOverlayActive) {
+      drawAtmosphericParticles(ctx, W, H, clockSec, scene.lightingStyle || 'volumetric');
+    }
 
     ctx.restore();
 
     // 4. Color Grading LUT Overlay
     drawColorGradeLut(ctx, W, H, activeLut);
 
-    // 5. Optical VFX Overlays (Film grain, light leaks, vignette)
+    // 5. Optical VFX Overlays (Film grain, light leaks, vignette, Apple lens flare)
     drawVfxOverlay(ctx, W, H, clockSec, activeVfx);
 
     // 6. Subtle Top & Bottom Broadcast Gradient Scrim for 100% Text Readability
-    const topScrim = ctx.createLinearGradient(0, 0, 0, H * 0.24);
-    topScrim.addColorStop(0, 'rgba(0, 0, 0, 0.62)');
+    const topScrim = ctx.createLinearGradient(0, 0, 0, H * 0.2);
+    topScrim.addColorStop(0, 'rgba(0, 0, 0, 0.48)');
     topScrim.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = topScrim;
-    ctx.fillRect(0, 0, W, H * 0.24);
+    ctx.fillRect(0, 0, W, H * 0.2);
 
     const botScrim = ctx.createLinearGradient(0, H * 0.72, 0, H);
     botScrim.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    botScrim.addColorStop(1, 'rgba(0, 0, 0, 0.72)');
+    botScrim.addColorStop(1, 'rgba(0, 0, 0, 0.74)');
     ctx.fillStyle = botScrim;
     ctx.fillRect(0, H * 0.72, W, H * 0.28);
 
@@ -948,20 +1265,140 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       ctx.fillRect(0, H - barH, W, barH);
     }
 
-    // 8. Top-Left On-Screen HUD & Scene Headline + Top-Right Keynote Spec Card + Audio Spectrum
-    drawCinemaHudAndHeadline(ctx, W, H, scene, activeIdx, scenes.length, progress);
-    drawKeynoteSpecCalloutCard(ctx, W, H, activeIdx, progress, clockSec);
-    drawLiveAudioSpectrumHud(ctx, W, H, clockSec, '#38bdf8');
+    // 8. Gói Đồ Họa theo Thể Loại (Bản Tin 24h / HUD Kỹ thuật / Tiêu đề Điện ảnh tối giản)
+    if (isNewsOverlayActive) {
+      drawNewsBroadcastPackage(ctx, W, H, scene, activeIdx, scenes.length, progress, clockSec);
+      if (showBroadcastHud) {
+        drawDynamicContextCalloutCard(
+          ctx,
+          W,
+          H,
+          scene,
+          activeIdx,
+          scenes.length,
+          progress,
+          clockSec
+        );
+        drawLiveAudioSpectrumHud(ctx, W, H, clockSec, '#ef4444');
+      }
+    } else if (showBroadcastHud) {
+      drawCinemaHudAndHeadline(ctx, W, H, scene, activeIdx, scenes.length, progress);
+      drawDynamicContextCalloutCard(
+        ctx,
+        W,
+        H,
+        scene,
+        activeIdx,
+        scenes.length,
+        progress,
+        clockSec
+      );
+      drawLiveAudioSpectrumHud(ctx, W, H, clockSec, '#38bdf8');
+    } else if (visualRenderMode !== 'clean-photo') {
+      drawAppleMinimalSceneTitle(ctx, W, H, scene, activeIdx, scenes.length, sceneElapsed, sceneDur);
+    }
 
     // 9. Kinetic Typography Subtitles
     if (subtitleStyle !== 'off') {
-      drawKineticSubtitles(ctx, W, H, scene.voiceover, progress, subtitleStyle, subtitlePosition, aspectRatio);
+      drawKineticSubtitles(
+        ctx,
+        W,
+        H,
+        scene.voiceover,
+        progress,
+        subtitleStyle,
+        subtitlePosition,
+        aspectRatio,
+        isNewsOverlayActive
+      );
     }
 
     ctx.restore();
   };
 
   drawCinemaCanvasRef.current = drawCinemaCanvas;
+
+  // APPLE KEYNOTE SUBTLE 3D MOTION OVERLAY (Vòng sáng LiDAR & tia quét cạnh Titan tinh tế trên ảnh thực tế)
+  const drawAppleKeynoteSubtleMotionOverlay = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    t: number,
+    progress: number,
+    sceneIdx: number
+  ) => {
+    ctx.save();
+    const cx = W * 0.5;
+    const cy = H * 0.5;
+    const ringR = Math.min(W, H) * (0.34 + progress * 0.06);
+
+    // Subtle rotating titanium precision arc
+    ctx.translate(cx, cy);
+    ctx.rotate(t * 0.25 + sceneIdx * 0.8);
+    ctx.strokeStyle = 'rgba(226, 232, 240, 0.22)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([12, 18]);
+    ctx.beginPath();
+    ctx.arc(0, 0, ringR, 0, Math.PI * 1.35);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Travelling specular laser sweep across product silhouette
+    const sweepX = (progress * 2 - 1) * (W * 0.38);
+    const sweepGrad = ctx.createLinearGradient(sweepX - 45, -H * 0.3, sweepX + 45, H * 0.3);
+    sweepGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+    sweepGrad.addColorStop(0.5, 'rgba(248, 250, 252, 0.14)');
+    sweepGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = sweepGrad;
+    ctx.fillRect(-W / 2, -H / 2, W, H);
+    ctx.restore();
+  };
+
+  // APPLE KEYNOTE CLEAN SCENE TITLE INTRO (Chỉ xuất hiện tinh tế 3.2s đầu mỗi phân cảnh rồi mờ dần)
+  const drawAppleMinimalSceneTitle = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    scene: StoryboardScene,
+    sceneIdx: number,
+    totalScenes: number,
+    sceneElapsed: number,
+    sceneDuration: number
+  ) => {
+    if (!scene.headline) return;
+    // Smooth fade-in (0 -> 0.4s), hold (0.4s -> 2.8s), smooth fade-out (2.8s -> 3.5s)
+    const fadeWindow = Math.min(3.5, sceneDuration * 0.65);
+    if (sceneElapsed > fadeWindow) return;
+
+    let alpha = 1.0;
+    if (sceneElapsed < 0.4) {
+      alpha = sceneElapsed / 0.4;
+    } else if (sceneElapsed > fadeWindow - 0.7) {
+      alpha = Math.max(0, (fadeWindow - sceneElapsed) / 0.7);
+    }
+
+    const padX = W * 0.05;
+    const topY = anamoLetterbox && aspectRatio === '16:9' ? H * 0.14 : H * 0.065;
+    const slideOffset = (1 - Math.min(1, sceneElapsed / 0.45)) * 14;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Minimalist chapter indicator
+    ctx.font = `600 ${Math.max(10, Math.round(W * 0.011))}px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif`;
+    ctx.fillStyle = 'rgba(226, 232, 240, 0.75)';
+    ctx.letterSpacing = '1.5px';
+    ctx.fillText(`0${sceneIdx + 1} / 0${totalScenes}`, padX, topY + slideOffset);
+
+    // Editorial Apple Keynote Headline
+    ctx.font = `700 ${Math.max(16, Math.round(W * 0.024))}px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif`;
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
+    ctx.shadowBlur = 12;
+    ctx.fillText(scene.headline.replace(/^\d+\.\s*/, ''), padX, topY + Math.max(22, H * 0.038) + slideOffset);
+
+    ctx.restore();
+  };
 
   // MASTER 3D CINEMATIC PROCEDURAL STAGE COMPOSITOR (6 Distinct High-Tech Scenes)
   const drawCinematicSceneStage = (
@@ -987,13 +1424,327 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       drawScene2_LiquidMetalHinge(ctx, W, H, t, progress);
     } else if (isScene3) {
       drawScene3_DualOledMultitasking(ctx, W, H, t, progress);
-    } else if (isScene4) {
-      drawScene4_SiliconNeuralDie(ctx, W, H, t, progress);
-    } else if (isScene5) {
-      drawScene5_TripleOpticsLidar(ctx, W, H, t, progress);
+    } else if (isScene4 || scene.explodedView) {
+      drawAppleExplodedHardwareView(ctx, W, H, t, progress);
+    } else if (isScene5 || scene.apertureBlades) {
+      drawAppleMechanicalApertureBlades(ctx, W, H, t, progress);
     } else {
       drawScene6_KeynoteGrandFinale(ctx, W, H, t, progress);
     }
+  };
+
+  // APPLE 3D HARDWARE EXPLODED VIEW (Linh kiện bóc tách đa tầng bay vào vị trí chính xác)
+  const drawAppleExplodedHardwareView = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    t: number,
+    progress: number
+  ) => {
+    const cx = W * 0.5;
+    const cy = H * 0.5;
+    const easeAssembly = Math.min(1, Math.max(0, (progress - 0.15) * 1.5));
+    // Easing cubic out
+    const assembleFactor = 1 - Math.pow(1 - easeAssembly, 3);
+    const explodeDist = (1 - assembleFactor) * Math.min(W, H) * 0.42;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // Deep space backdrop glow
+    const deepGlow = ctx.createRadialGradient(0, 0, 10, 0, 0, Math.min(W, H) * 0.6);
+    deepGlow.addColorStop(0, 'rgba(30, 41, 59, 0.4)');
+    deepGlow.addColorStop(0.6, 'rgba(15, 23, 42, 0.2)');
+    deepGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = deepGlow;
+    ctx.beginPath();
+    ctx.arc(0, 0, Math.min(W, H) * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    const bodyW = Math.min(W, H) * 0.42;
+    const bodyH = bodyW * 2.05;
+
+    // LAYER 1 (BACKMOST): Ceramic Shield Matte Glass Backplate
+    ctx.save();
+    ctx.translate(0, explodeDist * 1.2);
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 24;
+    ctx.beginPath();
+    ctx.roundRect(-bodyW / 2, -bodyH / 2, bodyW, bodyH, 26);
+    ctx.fill();
+    ctx.stroke();
+
+    // Subtle Apple Logo Silkscreen
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.beginPath();
+    ctx.arc(0, -bodyH * 0.05, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // LAYER 2: Copper MagSafe Induction Coil Array
+    ctx.save();
+    ctx.translate(0, explodeDist * 0.7);
+    ctx.strokeStyle = 'rgba(217, 119, 6, 0.75)'; // Copper gold
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, -bodyH * 0.05, bodyW * 0.32, 0, Math.PI * 2);
+    ctx.stroke();
+    // Inner coils
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.45)';
+    for (let c = 1; c <= 4; c++) {
+      ctx.beginPath();
+      ctx.arc(0, -bodyH * 0.05, bodyW * 0.32 - c * 6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // LAYER 3: L-Shaped Silicon-Carbon Battery Pack (Dark Graphite)
+    ctx.save();
+    ctx.translate(0, explodeDist * 0.3);
+    ctx.fillStyle = '#18181b';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(-bodyW * 0.42, -bodyH * 0.35, bodyW * 0.84, bodyH * 0.65, 12);
+    ctx.fill();
+    ctx.stroke();
+
+    // Battery Specs Text
+    ctx.font = 'bold 9px monospace';
+    ctx.fillStyle = '#71717a';
+    ctx.fillText('APPLE SILICON-CARBON 5600mAh • 4.45V', -bodyW * 0.38, -bodyH * 0.28);
+    ctx.restore();
+
+    // LAYER 4 (CORE): Logic Board & Apple A20 Pro 2nm Chip
+    ctx.save();
+    ctx.translate(0, 0); // Center anchor
+    // Logic Board dark substrate
+    ctx.fillStyle = '#090d16';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(-bodyW * 0.42, -bodyH * 0.46, bodyW * 0.84, bodyH * 0.26, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    // Apple A20 Pro Central Die
+    const chipSize = bodyW * 0.38;
+    const chipGrad = ctx.createLinearGradient(-chipSize / 2, -chipSize / 2, chipSize / 2, chipSize / 2);
+    chipGrad.addColorStop(0, '#111827');
+    chipGrad.addColorStop(0.5, '#030712');
+    chipGrad.addColorStop(1, '#1f2937');
+    ctx.fillStyle = chipGrad;
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#0284c7';
+    ctx.shadowBlur = 15;
+    ctx.beginPath();
+    ctx.roundRect(-chipSize / 2, -bodyH * 0.35 - chipSize / 2, chipSize, chipSize, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    // Gold Circuit Traces & Glow
+    ctx.font = 'bold 11px monospace';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.fillText('A20 PRO', 0, -bodyH * 0.35 + 4);
+    ctx.font = '8px monospace';
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText('2nm TSMC N2P', 0, -bodyH * 0.35 + 16);
+    ctx.textAlign = 'left';
+
+    // 4 Titanium Torx Screws Flying In
+    const screwExplode = (1 - assembleFactor) * 70;
+    const screwOffsets = [
+      { x: -bodyW * 0.38 - screwExplode, y: -bodyH * 0.44 - screwExplode },
+      { x: bodyW * 0.38 + screwExplode, y: -bodyH * 0.44 - screwExplode },
+      { x: -bodyW * 0.38 - screwExplode, y: -bodyH * 0.22 + screwExplode },
+      { x: bodyW * 0.38 + screwExplode, y: -bodyH * 0.22 + screwExplode },
+    ];
+    screwOffsets.forEach((sc) => {
+      ctx.save();
+      ctx.fillStyle = '#cbd5e1';
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(sc.x, sc.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      // Star torx slot
+      ctx.strokeStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.moveTo(sc.x - 2, sc.y);
+      ctx.lineTo(sc.x + 2, sc.y);
+      ctx.moveTo(sc.x, sc.y - 2);
+      ctx.lineTo(sc.x, sc.y + 2);
+      ctx.stroke();
+      ctx.restore();
+    });
+    ctx.restore();
+
+    // LAYER 5 (FOREGROUND): Aerospace Titanium Grade 6 Outer Chassis
+    ctx.save();
+    ctx.translate(0, -explodeDist * 0.8);
+    ctx.strokeStyle = '#e2e8f0'; // Brushed titanium
+    ctx.lineWidth = 4.5;
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.4)';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.roundRect(-bodyW / 2, -bodyH / 2, bodyW, bodyH, 26);
+    ctx.stroke();
+
+    // Antenna bands
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(-bodyW / 2, -bodyH * 0.3);
+    ctx.lineTo(-bodyW / 2 + 5, -bodyH * 0.3);
+    ctx.moveTo(bodyW / 2, -bodyH * 0.3);
+    ctx.lineTo(bodyW / 2 - 5, -bodyH * 0.3);
+    ctx.stroke();
+    ctx.restore();
+
+    // Assembly Flash Beam on completion
+    if (assembleFactor > 0.85) {
+      const flashAlpha = (assembleFactor - 0.85) / 0.15 * Math.sin(t * 8);
+      ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, flashAlpha * 0.35)})`;
+      ctx.fillRect(-W, -H, W * 2, H * 2);
+    }
+
+    // Callout Label HUD
+    ctx.save();
+    ctx.font = 'bold 10px monospace';
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText('3D EXPLODED HARDWARE VIEW • A20 PRO ARCHITECTURE', -bodyW * 0.5, bodyH * 0.52);
+    ctx.restore();
+
+    ctx.restore();
+  };
+
+  // APPLE MECHANICAL APERTURE BLADES & OPTICAL LENS (Macro thấu kính máy ảnh lá khẩu cơ học)
+  const drawAppleMechanicalApertureBlades = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    t: number,
+    progress: number
+  ) => {
+    const cx = W * 0.5;
+    const cy = H * 0.5;
+    const lensR = Math.min(W, H) * 0.40;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // 1. Titanium Bezel Ring with Laser Engravings
+    const rimGrad = ctx.createLinearGradient(-lensR, -lensR, lensR, lensR);
+    rimGrad.addColorStop(0, '#f8fafc');
+    rimGrad.addColorStop(0.3, '#94a3b8');
+    rimGrad.addColorStop(0.7, '#475569');
+    rimGrad.addColorStop(1, '#0f172a');
+    ctx.strokeStyle = rimGrad;
+    ctx.lineWidth = 14;
+    ctx.beginPath();
+    ctx.arc(0, 0, lensR + 7, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Laser Engraved Text on Ring
+    ctx.font = 'bold 9px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.textAlign = 'center';
+    ctx.fillText('APPLE FUSION OPTICS • 48MP F/1.4 - F/2.8 • SENSOR-SHIFT OIS • 24MM', 0, -lensR + 2);
+    ctx.textAlign = 'left';
+
+    // 2. Multi-Coated Sapphire Element (Deep Indigo, Emerald & Violet reflection)
+    const glassGrad = ctx.createRadialGradient(0, 0, 10, 0, 0, lensR);
+    glassGrad.addColorStop(0, '#020617');
+    glassGrad.addColorStop(0.4, '#0f172a');
+    glassGrad.addColorStop(0.75, '#1e1b4b'); // Deep violet
+    glassGrad.addColorStop(1, '#042f2e'); // Deep emerald green
+    ctx.fillStyle = glassGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, lensR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3. Mechanical 8-Blade Iris Aperture
+    // Aperture opens and closes smoothly: f/1.4 wide open to f/2.8 tight
+    const apertureCycle = (Math.sin(t * 1.5) + 1) / 2; // 0 to 1
+    const irisR = lensR * (0.28 + apertureCycle * 0.32);
+    const numBlades = 8;
+
+    ctx.save();
+    for (let b = 0; b < numBlades; b++) {
+      const angle = (b * Math.PI * 2) / numBlades + (t * 0.08);
+      ctx.save();
+      ctx.rotate(angle);
+
+      // Graphite blade polygon
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(irisR, 0);
+      ctx.lineTo(lensR * 0.96, -lensR * 0.3);
+      ctx.lineTo(lensR * 0.98, lensR * 0.25);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // 4. Central Aperture Opening: CMOS Sensor Visible Through Lens
+    const sensorR = irisR * 0.95;
+    const sensorGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, sensorR);
+    sensorGrad.addColorStop(0, '#10b981'); // Green Bayer filter reflection
+    sensorGrad.addColorStop(0.6, '#065f46');
+    sensorGrad.addColorStop(1, '#022c22');
+    ctx.fillStyle = sensorGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, sensorR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Sensor Micro-lens Grid Texture
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 0.8;
+    for (let g = -sensorR; g <= sensorR; g += 8) {
+      ctx.beginPath();
+      ctx.moveTo(g, -sensorR);
+      ctx.lineTo(g, sensorR);
+      ctx.moveTo(-sensorR, g);
+      ctx.lineTo(sensorR, g);
+      ctx.stroke();
+    }
+
+    // 5. Specular Curved Glass Glare & Anamorphic Iris Rainbow
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, lensR * 0.82, -Math.PI * 0.45, -Math.PI * 0.15);
+    ctx.stroke();
+
+    // Subtle violet crescent rim
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, lensR * 0.72, Math.PI * 0.55, Math.PI * 0.85);
+    ctx.stroke();
+
+    // HUD readout: Current Aperture Value
+    const currentFStop = (1.4 + (1 - apertureCycle) * 1.4).toFixed(1);
+    ctx.font = 'bold 12px monospace';
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText(`ƒ/${currentFStop}`, -lensR * 0.9, lensR * 0.9);
+    ctx.font = '9px monospace';
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText('DYNAMIC MECHANICAL IRIS', -lensR * 0.9, lensR * 0.9 + 14);
+
+    ctx.restore();
   };
 
   // SCENE 1: THE OBSIDIAN REVEAL
@@ -1852,6 +2603,14 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       // High-contrast B&W overlay
       ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
       ctx.fillRect(0, 0, W, H);
+    } else if (lut === 'apple-keynote') {
+      // Apple Keynote Master: Deep Obsidian blacks, slight cool silver metallic tint, subtle rim-light boost
+      const grad = ctx.createLinearGradient(0, 0, W, H);
+      grad.addColorStop(0, 'rgba(240, 246, 255, 0.06)'); // Cool silver rim
+      grad.addColorStop(0.5, 'rgba(0, 0, 0, 0.08)');
+      grad.addColorStop(1, 'rgba(10, 15, 26, 0.18)'); // Deep obsidian black
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
     }
   };
 
@@ -1889,6 +2648,30 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       flare.addColorStop(1, 'rgba(56, 189, 248, 0)');
       ctx.fillStyle = flare;
       ctx.fillRect(0, flareY - 4, W, 8);
+    } else if (vfx === 'apple-lens-flare') {
+      // Apple Cinema Anamorphic Lens Flare - Subtle horizontal laser blue & crystal streak
+      const flareY = H * 0.42 + Math.sin(t * 0.8) * 15;
+      const flareGrad = ctx.createLinearGradient(0, flareY, W, flareY);
+      flareGrad.addColorStop(0, 'rgba(56, 189, 248, 0)');
+      flareGrad.addColorStop(0.35, 'rgba(96, 165, 250, 0.08)');
+      flareGrad.addColorStop(0.5, 'rgba(248, 250, 252, 0.28)');
+      flareGrad.addColorStop(0.65, 'rgba(147, 197, 253, 0.08)');
+      flareGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+      ctx.fillStyle = flareGrad;
+      ctx.fillRect(0, flareY - 3, W, 6);
+
+      // Center optical star glint
+      ctx.save();
+      const glintX = W * (0.35 + (Math.sin(t * 0.5) + 1) * 0.15);
+      const glintGrad = ctx.createRadialGradient(glintX, flareY, 0, glintX, flareY, 18);
+      glintGrad.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+      glintGrad.addColorStop(0.4, 'rgba(56, 189, 248, 0.2)');
+      glintGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+      ctx.fillStyle = glintGrad;
+      ctx.beginPath();
+      ctx.arc(glintX, flareY, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
   };
 
@@ -1955,7 +2738,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     progress: number,
     style: SubtitleStyle,
     position: SubtitlePosition,
-    ratio: '16:9' | '9:16'
+    ratio: '16:9' | '9:16',
+    avoidNewsLowerThird: boolean = false
   ) => {
     const words = voiceover.trim().split(/\s+/).filter(Boolean);
     if (words.length === 0) return;
@@ -1967,10 +2751,64 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     const chunkWords = words.slice(chunkStart, chunkStart + chunkSize);
 
     const fontSize = ratio === '9:16' ? Math.round(W * 0.052) : Math.round(W * 0.026);
-    let targetY = H * 0.84;
+    let targetY = avoidNewsLowerThird ? H * 0.75 : H * 0.84;
     if (position === 'center') targetY = H * 0.5;
     if (position === 'top') targetY = H * 0.18;
-    if (anamoLetterbox && ratio === '16:9' && position === 'bottom') targetY = H * 0.82;
+    if (anamoLetterbox && ratio === '16:9' && position === 'bottom') {
+      targetY = avoidNewsLowerThird ? H * 0.72 : H * 0.82;
+    }
+
+    if (style === 'apple-minimal') {
+      // APPLE KEYNOTE MINIMALIST SUBTITLES (SF Pro / Inter font, frosted glass capsule, no jarring bounce)
+      ctx.save();
+      const appleFontSize = Math.round(fontSize * 0.88);
+      ctx.font = `600 ${appleFontSize}px -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif`;
+      ctx.textBaseline = 'middle';
+
+      const spaceW = ctx.measureText(' ').width * 1.05;
+      const wordWidths = chunkWords.map((w) => ctx.measureText(w).width);
+      const totalLineW = wordWidths.reduce((a, b) => a + b, 0) + spaceW * Math.max(0, chunkWords.length - 1);
+      const boxPadX = Math.round(appleFontSize * 1.2);
+      const boxPadY = Math.round(appleFontSize * 0.65);
+
+      // Ultra-sleek frosted pill background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(
+        W / 2 - totalLineW / 2 - boxPadX,
+        targetY - appleFontSize / 2 - boxPadY,
+        totalLineW + boxPadX * 2,
+        appleFontSize + boxPadY * 2,
+        9999
+      );
+      ctx.fill();
+      ctx.stroke();
+
+      let cursorX = W / 2 - totalLineW / 2;
+      chunkWords.forEach((word, idx) => {
+        const globalIdx = chunkStart + idx;
+        const isCurrent = globalIdx === activeWordIndex;
+        const isPast = globalIdx < activeWordIndex;
+
+        ctx.save();
+        if (isCurrent) {
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowColor = 'rgba(255, 255, 255, 0.75)';
+          ctx.shadowBlur = 8;
+        } else if (isPast) {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        } else {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.42)';
+        }
+        ctx.fillText(word, cursorX, targetY);
+        ctx.restore();
+        cursorX += wordWidths[idx] + spaceW;
+      });
+      ctx.restore();
+      return;
+    }
 
     ctx.save();
     ctx.font = `800 ${fontSize}px Inter, system-ui, sans-serif`;
@@ -2339,6 +3177,44 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
             </button>
           )}
 
+          {/* Visual Render Mode Switcher: Auto theo Chủ đề / Bản Tin 24h / Điện Ảnh / Ảnh Sạch */}
+          <div className="flex items-center bg-zinc-950/90 rounded-lg p-0.5 border border-white/10">
+            {[
+              { id: 'auto-genre', label: 'Auto Chủ Đề' },
+              { id: 'news-24h', label: 'Bản Tin 24h' },
+              { id: 'hybrid-3d', label: isHardwareKeynoteProject ? '3D Keynote' : 'Điện Ảnh' },
+              { id: 'clean-photo', label: 'Ảnh Sạch' },
+            ].map((mode) => (
+              <button
+                key={mode.id}
+                type="button"
+                onClick={() => setVisualRenderMode(mode.id as any)}
+                className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                  visualRenderMode === mode.id
+                    ? 'bg-white text-zinc-950 font-bold shadow-xs'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+                title="Chuyển chế độ hiển thị đồ họa theo thể loại dự án"
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Clean Cinema vs Technical Broadcast HUD toggle */}
+          <button
+            type="button"
+            onClick={() => setShowBroadcastHud((h) => !h)}
+            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium flex items-center gap-1 transition cursor-pointer border ${
+              showBroadcastHud
+                ? 'bg-sky-950 text-sky-200 border-sky-500/40'
+                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-white/10'
+            }`}
+            title="Bật/Tắt lớp thông số kỹ thuật Broadcast HUD trên màn hình"
+          >
+            <span>{showBroadcastHud ? 'HUD: Bật' : 'HUD: Ẩn (Clean)'}</span>
+          </button>
+
           {/* LUT & VFX palette */}
           <button
             type="button"
@@ -2534,7 +3410,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
             {/* Subtitle Style Switcher */}
             <div className="flex items-center gap-1 bg-zinc-800 rounded-lg p-1 text-[11px]">
               <Subtitles className="w-3.5 h-3.5 text-zinc-400 ml-1" />
-              {(['hormozi', 'capcut', 'netflix', 'off'] as const).map((style) => (
+              {(['apple-minimal', 'netflix', 'hormozi', 'capcut', 'off'] as const).map((style) => (
                 <button
                   key={style}
                   type="button"
@@ -2542,7 +3418,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                   className={`px-2 py-0.5 rounded capitalize transition cursor-pointer ${subtitleStyle === style ? 'bg-zinc-950 text-white font-semibold shadow-xs' : 'text-zinc-400 hover:text-white'
                     }`}
                 >
-                  {style}
+                  {style === 'apple-minimal' ? 'Apple' : style}
                 </button>
               ))}
             </div>
@@ -2621,6 +3497,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                 <label className="font-semibold text-zinc-800 block mb-1.5">Màu Sắc Điện Ảnh (Color Grade LUT):</label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
+                    { id: 'apple-keynote', name: 'Apple Keynote Master', desc: 'Đen sâu thẳm Obsidian & Ánh titan viền' },
                     { id: 'teal-orange', name: 'Teal & Orange (Hollywood)', desc: 'Điểm nhấn xanh ngọc & cam ấm' },
                     { id: 'cyberpunk', name: 'Cyberpunk Neon', desc: 'Sắc tím hồng neon & cyan tương phản' },
                     { id: 'studio-clean', name: 'Apple Studio Clean', desc: 'Trong trẻo, tối giản, ánh sáng trung tính' },
@@ -2648,6 +3525,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                 <label className="font-semibold text-zinc-800 block mb-1.5">Hiệu Ứng Quang Học (Optical VFX):</label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
+                    { id: 'apple-lens-flare', name: 'Apple Anamorphic Flare', desc: 'Vệt sáng xanh pha lê lướt ngang kính' },
                     { id: 'film-grain', name: 'Hạt Phim 35mm (Film Grain)', desc: 'Chuyển động hạt phim cổ điển 60fps' },
                     { id: 'light-leak', name: 'Vệt Sáng (Anamorphic Streak)', desc: 'Vệt sáng quét ngang ống kính' },
                     { id: 'vignette', name: 'Vignette Quang Học', desc: 'Góc tối điện ảnh làm nổi bật chủ thể' },
@@ -2821,7 +3699,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                   value={internetSearchQuery}
                   onChange={(e) => setInternetSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearchInternetImages(internetSearchQuery)}
-                  placeholder="Nhập từ khóa tìm ảnh trên Internet (VD: iPhone 18 Pro Max, Apple A20 Chip, OLED...)"
+                  placeholder="Nhập từ khóa tìm ảnh thực tế (VD: Tàu sân bay Mỹ Trung Đông, Giá vàng thế giới, Vũ trụ James Webb...)"
                   className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-black/15 focus:outline-none focus:border-zinc-900 text-zinc-900"
                 />
               </div>

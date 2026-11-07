@@ -2,6 +2,34 @@ import { VoiceProfile, VoiceLanguage } from '../types';
 
 export const VIETNAMESE_VOICE_PROFILES: VoiceProfile[] = [
   {
+    id: 'vi-apple-keynote-male',
+    name: 'Anh Tuấn Kiệt (Apple Keynote Master)',
+    language: 'vi',
+    gender: 'Nam',
+    region: 'Toàn Quốc (Apple Commercial)',
+    toneTag: 'Đĩnh đạc • Sang trọng • Keynote Master',
+    description:
+      'Chất giọng phát thanh viên chính thức giới thiệu sản phẩm Apple tại Việt Nam: âm sắc trầm ấm, phát âm tròn vành rõ chữ, nhịp điệu thong thả, tự tin, chuẩn âm hưởng video quảng cáo điện ảnh.',
+    sampleSentence:
+      'Chào mừng bạn đến với kỷ nguyên công nghệ tiếp theo. Thiết kế nguyên khối Titan chuẩn hàng không vũ trụ và siêu vi xử lý thế hệ mới.',
+    pitch: 0.82,
+    rate: 0.98,
+    isRecommended: true,
+    neuralVoiceId: 'vi-VN-NamMinhNeural',
+    geminiVoiceName: 'Charon',
+    openaiVoiceName: 'onyx',
+    dspDetuneCents: -420,
+    acousticSignature: '95Hz Deep Baritone • Apple Master EQ • Đen Sâu Obsidian',
+    formantEq: {
+      lowShelfHz: 180,
+      lowGainDb: 7.5,
+      midPeakingHz: 1250,
+      midGainDb: -1.5,
+      highShelfHz: 4500,
+      highGainDb: 2.5,
+    },
+  },
+  {
     id: 'vi-hn-male-1',
     name: 'Anh Hoàng (Hà Nội)',
     language: 'vi',
@@ -9,7 +37,7 @@ export const VIETNAMESE_VOICE_PROFILES: VoiceProfile[] = [
     region: 'Miền Bắc',
     toneTag: 'Trầm ấm • Uy lực (Baritone)',
     description:
-      'Chất giọng nam chuẩn phát thanh viên Hà Nội, dải trầm 110Hz dày và uy quyền, phong thái điềm tĩnh, tối ưu cho review công nghệ cao cấp & phóng sự.',
+      'Chất giọng nam chuẩn phát thanh viên Hà Nội, dải trầm 105Hz dày và uy quyền, phong thái điềm tĩnh, tối ưu cho review công nghệ cao cấp & phóng sự.',
     sampleSentence:
       'Chào mừng quý vị và các bạn đến với bản đánh giá chuyên sâu thiết bị công nghệ đột phá thế hệ mới.',
     pitch: 0.86,
@@ -18,7 +46,7 @@ export const VIETNAMESE_VOICE_PROFILES: VoiceProfile[] = [
     neuralVoiceId: 'vi-VN-NamMinhNeural',
     geminiVoiceName: 'Charon',
     openaiVoiceName: 'onyx',
-    dspDetuneCents: -380,
+    dspDetuneCents: -360,
     acousticSignature: '105Hz Baritone • Trầm Dày +6.5dB • Nam Hà Nội',
     formantEq: {
       lowShelfHz: 190,
@@ -40,13 +68,13 @@ export const VIETNAMESE_VOICE_PROFILES: VoiceProfile[] = [
       'Giọng nữ Hà Nội nhẹ nhàng, nhấn nhá nhịp điệu giàu cảm xúc, phát âm tròn vành rõ chữ, chuẩn phong cách podcast & kể chuyện thương hiệu.',
     sampleSentence:
       'Khám phá sự hoàn hảo trong từng đường nét thiết kế tinh xảo và trải nghiệm người dùng vượt trội.',
-    pitch: 1.0,
+    pitch: 1.04,
     rate: 1.0,
     isRecommended: true,
     neuralVoiceId: 'vi-VN-HoaiMyNeural',
     geminiVoiceName: 'Aoede',
     openaiVoiceName: 'nova',
-    dspDetuneCents: 0,
+    dspDetuneCents: 120,
     acousticSignature: '215Hz Mezzo • Trong Trẻo +3.5dB • Nữ Hà Nội',
     formantEq: {
       lowShelfHz: 220,
@@ -74,13 +102,13 @@ export const VIETNAMESE_VOICE_PROFILES: VoiceProfile[] = [
     neuralVoiceId: 'vi-VN-NamMinhNeural',
     geminiVoiceName: 'Puck',
     openaiVoiceName: 'echo',
-    dspDetuneCents: -230,
-    acousticSignature: '140Hz Tenor • Sáng Rõ +4.5dB • Nam Sài Gòn',
+    dspDetuneCents: -180,
+    acousticSignature: '145Hz Tenor • Sáng Rõ +4.5dB • Nam Sài Gòn',
     formantEq: {
       lowShelfHz: 230,
-      lowGainDb: 2.5,
+      lowGainDb: 2.0,
       midPeakingHz: 1650,
-      midGainDb: 4.2,
+      midGainDb: 4.5,
       highShelfHz: 4800,
       highGainDb: 4.5,
     },
@@ -96,20 +124,47 @@ export const VIETNAMESE_VOICE_PROFILES: VoiceProfile[] = [
       'Giọng nữ Sài Gòn ngọt ngào, âm sắc cao sáng tươi tắn, tạo cảm giác thân thiện gần gũi cho video ẩm thực, du lịch, lifestyle và livestream.',
     sampleSentence:
       'Hôm nay Thảo sẽ khui hộp siêu phẩm mới nhất và chia sẻ cảm nhận thực tế sau một tuần trải nghiệm nha mọi người ơi!',
-    pitch: 1.14,
+    pitch: 1.18,
     rate: 1.12,
     neuralVoiceId: 'vi-VN-HoaiMyNeural',
     geminiVoiceName: 'Kore',
     openaiVoiceName: 'shimmer',
-    dspDetuneCents: 220,
-    acousticSignature: '255Hz Soprano • Ngọt Sáng +5.5dB • Nữ Sài Gòn',
+    dspDetuneCents: 340,
+    acousticSignature: '265Hz Soprano • Ngọt Sáng +6.5dB • Nữ Sài Gòn',
     formantEq: {
       lowShelfHz: 260,
-      lowGainDb: -4.0,
+      lowGainDb: -4.5,
       midPeakingHz: 2950,
-      midGainDb: 4.8,
-      highShelfHz: 6000,
-      highGainDb: 5.5,
+      midGainDb: 5.5,
+      highShelfHz: 6200,
+      highGainDb: 6.5,
+    },
+  },
+  {
+    id: 'vi-hue-female-1',
+    name: 'Chị Phương Linh (Huế / Miền Trung)',
+    language: 'vi',
+    gender: 'Nữ',
+    region: 'Miền Trung',
+    toneTag: 'Trữ tình • Dịu dàng • Sâu lắng',
+    description:
+      'Âm sắc nữ Huế ngọt ngào thùy mị, ngữ điệu trầm bổng tinh tế, chuẩn mực cho kịch bản du lịch, di sản, đời sống và phóng sự nghệ thuật.',
+    sampleSentence:
+      'Mời bạn cùng lắng lòng chiêm ngưỡng vẻ đẹp tĩnh lặng và những dấu ấn thời gian vượt bậc.',
+    pitch: 1.08,
+    rate: 0.96,
+    neuralVoiceId: 'vi-VN-HoaiMyNeural',
+    geminiVoiceName: 'Aoede',
+    openaiVoiceName: 'nova',
+    dspDetuneCents: 180,
+    acousticSignature: '225Hz Poetic Mezzo • Mềm Mại +4dB • Nữ Miền Trung',
+    formantEq: {
+      lowShelfHz: 230,
+      lowGainDb: -1.0,
+      midPeakingHz: 2100,
+      midGainDb: 3.8,
+      highShelfHz: 4800,
+      highGainDb: 3.5,
     },
   },
   {
@@ -123,12 +178,12 @@ export const VIETNAMESE_VOICE_PROFILES: VoiceProfile[] = [
       'Phát âm rành mạch, tốc độ ổn định, dải trung dày khỏe, tạo độ tin cậy tuyệt đối cho bản tin tài chính, bất động sản & thời sự 24h.',
     sampleSentence:
       'Toàn cảnh chu kỳ thị trường và những phân tích kỹ thuật đáng chú ý nhất trong phiên giao dịch ngày hôm nay.',
-    pitch: 0.9,
+    pitch: 0.88,
     rate: 1.06,
     neuralVoiceId: 'vi-VN-NamMinhNeural',
     geminiVoiceName: 'Fenrir',
     openaiVoiceName: 'fable',
-    dspDetuneCents: -300,
+    dspDetuneCents: -280,
     acousticSignature: '122Hz Anchor • Trung Dày +5.5dB • Nam Miền Trung',
     formantEq: {
       lowShelfHz: 205,
@@ -150,13 +205,13 @@ export const VIETNAMESE_VOICE_PROFILES: VoiceProfile[] = [
       'Mô hình AI tổng hợp âm đọc siêu tốc 1.28x theo công thức Alex Hormozi, nén động lực học mạnh, triệt tiêu khoảng lặng thừa, tối ưu tỷ lệ xem hết video.',
     sampleSentence:
       'Ba giây đầu tiên quyết định người xem ở lại hay lướt qua! Hãy nhìn vào tính năng đột phá số một ngay bây giờ!',
-    pitch: 0.96,
+    pitch: 0.98,
     rate: 1.28,
     isRecommended: true,
     neuralVoiceId: 'vi-VN-NamMinhNeural',
     geminiVoiceName: 'Orus',
-    openaiVoiceName: 'onyx',
-    dspDetuneCents: -190,
+    openaiVoiceName: 'alloy',
+    dspDetuneCents: -120,
     acousticSignature: '1.28x Hormozi Viral • Punchy EQ +6dB • AI Neural',
     formantEq: {
       lowShelfHz: 185,
@@ -562,30 +617,65 @@ function splitTextIntoChunks(text: string, maxLen = 185): string[] {
 }
 
 /**
- * Tải và giải mã âm thanh Neural TTS từ `/api/tts` (Edge Neural / Google Neural)
+ * Tải và giải mã âm thanh Neural TTS từ `/api/tts` (OpenAI Studio / Edge Neural / Google Neural)
  */
 async function fetchAndDecodeNeuralAudio(
   ctx: AudioContext,
   text: string,
   profile: VoiceProfile,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  customRate?: number,
+  customPitch?: number
 ): Promise<{ audioBuffer: AudioBuffer; engine: string }> {
   const chunks = splitTextIntoChunks(text, 180);
   const decodedBuffers: AudioBuffer[] = [];
   let resolvedEngine = 'edge-neural';
 
+  const effRate = customRate ?? profile.rate ?? 1.0;
+  const effPitch = customPitch ?? profile.pitch ?? 1.0;
+  const ratePct = `${Math.round((effRate - 1.0) * 100)}%`;
+  const pitchHz = `${Math.round((effPitch - 1.0) * 80)}Hz`;
+
+  // Tìm kiếm OpenAI API Key đã lưu trong tài khoản người dùng (nếu có)
+  let savedOpenAiKey = '';
+  try {
+    const session = localStorage.getItem('synapes_active_user_session');
+    if (session) {
+      const user = JSON.parse(session);
+      const profileData = localStorage.getItem(`synapes_user_profile_${user.code}`);
+      if (profileData) {
+        const parsed = JSON.parse(profileData);
+        if (parsed.aiConfig?.openai?.apiKey && parsed.aiConfig.openai.apiKey.startsWith('sk-')) {
+          savedOpenAiKey = parsed.aiConfig.openai.apiKey;
+        }
+      }
+    }
+  } catch { }
+
   for (const chunk of chunks) {
-    const cacheKey = `${profile.language}:${profile.neuralVoiceId || profile.id}:${chunk}`;
+    // Cache key gắn chặt với Profile ID, Rate, Pitch và Text để không bao giờ bị phát trùng âm thanh giữa các nhân vật!
+    const cacheKey = `${profile.id}:${effRate.toFixed(2)}:${effPitch.toFixed(2)}:${savedOpenAiKey ? 'oai:' : 'std:'}${chunk}`;
     let cached = ttsBufferCache.get(cacheKey);
 
     if (!cached) {
+      const isFemale = profile.gender === 'Nữ' || profile.gender === 'Female';
+      const defaultNativeVoice = isFemale ? 'vi-VN-HoaiMyNeural' : 'vi-VN-NamMinhNeural';
+      const defaultOpenAiVoice = profile.openaiVoiceName || (isFemale ? 'nova' : 'onyx');
+
       const params = new URLSearchParams({
         text: chunk,
         lang: profile.language,
-        voice:
-          profile.neuralVoiceId ||
-          (profile.language === 'en' ? 'en-US-GuyNeural' : 'vi-VN-NamMinhNeural'),
+        profileId: profile.id,
+        voice: profile.neuralVoiceId || defaultNativeVoice,
+        openaiVoice: defaultOpenAiVoice,
+        rate: ratePct,
+        pitch: pitchHz,
       });
+
+      if (savedOpenAiKey) {
+        params.set('openaiKey', savedOpenAiKey);
+      }
+
       const resp = await fetch(`/api/tts?${params.toString()}`, { signal });
       if (!resp.ok) {
         throw new Error(`TTS HTTP ${resp.status}`);
@@ -637,19 +727,21 @@ function computeEffectivePitchRatio(
   engineUsed: string
 ): number {
   const userSliderPitch = customPitch ?? profile.pitch;
-  // Relative adjustment made by user on the Pitch slider compared to profile default
   const userAdjustmentRatio = userSliderPitch / (profile.pitch || 1.0);
-
   const detuneCents = profile.dspDetuneCents ?? 0;
 
+  if (engineUsed === 'openai-studio-hd') {
+    // OpenAI TTS Studio HD: Giữ nguyên vẹn chất âm tự nhiên, chỉ áp dụng thanh trượt của người dùng
+    return userAdjustmentRatio;
+  }
+
   if (engineUsed === 'edge-neural') {
-    // Edge Neural already provides native Male (NamMinh) and Female (HoaiMy) voices!
-    // Apply subtle persona differentiation (35% of detuneCents) + full user slider adjustment
-    const personaCents = detuneCents * 0.38;
+    // Edge Neural: Áp dụng độ lệch persona âm sắc tinh tế giữa các nhân vật cùng giới tính
+    const personaCents = detuneCents * 0.55;
     return Math.pow(2, personaCents / 1200) * userAdjustmentRatio;
   }
 
-  // Upstream is single-gender cloud neural stream -> apply full WSOLA vocal tract gender & persona shift!
+  // Upstream Google Neural DSP: Áp dụng đầy đủ WSOLA Vocal Tract Formant Shift
   return Math.pow(2, detuneCents / 1200) * userAdjustmentRatio;
 }
 
@@ -681,7 +773,9 @@ export function auditionVoice(
         ctx,
         textToSpeak,
         profile,
-        abortController.signal
+        abortController.signal,
+        effectiveRate,
+        customPitch
       );
 
       if (abortController.signal.aborted) return;
@@ -701,9 +795,11 @@ export function auditionVoice(
 
       activeAuditionSource = source;
       onEngineInfo?.(
-        engine === 'edge-neural'
-          ? `Edge Neural (${profile.neuralVoiceId}) + 3-Band Formant DSP`
-          : `Cloud Neural Audio + WSOLA Vocal Tract DSP (${profile.gender} • ${profile.region})`
+        engine === 'openai-studio-hd'
+          ? `OpenAI Speech Studio 24kHz (${profile.openaiVoiceName || 'onyx'}) • Chuẩn Điện Ảnh`
+          : engine === 'edge-neural'
+            ? `Microsoft Edge Neural (${profile.neuralVoiceId}) • ${profile.acousticSignature || '3-Band DSP'}`
+            : `Cloud Neural Audio + WSOLA Vocal Tract DSP (${profile.gender} • ${profile.region})`
       );
 
       source.onended = () => {
@@ -922,7 +1018,9 @@ export class StudioAudioSynthesizer {
           ctx,
           text,
           profile,
-          abortCtrl.signal
+          abortCtrl.signal,
+          effectiveRate,
+          customPitch
         );
         if (abortCtrl.signal.aborted) return;
 
