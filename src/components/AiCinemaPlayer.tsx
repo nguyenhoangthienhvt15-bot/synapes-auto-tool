@@ -268,6 +268,28 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           setLoadedCount((c) => Math.min(scenes.length, c + 1));
           drawCinemaCanvasRef.current(performance.now() / 1000, currentTimeRef.current);
         };
+        fb.onerror = () => {
+          if (!isMounted) return;
+          // Static-host fallback (e.g. Render Static Site without /api/image-proxy): load CORS-enabled HTTPS photo directly
+          const directPhoto = new Image();
+          directPhoto.crossOrigin = 'anonymous';
+          let directSrc = domainPhotos[idx % domainPhotos.length];
+          if (rawSource.startsWith('https://')) {
+            directSrc = rawSource;
+          } else if (rawSource.includes('url=')) {
+            try {
+              const uParam = new URL(rawSource, window.location.origin).searchParams.get('url');
+              if (uParam && uParam.startsWith('https://')) directSrc = uParam;
+            } catch {}
+          }
+          directPhoto.src = directSrc;
+          directPhoto.onload = () => {
+            if (!isMounted) return;
+            loadedImagesRef.current[sc.id] = directPhoto;
+            setLoadedCount((c) => Math.min(scenes.length, c + 1));
+            drawCinemaCanvasRef.current(performance.now() / 1000, currentTimeRef.current);
+          };
+        };
       };
     });
 
@@ -286,17 +308,52 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     }
   }, [activeSceneId, scenes, seekToTime]);
 
-  // Search Internet Images Handler
+  // Search Internet Images Handler (Supports /api/image-search + Direct Wikimedia CORS Fallback for Static Sites)
   const handleSearchInternetImages = useCallback(async (queryStr: string) => {
     setIsSearchingInternet(true);
     try {
       const res = await fetch(`/api/image-search?q=${encodeURIComponent(queryStr)}`);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data.images)) {
+        if (Array.isArray(data.images) && data.images.length > 0) {
           setInternetImages(data.images);
+          return;
         }
       }
+      // Fallback for Static Hosting (Wikimedia Commons CORS API + Domain Curated Pool)
+      const qDomain = classifyTopicDomainClient(queryStr);
+      const wikiUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(queryStr)}&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url&iiurlwidth=1280&format=json&origin=*`;
+      const fbImages: Array<{ id: string; title: string; url: string; source: string; proxyUrl: string }> = [];
+      try {
+        const wRes = await fetch(wikiUrl);
+        if (wRes.ok) {
+          const wData = await wRes.json();
+          const pages = Object.values(wData?.query?.pages || {}) as any[];
+          pages.forEach((p, idx) => {
+            const thumb = p?.imageinfo?.[0]?.thumburl || p?.imageinfo?.[0]?.url;
+            if (thumb && /\.(jpe?g|png|webp)$/i.test(thumb)) {
+              fbImages.push({
+                id: `wiki-${idx}`,
+                title: String(p.title || queryStr).replace(/^File:/i, '').replace(/\.[a-z0-9]+$/i, ''),
+                url: thumb,
+                source: 'Wikimedia Commons Live',
+                proxyUrl: thumb,
+              });
+            }
+          });
+        }
+      } catch {}
+      const pool = CLIENT_DOMAIN_PHOTO_POOLS[qDomain] || CLIENT_DOMAIN_PHOTO_POOLS.news;
+      pool.forEach((u, idx) => {
+        fbImages.push({
+          id: `curated-${qDomain}-${idx}`,
+          title: `${queryStr} — Tư liệu HD #${idx + 1}`,
+          url: u,
+          source: `Kho Tư Liệu Báo Chí (${qDomain.toUpperCase()})`,
+          proxyUrl: u,
+        });
+      });
+      setInternetImages(fbImages.slice(0, 12));
     } catch (err) {
       console.warn('Internet image search fallback:', err);
     } finally {
