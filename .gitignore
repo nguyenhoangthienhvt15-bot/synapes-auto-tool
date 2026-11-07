@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Temporary media recordings and test captures
+*.webm
+*.mp4
+*.png
+!src/assets/*.png

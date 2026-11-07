@@ -79,7 +79,7 @@ async function synthesizeEdgeNeuralTts(text, voiceName, ratePct = '+0%', pitchHz
     ws.binaryType = 'arraybuffer';
     const audioChunks = [];
     const timeout = setTimeout(() => {
-      try { ws.close(); } catch {}
+      try { ws.close(); } catch { }
       reject(new Error('Edge TTS timeout'));
     }, 5500);
 
@@ -125,7 +125,7 @@ async function synthesizeEdgeNeuralTts(text, voiceName, ratePct = '+0%', pitchHz
       if (typeof event.data === 'string') {
         if (event.data.includes('Path:turn.end')) {
           clearTimeout(timeout);
-          try { ws.close(); } catch {}
+          try { ws.close(); } catch { }
           if (audioChunks.length > 0) {
             resolve(Buffer.concat(audioChunks));
           } else {

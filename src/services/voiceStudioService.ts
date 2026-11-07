@@ -332,7 +332,7 @@ function getOrCreateAuditionContext(): { ctx: AudioContext; analyser: AnalyserNo
     sharedAuditionAnalyser.connect(sharedAuditionCtx.destination);
   }
   if (sharedAuditionCtx.state === 'suspended') {
-    sharedAuditionCtx.resume().catch(() => {});
+    sharedAuditionCtx.resume().catch(() => { });
   }
   return { ctx: sharedAuditionCtx, analyser: sharedAuditionAnalyser! };
 }
@@ -367,13 +367,13 @@ export function stopVoiceAudition() {
       activeAuditionSource.onended = null;
       activeAuditionSource.stop();
       activeAuditionSource.disconnect();
-    } catch {}
+    } catch { }
     activeAuditionSource = null;
   }
   if ('speechSynthesis' in window) {
     try {
       window.speechSynthesis.cancel();
-    } catch {}
+    } catch { }
   }
 }
 
@@ -750,14 +750,14 @@ function fallbackBrowserSpeech(
       const preferred = langVoices.find((v) =>
         isMale
           ? v.name.toLowerCase().includes('nam') ||
-            v.name.toLowerCase().includes('an') ||
-            v.name.toLowerCase().includes('male') ||
-            v.name.toLowerCase().includes('david') ||
-            v.name.toLowerCase().includes('guy')
+          v.name.toLowerCase().includes('an') ||
+          v.name.toLowerCase().includes('male') ||
+          v.name.toLowerCase().includes('david') ||
+          v.name.toLowerCase().includes('guy')
           : v.name.toLowerCase().includes('hoai') ||
-            v.name.toLowerCase().includes('nu') ||
-            v.name.toLowerCase().includes('female') ||
-            v.name.toLowerCase().includes('zira')
+          v.name.toLowerCase().includes('nu') ||
+          v.name.toLowerCase().includes('female') ||
+          v.name.toLowerCase().includes('zira')
       );
       utterance.voice = preferred || langVoices[0];
     }
@@ -870,7 +870,7 @@ export class StudioAudioSynthesizer {
 
   public resume() {
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
+      this.ctx.resume().catch(() => { });
     }
   }
 
@@ -884,13 +884,13 @@ export class StudioAudioSynthesizer {
         this.activeVoiceSource.onended = null;
         this.activeVoiceSource.stop();
         this.activeVoiceSource.disconnect();
-      } catch {}
+      } catch { }
       this.activeVoiceSource = null;
     }
     if ('speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
-      } catch {}
+      } catch { }
     }
     this.duckBgm(false);
   }
@@ -1112,6 +1112,26 @@ export class StudioAudioSynthesizer {
     }, stepDuration * 1000);
   }
 
+  public async preloadScenesVoiceover(scenes: any[], defaultProfile?: VoiceProfile) {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const baseProf = defaultProfile || VIETNAMESE_VOICE_PROFILES[0];
+
+    for (const scene of scenes) {
+      if (!scene?.voiceover?.trim() || scene.customAudioUrl) continue;
+      const isEnglish = scene.voiceLanguage === 'en';
+      const profile =
+        ALL_VOICE_PROFILES.find((v) => v.id === scene.voiceId) ||
+        (isEnglish ? ENGLISH_VOICE_PROFILES[0] : baseProf);
+
+      try {
+        await fetchAndDecodeNeuralAudio(ctx, scene.voiceover, profile);
+      } catch (err) {
+        console.warn('Preload voice warning:', err);
+      }
+    }
+  }
+
   public stopCinematicSoundtrack() {
     this.isBgmPlaying = false;
     if (this.bgmIntervalId) {
@@ -1124,7 +1144,7 @@ export class StudioAudioSynthesizer {
     this.stopSceneVoiceover();
     this.stopCinematicSoundtrack();
     if (this.ctx) {
-      this.ctx.close().catch(() => {});
+      this.ctx.close().catch(() => { });
       this.ctx = null;
     }
   }

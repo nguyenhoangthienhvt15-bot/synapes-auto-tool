@@ -127,11 +127,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     e.preventDefault();
     if (!promptText.trim()) return;
 
-    // Kiểm tra API Key bắt buộc
-    if (!isCurrentKeyConfigured) {
-      const provName = PROVIDERS.find((p) => p.id === selectedProvider)?.name || selectedProvider;
-      setKeyErrorNotice(`⚠️ Bạn chưa gắn API Key cho ${provName}. Vui lòng gắn API Key hoặc chọn nhà cung cấp đã có Key để tạo kịch bản.`);
-      return;
+    // Thông báo nếu chưa gắn Key nhưng vẫn cho phép tiếp tục với Động cơ Đạo Diễn Điện Ảnh Nội Bộ
+    const hasKey = isCurrentKeyConfigured;
+    if (!hasKey) {
+      setScanMessage('⚡ Đang sử dụng Động Cơ Đạo Diễn Điện Ảnh Nội Bộ (Hollywood Studio) để tạo kịch bản...');
     }
 
     setIsGenerating(true);
