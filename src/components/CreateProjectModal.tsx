@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Skill, Project, AIProviderConfig, AIProviderId } from '../types';
 import {
   Sparkles,
   Monitor,
   Smartphone,
-  Paperclip,
   X,
   Cpu,
   Key,
@@ -14,6 +13,12 @@ import {
   ExternalLink,
   ShieldAlert,
   Info,
+  Plus,
+  Trash2,
+  Image as ImageIcon,
+  Music,
+  Upload,
+  Check,
 } from 'lucide-react';
 import {
   PROVIDERS,
@@ -32,21 +37,42 @@ interface CreateProjectModalProps {
   onClose: () => void;
   onCreateProject: (project: Project) => void;
   onOpenAiSettings?: (provider?: AIProviderId) => void;
+  onAddSkill?: (newSkill: Skill) => void;
 }
 
 export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
-  skills,
+  skills: initialSkills,
   aiConfig,
   onClose,
   onCreateProject,
   onOpenAiSettings,
+  onAddSkill,
 }) => {
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
+  const [allSkills, setAllSkills] = useState<Skill[]>(initialSkills);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [hoveredSkill, setHoveredSkill] = useState<Skill | null>(null);
   const [promptText, setPromptText] = useState('');
   const [targetDurationMin, setTargetDurationMin] = useState<number>(8);
-  const [attachedFileName, setAttachedFileName] = useState<string | null>(null);
+
+  // Tách riêng đính kèm Hình ảnh và Tệp Âm thanh
+  const [attachedImage, setAttachedImage] = useState<{ name: string; size: number } | null>(null);
+  const [attachedAudio, setAttachedAudio] = useState<{ name: string; size: number } | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const audioInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Trạng thái Tự thiết kế phong cách biên tập
+  const [isDesigningSkill, setIsDesigningSkill] = useState(false);
+  const [customSkillName, setCustomSkillName] = useState('');
+  const [customSkillCommand, setCustomSkillCommand] = useState('');
+  const [customSkillDesc, setCustomSkillDesc] = useState('');
+  const [customSkillPrompt, setCustomSkillPrompt] = useState('');
+  const [skillDesignError, setSkillDesignError] = useState<string | null>(null);
+
+  // Đồng bộ danh sách skills nếu props thay đổi
+  useEffect(() => {
+    setAllSkills(initialSkills);
+  }, [initialSkills]);
 
   // AI Provider & Models Selection state
   const [selectedProvider, setSelectedProvider] = useState<AIProviderId>(() => {
@@ -136,21 +162,70 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     }
   };
 
-  // Chọn hoặc Hủy chọn phong cách biên tập (Toggle)
+  // Bấm chọn hoặc bấm lại để HỦY CHỌN (Toggle)
   const handleQuickCommandSelect = (cmd: string) => {
-    const skill = skills.find((s) => s.command === cmd);
+    const skill = allSkills.find((s) => s.command === cmd);
     if (!skill) return;
 
     if (selectedSkillId === skill.id) {
-      // Bấm lần thứ hai: HỦY CHỌN phong cách
       setSelectedSkillId(null);
     } else {
-      // Bấm lần đầu: CHỌN phong cách
       setSelectedSkillId(skill.id);
     }
   };
 
-  const activeSkill = skills.find((s) => s.id === selectedSkillId) || null;
+  // Lưu phong cách biên tập do người dùng tự thiết kế
+  const handleSaveCustomSkill = (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = customSkillName.trim();
+    if (!name) {
+      setSkillDesignError('Vui lòng nhập tên phong cách.');
+      return;
+    }
+
+    let raw = customSkillCommand.trim().toLowerCase();
+    if (raw.startsWith('/')) raw = raw.slice(1);
+    const sanitized = raw.replace(/[^a-z0-9-_]/g, '-').replace(/^-+|-+$/g, '');
+
+    const fallbackCmd = name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    const cleanCmd = `/${sanitized || fallbackCmd || `custom-${Date.now().toString().slice(-4)}`}`;
+
+    const newSkill: Skill = {
+      id: `skill-custom-${Date.now()}`,
+      name,
+      command: cleanCmd,
+      description:
+        customSkillDesc.trim() ||
+        `Phong cách biên tập "${name}" do người dùng thiết kế riêng với các quy chuẩn định hướng đạo diễn.`,
+      category: 'Tự Thiết Kế',
+      defaultTags: ['Custom', 'User-Created'],
+      tone: 'Tùy Chỉnh',
+      systemPrompt:
+        customSkillPrompt.trim() ||
+        customSkillDesc.trim() ||
+        `Biên kịch theo phong cách ${name}, chú trọng tính tự nhiên, bố cục chặt chẽ và nhịp dựng phù hợp.`,
+    };
+
+    setAllSkills((prev) => [newSkill, ...prev]);
+    setSelectedSkillId(newSkill.id);
+    onAddSkill?.(newSkill);
+
+    // Reset form
+    setCustomSkillName('');
+    setCustomSkillCommand('');
+    setCustomSkillDesc('');
+    setCustomSkillPrompt('');
+    setSkillDesignError(null);
+    setIsDesigningSkill(false);
+  };
+
+  const activeSkill = allSkills.find((s) => s.id === selectedSkillId) || null;
   const displaySkillInfo = hoveredSkill || activeSkill;
 
   const executeGeneration = async () => {
@@ -169,7 +244,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       const generated = await generateAiVideoScript({
         prompt: finalPrompt,
         skillId: selectedSkillId || undefined,
-        skills,
+        skills: allSkills,
         aspectRatio,
         targetDurationMin,
         provider: selectedProvider,
@@ -323,26 +398,136 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             </div>
           </div>
 
-          {/* 2. CHỌN PHONG CÁCH BIÊN TẬP (TOGGLE & HOVER TOOLTIP CARD) */}
+          {/* 2. CHỌN & TỰ THIẾT KẾ PHONG CÁCH BIÊN TẬP */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-1.5">
               <div className="flex items-center gap-1.5">
                 <label className="text-zinc-800 font-semibold">2. Phong cách biên tập (Skills)</label>
                 <span className="text-[10px] text-zinc-400 font-normal">
                   (Bấm để chọn, bấm lại để hủy)
                 </span>
               </div>
-              <span className="text-[10px] text-zinc-500 font-mono">
-                {selectedSkillId
-                  ? `Đang áp dụng: ${activeSkill?.name || 'Đã chọn'}`
-                  : 'Mặc định (Tự do)'}
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsDesigningSkill((prev) => !prev)}
+                  className="px-2 py-0.5 rounded-md text-[10px] font-semibold flex items-center gap-1 text-zinc-800 bg-zinc-100 hover:bg-zinc-200/90 border border-black/[0.08] transition cursor-pointer shadow-2xs"
+                  title="Mở bảng tạo phong cách biên tập tùy chỉnh"
+                >
+                  <Plus className="w-3 h-3 text-zinc-600" />
+                  <span>{isDesigningSkill ? 'Đóng thiết kế' : 'Tự thiết kế phong cách'}</span>
+                </button>
+                <span className="text-[10px] text-zinc-500 font-mono">
+                  {selectedSkillId
+                    ? `Đang áp dụng: ${activeSkill?.name || 'Đã chọn'}`
+                    : 'Mặc định (Tự do)'}
+                </span>
+              </div>
             </div>
 
+            {/* Bảng Tự Thiết Kế Phong Cách Mới (Mở rộng khi bấm) */}
+            {isDesigningSkill && (
+              <div className="p-3.5 rounded-xl bg-zinc-100/90 border border-black/[0.09] space-y-2.5 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between border-b border-black/[0.06] pb-1.5">
+                  <span className="font-semibold text-zinc-950 text-xs flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Thiết kế phong cách biên tập riêng</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsDesigningSkill(false)}
+                    className="text-zinc-400 hover:text-zinc-900 transition p-1 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {skillDesignError && (
+                  <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-800 text-[11px] flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
+                    <span>{skillDesignError}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[11px] font-medium text-zinc-700 block mb-1">
+                      Tên phong cách *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="VD: Review Tối Giản Điện Ảnh"
+                      value={customSkillName}
+                      onChange={(e) => setCustomSkillName(e.target.value)}
+                      className="w-full bg-white border border-black/[0.12] rounded-lg px-2.5 py-1.5 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-950"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium text-zinc-700 block mb-1">
+                      Cú pháp lệnh gọi nhanh (tùy chọn)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="VD: /minimal-review"
+                      value={customSkillCommand}
+                      onChange={(e) => setCustomSkillCommand(e.target.value)}
+                      className="w-full bg-white border border-black/[0.12] rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-950"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-medium text-zinc-700 block mb-1">
+                    Tóm tắt nội dung phong cách (hiển thị khi di chuột)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="VD: Nhịp dựng chậm rãi 6-8s, tập trung cận cảnh chất liệu, phông nền đơn sắc, giọng đọc trầm ấm"
+                    value={customSkillDesc}
+                    onChange={(e) => setCustomSkillDesc(e.target.value)}
+                    className="w-full bg-white border border-black/[0.12] rounded-lg px-2.5 py-1.5 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-medium text-zinc-700 block mb-1">
+                    Chỉ đạo đạo diễn AI / System Prompt (tùy chọn)
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="VD: Kịch bản tập trung phân tích sâu, giọng điệu sắc sảo, không dùng lời sáo rỗng, bố cục phân cảnh rõ ràng..."
+                    value={customSkillPrompt}
+                    onChange={(e) => setCustomSkillPrompt(e.target.value)}
+                    className="w-full bg-white border border-black/[0.12] rounded-lg p-2 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-950 leading-relaxed"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsDesigningSkill(false)}
+                    className="px-3 py-1 rounded-lg bg-white border border-black/[0.1] text-zinc-700 text-[11px] hover:bg-zinc-50 transition cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveCustomSkill}
+                    className="btn-primary py-1 px-3 text-[11px] flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  >
+                    <Check className="w-3 h-3" />
+                    <span>Lưu & Áp Dụng Phong Cách Này</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Danh sách các nút Phong cách biên tập */}
             <div className="flex flex-wrap gap-1.5">
-              {skills.map((s) => {
+              {allSkills.map((s) => {
                 const isSelected = selectedSkillId === s.id;
                 const isHovered = hoveredSkill?.id === s.id;
+                const isCustom = s.category === 'Tự Thiết Kế' || s.id.startsWith('skill-custom');
                 return (
                   <div key={s.id} className="relative inline-block">
                     <button
@@ -351,18 +536,21 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                       onMouseEnter={() => setHoveredSkill(s)}
                       onMouseOver={() => setHoveredSkill(s)}
                       onMouseLeave={() => setHoveredSkill((cur) => (cur?.id === s.id ? null : cur))}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition cursor-pointer flex items-center gap-1 ${
                         isSelected
                           ? 'bg-zinc-950 text-white font-medium shadow-2xs ring-1 ring-zinc-950'
-                          : 'bg-zinc-100 text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/70 border border-black/[0.06]'
+                          : isCustom
+                            ? 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border border-indigo-200'
+                            : 'bg-zinc-100 text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/70 border border-black/[0.06]'
                       }`}
                     >
-                      {s.command}
+                      <span>{s.command}</span>
+                      {isCustom && <span className="text-[9px] text-indigo-500 font-sans">• Tự tạo</span>}
                     </button>
 
                     {/* Khung thông tin nhỏ tóm tắt nội dung phong cách khi di chuột */}
                     {isHovered && (
-                      <div className="absolute left-0 top-full mt-1.5 z-50 w-72 p-2.5 bg-zinc-950 text-white rounded-xl shadow-2xl text-left pointer-events-none border border-white/10 animate-in fade-in zoom-in-95 duration-100">
+                      <div className="absolute left-0 top-full mt-1.5 z-50 w-72 p-2.5 bg-zinc-950 text-white rounded-xl shadow-2xl text-left pointer-events-none border border-white/10 animate-in fade-in zoom-in-95 duration-150">
                         <div className="flex items-center justify-between gap-1.5 border-b border-white/10 pb-1 mb-1">
                           <span className="font-semibold text-[11px] text-zinc-100 truncate">
                             {s.name}
@@ -378,7 +566,6 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                           <span>{isSelected ? 'Đang được chọn' : 'Nhấp để kích hoạt'}</span>
                           <span>{isSelected ? 'Bấm để hủy chọn' : 'Tùy chọn'}</span>
                         </div>
-                        {/* Mũi tên chỉ lên */}
                         <div className="absolute left-4 bottom-full w-0 h-0 border-x-4 border-x-transparent border-b-4 border-b-zinc-950" />
                       </div>
                     )}
@@ -527,33 +714,115 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             )}
           </div>
 
-          {/* 5. Tệp đính kèm */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-            <div className="flex items-center gap-2">
-              <span className="text-zinc-700 font-semibold">5. Tư liệu đính kèm (tùy chọn):</span>
-              <button
-                type="button"
-                onClick={() => {
-                  const input = document.createElement('input');
-                  input.type = 'file';
-                  input.accept = 'audio/*,image/*';
-                  input.onchange = (ev: any) => {
-                    if (ev.target.files?.[0]) {
-                      setAttachedFileName(ev.target.files[0].name);
-                    }
-                  };
-                  input.click();
-                }}
-                className="btn-secondary cursor-pointer py-1 px-2.5 text-[11px]"
-              >
-                <Paperclip className="w-3 h-3 text-zinc-500" />
-                <span>Đính kèm ảnh/audio</span>
-              </button>
-              {attachedFileName && (
-                <span className="text-zinc-700 font-mono text-[11px] truncate max-w-[200px]">
-                  {attachedFileName}
-                </span>
-              )}
+          {/* 5. TƯ LIỆU ĐÍNH KÈM (TÁCH RIÊNG ẢNH & AUDIO) */}
+          <div className="space-y-2 pt-1 border-t border-black/[0.06]">
+            <label className="text-zinc-800 font-semibold block text-xs">
+              5. Tư liệu đính kèm (Tùy chọn)
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* 5A. Đính kèm Hình Ảnh */}
+              <div className="p-3 rounded-xl border border-black/[0.08] bg-zinc-50/70 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-zinc-900 text-[11px] flex items-center gap-1.5">
+                    <ImageIcon className="w-3.5 h-3.5 text-sky-600" />
+                    <span>Hình ảnh tư liệu (PNG, JPG, WebP)</span>
+                  </span>
+                </div>
+                {attachedImage ? (
+                  <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-black/[0.08] shadow-2xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <ImageIcon className="w-3.5 h-3.5 text-sky-600 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-mono text-zinc-900 truncate">
+                          {attachedImage.name}
+                        </div>
+                        <div className="text-[10px] text-zinc-400">
+                          {(attachedImage.size / 1024).toFixed(0)} KB
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAttachedImage(null)}
+                      className="p-1 rounded text-zinc-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+                      title="Gỡ ảnh đã chọn"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    className="w-full py-2 px-3 rounded-lg bg-white hover:bg-zinc-100 text-zinc-700 border border-black/[0.1] text-[11px] font-medium flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-zinc-500" />
+                    <span>Chọn tệp hình ảnh từ máy</span>
+                  </button>
+                )}
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setAttachedImage({ name: file.name, size: file.size });
+                  }}
+                />
+              </div>
+
+              {/* 5B. Đính kèm Tệp Âm Thanh */}
+              <div className="p-3 rounded-xl border border-black/[0.08] bg-zinc-50/70 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-zinc-900 text-[11px] flex items-center gap-1.5">
+                    <Music className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Tệp âm thanh / Voice (MP3, WAV, AAC)</span>
+                  </span>
+                </div>
+                {attachedAudio ? (
+                  <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-black/[0.08] shadow-2xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Music className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-mono text-zinc-900 truncate">
+                          {attachedAudio.name}
+                        </div>
+                        <div className="text-[10px] text-zinc-400">
+                          {(attachedAudio.size / 1024).toFixed(0)} KB
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAttachedAudio(null)}
+                      className="p-1 rounded text-zinc-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+                      title="Gỡ tệp âm thanh"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => audioInputRef.current?.click()}
+                    className="w-full py-2 px-3 rounded-lg bg-white hover:bg-zinc-100 text-zinc-700 border border-black/[0.1] text-[11px] font-medium flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-zinc-500" />
+                    <span>Chọn tệp âm thanh từ máy</span>
+                  </button>
+                )}
+                <input
+                  ref={audioInputRef}
+                  type="file"
+                  accept="audio/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setAttachedAudio({ name: file.name, size: file.size });
+                  }}
+                />
+              </div>
             </div>
           </div>
 
