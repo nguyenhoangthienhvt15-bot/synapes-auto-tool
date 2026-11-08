@@ -853,6 +853,48 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
+  // REGISTRATION & GOOGLE FORM BRIDGE RELAY (/api/save-registration)
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/save-registration' && req.method === 'POST') {
+    try {
+      const payload = (await readJsonBody(req)) || {};
+      const formParams = new URLSearchParams();
+
+      formParams.append('entry.1151079902', payload.fullName || '');
+      formParams.append('entry.1501072816', payload.idCardNumber || payload.cccd || '');
+      formParams.append('entry.1306932060', payload.dob || '');
+      formParams.append('entry.795301612', payload.gender || 'Nam');
+      formParams.append('entry.368593840', payload.email || '');
+      formParams.append('entry.1772830631', payload.phone || '');
+      formParams.append('entry.338397966', payload.address || '');
+      formParams.append('entry.1008863253', payload.contractCategory === 'enterprise' ? 'Hợp đồng toàn hệ' : 'Hợp đồng cá nhân hóa');
+      formParams.append('entry.117592632', payload.contractPackageName || '');
+      formParams.append('entry.1122926950', payload.depositAmount ? `${Number(payload.depositAmount).toLocaleString('vi-VN')} VNĐ` : '0 VNĐ');
+      formParams.append('entry.1728904839', payload.totalAmount ? `${Number(payload.totalAmount).toLocaleString('vi-VN')} VNĐ` : '0 VNĐ');
+      formParams.append('entry.102692895', payload.deliveryDays ? `${payload.deliveryDays} ngày` : (payload.depositAmount > 0 ? '5 ngày' : 'Bàn giao ngay'));
+      formParams.append('entry.770343613', payload.notes || '📄 Hợp đồng đã ký điện tử qua WebApp — Chờ Kỹ sư duyệt');
+
+      // Gửi trực tiếp từ backend Render sang Google Form Bridge
+      const formRes = await fetch('https://docs.google.com/forms/d/1XzfZQN4hBgTRpwxyk_PTh6H_0IlIQoC3FCEfCZ3xoQ8/formResponse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+        body: formParams.toString(),
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: true, formStatus: formRes.status, message: 'Đã lưu và chuyển tiếp hồ sơ sang Google Sheet thành công' }));
+      return true;
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: String(err) }));
+      return true;
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // A. TOPIC RESEARCH ENDPOINT (/api/topic-research?q=...)
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/topic-research') {

@@ -1,4 +1,4 @@
-import{r as e}from"./rolldown-runtime-XKyaHtl9.js";import{A as t,C as n,D as r,Et as i,N as a,Pt as o,St as s,bt as c,h as l,ht as u,jt as d,kt as f,m as p,mt as m,n as h,nn as g,ot as _,q as v,s as y,zt as b}from"./vendor-icons-BOWZ4hP0.js";import{S as ee,b as x,m as te,p as ne,x as S}from"./index-DIPdi8wp.js";import{n as re,t as C}from"./contract-assets-DUpUHZRh.js";import{n as w,t as T}from"./vendor-pdf-Cy8OYPQZ.js";import{t as E}from"./vendor-react-Bila-2eQ.js";var D=e(g(),1),O=e(w(),1);function k(e){let t=new Date,n=t.getDate().toString().padStart(2,`0`),r=(t.getMonth()+1).toString().padStart(2,`0`),i=t.getFullYear(),a=`${n}/${r}/${i}`,o=e.fullName||`Khách hàng SYNAPES`,s=e.idCardNumber||`Chưa cung cấp`,c=e.dob||`Không cung cấp`,l=e.gender||`Không cung cấp`,u=e.phone||`Không cung cấp`,d=e.email||`Không cung cấp`,f=e.address||`Không cung cấp`,p=e.contractPackage||(e.contractCategory===`enterprise`?`enterprise_deposit`:`personal_deposit`),m=e.contractCategory===`enterprise`||p.startsWith(`enterprise`),h=p.includes(`deposit`)||e.depositAmount!==void 0&&e.totalAmount!==void 0&&e.depositAmount<e.totalAmount,g=e.depositAmount||(m?25e5:125e4),_=e.totalAmount||(m?549e4:255e4),v=e.originalAmount||(m?625e4:325e4),y=e.deliveryDays||(m?7:5),b=e=>e.toLocaleString(`vi-VN`)+` VNĐ`;return`
+import{r as e}from"./rolldown-runtime-XKyaHtl9.js";import{A as t,C as n,D as r,Et as i,N as a,Pt as o,St as s,bt as c,h as l,ht as u,jt as d,kt as f,m as p,mt as m,n as h,nn as g,ot as _,q as v,s as y,zt as b}from"./vendor-icons-BOWZ4hP0.js";import{S as ee,b as x,m as te,p as ne,x as S}from"./index-DoUtigNP.js";import{n as re,t as C}from"./contract-assets-CK6CsoXV.js";import{n as w,t as T}from"./vendor-pdf-Cy8OYPQZ.js";import{t as E}from"./vendor-react-Bila-2eQ.js";var D=e(g(),1),O=e(w(),1);function k(e){let t=new Date,n=t.getDate().toString().padStart(2,`0`),r=(t.getMonth()+1).toString().padStart(2,`0`),i=t.getFullYear(),a=`${n}/${r}/${i}`,o=e.fullName||`Khách hàng SYNAPES`,s=e.idCardNumber||`Chưa cung cấp`,c=e.dob||`Không cung cấp`,l=e.gender||`Không cung cấp`,u=e.phone||`Không cung cấp`,d=e.email||`Không cung cấp`,f=e.address||`Không cung cấp`,p=e.contractPackage||(e.contractCategory===`enterprise`?`enterprise_deposit`:`personal_deposit`),m=e.contractCategory===`enterprise`||p.startsWith(`enterprise`),h=p.includes(`deposit`)||e.depositAmount!==void 0&&e.totalAmount!==void 0&&e.depositAmount<e.totalAmount,g=e.depositAmount||(m?25e5:125e4),_=e.totalAmount||(m?549e4:255e4),v=e.originalAmount||(m?625e4:325e4),y=e.deliveryDays||(m?7:5),b=e=>e.toLocaleString(`vi-VN`)+` VNĐ`;return`
     <div id="pdf-contract-wrapper" style="width: 794px; background-color: #ffffff; color: #111827; font-family: 'Times New Roman', Times, serif; margin: 0; padding: 0;">
       <style>
         #pdf-contract-wrapper * {
@@ -635,6 +635,12 @@ function menuUpgradeTo20Cols() {
   SpreadsheetApp.getUi().alert("✅ ĐÃ NÂNG CẤP BẢNG TÍNH SANG 20 CỘT CHUẨN TOÀN DIỆN!\\n\\nDữ liệu các hàng cũ đã được căn chỉnh chuẩn xác theo 20 cột và 2 phân hệ hợp đồng.");
 }
 
+function menuSyncFormResponses() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var count = syncPendingFormBridgeResponses();
+  SpreadsheetApp.getUi().alert("✅ ĐÃ ĐỒNG BỘ DỮ LIỆU TỪ GOOGLE FORM!\\n\\nĐã kiểm tra và đồng bộ " + count + " hồ sơ khách hàng mới nhất vào trang THÔNG TIN NGƯỜI DÙNG.");
+}
+
 /**
  * 1. HÀM KHỞI TẠO & KÍCH HOẠT TỰ ĐỘNG TOÀN DIỆN (CHẠY ĐẦU TIÊN TRONG APPS SCRIPT)
  * - Cấu hình bảng tính 20 cột chuẩn: STT, Thời Gian, Họ Tên, CCCD/CMND, Ngày Sinh, Giới Tính,
@@ -748,6 +754,7 @@ function onOpen() {
     ui.createMenu("🚀 SYNAPES Studio")
       .addItem("1. ⚡ Thiết Lập Bảng Tính 20 Cột & Duyệt 2 Cấp (Duyệt Lần 1 & Duyệt Lần 2)", "setupUserRegistrationSheet")
       .addItem("⚡ Nâng cấp Bảng tính 13 cột sang 20 cột chuẩn (Bảo toàn dữ liệu)", "menuUpgradeTo20Cols")
+      .addItem("🔄 Đồng bộ ngay hồ sơ từ Google Form vào Sheet", "menuSyncFormResponses")
       .addSeparator()
       .addItem("2. 📄 Xem thử mẫu Hợp đồng PDF có con dấu đỏ (Dòng đang chọn)", "previewSelectedUserContractModal")
       .addItem("3. ✅ Duyệt Lần 1 dòng đang chọn (Cột 15 — HĐ Đặt Cọc: Gửi HĐ, KHÔNG cấp pass / HĐ 100%: Cấp pass)", "approveSelectedUserRow")
@@ -939,12 +946,13 @@ function syncPendingFormBridgeResponses() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var formUrl = ss.getFormUrl();
-    if (!formUrl) return;
+    if (!formUrl) return 0;
 
     var form = FormApp.openByUrl(formUrl);
     var responses = form.getResponses();
-    if (!responses || responses.length === 0) return;
+    if (!responses || responses.length === 0) return 0;
 
+    var count = 0;
     for (var i = 0; i < responses.length; i++) {
       var itemResponses = responses[i].getItemResponses();
       var payload = {};
@@ -967,10 +975,13 @@ function syncPendingFormBridgeResponses() {
       }
       if (payload.fullName && payload.email) {
         handleUserRegistrationWebhook(ss, payload);
+        count++;
       }
     }
+    return count;
   } catch (err) {
     Logger.log("syncPendingFormBridgeResponses error: " + err);
+    return 0;
   }
 }
 
@@ -985,6 +996,16 @@ function autoPublishWebhookUrlToSheet(ss, customUrl) {
       try {
         url = ScriptApp.getService().getUrl();
       } catch (e) {}
+    }
+    if (!url) {
+      try {
+        var fUrl = ss.getFormUrl();
+        if (fUrl) url = fUrl;
+      } catch (e2) {}
+    }
+
+    if (url && url.indexOf("docs.google.com/forms") !== -1) {
+      url = url.replace("/viewform", "/formResponse").replace("/edit", "/formResponse");
     }
 
     if (url && usersSheet) {
@@ -2066,6 +2087,16 @@ function approveAllPendingUsers() {
  */
 function doGet(e) {
   var params = (e && e.parameter) ? e.parameter : {};
+  if (params.payload) {
+    try {
+      var parsedPayload = JSON.parse(params.payload);
+      for (var k in parsedPayload) {
+        if (parsedPayload.hasOwnProperty(k)) {
+          params[k] = parsedPayload[k];
+        }
+      }
+    } catch (ePayload) {}
+  }
   var callback = params.callback;
   var action = params.action;
 
@@ -2098,6 +2129,16 @@ function doPost(e) {
     }
   } else if (e && e.parameter) {
     payload = e.parameter;
+  }
+  if (payload.payload) {
+    try {
+      var parsedPost = JSON.parse(payload.payload);
+      for (var kp in parsedPost) {
+        if (parsedPost.hasOwnProperty(kp)) {
+          payload[kp] = parsedPost[kp];
+        }
+      }
+    } catch (ePost) {}
   }
 
   var result = processWebhookPayload(payload);
