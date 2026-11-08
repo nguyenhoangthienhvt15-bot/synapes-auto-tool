@@ -10,6 +10,7 @@ export interface DiscoveredModel {
   isLiveFromKey: boolean;
   isRecommended?: boolean;
   category?: 'flagship' | 'fast' | 'reasoning' | 'standard';
+  brand?: string;
 }
 
 export interface ProviderMeta {
@@ -19,13 +20,129 @@ export interface ProviderMeta {
   description: string;
   defaultEndpoint: string;
   defaultModel: string;
-  models: { id: string; name: string; tag: string }[];
+  models: { id: string; name: string; tag: string; brand?: string }[];
   keyPrefix: string;
   keyPlaceholder: string;
   consoleUrl: string;
   consoleName: string;
   badgeColor: string;
 }
+
+export interface PluginPreset {
+  id: string;
+  name: string;
+  vendor: string;
+  brand: string;
+  endpointUrl: string;
+  defaultModel: string;
+  inputMapping: string;
+  outputMapping: string;
+  description: string;
+}
+
+export function detectPluginBrand(endpointUrl?: string, name?: string): string {
+  const text = `${endpointUrl || ''} ${name || ''}`.toLowerCase();
+  if (text.includes('kling')) return 'kling';
+  if (text.includes('runway')) return 'runway';
+  if (text.includes('luma')) return 'luma';
+  if (text.includes('pika')) return 'pika';
+  if (text.includes('sora')) return 'sora';
+  if (text.includes('midjourney')) return 'midjourney';
+  if (text.includes('hailuo') || text.includes('minimax')) return 'hailuo';
+  if (text.includes('eleven')) return 'elevenlabs';
+  return 'custom';
+}
+
+export const PLUGIN_PRESETS: PluginPreset[] = [
+  {
+    id: 'kling',
+    name: 'Kling AI (Kuaishou)',
+    vendor: 'Kuaishou Technology',
+    brand: 'kling',
+    endpointUrl: 'https://api.klingai.com/v1/videos/text2video',
+    defaultModel: 'kling-v1.5',
+    inputMapping: '{\n  "prompt": "{{prompt}}",\n  "aspect_ratio": "{{aspect_ratio}}",\n  "duration": 5\n}',
+    outputMapping: 'response.data.video_url',
+    description: 'Nền tảng sinh video chân thực chuẩn điện ảnh từ Kuaishou'
+  },
+  {
+    id: 'runway',
+    name: 'Runway Gen-3 (RunwayML)',
+    vendor: 'Runway AI, Inc.',
+    brand: 'runway',
+    endpointUrl: 'https://api.runwayml.com/v1/image_to_video',
+    defaultModel: 'runway-gen3',
+    inputMapping: '{\n  "promptText": "{{prompt}}",\n  "model": "gen3a_turbo",\n  "duration": 5\n}',
+    outputMapping: 'output[0]',
+    description: 'Động cơ tạo video AI thế hệ 3 hàng đầu của RunwayML'
+  },
+  {
+    id: 'luma',
+    name: 'Luma Dream Machine',
+    vendor: 'Luma AI, Inc.',
+    brand: 'luma',
+    endpointUrl: 'https://api.lumalabs.ai/dream-machine/v1/generations',
+    defaultModel: 'luma-dream',
+    inputMapping: '{\n  "prompt": "{{prompt}}",\n  "aspect_ratio": "16:9"\n}',
+    outputMapping: 'assets.video',
+    description: 'Mô hình video 3D mượt mà 60fps chân thực'
+  },
+  {
+    id: 'pika',
+    name: 'Pika 2.0 (Pika Labs)',
+    vendor: 'Pika Art Inc.',
+    brand: 'pika',
+    endpointUrl: 'https://api.pika.art/v1/generate',
+    defaultModel: 'pika-2.0',
+    inputMapping: '{\n  "prompt": "{{prompt}}",\n  "parameters": { "options": { "fps": 24 } }\n}',
+    outputMapping: 'video.url',
+    description: 'Chuyên gia hiệu ứng VFX sinh động và video animation'
+  },
+  {
+    id: 'sora',
+    name: 'OpenAI Sora Video API',
+    vendor: 'OpenAI',
+    brand: 'sora',
+    endpointUrl: 'https://api.openai.com/v1/video/generations',
+    defaultModel: 'sora-video',
+    inputMapping: '{\n  "model": "sora-1.0",\n  "prompt": "{{prompt}}",\n  "size": "1920x1080"\n}',
+    outputMapping: 'data[0].url',
+    description: 'Đạo diễn AI không gian 3D đột phá từ OpenAI'
+  },
+  {
+    id: 'hailuo',
+    name: 'Hailuo AI (MiniMax)',
+    vendor: 'MiniMax Technology',
+    brand: 'hailuo',
+    endpointUrl: 'https://api.minimax.chat/v1/video_generation',
+    defaultModel: 'hailuo-t2v',
+    inputMapping: '{\n  "prompt": "{{prompt}}",\n  "model": "video-01"\n}',
+    outputMapping: 'file_id',
+    description: 'Khả năng đặc tả nhân vật và biểu cảm con người siêu tự nhiên'
+  },
+  {
+    id: 'elevenlabs',
+    name: 'ElevenLabs Studio API',
+    vendor: 'ElevenLabs Inc.',
+    brand: 'elevenlabs',
+    endpointUrl: 'https://api.elevenlabs.io/v1/text-to-speech',
+    defaultModel: 'eleven-multilingual-v2',
+    inputMapping: '{\n  "text": "{{prompt}}",\n  "model_id": "eleven_multilingual_v2"\n}',
+    outputMapping: 'audio_url',
+    description: 'Công nghệ giọng đọc lồng tiếng và hiệu ứng âm thanh SFX đỉnh cao'
+  },
+  {
+    id: 'custom',
+    name: 'Custom Webhook API Ngoài',
+    vendor: 'Máy chủ riêng của bạn',
+    brand: 'custom',
+    endpointUrl: 'https://your-custom-api.com/v1/generate',
+    defaultModel: 'custom-webhook',
+    inputMapping: '{\n  "prompt": "{{prompt}}",\n  "key": "{{api_key}}"\n}',
+    outputMapping: 'video_url',
+    description: 'Kết nối bất kỳ máy chủ hoặc webhook tự dựng nào'
+  }
+];
 
 export const PROVIDERS: ProviderMeta[] = [
   {
@@ -125,14 +242,20 @@ export const PROVIDERS: ProviderMeta[] = [
   {
     id: 'plugin',
     name: 'Plugin Webhook Ngoài',
-    vendor: 'Kling / Runway / Custom',
-    description: 'Kết nối API trực tiếp đến các dịch vụ sinh video AI bên ngoài như Kling AI, Runway Gen-3, Luma Dream Machine qua Webhook URL.',
+    vendor: 'Kling / Runway / Luma / Sora / Custom',
+    description: 'Kết nối API trực tiếp đến các dịch vụ sinh video AI bên ngoài như Kling AI, Runway Gen-3, Luma Dream Machine, Pika, Sora qua Webhook URL.',
     defaultEndpoint: 'https://api.klingai.com/v1/videos/text2video',
     defaultModel: 'kling-v1.5',
     models: [
-      { id: 'kling-v1.5', name: 'Kling Video v1.5 API', tag: 'Chất lượng điện ảnh' },
-      { id: 'runway-gen3', name: 'Runway Gen-3 Alpha', tag: 'Tạo clip siêu mượt' },
-      { id: 'custom-webhook', name: 'Custom HTTP Webhook', tag: 'Tùy biến payload JSON' },
+      { id: 'kling-v1.5', name: 'Kling Video v1.5 API', tag: 'Chất lượng điện ảnh • Chuẩn Kuaishou', brand: 'kling' },
+      { id: 'kling-v2.0', name: 'Kling Video v2.0 HD', tag: 'Mô phỏng vật lý chân thực', brand: 'kling' },
+      { id: 'runway-gen3', name: 'Runway Gen-3 Alpha', tag: 'Chuyển động camera siêu thực', brand: 'runway' },
+      { id: 'luma-dream', name: 'Luma Dream Machine v1.6', tag: 'Độ mượt 60fps điện ảnh', brand: 'luma' },
+      { id: 'pika-2.0', name: 'Pika 2.0 Video Engine', tag: 'Hiệu ứng VFX ấn tượng', brand: 'pika' },
+      { id: 'sora-video', name: 'OpenAI Sora Video API', tag: 'Đạo diễn AI không gian 3D', brand: 'sora' },
+      { id: 'hailuo-t2v', name: 'Hailuo AI (MiniMax) T2V', tag: 'Đặc tả con người tự nhiên', brand: 'hailuo' },
+      { id: 'elevenlabs-voice', name: 'ElevenLabs Studio Voice', tag: 'Lồng tiếng siêu cảm xúc', brand: 'elevenlabs' },
+      { id: 'custom-webhook', name: 'Custom HTTP Webhook API', tag: 'Tùy biến payload JSON', brand: 'custom' },
     ],
     keyPrefix: '',
     keyPlaceholder: 'Token API hoặc Secret Key...',
@@ -802,14 +925,21 @@ export async function discoverModelsFromKey(
 
     // 6. PLUGIN NGOÀI
     clearTimeout(timeoutId);
+    const pluginList: DiscoveredModel[] = [
+      { id: 'kling-v1.5', name: 'Kling Video v1.5 API', tag: 'Chất lượng điện ảnh • Chuẩn Kuaishou', isLiveFromKey: true, isRecommended: true, brand: 'kling' },
+      { id: 'kling-v2.0', name: 'Kling Video v2.0 HD', tag: 'Mô phỏng vật lý chân thực', isLiveFromKey: true, brand: 'kling' },
+      { id: 'runway-gen3', name: 'Runway Gen-3 Alpha', tag: 'Chuyển động camera siêu thực', isLiveFromKey: true, brand: 'runway' },
+      { id: 'luma-dream', name: 'Luma Dream Machine v1.6', tag: 'Độ mượt 60fps điện ảnh', isLiveFromKey: true, brand: 'luma' },
+      { id: 'pika-2.0', name: 'Pika 2.0 Video Engine', tag: 'Hiệu ứng VFX ấn tượng', isLiveFromKey: true, brand: 'pika' },
+      { id: 'sora-video', name: 'OpenAI Sora Video API', tag: 'Đạo diễn AI không gian 3D', isLiveFromKey: true, brand: 'sora' },
+      { id: 'hailuo-t2v', name: 'Hailuo AI (MiniMax) T2V', tag: 'Đặc tả con người tự nhiên', isLiveFromKey: true, brand: 'hailuo' },
+      { id: 'elevenlabs-voice', name: 'ElevenLabs Studio Voice', tag: 'Lồng tiếng siêu cảm xúc', isLiveFromKey: true, brand: 'elevenlabs' },
+      { id: 'custom-webhook', name: 'Custom HTTP Webhook API', tag: 'Tùy biến payload JSON', isLiveFromKey: true, brand: 'custom' },
+    ];
     return {
       success: true,
-      models: [
-        { id: 'kling-v1.5', name: 'Kling Video v1.5 API', tag: 'Chất lượng điện ảnh', isLiveFromKey: true },
-        { id: 'runway-gen3', name: 'Runway Gen-3 Alpha', tag: 'Tạo clip siêu mượt', isLiveFromKey: true },
-        { id: 'custom-webhook', name: 'Custom HTTP Webhook', tag: 'Tùy biến payload JSON', isLiveFromKey: true },
-      ],
-      message: 'Plugin Webhook ngoài đã sẵn sàng kết nối.',
+      models: pluginList,
+      message: 'Plugin Webhook ngoài đã sẵn sàng kết nối các nhà phát triển hàng đầu.',
     };
   } catch (err: any) {
     clearTimeout(timeoutId);

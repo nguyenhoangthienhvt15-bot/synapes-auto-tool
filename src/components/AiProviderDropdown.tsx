@@ -4,20 +4,23 @@ import {
   ProviderMeta,
   DiscoveredModel,
   isProviderKeyConfigured,
+  detectPluginBrand,
 } from '../services/aiModelDiscoveryService';
 import { ChevronDown, Check, Lock, CheckCircle2, Sparkles } from 'lucide-react';
 
 interface ProviderBrandLogoProps {
   provider: AIProviderId | string;
+  pluginBrand?: string;
   size?: 'xs' | 'sm' | 'md' | 'lg';
   withBadge?: boolean;
 }
 
 /**
- * Logo nhận diện chính thức dạng Vector SVG sắc nét cho từng Nhà cung cấp AI
+ * Logo nhận diện chính thức dạng Vector SVG sắc nét cho từng Nhà cung cấp AI và Webhook đối tác
  */
 export const ProviderBrandLogo: React.FC<ProviderBrandLogoProps> = ({
   provider,
+  pluginBrand,
   size = 'sm',
   withBadge = true,
 }) => {
@@ -40,8 +43,11 @@ export const ProviderBrandLogo: React.FC<ProviderBrandLogoProps> = ({
           ? 'w-8 h-8 rounded-lg'
           : 'w-10 h-10 rounded-xl';
 
+  // Xác định mã thương hiệu cụ thể (ưu tiên pluginBrand nếu là plugin)
+  const effectiveBrand = (provider === 'plugin' && pluginBrand) ? pluginBrand : provider;
+
   const renderSvg = () => {
-    switch (provider) {
+    switch (effectiveBrand) {
       case 'gemini':
         return (
           <svg className={iconDim} viewBox="0 0 24 24" fill="none">
@@ -101,12 +107,128 @@ export const ProviderBrandLogo: React.FC<ProviderBrandLogoProps> = ({
           </svg>
         );
 
+      // --- CÁC NHÀ PHÁT TRIỂN WEBHOOK VIDEO AI HÀNG ĐẦU ---
+      case 'kling':
+        return (
+          <svg className={iconDim} viewBox="0 0 24 24" fill="none">
+            <defs>
+              <linearGradient id={`kling-grad-${uid}`} x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#FF334B" />
+                <stop offset="50%" stopColor="#FF6B00" />
+                <stop offset="100%" stopColor="#9333EA" />
+              </linearGradient>
+            </defs>
+            <rect width="24" height="24" rx="6" fill={`url(#kling-grad-${uid})`} />
+            <path
+              d="M6 5.5H8.8V11.2L14.5 5.5H18.2L11.5 12.2L18.8 18.5H14.8L8.8 13.2V18.5H6V5.5Z"
+              fill="#FFFFFF"
+            />
+          </svg>
+        );
+
+      case 'runway':
+        return (
+          <svg className={iconDim} viewBox="0 0 24 24" fill="none">
+            <rect width="24" height="24" rx="6" fill="#0A0A0A" />
+            <path
+              d="M7 6H13.2C15.8 6 17.5 7.6 17.5 9.8C17.5 11.6 16.3 12.9 14.6 13.3L18 18H14.8L11.8 13.7H9.5V18H7V6ZM9.5 8.2V11.5H13C14.3 11.5 15 10.8 15 9.8C15 8.8 14.3 8.2 13 8.2H9.5Z"
+              fill="#FFFFFF"
+            />
+          </svg>
+        );
+
+      case 'luma':
+        return (
+          <svg className={iconDim} viewBox="0 0 24 24" fill="none">
+            <defs>
+              <linearGradient id={`luma-grad-${uid}`} x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#FF3B30" />
+                <stop offset="35%" stopColor="#FF9500" />
+                <stop offset="70%" stopColor="#AF52DE" />
+                <stop offset="100%" stopColor="#007AFF" />
+              </linearGradient>
+            </defs>
+            <rect width="24" height="24" rx="6" fill="#0F172A" />
+            <path
+              d="M12 4L19 8V16L12 20L5 16V8L12 4Z"
+              stroke={`url(#luma-grad-${uid})`}
+              strokeWidth="2.2"
+              strokeLinejoin="round"
+            />
+            <circle cx="12" cy="12" r="3" fill={`url(#luma-grad-${uid})`} />
+          </svg>
+        );
+
+      case 'pika':
+        return (
+          <svg className={iconDim} viewBox="0 0 24 24" fill="none">
+            <rect width="24" height="24" rx="6" fill="#FEF08A" />
+            <path
+              d="M12 4L14.2 9.5L20 12L14.2 14.5L12 20L9.8 14.5L4 12L9.8 9.5L12 4Z"
+              fill="#CA8A04"
+            />
+            <path
+              d="M12 7L13.3 10.7L17 12L13.3 13.3L12 17L10.7 13.3L7 12L10.7 10.7L12 7Z"
+              fill="#0F172A"
+            />
+          </svg>
+        );
+
+      case 'sora':
+        return (
+          <svg className={iconDim} viewBox="0 0 24 24" fill="none">
+            <rect width="24" height="24" rx="6" fill="#18181B" />
+            <circle cx="12" cy="12" r="7" stroke="#A855F7" strokeWidth="1.8" />
+            <path
+              d="M12 5V12M12 12L17.5 15.5M12 12L6.5 15.5M12 12L17.5 8.5M12 12L6.5 8.5"
+              stroke="#E9D5FF"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+            <circle cx="12" cy="12" r="2.2" fill="#A855F7" />
+          </svg>
+        );
+
+      case 'midjourney':
+        return (
+          <svg className={iconDim} viewBox="0 0 24 24" fill="none">
+            <rect width="24" height="24" rx="6" fill="#0B132B" />
+            <path
+              d="M6 16.5C8 17.5 11 18 14 17C17 16 18.5 14.5 19 14C16.5 15.5 13 15.5 10 14.5L13 7L6 16.5Z"
+              fill="#FFFFFF"
+            />
+            <path d="M13.5 6L18 13.5C16.5 12 14.5 10 13.5 6Z" fill="#60A5FA" />
+          </svg>
+        );
+
+      case 'hailuo':
+        return (
+          <svg className={iconDim} viewBox="0 0 24 24" fill="none">
+            <rect width="24" height="24" rx="6" fill="#083344" />
+            <path
+              d="M12 5C8.1 5 5 8.1 5 12C5 15.9 8.1 19 12 19C15.9 19 19 15.9 19 12C19 9 16.5 6.5 13.5 6.5C10.5 6.5 8 9 8 12C8 14.2 9.8 16 12 16C13.7 16 15 14.7 15 13C15 11.9 14.1 11 13 11"
+              stroke="#06B6D4"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
+        );
+
+      case 'elevenlabs':
+        return (
+          <svg className={iconDim} viewBox="0 0 24 24" fill="none">
+            <rect width="24" height="24" rx="6" fill="#000000" />
+            <path d="M9 6V18M15 6V18" stroke="#FFFFFF" strokeWidth="2.8" strokeLinecap="round" />
+          </svg>
+        );
+
       case 'plugin':
+      case 'custom':
       default:
         return (
           <svg className={iconDim} viewBox="0 0 24 24" fill="none">
-            <rect x="2.5" y="2.5" width="19" height="19" rx="5.5" fill="#0284C7" fillOpacity="0.12" stroke="#0369A1" strokeWidth="1.6" />
-            <path d="M8 12H16M16 12L12.5 8.5M16 12L12.5 15.5" stroke="#0369A1" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            <rect x="2.5" y="2.5" width="19" height="19" rx="5.5" fill="#7C3AED" fillOpacity="0.12" stroke="#6D28D9" strokeWidth="1.6" />
+            <path d="M8 12H16M16 12L12.5 8.5M16 12L12.5 15.5" stroke="#6D28D9" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         );
     }
@@ -117,17 +239,31 @@ export const ProviderBrandLogo: React.FC<ProviderBrandLogoProps> = ({
   }
 
   const badgeBg =
-    provider === 'gemini'
+    effectiveBrand === 'gemini'
       ? 'bg-blue-50/90 border-blue-200/70'
-      : provider === 'openai'
+      : effectiveBrand === 'openai'
         ? 'bg-emerald-50/90 border-emerald-200/70'
-        : provider === 'claude'
+        : effectiveBrand === 'claude'
           ? 'bg-orange-50/90 border-orange-200/70'
-          : provider === 'deepseek'
+          : effectiveBrand === 'deepseek'
             ? 'bg-indigo-50/90 border-indigo-200/70'
-            : provider === 'grok'
+            : effectiveBrand === 'grok'
               ? 'bg-zinc-100 border-zinc-300/80'
-              : 'bg-sky-50/90 border-sky-200/70';
+              : effectiveBrand === 'kling'
+                ? 'bg-rose-50/90 border-rose-200/80'
+                : effectiveBrand === 'runway'
+                  ? 'bg-zinc-900 border-zinc-700 text-white'
+                  : effectiveBrand === 'luma'
+                    ? 'bg-purple-50/90 border-purple-200/80'
+                    : effectiveBrand === 'pika'
+                      ? 'bg-amber-50/90 border-amber-300/80'
+                      : effectiveBrand === 'sora'
+                        ? 'bg-violet-50/90 border-violet-200/80'
+                        : effectiveBrand === 'hailuo'
+                          ? 'bg-cyan-50/90 border-cyan-200/80'
+                          : effectiveBrand === 'elevenlabs'
+                            ? 'bg-zinc-100 border-zinc-300/80'
+                            : 'bg-purple-50/90 border-purple-200/70';
 
   return (
     <span
@@ -160,6 +296,25 @@ export const AiProviderDropdown: React.FC<AiProviderDropdownProps> = ({
   const activeMeta = providers.find((p) => p.id === selectedProvider) || providers[0];
   const activeHasKey = isProviderKeyConfigured(activeMeta.id, aiConfig);
 
+  // Nhận diện thương hiệu cụ thể cho Plugin Webhook nếu người dùng đã gắn API/URL của dịch vụ đó
+  const configuredPluginBrand = detectPluginBrand(aiConfig?.plugin?.endpointUrl, aiConfig?.plugin?.name);
+
+  // Hiển thị tên đại diện chính xác của nhà phát triển
+  const getProviderDisplayName = (p: ProviderMeta) => {
+    if (p.id === 'plugin') {
+      const brand = configuredPluginBrand;
+      if (brand === 'kling') return 'Kling AI (Kuaishou)';
+      if (brand === 'runway') return 'Runway Gen-3 (RunwayML)';
+      if (brand === 'luma') return 'Luma Dream Machine';
+      if (brand === 'pika') return 'Pika 2.0 (Pika Labs)';
+      if (brand === 'sora') return 'OpenAI Sora Video';
+      if (brand === 'hailuo') return 'Hailuo AI (MiniMax)';
+      if (brand === 'elevenlabs') return 'ElevenLabs Studio';
+      return 'Plugin Webhook Ngoài';
+    }
+    return p.name;
+  };
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -171,6 +326,9 @@ export const AiProviderDropdown: React.FC<AiProviderDropdownProps> = ({
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
+
+  const activeDisplayName = getProviderDisplayName(activeMeta);
+  const activeBrandForLogo = activeMeta.id === 'plugin' ? configuredPluginBrand : activeMeta.id;
 
   return (
     <div className="relative" ref={containerRef}>
@@ -184,10 +342,10 @@ export const AiProviderDropdown: React.FC<AiProviderDropdownProps> = ({
         }`}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <ProviderBrandLogo provider={activeMeta.id} size="sm" withBadge={true} />
+          <ProviderBrandLogo provider={activeMeta.id} pluginBrand={activeBrandForLogo} size="sm" withBadge={true} />
           <div className="text-left min-w-0">
             <div className="font-bold text-zinc-950 truncate flex items-center gap-1.5">
-              <span>{activeMeta.name}</span>
+              <span>{activeDisplayName}</span>
               <span
                 className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                   activeHasKey ? 'bg-emerald-500' : 'bg-amber-400'
@@ -209,11 +367,13 @@ export const AiProviderDropdown: React.FC<AiProviderDropdownProps> = ({
       {isOpen && (
         <div className="absolute left-0 right-0 mt-1.5 z-50 bg-white rounded-xl border border-black/[0.12] shadow-2xl py-1.5 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
           <div className="px-3 py-1 text-[10px] font-mono uppercase tracking-wider text-zinc-400 border-b border-black/[0.05] mb-1">
-            Chọn Nhà Cung Cấp AI
+            Chọn Nhà Cung Cấp AI & Webhook Đối Tác
           </div>
           {providers.map((p) => {
             const hasKey = isProviderKeyConfigured(p.id, aiConfig);
             const isSelected = p.id === selectedProvider;
+            const pBrand = p.id === 'plugin' ? configuredPluginBrand : p.id;
+            const pName = getProviderDisplayName(p);
             return (
               <button
                 key={p.id}
@@ -227,13 +387,15 @@ export const AiProviderDropdown: React.FC<AiProviderDropdownProps> = ({
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <ProviderBrandLogo provider={p.id} size="sm" withBadge={true} />
+                  <ProviderBrandLogo provider={p.id} pluginBrand={pBrand} size="sm" withBadge={true} />
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-zinc-950 flex items-center gap-1.5 truncate">
-                      <span>{p.name}</span>
+                      <span>{pName}</span>
                       {isSelected && <Check className="w-3.5 h-3.5 text-zinc-950 flex-shrink-0" />}
                     </div>
-                    <div className="text-[10px] text-zinc-500 truncate">{p.vendor}</div>
+                    <div className="text-[10px] text-zinc-500 truncate">
+                      {p.id === 'plugin' && pBrand !== 'custom' ? `Webhook ${pBrand.toUpperCase()}` : p.vendor}
+                    </div>
                   </div>
                 </div>
 
@@ -266,7 +428,7 @@ interface AiModelDropdownProps {
 }
 
 /**
- * Custom Dropdown chọn Model AI kèm Logo nhà cung cấp & Nhãn năng lực
+ * Custom Dropdown chọn Model AI kèm Logo chính thức của từng nhà phát triển
  */
 export const AiModelDropdown: React.FC<AiModelDropdownProps> = ({
   provider,
@@ -281,6 +443,9 @@ export const AiModelDropdown: React.FC<AiModelDropdownProps> = ({
   const currentModel =
     models.find((m) => m.id === selectedModel) ||
     models[0] || { id: selectedModel, name: selectedModel, tag: 'Mô hình chuẩn', isLiveFromKey: false };
+
+  // Xác định brand logo cho model hiện tại
+  const currentModelBrand = currentModel.brand || (provider === 'plugin' ? detectPluginBrand(currentModel.id, currentModel.name) : provider);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -318,7 +483,7 @@ export const AiModelDropdown: React.FC<AiModelDropdownProps> = ({
         }`}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <ProviderBrandLogo provider={provider} size="xs" withBadge={true} />
+          <ProviderBrandLogo provider={currentModelBrand} size="xs" withBadge={true} />
           <div className="text-left min-w-0">
             <div className="font-bold text-zinc-950 truncate flex items-center gap-1.5">
               <span>{currentModel.name}</span>
@@ -346,6 +511,7 @@ export const AiModelDropdown: React.FC<AiModelDropdownProps> = ({
           </div>
           {models.map((m) => {
             const isSelected = m.id === selectedModel;
+            const modelBrand = m.brand || (provider === 'plugin' ? detectPluginBrand(m.id, m.name) : provider);
             return (
               <button
                 key={m.id}
@@ -359,7 +525,7 @@ export const AiModelDropdown: React.FC<AiModelDropdownProps> = ({
                 }`}
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <ProviderBrandLogo provider={provider} size="xs" withBadge={false} />
+                  <ProviderBrandLogo provider={modelBrand} size="xs" withBadge={true} />
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-zinc-950 flex items-center gap-1.5 truncate">
                       <span>{m.name}</span>
@@ -383,3 +549,4 @@ export const AiModelDropdown: React.FC<AiModelDropdownProps> = ({
     </div>
   );
 };
+
