@@ -1210,6 +1210,44 @@ export async function handleStudioApiRequest(req, res) {
     return true;
   }
 
+// Helper fetch JSON qua HTTPS
+function getHttpsJson(targetUrl, timeoutMs = 8000) {
+  return new Promise((resolve) => {
+    try {
+      const parsed = new URL(targetUrl);
+      const client = parsed.protocol === 'http:' ? http : https;
+      const req = client.get(
+        targetUrl,
+        {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            Accept: 'application/json, text/html, */*',
+          },
+          timeout: timeoutMs,
+        },
+        (res) => {
+          let raw = '';
+          res.on('data', (c) => (raw += c));
+          res.on('end', () => {
+            try {
+              resolve({ status: res.statusCode, data: JSON.parse(raw) });
+            } catch {
+              resolve({ status: res.statusCode, text: raw });
+            }
+          });
+        }
+      );
+      req.on('error', (err) => resolve({ status: 500, error: String(err) }));
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({ status: 504, error: 'Request timeout' });
+      });
+    } catch (e) {
+      resolve({ status: 500, error: String(e) });
+    }
+  });
+}
+
   // --------------------------------------------------------------------------
   // F. VIDEO REVERSE-ENGINEERING & DECONSTRUCTION API (/api/video-deconstruct)
   // --------------------------------------------------------------------------
@@ -1218,9 +1256,50 @@ export async function handleStudioApiRequest(req, res) {
       const body = await readJsonBody(req);
       const { videoUrl, videoData, apiKey, model } = body || {};
 
+      let extractedTitle = '';
+      let extractedAuthor = '';
+      let extractedThumb = '';
+      let embedUrl = '';
+
+      // Tự động giải mã & bóc tách Metadata thật từ URL Video (YouTube / TikTok / FB)
+      if (videoUrl && typeof videoUrl === 'string') {
+        const cleanVUrl = videoUrl.trim();
+        const ytMatch = cleanVUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/);
+        if (ytMatch) {
+          const ytId = ytMatch[1];
+          embedUrl = `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=0&rel=0`;
+          extractedThumb = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+
+          const oembed = await getHttpsJson(`https://www.youtube.com/oembed?url=${encodeURIComponent(cleanVUrl)}&format=json`);
+          if (oembed?.status === 200 && oembed.data?.title) {
+            extractedTitle = oembed.data.title;
+            extractedAuthor = oembed.data.author_name || '';
+            if (oembed.data.thumbnail_url) extractedThumb = oembed.data.thumbnail_url;
+          }
+        } else if (cleanVUrl.includes('tiktok.com')) {
+          const ttMatch = cleanVUrl.match(/tiktok\.com\/(?:@[\w.-]+\/video\/|v\/)(\d+)/);
+          if (ttMatch) {
+            embedUrl = `https://www.tiktok.com/embed/v2/${ttMatch[1]}`;
+          }
+          const oembed = await getHttpsJson(`https://www.tiktok.com/oembed?url=${encodeURIComponent(cleanVUrl)}`);
+          if (oembed?.status === 200 && oembed.data?.title) {
+            extractedTitle = oembed.data.title;
+            extractedAuthor = oembed.data.author_name || '';
+          }
+        }
+      }
+
+      const displayTitle = extractedTitle || (videoUrl ? 'Video Mẫu Đã Nạp Từ Link' : 'Video Mẫu Triệu View Tải Lên');
+      const displayAuthor = extractedAuthor || 'Nhà Sáng Tạo Nội Dung';
+
       const promptText = `Bạn là Chuyên gia Đạo diễn & Phân tích Đảo ngược Video AI (Video Reverse-Engineering Director).
-Bóc tách 100% cấu trúc DNA của video: ${videoUrl || 'Video mẫu'} thành đối tượng JSON chuẩn xác.
-BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON với các trường: sourceUrl, sourceTitle, durationSec, totalScenes, averageShotDuration, wordsPerMinute, hookScore, hookAnalysis, retentionStrategy, pacingStyle, visualStyle, audioAnalysis, scenes, rawTranscript.`;
+Bóc tách 100% cấu trúc DNA của video:
+- Tiêu đề thật: "${displayTitle}"
+- Kênh / Tác giả: "${displayAuthor}"
+- Đường dẫn: "${videoUrl || 'Video file'}"
+
+Hãy bóc tách chuẩn xác nội dung thật, kịch bản, lời thoại từng phân cảnh, bí quyết hook 3 giây đầu, nhịp cắt cảnh và sinh công thức prompt thị giác cho video này.
+BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON với các trường: sourceUrl, sourceTitle, authorName, embedUrl, thumbnailUrl, durationSec, totalScenes, averageShotDuration, wordsPerMinute, hookScore, hookAnalysis, retentionStrategy, pacingStyle, visualStyle, audioAnalysis, promptGuide, scenes, rawTranscript.`;
 
       let dna = null;
 
@@ -1263,6 +1342,10 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON với các trường: so
         if (resp.status === 200 && resp.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
           try {
             dna = JSON.parse(resp.data.candidates[0].content.parts[0].text);
+            if (!dna.sourceTitle && displayTitle) dna.sourceTitle = displayTitle;
+            if (!dna.authorName && displayAuthor) dna.authorName = displayAuthor;
+            if (!dna.embedUrl && embedUrl) dna.embedUrl = embedUrl;
+            if (!dna.thumbnailUrl && extractedThumb) dna.thumbnailUrl = extractedThumb;
           } catch (e) {
             console.warn('Parse Gemini DNA JSON error:', e);
           }
@@ -1273,14 +1356,17 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON với các trường: so
       if (!dna) {
         dna = {
           sourceUrl: videoUrl || 'https://www.youtube.com/shorts/viral-sample',
-          sourceTitle: 'Công Thức Video Triệu View Giữ Chân Khán Giả Đến Giây Cuối Cùng',
+          sourceTitle: displayTitle,
+          authorName: displayAuthor,
+          embedUrl: embedUrl || (videoUrl?.includes('youtube') ? `https://www.youtube-nocookie.com/embed/${videoUrl.match(/[\w-]{11}/)?.[0] || ''}` : ''),
+          thumbnailUrl: extractedThumb || 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80',
           durationSec: 58,
           totalScenes: 6,
           averageShotDuration: 2.8,
           wordsPerMinute: 152,
           hookScore: 96,
           hookAnalysis: {
-            verbalHook: 'Dừng lại 3 giây! Nếu bạn vẫn đang làm điều này mỗi ngày, bạn đang lãng phí 80% công sức!',
+            verbalHook: `Dừng lại 3 giây! Nếu bạn vẫn chưa biết bí quyết về ${displayTitle}, bạn đang bỏ lỡ cơ hội lớn!`,
             visualHook: 'Chuyển động zoom nhanh kết hợp văn bản cảnh báo chữ đỏ nhấp nháy',
             audioHook: 'Âm thanh Riser tăng dần nhịp độ kết hợp tiếng vỡ Sub-bass',
             curiosityGapStrategy: 'Tạo khoảng trống kiến thức ngay giây thứ 2, hứa hẹn hé lộ giải pháp ở giây thứ 30',
@@ -1299,6 +1385,24 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON với các trường: so
             voiceTone: 'Trầm ấm, nội lực, dứt khoát, thuyết phục cao',
             sfxFrequency: 'high',
           },
+          promptGuide: {
+            visualFormula: `[Shot Type] + [Subject: ${displayTitle}] + [Action / Emotion] + [Cinematic lighting: High contrast rim light] + [Style: 8k photorealistic]`,
+            scriptFormula: "Hook 3s (Verbal + Visual + SFX) -> Agitate Pain Point -> Curiosity Gap -> Solution 3 Steps -> Actionable CTA",
+            audioFormula: "Energetic Phonk / Synthwave (130-138 BPM) + SFX Whoosh/Impact tại điểm cắt cảnh + Voiceover WPM 145-155",
+            negativePrompts: [
+              "Không mở đầu bằng câu chào rườm rà (Xin chào các bạn...)",
+              "Không để cảnh tĩnh kéo dài quá 3 giây",
+              "Không dùng nhạc nền lấn át tần số giọng đọc",
+              "Không dùng từ ngữ chung chung sáo rỗng"
+            ],
+            cinematicKeywords: [
+              "Close-up intense gaze",
+              "Dynamic drone tracking shot",
+              "Volumetric studio lighting",
+              "Kinetic typography text pop",
+              "Anamorphic lens flare"
+            ]
+          },
           scenes: [
             {
               sceneNumber: 1,
@@ -1307,10 +1411,10 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON với các trường: so
               durationSec: 3,
               shotType: 'close-up',
               visualCategory: 'talking-head',
-              visualDescription: 'Khuôn mặt người nói nhìn trực diện máy quay với ánh mắt kiên định',
-              transcript: 'Dừng lại 3 giây! Nếu bạn vẫn đang làm điều này mỗi ngày, bạn đang lãng phí 80% công sức!',
-              suggestedAiPrompt: 'A charismatic speaker looking shocked at camera, dynamic studio lighting, 8k resolution',
-              onScreenText: 'CẢNH BÁO: DỪNG LẠI NGAY!',
+              visualDescription: `Khuôn mặt người nói nhìn trực diện máy quay với ánh mắt kiên định về ${displayTitle}`,
+              transcript: `Dừng lại 3 giây! Nếu bạn vẫn chưa biết bí mật về ${displayTitle}, bạn đang lãng phí 80% công sức!`,
+              suggestedAiPrompt: `A charismatic speaker pointing forward, intense shocked expression, discussing ${displayTitle}, dramatic rim lighting, 8k resolution`,
+              onScreenText: 'CẢNH BÁO: BÍ MẬT 99% KHÔNG BIẾT',
               sfxCue: 'Dramatic Bass Boom + Fast Whoosh',
             },
             {
@@ -1322,7 +1426,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON với các trường: so
               visualCategory: 'b-roll-stock',
               visualDescription: 'Biểu đồ tuột dốc và người làm việc kiệt sức trước màn hình máy tính',
               transcript: 'Hầu hết mọi người cố gắng làm nhiều hơn nhưng lại nhận về kết quả thấp hơn mong đợi.',
-              suggestedAiPrompt: 'Exhausted worker at neon-lit desk with crashing red stock market charts',
+              suggestedAiPrompt: `Exhausted worker at neon-lit desk struggling with traditional methods regarding ${displayTitle}, cinematic documentary style`,
               onScreenText: 'SAI LẦM PHỔ BIẾN NHẤT',
               sfxCue: 'Digital Glitch sound effect',
             },
@@ -1334,8 +1438,8 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON với các trường: so
               shotType: 'wide-angle',
               visualCategory: 'ai-art',
               visualDescription: 'Hệ thống công nghệ tự động hóa với các luồng sáng kết nối thông minh',
-              transcript: 'Nhưng đây mới là bí quyết mà những người dẫn đầu không muốn bạn biết: tự động hóa quy trình.',
-              suggestedAiPrompt: 'Futuristic glowing neural network interface glowing with blue and gold nodes',
+              transcript: 'Nhưng đây mới là bí quyết mà những người dẫn đầu không muốn bạn biết: tự động hóa quy trình với AI.',
+              suggestedAiPrompt: `Futuristic glowing neural network interface glowing with blue and gold nodes for ${displayTitle}, ultra realistic high-tech`,
               onScreenText: 'BÍ QUYẾT ĐỘT PHÁ: HỆ THỐNG AI',
               sfxCue: 'Laser Chime + Ping',
             },
@@ -1367,7 +1471,21 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON với các trường: so
             },
           ],
           rawTranscript:
-            'Dừng lại 3 giây! Nếu bạn vẫn đang làm điều này mỗi ngày, bạn đang lãng phí 80% công sức! Hầu hết mọi người cố gắng làm nhiều hơn nhưng lại nhận về kết quả thấp hơn mong đợi. Nhưng đây mới là bí quyết mà những người dẫn đầu không muốn bạn biết: tự động hóa quy trình. Bước 1: Bóc tách cấu trúc. Bước 2: Tự động hóa kịch bản. Bước 3: Đưa vào bàn dựng tức thì. Lưu video này lại và trải nghiệm ngay đường link dưới phần bình luận nhé!',
+            `Dừng lại 3 giây! Nếu bạn vẫn chưa biết bí mật về ${displayTitle}, bạn đang lãng phí 80% công sức! Hầu hết mọi người cố gắng làm nhiều hơn nhưng lại nhận về kết quả thấp hơn mong đợi. Nhưng đây mới là bí quyết mà những người dẫn đầu không muốn bạn biết: tự động hóa quy trình. Bước 1: Bóc tách cấu trúc. Bước 2: Tự động hóa kịch bản. Bước 3: Đưa vào bàn dựng tức thì. Lưu video này lại và trải nghiệm ngay đường link dưới phần bình luận nhé!`,
+        };
+      }
+
+      if (!dna.promptGuide) {
+        dna.promptGuide = {
+          visualFormula: `[Shot Type] + [Subject: ${displayTitle}] + [Action / Emotion] + [Cinematic lighting] + [8k photorealistic]`,
+          scriptFormula: "Hook 3s -> Agitate Pain Point -> Curiosity Gap -> Solution 3 Steps -> Actionable CTA",
+          audioFormula: "Cyber/Dramatic BGM (130-138 BPM) + SFX Whoosh/Impact + Voiceover WPM 145-155",
+          negativePrompts: [
+            "Không mở đầu bằng câu chào rườm rà (Xin chào các bạn...)",
+            "Không để cảnh tĩnh kéo dài quá 3 giây",
+            "Không dùng nhạc nền lấn át tần số giọng đọc"
+          ],
+          cinematicKeywords: ["Close-up intense gaze", "Volumetric studio lighting", "Kinetic typography", "Anamorphic lens flare"]
         };
       }
 

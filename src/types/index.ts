@@ -262,6 +262,9 @@ export interface DeconstructedScene {
 export interface VideoDnaBlueprint {
   sourceUrl?: string;
   sourceTitle?: string;
+  authorName?: string;
+  embedUrl?: string;
+  thumbnailUrl?: string;
   durationSec: number;
   totalScenes: number;
   averageShotDuration: number;
@@ -286,6 +289,13 @@ export interface VideoDnaBlueprint {
     bpmTempo: number;
     voiceTone: string;
     sfxFrequency: 'high' | 'medium' | 'minimal' | string;
+  };
+  promptGuide?: {
+    visualFormula: string;
+    scriptFormula: string;
+    audioFormula: string;
+    negativePrompts: string[];
+    cinematicKeywords: string[];
   };
   scenes: DeconstructedScene[];
   rawTranscript: string;
