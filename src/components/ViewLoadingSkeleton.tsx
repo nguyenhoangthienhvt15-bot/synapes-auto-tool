@@ -34,3 +34,4 @@ export const ViewLoadingSkeleton: React.FC = () => {
     </div>
   );
 };
+

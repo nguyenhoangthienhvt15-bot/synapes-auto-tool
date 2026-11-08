@@ -75,28 +75,36 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
       (r.assignedCode && r.assignedCode.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const handleApproveRegistration = (regId: string) => {
-    const res = approveStoredRegistration(regId);
-    if (res.success && res.code && res.password && res.registration) {
+  const handleApproveRegistration = (regId: string, stage: 1 | 2 = 1) => {
+    const res = approveStoredRegistration(regId, stage);
+    if (res.success && res.registration) {
       setRegistrations(getStoredRegistrations());
       const reg = res.registration;
-      const existing = sheetRows.find((r) => r.code === res.code);
-      if (!existing) {
-        const now = new Date();
-        const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} - ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
-        const newRow: EngineerSheetRow = {
-          code: res.code,
-          clientName: reg.fullName,
-          registeredGmail: reg.email,
-          currentTempPassword: res.password,
-          lastIssuedTime: timeString,
-          accountStatus: 'never_changed',
-          engineerNotes: `Đã duyệt từ hồ sơ (${reg.phone} - ${reg.address})`,
-        };
-        onUpdateSheetRow([newRow, ...sheetRows]);
+      if (res.code && res.password) {
+        const existing = sheetRows.find((r) => r.code === res.code);
+        if (!existing) {
+          const now = new Date();
+          const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} - ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+          const newRow: EngineerSheetRow = {
+            code: res.code,
+            clientName: reg.fullName,
+            registeredGmail: reg.email,
+            currentTempPassword: res.password,
+            lastIssuedTime: timeString,
+            accountStatus: 'never_changed',
+            engineerNotes: `Đã duyệt từ hồ sơ (${reg.phone} - ${reg.address})`,
+          };
+          onUpdateSheetRow([newRow, ...sheetRows]);
+        }
+        onSendTempPasswordEmail(reg.email, res.code, res.password);
+        showToast(
+          stage === 2
+            ? `🚀 Đã duyệt Bàn Giao Lần 2: Cấp Mã Code [${res.code}], Mật khẩu và gửi Gmail bàn giao đến ${reg.email}!`
+            : `✅ Đã duyệt cấp tài khoản [${res.code}] và gửi Gmail đến ${reg.email}!`
+        );
+      } else {
+        showToast(`📋 Đã duyệt ký HĐ đặt cọc Lần 1 (chưa cấp mật khẩu) và gửi Gmail thông báo hẹn ngày bàn giao đến ${reg.email}!`);
       }
-      onSendTempPasswordEmail(reg.email, res.code, res.password);
-      showToast(`Đã duyệt cấp tài khoản [${res.code}] và gửi Gmail đến ${reg.email}!`);
     }
   };
 
@@ -397,12 +405,13 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-zinc-50/80 text-zinc-500 border-b border-black/5 font-mono text-[11px] uppercase tracking-wider">
-                  <th className="py-2.5 px-3 font-medium">Thời Gian Đăng Ký</th>
-                  <th className="py-2.5 px-3 font-medium">Họ Và Tên</th>
-                  <th className="py-2.5 px-3 font-medium">Ngày Sinh / Giới Tính</th>
+                  <th className="py-2.5 px-3 font-medium">Thời Gian</th>
+                  <th className="py-2.5 px-3 font-medium">Họ Và Tên & CCCD</th>
+                  <th className="py-2.5 px-3 font-medium">Ngày Sinh / Phái</th>
                   <th className="py-2.5 px-3 font-medium">Gmail & Điện Thoại</th>
-                  <th className="py-2.5 px-3 font-medium">Địa Chỉ Hiện Tại</th>
-                  <th className="py-2.5 px-3 font-medium text-center">Duyệt Cấp TK (Cột I)</th>
+                  <th className="py-2.5 px-3 font-medium">Gói Ký Kết & Hạn Giao</th>
+                  <th className="py-2.5 px-3 font-medium text-center">Duyệt Ký Lần 1 (Cột 15)</th>
+                  <th className="py-2.5 px-3 font-medium text-center">Duyệt Bàn Giao Lần 2 (Cột 18)</th>
                   <th className="py-2.5 px-3 font-medium">Mã Code / Mật Khẩu</th>
                   <th className="py-2.5 px-3 font-medium text-center">Hợp Đồng PDF</th>
                 </tr>
@@ -410,88 +419,138 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
               <tbody className="divide-y divide-black/5">
                 {filteredRegistrations.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-zinc-400">
+                    <td colSpan={9} className="py-8 text-center text-zinc-400">
                       Chưa có hồ sơ đăng ký nào. Người dùng có thể bấm "Bạn chưa có tài khoản? Đăng kí ngay" ở màn hình Đăng nhập.
                     </td>
                   </tr>
                 ) : (
-                  filteredRegistrations.map((reg) => (
-                    <tr key={reg.id} className="hover:bg-zinc-50/60 transition">
-                      <td className="py-2.5 px-3 font-mono text-[11px] text-zinc-500 whitespace-nowrap">
-                        {reg.registeredAt}
-                      </td>
-                      <td className="py-2.5 px-3 font-semibold text-zinc-950">
-                        {reg.fullName}
-                      </td>
-                      <td className="py-2.5 px-3 text-zinc-700 whitespace-nowrap">
-                        <span>{reg.dob}</span>
-                        {reg.gender && <span className="ml-1 text-zinc-400">({reg.gender})</span>}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-[11px]">
-                        <div className="text-zinc-900 font-medium">{reg.email}</div>
-                        <div className="text-zinc-500">{reg.phone}</div>
-                      </td>
-                      <td className="py-2.5 px-3 text-zinc-600 text-[11px] max-w-xs truncate" title={reg.address}>
-                        {reg.address}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        {reg.isApproved ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <CheckSquare className="w-3 h-3 text-emerald-600" />
-                            <span>ĐÃ DUYỆT</span>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleApproveRegistration(reg.id || '')}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-800 transition shadow-xs cursor-pointer"
-                            title="Tích duyệt hồ sơ này: Tự động sinh Code, Pass và gửi Gmail"
-                          >
-                            <Square className="w-3.5 h-3.5 text-zinc-300" />
-                            <span>Tích Duyệt</span>
-                          </button>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-[11px]">
-                        {reg.assignedCode ? (
-                          <div>
-                            <div className="font-bold text-zinc-950">{reg.assignedCode}</div>
-                            {reg.assignedPassword && (
-                              isPasswordMaskedOrHashed(reg.assignedPassword) ? (
-                                <div className="text-emerald-700 font-semibold">🔒 Đã tạo mật khẩu mới (Đã ẩn)</div>
-                              ) : (
-                                <div className="text-red-600 font-medium">{reg.assignedPassword}</div>
-                              )
-                            )}
+                  filteredRegistrations.map((reg) => {
+                    const isDeposit =
+                      reg.contractPackage?.includes('deposit') ||
+                      reg.contractPackageName?.toLowerCase().includes('đặt cọc') ||
+                      (reg.depositAmount && reg.depositAmount > 0);
+
+                    return (
+                      <tr key={reg.id} className="hover:bg-zinc-50/60 transition">
+                        <td className="py-2.5 px-3 font-mono text-[11px] text-zinc-500 whitespace-nowrap">
+                          {reg.registeredAt}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="font-semibold text-zinc-950">{reg.fullName}</div>
+                          {reg.idCardNumber && (
+                            <div className="text-[10px] font-mono text-zinc-500">
+                              CCCD: {reg.idCardNumber}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-zinc-700 whitespace-nowrap">
+                          <span>{reg.dob}</span>
+                          {reg.gender && <span className="ml-1 text-zinc-400">({reg.gender})</span>}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-[11px]">
+                          <div className="text-zinc-900 font-medium">{reg.email}</div>
+                          <div className="text-zinc-500">{reg.phone}</div>
+                        </td>
+                        <td className="py-2.5 px-3 text-[11px]">
+                          <div className="font-semibold text-zinc-900">
+                            {reg.contractPackageName || (reg.contractCategory === 'enterprise' ? 'Hợp đồng toàn hệ' : 'Hợp đồng cá nhân hóa')}
                           </div>
-                        ) : (
-                          <span className="text-zinc-400 italic">Chờ Kỹ sư duyệt</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <div className="inline-flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => printPersonalizedContractPdf(reg)}
-                            className="btn-secondary py-1 px-2 text-[11px] inline-flex items-center gap-1 cursor-pointer"
-                            title="Xem bản hợp đồng điện tử đã ký của khách hàng"
-                          >
-                            <FileText className="w-3 h-3 text-zinc-600" />
-                            <span>Xem HĐ</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => downloadPersonalizedContractPdf(reg)}
-                            className="btn-secondary py-1 px-2 text-[11px] inline-flex items-center gap-1 cursor-pointer"
-                            title="Tải xuống file PDF hợp đồng của khách hàng (Dành cho Kỹ sư/Dev)"
-                          >
-                            <Download className="w-3 h-3 text-emerald-600" />
-                            <span>PDF</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                          {isDeposit ? (
+                            <div className="text-[10px] text-amber-700 font-mono mt-0.5">
+                              Cọc: {reg.depositAmount ? reg.depositAmount.toLocaleString('vi-VN') : '1.250.000'}đ / Tổng: {reg.totalAmount ? reg.totalAmount.toLocaleString('vi-VN') : '2.550.000'}đ
+                              {reg.deliveryDays ? ` • Hạn: ${reg.deliveryDays} ngày` : ''}
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-emerald-700 font-mono mt-0.5">
+                              Thanh toán 100%: {reg.totalAmount ? reg.totalAmount.toLocaleString('vi-VN') : '2.550.000'}đ
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          {reg.isApproved ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckSquare className="w-3 h-3 text-emerald-600" />
+                              <span>ĐÃ DUYỆT LẦN 1</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleApproveRegistration(reg.id || '', 1)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-800 transition shadow-xs cursor-pointer"
+                              title="Duyệt Lần 1: Gửi hợp đồng PDF và thông tin đặt cọc (KHÔNG gửi mật khẩu)"
+                            >
+                              <Square className="w-3.5 h-3.5 text-zinc-300" />
+                              <span>Duyệt Lần 1</span>
+                            </button>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          {!isDeposit ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-zinc-100 text-zinc-600 border border-zinc-200">
+                              <span>HĐ 100% (Cấp đủ)</span>
+                            </span>
+                          ) : reg.isFinalDelivered ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckSquare className="w-3 h-3 text-emerald-600" />
+                              <span>ĐÃ GIAO LẦN 2</span>
+                            </span>
+                          ) : reg.isApproved ? (
+                            <button
+                              type="button"
+                              onClick={() => handleApproveRegistration(reg.id || '', 2)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-600 text-white hover:bg-amber-700 transition shadow-xs cursor-pointer"
+                              title="Duyệt Bàn Giao Lần 2: Cấp Mã Code + Mật khẩu và gửi Gmail bàn giao hoàn tất"
+                            >
+                              <Square className="w-3.5 h-3.5 text-amber-200" />
+                              <span>Duyệt Giao Lần 2</span>
+                            </button>
+                          ) : (
+                            <span className="text-zinc-400 italic text-[11px]">Chờ duyệt Lần 1</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-[11px]">
+                          {reg.assignedCode ? (
+                            <div>
+                              <div className="font-bold text-zinc-950">{reg.assignedCode}</div>
+                              {reg.assignedPassword ? (
+                                isPasswordMaskedOrHashed(reg.assignedPassword) ? (
+                                  <div className="text-emerald-700 font-semibold text-[10px]">🔒 Đã bảo mật</div>
+                                ) : (
+                                  <div className="text-red-600 font-medium">{reg.assignedPassword}</div>
+                                )
+                              ) : (
+                                <div className="text-amber-600 italic text-[10px]">Chưa cấp pass (Chờ giao Lần 2)</div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-zinc-400 italic">Chờ Kỹ sư duyệt</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => printPersonalizedContractPdf(reg)}
+                              className="btn-secondary py-1 px-2 text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                              title="Xem bản hợp đồng điện tử đã ký của khách hàng"
+                            >
+                              <FileText className="w-3 h-3 text-zinc-600" />
+                              <span>Xem HĐ</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadPersonalizedContractPdf(reg)}
+                              className="btn-secondary py-1 px-2 text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                              title="Tải xuống file PDF hợp đồng của khách hàng (Dành cho Kỹ sư/Dev)"
+                            >
+                              <Download className="w-3 h-3 text-emerald-600" />
+                              <span>PDF</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
