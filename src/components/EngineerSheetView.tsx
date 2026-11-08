@@ -250,11 +250,10 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('accounts')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer flex items-center gap-2 ${
-              activeTab === 'accounts'
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer flex items-center gap-2 ${activeTab === 'accounts'
                 ? 'bg-zinc-900 text-white shadow-sm'
                 : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
-            }`}
+              }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>Tài Khoản Studio ({sheetRows.length})</span>
@@ -265,11 +264,10 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
               setRegistrations(getStoredRegistrations());
               setActiveTab('registrations');
             }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer flex items-center gap-2 ${
-              activeTab === 'registrations'
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer flex items-center gap-2 ${activeTab === 'registrations'
                 ? 'bg-zinc-900 text-white shadow-sm'
                 : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
-            }`}
+              }`}
           >
             <Users className="w-3.5 h-3.5" />
             <span>Hồ Sơ Đăng Ký Khách Hàng ({registrations.length})</span>

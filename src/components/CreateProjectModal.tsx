@@ -456,11 +456,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     setAspectRatio('16:9');
                     setTargetDurationMin(8);
                   }}
-                  className={`p-3.5 rounded-xl border cursor-pointer transition ${
-                    aspectRatio === '16:9'
+                  className={`p-3.5 rounded-xl border cursor-pointer transition ${aspectRatio === '16:9'
                       ? 'border-zinc-950 bg-zinc-50/90 text-zinc-950 shadow-2xs ring-1 ring-zinc-950/5'
                       : 'border-black/[0.08] bg-white text-zinc-600 hover:border-black/[0.18]'
-                  }`}
+                    }`}
                 >
                   <div className="font-semibold flex items-center gap-1.5 text-zinc-950 text-xs">
                     <Monitor className="w-4 h-4 text-zinc-800" />
@@ -476,11 +475,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     setAspectRatio('9:16');
                     setTargetDurationMin(1);
                   }}
-                  className={`p-3.5 rounded-xl border cursor-pointer transition ${
-                    aspectRatio === '9:16'
+                  className={`p-3.5 rounded-xl border cursor-pointer transition ${aspectRatio === '9:16'
                       ? 'border-zinc-950 bg-zinc-50/90 text-zinc-950 shadow-2xs ring-1 ring-zinc-950/5'
                       : 'border-black/[0.08] bg-white text-zinc-600 hover:border-black/[0.18]'
-                  }`}
+                    }`}
                 >
                   <div className="font-semibold flex items-center gap-1.5 text-zinc-950 text-xs">
                     <Smartphone className="w-4 h-4 text-zinc-800" />
@@ -631,13 +629,12 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                         onMouseEnter={() => setHoveredSkill(s)}
                         onMouseOver={() => setHoveredSkill(s)}
                         onMouseLeave={() => setHoveredSkill((cur) => (cur?.id === s.id ? null : cur))}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition cursor-pointer flex items-center gap-1 ${
-                          isSelected
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition cursor-pointer flex items-center gap-1 ${isSelected
                             ? 'bg-zinc-950 text-white font-medium shadow-2xs ring-1 ring-zinc-950'
                             : isCustom
                               ? 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border border-indigo-200'
                               : 'bg-zinc-100 text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/70 border border-black/[0.06]'
-                        }`}
+                          }`}
                       >
                         <span>{s.command}</span>
                         {isCustom && <span className="text-[9px] text-indigo-500 font-sans">• Tự tạo</span>}
@@ -1136,11 +1133,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     <div
                       key={preset.id}
                       onClick={() => setSelectedPluginTool(preset.id)}
-                      className={`p-2.5 rounded-xl border cursor-pointer transition flex flex-col justify-between ${
-                        isChosen
+                      className={`p-2.5 rounded-xl border cursor-pointer transition flex flex-col justify-between ${isChosen
                           ? 'bg-white border-zinc-950 shadow-xs ring-1 ring-zinc-950'
                           : 'bg-white/80 border-black/[0.07] hover:border-black/[0.2]'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-1.5 mb-1">
                         <ProviderBrandLogo provider="plugin" pluginBrand={preset.brand} size="xs" withBadge={false} />

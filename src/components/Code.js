@@ -1728,7 +1728,7 @@ function recordEmergencyReportToSheetAndDrive() {
       "• Tên tài liệu: " + reportTitle + "\n" +
       "• Đường dẫn: " + driveUrl
     );
-  } catch (uiErr) {}
+  } catch (uiErr) { }
 
   return { status: "success", row: nextRow, driveUrl: driveUrl };
 }
@@ -1740,18 +1740,23 @@ function recordEmergencyReportToSheetAndDrive() {
  * - Gửi báo cáo định kỳ về Gmail khi hoàn tất tác vụ
  */
 function runCloudKeepAliveAndBackgroundCron() {
-  var renderUrl = "https://synapes-auto-tool.onrender.com/healthz";
+  var renderUrls = [
+    "https://synapes-auto-tool-web-service.onrender.com/healthz",
+    "https://synapes-auto-tool.onrender.com/healthz"
+  ];
   var renderOk = false;
-  try {
-    var resp = UrlFetchApp.fetch(renderUrl, { muteHttpExceptions: true });
-    if (resp.getResponseCode() === 200) {
-      renderOk = true;
-      Logger.log("✅ Render Healthz: Đang hoạt động bình thường (200 OK)");
-    } else {
-      Logger.log("⚠️ Render Healthz phản hồi mã: " + resp.getResponseCode());
+  for (var u = 0; u < renderUrls.length; u++) {
+    try {
+      var resp = UrlFetchApp.fetch(renderUrls[u], { muteHttpExceptions: true, timeout: 15000 });
+      if (resp.getResponseCode() === 200) {
+        renderOk = true;
+        Logger.log("✅ Render Healthz (" + renderUrls[u] + "): Đang hoạt động bình thường (200 OK)");
+      } else {
+        Logger.log("⚠️ Render Healthz (" + renderUrls[u] + ") phản hồi mã: " + resp.getResponseCode());
+      }
+    } catch (netErr) {
+      Logger.log("⚠️ Không thể kết nối tới Render (" + renderUrls[u] + "): " + netErr);
     }
-  } catch (netErr) {
-    Logger.log("⚠️ Không thể kết nối tới Render: " + netErr);
   }
 
   // Quét và đồng bộ tác vụ ngầm từ Cầu nối tự động
@@ -1797,5 +1802,5 @@ function installCloudKeepAliveTrigger() {
       "• Đảm bảo Render không bao giờ rơi vào trạng thái ngủ đông (Zero Sleep).\n" +
       "• Khi có tác vụ hoặc hợp đồng hoàn tất, báo cáo sẽ tự động gửi về Gmail và trang tính."
     );
-  } catch (uiErr) {}
+  } catch (uiErr) { }
 }
