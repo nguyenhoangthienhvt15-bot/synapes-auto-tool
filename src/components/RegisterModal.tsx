@@ -2,14 +2,17 @@ import React, { useState, useEffect } from 'react';
 import {
   X, User, Calendar, Mail, Phone, MapPin, Navigation, Compass,
   FileText, ShieldCheck, CheckCircle2, AlertCircle,
-  ArrowRight, ArrowLeft, RefreshCw, Check, Sparkles
+  ArrowRight, ArrowLeft, RefreshCw, Check, Sparkles,
+  CreditCard, Layers, Clock, DollarSign, Award, Info, QrCode,
+  Building
 } from 'lucide-react';
-import { UserRegistrationData } from '../types';
+import { UserRegistrationData, ContractCategory, ContractPackage } from '../types';
 import {
   saveUserRegistration,
   formatDobToDDMMYYYY,
   discoverWebhookUrlFromSheet,
 } from '../services/googleSheetService';
+import { QR_CODE_BASE64 } from '../data/qrCodeBase64';
 
 interface RegisterModalProps {
   isOpen: boolean;
@@ -27,8 +30,9 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     () => `reg_${Date.now()}_${Math.floor(Math.random() * 10000)}`
   );
 
-  // Form inputs
+  // Form inputs - Bước 1
   const [fullName, setFullName] = useState('');
+  const [idCardNumber, setIdCardNumber] = useState('');
   const [dob, setDob] = useState('');
   const [gender, setGender] = useState('Nam');
   const [email, setEmail] = useState('');
@@ -39,13 +43,97 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   const [isLocating, setIsLocating] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
 
-  // Step 2: Terms and Confirmation
-  const [activePolicyTab, setActivePolicyTab] = useState<'terms' | 'privacy' | 'copyright' | 'disclaimer'>('terms');
+  // Bước 2: Lựa chọn loại hợp đồng & gói ký kết
+  const [contractCategory, setContractCategory] = useState<ContractCategory>('personal');
+  const [contractPackage, setContractPackage] = useState<ContractPackage>('personal_deposit');
+  const [deliveryDays, setDeliveryDays] = useState<number>(5);
+  const [activePolicyTab, setActivePolicyTab] = useState<'features' | 'terms' | 'warranty' | 'dmca' | 'disclaimer'>('features');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
 
-  // Tự động dò kết nối hệ thống ngầm khi mở cửa sổ đăng ký (không hiển thị ra giao diện người dùng)
+  // Helper thông tin chi tiết gói hợp đồng
+  const getPackageDetails = (pkg: ContractPackage) => {
+    switch (pkg) {
+      case 'personal_deposit':
+        return {
+          name: 'Ký đặt cọc dự án cá nhân',
+          category: 'personal' as ContractCategory,
+          categoryName: 'Hợp đồng cá nhân hóa',
+          depositAmount: 1250000,
+          totalAmount: 2550000,
+          originalAmount: 3250000,
+          discountAmount: 700000,
+          isDeposit: true,
+          defaultDays: 5,
+          targetDesc: 'Dành cho cá nhân, nhà sáng tạo nội dung đơn lẻ với nhu cầu sử dụng nhất định.',
+        };
+      case 'personal_full':
+        return {
+          name: 'Ký hợp đồng dự án cá nhân (Thanh toán 100%)',
+          category: 'personal' as ContractCategory,
+          categoryName: 'Hợp đồng cá nhân hóa',
+          depositAmount: 2550000,
+          totalAmount: 2550000,
+          originalAmount: 3250000,
+          discountAmount: 700000,
+          isDeposit: false,
+          defaultDays: 0,
+          targetDesc: 'Thanh toán 100% trọn gói ngay khi ký hợp đồng, nhận tài khoản ngay sau khi Kỹ sư duyệt.',
+        };
+      case 'enterprise_deposit':
+        return {
+          name: 'Ký đặt cọc phân bổ toàn hệ',
+          category: 'enterprise' as ContractCategory,
+          categoryName: 'Hợp đồng toàn hệ',
+          depositAmount: 2500000,
+          totalAmount: 5490000,
+          originalAmount: 6250000,
+          discountAmount: 760000,
+          isDeposit: true,
+          defaultDays: 7,
+          targetDesc: 'Dành cho người dùng cao cấp, doanh nghiệp & tổ chức mở rộng và cập nhật chức năng theo thời gian thực.',
+        };
+      case 'enterprise_full':
+        return {
+          name: 'Ký hợp đồng dự án toàn hệ chính thức (Thanh toán 100%)',
+          category: 'enterprise' as ContractCategory,
+          categoryName: 'Hợp đồng toàn hệ',
+          depositAmount: 5490000,
+          totalAmount: 5490000,
+          originalAmount: 6250000,
+          discountAmount: 760000,
+          isDeposit: false,
+          defaultDays: 0,
+          targetDesc: 'Thanh toán 100% một lần, kích hoạt toàn bộ hạn mức tối đa của toàn hệ thống vĩnh viễn.',
+        };
+    }
+  };
+
+  const currentPkgInfo = getPackageDetails(contractPackage);
+
+  // Tự động chuyển đổi gói mặc định khi chọn loại hợp đồng
+  const handleSelectCategory = (cat: ContractCategory) => {
+    setContractCategory(cat);
+    if (cat === 'personal') {
+      setContractPackage('personal_deposit');
+      setDeliveryDays(5);
+    } else {
+      setContractPackage('enterprise_deposit');
+      setDeliveryDays(7);
+    }
+  };
+
+  const handleSelectPackage = (pkg: ContractPackage) => {
+    setContractPackage(pkg);
+    const details = getPackageDetails(pkg);
+    if (details.isDeposit) {
+      setDeliveryDays(details.defaultDays || 5);
+    }
+  };
+
+  // Tự động dò kết nối hệ thống ngầm khi mở cửa sổ đăng ký
   useEffect(() => {
     if (isOpen) {
       setDraftRegId(`reg_${Date.now()}_${Math.floor(Math.random() * 10000)}`);
@@ -66,9 +154,8 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Chuyển đổi tọa độ (lat, lng) sang địa chỉ tiếng Việt chi tiết (kết hợp Nominatim OSM + BigDataCloud)
+  // Chuyển đổi tọa độ (lat, lng) sang địa chỉ tiếng Việt chi tiết
   const reverseGeocodeToVietnameseAddress = async (lat: number, lng: number): Promise<string> => {
-    // Nguồn 1: OpenStreetMap Nominatim (Chi tiết tên đường, phường/xã, quận/huyện, tỉnh/thành)
     try {
       const osmResp = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=vi`
@@ -102,10 +189,9 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
         }
       }
     } catch {
-      // Chuyển sang nguồn 2 nếu Nominatim bị giới hạn
+      // Fallback bên dưới
     }
 
-    // Nguồn 2: BigDataCloud Reverse Geocode Client (Tốc độ cao, hỗ trợ CORS 100%)
     try {
       const bdcResp = await fetch(
         `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=vi`
@@ -129,7 +215,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     return `Tọa độ GPS: ${lat.toFixed(5)}°N, ${lng.toFixed(5)}°E, Việt Nam`;
   };
 
-  // Xử lý lấy định vị GPS thông minh (Đa tầng: Cảm biến GPS -> Mạng Wi-Fi -> Định vị IP dự phòng)
+  // Xử lý lấy định vị GPS thông minh
   const handleGetLocation = async () => {
     setGpsError(null);
     setIsLocating(true);
@@ -150,10 +236,8 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     try {
       let position: GeolocationPosition;
       try {
-        // Ưu tiên định vị nhanh qua Wi-Fi/Network (< 1-2 giây trên cả máy tính và điện thoại)
         position = await getBrowserPosition(false, 5000);
       } catch {
-        // Thử lại với cảm biến GPS độ chính xác cao
         position = await getBrowserPosition(true, 8000);
       }
 
@@ -166,8 +250,6 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       setIsLocating(false);
       return;
     } catch {
-      // Tầng dự phòng tự động: Nếu trình duyệt trên máy tính chặn quyền hoặc không có chip GPS,
-      // tự động dò vị trí khu vực hiện tại để điền sẵn Phường/Quận/Thành phố giúp người dùng
       try {
         const fallbackResp = await fetch(
           'https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=vi'
@@ -187,7 +269,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
           }
         }
       } catch {
-        // Nếu hoàn toàn ngoại tuyến
+        // Ngoại tuyến
       }
 
       setIsLocating(false);
@@ -197,13 +279,20 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     }
   };
 
-  // Chuyển sang Bước 2
+  // Chuyển sang Bước 2: Kiểm tra dữ liệu & CCCD
   const handleNextToStep2 = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
-    if (!fullName.trim()) {
+    const cleanedFullName = fullName.trim();
+    const cleanedIdCard = idCardNumber.trim().replace(/\s+/g, '');
+
+    if (!cleanedFullName) {
       setFormError('Vui lòng nhập đầy đủ Họ và tên.');
+      return;
+    }
+    if (!cleanedIdCard || cleanedIdCard.length < 9) {
+      setFormError('Vui lòng nhập số Căn cước công dân (CCCD / CMND) hợp lệ (từ 9 đến 12 chữ số).');
       return;
     }
     if (!dob.trim()) {
@@ -211,7 +300,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       return;
     }
     if (!email.trim() || email.indexOf('@') === -1) {
-      setFormError('Vui lòng nhập địa chỉ Gmail hợp lệ để nhận thông tin tài khoản.');
+      setFormError('Vui lòng nhập địa chỉ Gmail hợp lệ để nhận thông tin tài khoản & hợp đồng.');
       return;
     }
     if (!phone.trim()) {
@@ -224,12 +313,13 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     }
 
     const formattedDob = formatDobToDDMMYYYY(dob.trim());
+    const pkgDetails = getPackageDetails(contractPackage);
 
-    // NGAY KHI BẤM SANG TRANG TIẾP THEO:
-    // Cập nhật ngay thông tin lên trang tính "THÔNG TIN NGƯỜI DÙNG" trên hệ thống quản trị Google Sheet
+    // Đồng bộ ngay hồ sơ nháp lên Google Sheet
     const initialRegData: UserRegistrationData = {
       id: draftRegId,
-      fullName: fullName.trim(),
+      fullName: cleanedFullName,
+      idCardNumber: cleanedIdCard,
       dob: formattedDob,
       gender,
       email: email.trim(),
@@ -237,19 +327,31 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       addressType,
       address: address.trim(),
       coords: coords || undefined,
+      contractCategory,
+      contractPackage,
+      contractPackageName: pkgDetails.name,
+      depositAmount: pkgDetails.depositAmount,
+      totalAmount: pkgDetails.totalAmount,
+      originalAmount: pkgDetails.originalAmount,
+      deliveryDays: pkgDetails.isDeposit ? deliveryDays : 0,
       termsAccepted: false,
       registeredAt: new Date().toLocaleString('vi-VN'),
-      notes: 'Chờ ký hợp đồng'
+      notes: 'Chờ duyệt hợp đồng'
     };
     saveUserRegistration(initialRegData);
 
     setStep(2);
   };
 
-  // Hoàn tất Bước 2: Ký hợp đồng và Lưu bản hợp đồng PDF lên Sheet để Ban quản lý / Kỹ sư duyệt
+  // Hoàn tất Bước 2: Ký hợp đồng & Gửi hồ sơ lên Google Sheet cho Kỹ sư duyệt
   const handleCompleteRegistration = async () => {
     if (!termsAccepted) {
-      setFormError('Bạn cần tích chọn xác nhận đã đọc, hiểu và cam kết chấp hành nghiêm túc các điều khoản.');
+      setFormError('Bạn cần tích chọn xác nhận: "Tôi đã hiểu và chịu trách nhiệm với các điều khoản đề ra giữa cả hai bên".');
+      return;
+    }
+
+    if (currentPkgInfo.isDeposit && (!deliveryDays || deliveryDays < 1)) {
+      setFormError('Vui lòng nhập số ngày cam kết bàn giao hợp lệ (tối thiểu 1 ngày).');
       return;
     }
 
@@ -257,10 +359,13 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     setFormError(null);
 
     const formattedDob = formatDobToDDMMYYYY(dob.trim());
+    const cleanedIdCard = idCardNumber.trim().replace(/\s+/g, '');
+    const pkgDetails = getPackageDetails(contractPackage);
 
     const registrationData: UserRegistrationData = {
       id: draftRegId,
       fullName: fullName.trim(),
+      idCardNumber: cleanedIdCard,
       dob: formattedDob,
       gender,
       email: email.trim(),
@@ -268,24 +373,29 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       addressType,
       address: address.trim(),
       coords: coords || undefined,
+      contractCategory,
+      contractPackage,
+      contractPackageName: pkgDetails.name,
+      depositAmount: pkgDetails.depositAmount,
+      totalAmount: pkgDetails.totalAmount,
+      originalAmount: pkgDetails.originalAmount,
+      deliveryDays: pkgDetails.isDeposit ? deliveryDays : 0,
       termsAccepted: true,
       registeredAt: new Date().toLocaleString('vi-VN'),
-      notes: '📄 Hợp đồng PDF đã ký — Chờ Ban quản lý duyệt'
+      notes: `📄 Hợp đồng đã ký [${pkgDetails.name}] — Chờ Kỹ sư duyệt`
     };
 
     try {
-      // Lưu hồ sơ và bản hợp đồng PDF lên trang tính "THÔNG TIN NGƯỜI DÙNG" để Dev/Kỹ sư xác nhận
-      // (Không tự động tải file PDF về máy người dùng ở bước này; PDF sẽ được gửi qua Gmail khi Kỹ sư tích duyệt)
       await saveUserRegistration(registrationData);
-
-      // Chuyển sang bước thông báo Hoàn tất & Chờ duyệt
       setStep(3);
     } catch (err: any) {
-      setFormError(err?.message || 'Đã có lỗi xảy ra khi xử lý đăng ký.');
+      setFormError(err?.message || 'Đã có lỗi xảy ra khi gửi hợp đồng.');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const formatVnd = (num: number) => num.toLocaleString('vi-VN') + ' VNĐ';
 
   return (
     <div
@@ -294,7 +404,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white rounded-2xl border border-black/10 max-w-2xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden relative">
+      <div className="bg-white rounded-2xl border border-black/10 max-w-3xl w-full max-h-[94vh] shadow-2xl flex flex-col overflow-hidden relative">
         {/* Nút đóng */}
         <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
           <button
@@ -308,23 +418,23 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
         </div>
 
         {/* Header Modal */}
-        <div className="px-6 pt-6 pb-4 border-b border-zinc-100 flex-shrink-0">
+        <div className="px-6 pt-5 pb-3 border-b border-zinc-100 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-zinc-950 text-white flex items-center justify-center shadow-sm">
               <Sparkles className="w-5 h-5 text-amber-300" />
             </div>
             <div>
               <h2 className="text-base font-bold text-zinc-950">
-                Đăng Ký Tài Khoản SYNAPES Studio
+                Đăng Ký Tài Khoản & Ký Hợp Đồng Điện Tử SYNAPES Studio
               </h2>
               <p className="text-xs text-zinc-500">
-                Kích hoạt tài khoản sáng tạo video tự động & Ký hợp đồng điện tử pháp lý
+                Hệ thống tự động hóa nội dung đa tầng • Ký hợp đồng điện tử có dấu mộc đỏ Trưởng ban
               </p>
             </div>
           </div>
 
           {/* Thanh tiến trình các bước */}
-          <div className="grid grid-cols-2 gap-2 mt-4 text-xs font-medium">
+          <div className="grid grid-cols-2 gap-2 mt-3.5 text-xs font-medium">
             <div
               className={`p-2 rounded-lg flex items-center gap-2 border transition ${
                 step === 1
@@ -335,7 +445,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
               <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                 step === 1 ? 'bg-white text-zinc-950' : 'bg-zinc-200 text-zinc-800'
               }`}>1</span>
-              <span className="truncate">Thông Tin Cá Nhân</span>
+              <span className="truncate">1. Thông Tin Cá Nhân & CCCD</span>
             </div>
 
             <div
@@ -348,7 +458,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
               <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                 step === 2 || step === 3 ? 'bg-white text-zinc-950' : 'bg-zinc-200 text-zinc-400'
               }`}>2</span>
-              <span className="truncate">Điều Khoản & Ký Hợp Đồng</span>
+              <span className="truncate">2. Chọn Hợp Đồng & Ký Kết Pháp Lý</span>
             </div>
           </div>
         </div>
@@ -364,25 +474,48 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
         {/* Nội dung theo từng bước */}
         <div className="flex-1 overflow-y-auto px-6 py-4 text-xs">
           {/* ========================================================= */}
-          {/* BƯỚC 1: THÔNG TIN CÁ NHÂN */}
+          {/* BƯỚC 1: THÔNG TIN CÁ NHÂN & CCCD */}
           {/* ========================================================= */}
           {step === 1 && (
             <form onSubmit={handleNextToStep2} className="space-y-4">
-              {/* Họ và tên */}
-              <div>
-                <label className="text-zinc-700 font-semibold block mb-1">
-                  Họ và tên người dùng <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <User className="w-3.5 h-3.5 absolute left-3 top-2.5 text-zinc-400" />
-                  <input
-                    type="text"
-                    required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Ví dụ: Nguyễn Văn A"
-                    className="w-full bg-white border border-zinc-200 rounded-lg pl-8 pr-3 py-2 text-xs text-zinc-950 focus:outline-none focus:border-zinc-900 transition"
-                  />
+              {/* Họ và tên & Căn cước công dân */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-700 font-semibold block mb-1">
+                    Họ và tên người dùng <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <User className="w-3.5 h-3.5 absolute left-3 top-2.5 text-zinc-400" />
+                    <input
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Ví dụ: Nguyễn Văn A"
+                      className="w-full bg-white border border-zinc-200 rounded-lg pl-8 pr-3 py-2 text-xs text-zinc-950 focus:outline-none focus:border-zinc-900 transition"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-zinc-700 font-semibold block mb-1">
+                    Số Căn cước công dân (CCCD / CMND) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <CreditCard className="w-3.5 h-3.5 absolute left-3 top-2.5 text-zinc-400" />
+                    <input
+                      type="text"
+                      required
+                      maxLength={12}
+                      value={idCardNumber}
+                      onChange={(e) => setIdCardNumber(e.target.value)}
+                      placeholder="Ví dụ: 079201012345 (12 số) hoặc CMND"
+                      className="w-full bg-white border border-zinc-200 rounded-lg pl-8 pr-3 py-2 text-xs text-zinc-950 focus:outline-none focus:border-zinc-900 transition font-mono"
+                    />
+                  </div>
+                  <span className="text-[10px] text-zinc-400 mt-0.5 block">
+                    (In vào bản hợp đồng điện tử để bảo vệ quyền lợi pháp lý hai bên)
+                  </span>
                 </div>
               </div>
 
@@ -448,7 +581,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                     />
                   </div>
                   <span className="text-[10px] text-zinc-400 mt-0.5 block">
-                    Hệ thống sẽ gửi Mã Code, Mật khẩu & Hợp đồng PDF về Gmail này
+                    Hệ thống sẽ gửi Thông báo, Hợp đồng PDF có dấu đỏ & Mã tài khoản về Gmail này
                   </span>
                 </div>
 
@@ -470,7 +603,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                 </div>
               </div>
 
-              {/* Địa chỉ hiện tại (2 tùy chọn: Map định vị hoặc Điền tay) */}
+              {/* Địa chỉ hiện tại (GPS hoặc Điền tay) */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-zinc-700 font-semibold">
@@ -552,22 +685,12 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                             <div className="text-xs font-medium text-emerald-950 mt-0.5 break-words">{address}</div>
                           </div>
                         </div>
-                        <div className="w-full h-32 rounded-lg overflow-hidden border border-zinc-200 bg-zinc-100">
-                          <iframe
-                            title="Bản đồ vị trí GPS"
-                            width="100%"
-                            height="100%"
-                            frameBorder="0"
-                            scrolling="no"
-                            src={`https://www.openstreetmap.org/export/embed.html?bbox=${coords.lng - 0.005}%2C${coords.lat - 0.003}%2C${coords.lng + 0.005}%2C${coords.lat + 0.003}&layer=mapnik&marker=${coords.lat}%2C${coords.lng}`}
-                          />
-                        </div>
                       </div>
                     )}
 
                     <div>
                       <label className="text-[11px] text-zinc-500 block mb-1">
-                        Địa chỉ hiển thị trên hợp đồng (bạn có thể gõ thêm số nhà/ngõ nếu muốn):
+                        Địa chỉ hiển thị trên hợp đồng:
                       </label>
                       <input
                         type="text"
@@ -615,15 +738,16 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
           )}
 
           {/* ========================================================= */}
-          {/* BƯỚC 2: ĐIỀU KHOẢN & KÝ HỢP ĐỒNG ĐIỆN TỬ */}
+          {/* BƯỚC 2: CHỌN LOẠI HỢP ĐỒNG, GÓI KÝ & ĐIỀU KHOẢN PHÁP LÝ */}
           {/* ========================================================= */}
           {step === 2 && (
             <div className="space-y-4">
               {/* Tóm tắt thông tin người ký */}
               <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl flex items-center justify-between text-xs">
                 <div>
-                  <span className="text-zinc-500">Người đăng ký (Bên B):</span>{' '}
+                  <span className="text-zinc-500">Khách Hàng (Bên B):</span>{' '}
                   <span className="font-bold text-zinc-950">{fullName}</span>{' '}
+                  <span className="text-zinc-600 font-mono font-medium">| CCCD: {idCardNumber}</span>{' '}
                   <span className="text-zinc-400 font-mono">({formatDobToDDMMYYYY(dob)} • {phone})</span>
                   <div className="text-zinc-600 truncate mt-0.5">{address}</div>
                 </div>
@@ -636,109 +760,353 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                 </button>
               </div>
 
-              {/* Tabs 4 điều khoản */}
-              <div className="flex items-center gap-1 border-b border-zinc-200 pb-2 overflow-x-auto scrollbar-none">
-                {[
-                  { id: 'terms', title: '1. Điều khoản sử dụng', icon: FileText },
-                  { id: 'privacy', title: '2. Bảo mật Token & Data', icon: ShieldCheck },
-                  { id: 'copyright', title: '3. Bản quyền tác giả', icon: CheckCircle2 },
-                  { id: 'disclaimer', title: '4. Miễn trừ trách nhiệm', icon: AlertCircle }
-                ].map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activePolicyTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setActivePolicyTab(item.id as any)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition flex items-center gap-1.5 cursor-pointer ${
-                        isActive
-                          ? 'bg-zinc-950 text-white shadow-xs'
-                          : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+              {/* TIER 1: CHỌN LOẠI HỢP ĐỒNG */}
+              <div>
+                <label className="text-xs font-bold text-zinc-900 block mb-2">
+                  1. CHỌN LOẠI HÌNH HỢP ĐỒNG KÝ KẾT:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Hợp đồng cá nhân hóa */}
+                  <div
+                    onClick={() => handleSelectCategory('personal')}
+                    className={`p-3 rounded-xl border-2 transition cursor-pointer relative ${
+                      contractCategory === 'personal'
+                        ? 'border-zinc-950 bg-zinc-50/80 shadow-xs'
+                        : 'border-zinc-200 bg-white hover:border-zinc-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs text-zinc-950 flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-zinc-800" />
+                        Hợp đồng cá nhân hóa
+                      </span>
+                      {contractCategory === 'personal' && (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      )}
+                    </div>
+                    <p className="text-[11px] text-zinc-600 leading-snug">
+                      Hợp đồng ký dạng cá nhân với người dùng đơn có nhu cầu sử dụng sáng tạo video tự động nhất định.
+                    </p>
+                  </div>
+
+                  {/* Hợp đồng toàn hệ */}
+                  <div
+                    onClick={() => handleSelectCategory('enterprise')}
+                    className={`p-3 rounded-xl border-2 transition cursor-pointer relative ${
+                      contractCategory === 'enterprise'
+                        ? 'border-zinc-950 bg-zinc-50/80 shadow-xs'
+                        : 'border-zinc-200 bg-white hover:border-zinc-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs text-zinc-950 flex items-center gap-1.5">
+                        <Building className="w-3.5 h-3.5 text-zinc-800" />
+                        Hợp đồng toàn hệ
+                      </span>
+                      {contractCategory === 'enterprise' && (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      )}
+                    </div>
+                    <p className="text-[11px] text-zinc-600 leading-snug">
+                      Dành cho người dùng cao cấp, doanh nghiệp và tổ chức muốn sử dụng hạn mức cao nhất, mở rộng và cập nhật chức năng theo thời gian thực.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* TIER 2: CHỌN GÓI KÝ KẾT CỤ THỂ */}
+              <div>
+                <label className="text-xs font-bold text-zinc-900 block mb-2">
+                  2. CHỌN PHƯƠNG THỨC KÝ & THANH TOÁN (THEO {contractCategory === 'personal' ? 'HỢP ĐỒNG CÁ NHÂN HÓA' : 'HỢP ĐỒNG TOÀN HỆ'}):
+                </label>
+
+                {contractCategory === 'personal' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Đặt cọc cá nhân */}
+                    <div
+                      onClick={() => handleSelectPackage('personal_deposit')}
+                      className={`p-3 rounded-xl border transition cursor-pointer ${
+                        contractPackage === 'personal_deposit'
+                          ? 'border-zinc-950 bg-amber-50/40 ring-1 ring-zinc-950'
+                          : 'border-zinc-200 bg-white hover:border-zinc-300'
                       }`}
                     >
-                      <Icon className="w-3.5 h-3.5" />
-                      <span>{item.title}</span>
-                    </button>
-                  );
-                })}
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-bold text-xs text-zinc-950">
+                          Ký đặt cọc dự án cá nhân
+                        </span>
+                        <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">
+                          Đặt cọc
+                        </span>
+                      </div>
+                      <div className="space-y-0.5 text-[11px]">
+                        <div>Tiền đặt cọc: <b className="text-zinc-950">1.250.000 VNĐ</b></div>
+                        <div>Tổng bàn giao: <b className="text-emerald-700">2.550.000 VNĐ</b> <span className="line-through text-zinc-400 text-[10px]">(Gốc: 3.250.000đ)</span></div>
+                        <div className="text-zinc-500 text-[10px] mt-1">Bên bán cam kết bàn giao đúng hạn theo số ngày đặt cọc.</div>
+                      </div>
+                    </div>
+
+                    {/* Thanh toán 100% cá nhân */}
+                    <div
+                      onClick={() => handleSelectPackage('personal_full')}
+                      className={`p-3 rounded-xl border transition cursor-pointer ${
+                        contractPackage === 'personal_full'
+                          ? 'border-zinc-950 bg-emerald-50/40 ring-1 ring-zinc-950'
+                          : 'border-zinc-200 bg-white hover:border-zinc-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-bold text-xs text-zinc-950">
+                          Ký hợp đồng dự án cá nhân
+                        </span>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                          Thanh toán 100%
+                        </span>
+                      </div>
+                      <div className="space-y-0.5 text-[11px]">
+                        <div>Thanh toán 1 lần: <b className="text-emerald-700">2.550.000 VNĐ</b> <span className="line-through text-zinc-400 text-[10px]">(Gốc: 3.250.000đ)</span></div>
+                        <div className="text-zinc-500 text-[10px] mt-1">Cấp đủ Mã Code và Mật khẩu đăng nhập ngay sau khi duyệt.</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Đặt cọc phân bổ toàn hệ */}
+                    <div
+                      onClick={() => handleSelectPackage('enterprise_deposit')}
+                      className={`p-3 rounded-xl border transition cursor-pointer ${
+                        contractPackage === 'enterprise_deposit'
+                          ? 'border-zinc-950 bg-amber-50/40 ring-1 ring-zinc-950'
+                          : 'border-zinc-200 bg-white hover:border-zinc-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-bold text-xs text-zinc-950">
+                          Ký đặt cọc phân bổ
+                        </span>
+                        <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">
+                          Đặt cọc
+                        </span>
+                      </div>
+                      <div className="space-y-0.5 text-[11px]">
+                        <div>Tiền đặt cọc: <b className="text-zinc-950">2.500.000 VNĐ</b></div>
+                        <div>Tổng hợp đồng: <b className="text-emerald-700">5.490.000 VNĐ</b> <span className="line-through text-zinc-400 text-[10px]">(Gốc: 6.250.000đ)</span></div>
+                        <div className="text-zinc-500 text-[10px] mt-1">Bên bán cam kết bàn giao đúng hạn theo số ngày đặt cọc.</div>
+                      </div>
+                    </div>
+
+                    {/* Thanh toán 100% toàn hệ */}
+                    <div
+                      onClick={() => handleSelectPackage('enterprise_full')}
+                      className={`p-3 rounded-xl border transition cursor-pointer ${
+                        contractPackage === 'enterprise_full'
+                          ? 'border-zinc-950 bg-emerald-50/40 ring-1 ring-zinc-950'
+                          : 'border-zinc-200 bg-white hover:border-zinc-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-bold text-xs text-zinc-950">
+                          Ký hợp đồng dự án toàn hệ chính thức
+                        </span>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                          Thanh toán 100%
+                        </span>
+                      </div>
+                      <div className="space-y-0.5 text-[11px]">
+                        <div>Thanh toán 1 lần: <b className="text-emerald-700">5.490.000 VNĐ</b> <span className="line-through text-zinc-400 text-[10px]">(Gốc: 6.250.000đ)</span></div>
+                        <div className="text-zinc-500 text-[10px] mt-1">Toàn bộ hạn mức tối đa của hệ thống, cấp tài khoản ngay sau khi duyệt.</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Khung nội dung pháp lý cuộn */}
-              <div className="h-56 overflow-y-auto p-4 bg-zinc-50 border border-zinc-200 rounded-xl leading-relaxed text-zinc-700 text-xs font-sans space-y-3 shadow-inner">
-                {activePolicyTab === 'terms' && (
-                  <div>
-                    <h4 className="font-bold text-zinc-950 text-xs uppercase mb-1 font-sans">
-                      QUY CHẾ VÀ ĐIỀU KHOẢN SỬ DỤNG DỊCH VỤ PHẦN MỀM (SỐ: 01/2026/QĐ-SYNAPES)
-                    </h4>
-                    <p className="italic text-zinc-500 mb-2">
-                      Căn cứ Bộ luật Dân sự 2015, Luật Giao dịch điện tử 2023, Luật Công nghệ thông tin 2006, Nghị định 147/2024/NĐ-CP.
-                    </p>
-                    <p>
-                      1. Bên Cung Cấp SYNAPES Studio cung cấp giải pháp tự động hóa nội dung số dưới dạng dịch vụ phần mềm (SaaS). Sau khi hồ sơ được phê duyệt, Khách Hàng được cấp Mã Code cá nhân duy nhất (dạng <code>SNP_...</code>) và mật khẩu để đăng nhập hệ thống.
-                    </p>
-                    <p>
-                      2. Khách Hàng cam kết bảo mật thông tin đăng nhập, chủ động đổi mật khẩu riêng ngay trong phiên đăng nhập đầu tiên. Hệ thống áp dụng thuật toán băm mã hóa một chiều bcrypt an toàn, không bên thứ ba nào có thể đọc được mật khẩu của bạn.
-                    </p>
-                    <p>
-                      3. Quy chuẩn nội dung video: Video dài YouTube tối ưu thời lượng 5-10 phút; Video ngắn TikTok/Reels dưới 60 giây, khung hình 9:16. Nghiêm cấm mọi hành vi tấn công mạng, can thiệp mã nguồn hoặc cố tình gây quá tải hệ thống máy chủ.
-                    </p>
+              {/* Ô NHẬP SỐ NGÀY ĐẾN HẠN BÀN GIAO (KHI LÀ HỢP ĐỒNG ĐẶT CỌC) */}
+              {currentPkgInfo.isDeposit && (
+                <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <label className="font-bold text-xs text-amber-950 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-800" />
+                      Thời hạn bên bán cam kết bàn giao hệ thống (tính từ thời điểm đặt cọc):
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        max={60}
+                        required
+                        value={deliveryDays}
+                        onChange={(e) => setDeliveryDays(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-20 bg-white border border-amber-300 rounded-lg px-2.5 py-1 text-center font-bold text-xs text-amber-950 focus:outline-none focus:border-zinc-900"
+                      />
+                      <span className="font-bold text-xs text-amber-950">ngày</span>
+                    </div>
                   </div>
-                )}
+                  <p className="text-[11px] text-amber-900 leading-relaxed">
+                    <b>Cam kết pháp lý:</b> Người bán có nghĩa vụ bàn giao sản phẩm (hệ thống) đúng thời hạn, tính từ thời điểm đặt cọc là <b>{deliveryDays} ngày</b>. Thông tin này sẽ được in trực tiếp vào trong file PDF hợp đồng gửi đến bạn và lưu về bản sao quản trị.
+                  </p>
+                </div>
+              )}
 
-                {activePolicyTab === 'privacy' && (
-                  <div>
-                    <h4 className="font-bold text-zinc-950 text-xs uppercase mb-1 font-sans">
-                      CHÍNH SÁCH BẢO VỆ DỮ LIỆU CÁ NHÂN & AN TOÀN TOKEN API (SỐ: 02/2026/CSBM-SYNAPES)
-                    </h4>
-                    <p className="italic text-zinc-500 mb-2">
-                      Căn cứ Nghị định số 13/2023/NĐ-CP, Luật An toàn thông tin mạng 2015, Luật An ninh mạng 2018.
-                    </p>
-                    <p>
-                      1. Toàn bộ thông tin cá nhân và dữ liệu dự án của Khách Hàng được mã hóa theo tiêu chuẩn bảo mật quân sự AES-256-GCM.
-                    </p>
-                    <p>
-                      2. Khóa API các dịch vụ (OpenAI GPT, Claude, DeepSeek, Grok, Gemini, YouTube, TikTok, Meta, Google Drive) được lưu trữ cô lập trong môi trường Sandbox bảo mật. SYNAPES Studio cam kết tuyệt đối không chuyển giao, mua bán hay chia sẻ token API của Khách Hàng cho bất kỳ bên thứ ba nào.
-                    </p>
-                  </div>
-                )}
+              {/* TABS ĐIỀU KHOẢN PHÁP LÝ & QUYỀN HẠN HỆ THỐNG */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-1 border-b border-zinc-200 pb-2 overflow-x-auto scrollbar-none">
+                  {[
+                    { id: 'features', title: '1. Quyền hạn & Tính năng', icon: Layers },
+                    { id: 'terms', title: '2. Quy định thanh toán & Bàn giao', icon: DollarSign },
+                    { id: 'warranty', title: '3. Bảo hành vĩnh viễn', icon: Award },
+                    { id: 'dmca', title: '4. An toàn DMCA', icon: ShieldCheck },
+                    { id: 'disclaimer', title: '5. Miễn trừ rủi ro', icon: AlertCircle }
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activePolicyTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setActivePolicyTab(item.id as any)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition flex items-center gap-1.5 cursor-pointer ${
+                          isActive
+                            ? 'bg-zinc-950 text-white shadow-xs'
+                            : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        <span>{item.title}</span>
+                      </button>
+                    );
+                  })}
+                </div>
 
-                {activePolicyTab === 'copyright' && (
-                  <div>
-                    <h4 className="font-bold text-zinc-950 text-xs uppercase mb-1 font-sans">
-                      QUY ĐỊNH BẢO HỘ QUYỀN SỞ HỮU TRÍ TUỆ KỊCH BẢN & NỘI DUNG (SỐ: 03/2026/SHTT-SYNAPES)
-                    </h4>
-                    <p className="italic text-zinc-500 mb-2">
-                      Căn cứ Luật Sở hữu trí tuệ 2005 (sửa đổi, bổ sung 2022), Nghị định 17/2023/NĐ-CP, Công ước Berne.
-                    </p>
-                    <p>
-                      1. Khách Hàng là chủ sở hữu quyền tác giả duy nhất và toàn vẹn 100% đối với toàn bộ kịch bản, lời bình, âm thanh và video thành phẩm được xuất bản từ phần mềm.
-                    </p>
-                    <p>
-                      2. SYNAPES Studio không đòi hỏi bất kỳ quyền sở hữu thương mại hay yêu cầu phân chia doanh thu nào từ các kênh phát sóng và sản phẩm do Khách Hàng tạo dựng.
-                    </p>
-                  </div>
-                )}
+                {/* Khung nội dung pháp lý */}
+                <div className="h-52 overflow-y-auto p-4 bg-zinc-50 border border-zinc-200 rounded-xl leading-relaxed text-zinc-700 text-xs font-sans space-y-3 shadow-inner">
+                  {activePolicyTab === 'features' && (
+                    <div>
+                      <h4 className="font-bold text-zinc-950 text-xs uppercase mb-1.5">
+                        ĐIỀU 1: QUYỀN HẠN (HẠN MỨC) VÀ CHỨC NĂNG SẢN PHẨM HỆ THỐNG CUNG CẤP
+                      </h4>
+                      {contractCategory === 'personal' ? (
+                        <div className="space-y-1.5">
+                          <p><b>1.1. Phạm vi cấp phép cá nhân hóa:</b> Bên Cung Cấp SYNAPES Studio cấp quyền sử dụng hệ thống phiên bản Cá Nhân Hóa trọn đời cho Khách Hàng (Bên B).</p>
+                          <p><b>1.2. Danh mục chức năng được kích hoạt:</b></p>
+                          <ul className="list-disc pl-5 space-y-1 text-zinc-600">
+                            <li>Tự động hóa chức năng tạo - đăng tải video và tuân thủ cấu trúc đa tầng (Hook 3s, thân kịch bản, Call-to-action).</li>
+                            <li>Biên tập chuyên nghiệp và tối ưu cho cả Video Dài YouTube (16:9) và Video Ngắn TikTok/Reels/Shorts (9:16).</li>
+                            <li>Đưa ra các báo cáo đánh giá về các xu hướng hiện thực, phân tích tâm lý người xem theo thời gian thực.</li>
+                            <li>Cung cấp các đánh giá dữ liệu thời gian thực, quản lý lịch phát sóng giờ vàng (Goldtime).</li>
+                            <li>Hệ thống bảo mật và an toàn thông tin chuẩn DMCA và các chuẩn an toàn công nghệ hiện hành.</li>
+                          </ul>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <p><b>1.1. Phạm vi cấp phép toàn hệ thống tối đa:</b> Bên B được sử dụng <b>HẠN MỨC CHỨC NĂNG TỐI ĐA</b> của toàn bộ hệ thống SYNAPES Studio, không giới hạn số lượng chiến dịch và kênh phân phối.</p>
+                          <p><b>1.2. Toàn bộ danh mục chức năng cao cấp & độc quyền:</b></p>
+                          <ul className="list-disc pl-5 space-y-1 text-zinc-600">
+                            <li>Toàn bộ tính năng tự động hóa tạo - đăng tải đa nền tảng và tuân thủ cấu trúc đa tầng chuẩn quốc tế.</li>
+                            <li>Tính năng <b>AI Video Reverse Engineering & Video DNA Cloner</b>: Bóc tách cấu trúc, kịch bản, âm thanh, visual hook và tái tạo video tương tự theo phong cách gốc.</li>
+                            <li>Gợi ý prompt sinh ảnh/video tương tự bằng trí tuệ nhân tạo chuyên sâu.</li>
+                            <li>Cơ chế BYOK (Bring Your Own Keys) an toàn tuyệt đối, tích hợp không giới hạn API cá nhân hoặc doanh nghiệp.</li>
+                            <li>Tính tối ưu hóa và cá nhân hóa ở mức cao nhất, mở rộng và cập nhật chức năng mới liên tục trong thời gian thực.</li>
+                            <li>Hệ thống bảo mật quân sự AES-256-GCM, chuẩn DMCA và bảo vệ quyền sở hữu trí tuệ 100%.</li>
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-                {activePolicyTab === 'disclaimer' && (
-                  <div>
-                    <h4 className="font-bold text-zinc-950 text-xs uppercase mb-1 font-sans">
-                      QUY CHẾ PHÊ DUYỆT KIỂM SOÁT NỘI DUNG & MIỄN TRỪ TRÁCH NHIỆM (SỐ: 04/2026/QC-SYNAPES)
-                    </h4>
-                    <p className="italic text-zinc-500 mb-2">
-                      Căn cứ Luật An ninh mạng 2018 (Điều 8 & Điều 16), Nghị định 147/2024/NĐ-CP, Tiêu chuẩn cộng đồng mạng xã hội.
-                    </p>
-                    <p>
-                      1. Cơ chế phê duyệt kiểm soát (Human-in-the-loop): Khách Hàng là người trực tiếp kiểm duyệt nội dung kịch bản và quyết định bấm duyệt xuất bản video.
-                    </p>
-                    <p>
-                      2. Khách Hàng cam kết tự chịu hoàn toàn trách nhiệm trước pháp luật về tính chân thực và bản quyền nội dung. SYNAPES Studio được miễn trừ toàn bộ trách nhiệm pháp lý liên đới đối với các tranh chấp nội dung do Khách Hàng tạo dựng và phát hành.
-                    </p>
-                  </div>
-                )}
+                  {activePolicyTab === 'terms' && (
+                    <div>
+                      <h4 className="font-bold text-zinc-950 text-xs uppercase mb-1.5">
+                        ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG, NGHĨA VỤ BÀN GIAO & PHƯƠNG THỨC THANH TOÁN
+                      </h4>
+                      <p><b>2.1. Giá trị thanh toán:</b></p>
+                      <ul className="list-disc pl-5 space-y-1 text-zinc-600">
+                        <li>Gói ký kết: <b>{currentPkgInfo.name}</b> thuộc <b>{currentPkgInfo.categoryName}</b>.</li>
+                        {currentPkgInfo.isDeposit ? (
+                          <>
+                            <li>Số tiền đặt cọc: <b className="text-zinc-950">{formatVnd(currentPkgInfo.depositAmount)}</b>.</li>
+                            <li>Tổng giá trị toàn vẹn bàn giao hệ thống: <b className="text-emerald-700">{formatVnd(currentPkgInfo.totalAmount)}</b> (Giá gốc niêm yết: <span className="line-through">{formatVnd(currentPkgInfo.originalAmount)}</span>).</li>
+                            <li>Số tiền còn lại thanh toán khi bàn giao: <b>{formatVnd(currentPkgInfo.totalAmount - currentPkgInfo.depositAmount)}</b>.</li>
+                          </>
+                        ) : (
+                          <>
+                            <li>Tổng số tiền thanh toán 100% trọn gói một lần: <b className="text-emerald-700">{formatVnd(currentPkgInfo.totalAmount)}</b> (Giá gốc niêm yết: <span className="line-through">{formatVnd(currentPkgInfo.originalAmount)}</span>).</li>
+                          </>
+                        )}
+                      </ul>
+                      <p className="mt-1.5"><b>2.2. Nghĩa vụ bàn giao sản phẩm (hệ thống):</b></p>
+                      <p className="text-zinc-600">
+                        {currentPkgInfo.isDeposit
+                          ? `Bên bán có nghĩa vụ bàn giao sản phẩm (hệ thống) đúng thời hạn, tính từ thời điểm đặt cọc là ${deliveryDays} ngày. Khi đến hạn bàn giao, Kỹ sư/Dev sẽ tiến hành duyệt lần cuối sau khi Bên B thanh toán đầy đủ phần còn lại để phát hành thông tin tài khoản chính thức.`
+                          : 'Bên bán có nghĩa vụ cấp đủ Mã Code đăng nhập, Mật khẩu cùng bản hợp đồng PDF chính thức gửi về Gmail Bên B ngay sau khi Kỹ sư duyệt ký xác nhận.'}
+                      </p>
+                    </div>
+                  )}
+
+                  {activePolicyTab === 'warranty' && (
+                    <div>
+                      <h4 className="font-bold text-zinc-950 text-xs uppercase mb-1.5">
+                        ĐIỀU 3: THỜI HẠN HIỆU LỰC, CAM KẾT BẢO HÀNH TOÀN THỜI GIAN & TÍNH CHÍNH THỐNG
+                      </h4>
+                      <p><b>3.1. Thời hạn và giá trị hợp đồng:</b> Có tính <b>VĨNH VIỄN</b> kể từ thời điểm ký kết thành công.</p>
+                      <p><b>3.2. Cam kết bảo hành & hỗ trợ:</b> Bên bán cam kết bảo hành và cung cấp giải pháp bảo hành toàn thời gian cho toàn bộ hệ thống phần mềm, khắc phục mọi sự cố kỹ thuật phát sinh 24/7.</p>
+                      <p><b>3.3. Tính chính thống:</b> Hệ thống phần mềm SYNAPES Studio là sản phẩm trí tuệ độc quyền được phát triển chính thống bởi Ban Chuyển đổi số & Trí tuệ nhân tạo, đứng đầu là KS. Nguyễn Hoàng Thiện.</p>
+                    </div>
+                  )}
+
+                  {activePolicyTab === 'dmca' && (
+                    <div>
+                      <h4 className="font-bold text-zinc-950 text-xs uppercase mb-1.5">
+                        ĐIỀU 4: BẢO MẬT DỮ LIỆU & TIÊU CHUẨN AN TOÀN THÔNG TIN CHUẨN DMCA
+                      </h4>
+                      <p><b>4.1. Tiêu chuẩn bảo mật:</b> Hệ thống tuân thủ nghiêm ngặt các quy định về an toàn thông tin theo Luật An toàn thông tin mạng 2015, Nghị định 13/2023/NĐ-CP và tiêu chuẩn bản quyền kỹ thuật số quốc tế DMCA.</p>
+                      <p><b>4.2. Bảo vệ khóa API & Kịch bản:</b> Toàn bộ dữ liệu của Khách Hàng và các Token API được mã hóa AES-256 trong môi trường Sandbox độc lập. Tuyệt đối không chia sẻ hoặc cung cấp cho bất kỳ bên thứ ba nào.</p>
+                    </div>
+                  )}
+
+                  {activePolicyTab === 'disclaimer' && (
+                    <div>
+                      <h4 className="font-bold text-zinc-950 text-xs uppercase mb-1.5">
+                        ĐIỀU 5: QUYỀN MIỄN TRỪ TRÁCH NHIỆM & QUẢN TRỊ RỦI RO
+                      </h4>
+                      <p><b>5.1. Quyền miễn trừ của Bên Bán:</b> Bên Bán được miễn trừ toàn bộ trách nhiệm dân sự và hình sự liên đới trong các trường hợp:</p>
+                      <ul className="list-disc pl-5 space-y-1 text-zinc-600">
+                        <li>Khách Hàng (Bên B) tự ý sử dụng các khóa API lậu, key trôi nổi không rõ nguồn gốc gây khóa dịch vụ hoặc thất thoát dữ liệu.</li>
+                        <li>Khách Hàng sử dụng các hình ảnh, âm thanh, video hoặc nhãn hiệu có bản quyền của bên thứ ba mà chưa được cấp phép sở hữu.</li>
+                        <li>Khách Hàng vi phạm chính sách cộng đồng, pháp luật an ninh mạng hoặc các điều cấm của Nhà nước.</li>
+                      </ul>
+                      <p className="mt-1.5"><b>5.2. Trách nhiệm của Bên Mua:</b> Bên B hoàn toàn chịu trách nhiệm trước pháp luật về toàn bộ nội dung xuất bản và tài nguyên sử dụng trên hệ thống.</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Hộp xác nhận cam kết (Dưới cùng) */}
+              {/* THÔNG TIN THANH TOÁN & QR CODE VIETQR */}
+              <div className="p-3 bg-zinc-100/80 border border-zinc-200 rounded-xl flex items-center justify-between gap-3">
+                <div className="space-y-0.5 text-xs">
+                  <div className="font-bold text-zinc-900 flex items-center gap-1.5">
+                    <QrCode className="w-3.5 h-3.5 text-zinc-700" />
+                    Tài khoản thanh toán chính thức (Timo Digital Bank by BVBank):
+                  </div>
+                  <div className="text-zinc-700 text-[11px]">
+                    STK: <b className="font-mono text-zinc-950 text-xs">0983396354</b> • Chủ TK: <b className="text-zinc-950">NGUYEN HOANG THIEN</b>
+                  </div>
+                  <div className="text-[10px] text-zinc-500">
+                    Số tiền: <b className="text-emerald-700">{formatVnd(currentPkgInfo.isDeposit ? currentPkgInfo.depositAmount : currentPkgInfo.totalAmount)}</b> • Nội dung: <b>{phone} {fullName}</b>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowQrModal(true)}
+                  className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5 cursor-pointer flex-shrink-0"
+                >
+                  <QrCode className="w-3.5 h-3.5 text-zinc-700" />
+                  <span>Xem QR Chuyển Khoản</span>
+                </button>
+              </div>
+
+              {/* HỘP CAM KẾT & TÍCH CHỌN */}
               <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl">
                 <label className="flex items-start gap-2.5 cursor-pointer">
                   <input
@@ -747,8 +1115,8 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                     onChange={(e) => setTermsAccepted(e.target.checked)}
                     className="mt-0.5 w-4 h-4 text-zinc-950 rounded border-amber-300 focus:ring-zinc-950 cursor-pointer"
                   />
-                  <span className="text-xs text-amber-950 leading-relaxed font-medium">
-                    Tôi xác nhận đã đọc, hiểu và chấp nhận toàn bộ nội dung của điều khoản và hiểu rằng bản thân có ý thức chấp hành các điều khoản đã quy định một cách nghiêm túc.
+                  <span className="text-xs text-amber-950 leading-relaxed font-bold">
+                    Tôi đã hiểu và chịu trách nhiệm với các điều khoản đề ra giữa cả hai bên
                   </span>
                 </label>
               </div>
@@ -777,12 +1145,12 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                   {isSubmitting ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Đang ký hợp đồng & gửi hồ sơ...</span>
+                      <span>Đang gửi hợp đồng lên hệ thống...</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      <span>Ký Hợp Đồng</span>
+                      <span>Gửi hợp đồng</span>
                     </>
                   )}
                 </button>
@@ -791,7 +1159,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
           )}
 
           {/* ========================================================= */}
-          {/* BƯỚC 3: HOÀN TẤT & CHỜ BAN QUẢN LÝ / KỸ SƯ DUYỆT TRÊN SHEET */}
+          {/* BƯỚC 3: HOÀN TẤT & HƯỚNG DẪN QUY TRÌNH DUYỆT TỪ KỸ SƯ */}
           {/* ========================================================= */}
           {step === 3 && (
             <div className="py-5 text-center space-y-4">
@@ -801,36 +1169,54 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
 
               <div className="space-y-1.5">
                 <h3 className="text-base font-bold text-zinc-950">
-                  Đăng Ký Hợp Đồng Thành Công!
+                  Gửi Hợp Đồng Thành Công!
                 </h3>
                 <p className="text-xs text-zinc-600 max-w-md mx-auto leading-relaxed">
-                  Bạn đã đăng ký hợp đồng điện tử thành công và hiện phía <b>Ban quản lý đang duyệt hợp đồng</b> của bạn. Bạn có thể thoát ra khỏi khung đăng ký và chờ thư thông báo gửi về Gmail.
+                  Hồ sơ và Hợp đồng <b>{currentPkgInfo.name}</b> của bạn đã được ghi nhận trên trang tính <b>"THÔNG TIN NGƯỜI DÙNG"</b> để Kỹ sư/Dev kiểm tra và duyệt ký.
                 </p>
               </div>
 
-              {/* Box giải thích quy trình duyệt */}
+              {/* Giải thích quy trình chi tiết theo loại hợp đồng */}
               <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-xl text-left text-xs space-y-2.5 max-w-lg mx-auto">
                 <div className="flex items-center gap-2 font-bold text-zinc-900 border-b border-zinc-200 pb-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  <span>Trạng Thái Hồ Sơ & Hợp Đồng PDF:</span>
+                  <span>Quy Trình Phê Duyệt & Gửi Gmail Thông Báo:</span>
                 </div>
-                <ul className="space-y-2 text-zinc-600 pl-1 font-sans leading-relaxed">
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-600 font-bold">1.</span>
-                    <span>Toàn bộ thông tin đăng ký và bản mềm <b>Hợp đồng PDF</b> của bạn đã được lưu trữ trên trang tính <b>"THÔNG TIN NGƯỜI DÙNG"</b> để Dev / Kỹ sư xác nhận.</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-600 font-bold">2.</span>
-                    <span>Khi Dev / Kỹ sư tích chọn xác nhận duyệt hợp đồng, hệ thống sẽ tự động tạo <b>Mã Code đăng nhập</b> và <b>Mật khẩu</b> cá nhân cho bạn.</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-600 font-bold">3.</span>
-                    <span>Hệ thống sẽ tự động gửi thông tin <b>Mã Code đăng nhập, Mật khẩu cùng file PDF Hợp đồng hoàn chỉnh</b> đến Gmail bạn đã đăng ký: <b className="text-zinc-950 font-mono">{email}</b>.</span>
-                  </li>
-                </ul>
+
+                {currentPkgInfo.isDeposit ? (
+                  <ul className="space-y-2 text-zinc-600 pl-1 font-sans leading-relaxed">
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-600 font-bold">1. Duyệt Lần 1:</span>
+                      <span>Kỹ sư/Dev sẽ tích duyệt hợp đồng đặt cọc. Hệ thống <b>chưa cấp mật khẩu ngay</b> mà sẽ gửi Gmail xác nhận ký kết thành công kèm thông báo ngày nhận sản phẩm (sau <b>{deliveryDays} ngày</b>) và file PDF bản hợp đồng đặt cọc có <b>dấu mộc đỏ Trưởng ban KS. Nguyễn Hoàng Thiện</b> cùng mã QR chuyển khoản.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-600 font-bold">2. Bàn Giao Lần 2:</span>
+                      <span>Khi tới hạn bàn giao và xác nhận bạn đã hoàn tất thanh toán phần còn lại, Kỹ sư/Dev sẽ tích duyệt Lần 2 trên Sheet để hệ thống gửi Gmail cấp <b>Mã Code đăng nhập + Mật khẩu</b> và bản hợp đồng bàn giao chính thức.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-blue-600 font-bold">3. Gmail tiếp nhận:</span>
+                      <span>Vui lòng kiểm tra hộp thư đến tại Gmail: <b className="text-zinc-950 font-mono">{email}</b>.</span>
+                    </li>
+                  </ul>
+                ) : (
+                  <ul className="space-y-2 text-zinc-600 pl-1 font-sans leading-relaxed">
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-600 font-bold">1. Duyệt Toàn Phần:</span>
+                      <span>Kỹ sư/Dev sẽ tích duyệt hồ sơ trên Sheet sau khi xác nhận thanh toán 100%.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-600 font-bold">2. Cấp Tài Khoản Ngay:</span>
+                      <span>Hệ thống sẽ tự động gửi ngay <b>Mã Code đăng nhập + Mật khẩu + Hướng dẫn chi tiết</b> cùng <b>File PDF hợp đồng đã ký có dấu mộc đỏ Trưởng ban KS. Nguyễn Hoàng Thiện</b> về Gmail của bạn.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-blue-600 font-bold">3. Gmail tiếp nhận:</span>
+                      <span>Vui lòng kiểm tra hộp thư đến tại Gmail: <b className="text-zinc-950 font-mono">{email}</b>.</span>
+                    </li>
+                  </ul>
+                )}
               </div>
 
-              {/* Nút thoát khung đăng ký */}
+              {/* Nút thoát */}
               <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
                 <button
                   type="button"
@@ -853,7 +1239,56 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* MODAL HIỂN THỊ ẢNH QR CODE CHUYỂN KHOẢN TIMO */}
+      {showQrModal && (
+        <div
+          className="fixed inset-0 z-60 bg-black/75 flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setShowQrModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-sm w-full p-5 space-y-4 text-center relative shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setShowQrModal(false)}
+              className="absolute top-3 right-3 p-1 rounded-lg text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <h3 className="font-bold text-sm text-zinc-950 uppercase">
+              Mã QR Thanh Toán & Đặt Cọc
+            </h3>
+
+            <div className="p-3 bg-white rounded-xl border border-zinc-200 inline-block shadow-sm">
+              <img
+                src={QR_CODE_BASE64}
+                alt="QR Code Timo - NGUYEN HOANG THIEN"
+                className="w-56 h-auto mx-auto object-contain rounded-lg"
+              />
+            </div>
+
+            <div className="text-xs text-zinc-700 space-y-1">
+              <div>Ngân hàng: <b>Timo Digital Bank by BVBank</b></div>
+              <div>Số tài khoản: <b className="font-mono text-zinc-950 text-sm">0983396354</b></div>
+              <div>Chủ tài khoản: <b className="text-zinc-950">NGUYEN HOANG THIEN</b></div>
+              <div className="text-emerald-700 font-bold pt-1">
+                Số tiền: {formatVnd(currentPkgInfo.isDeposit ? currentPkgInfo.depositAmount : currentPkgInfo.totalAmount)}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowQrModal(false)}
+              className="btn-primary w-full py-2 text-xs font-bold cursor-pointer"
+            >
+              Đã hiểu & Đóng
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
