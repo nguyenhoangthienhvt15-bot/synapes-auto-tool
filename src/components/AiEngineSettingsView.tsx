@@ -10,6 +10,9 @@ import {
   DiscoveredModel,
   PROVIDERS,
   ProviderMeta,
+  detectPluginBrand,
+  PLUGIN_PRESETS,
+  PluginPreset,
 } from '../services/aiModelDiscoveryService';
 import { ProviderBrandLogo, AiModelDropdown } from './AiProviderDropdown';
 
@@ -413,6 +416,10 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
             {PROVIDERS.map((prov) => {
               const isCurrent = activeProvider === prov.id;
               const isDefault = (config.activeProvider || config.mode) === prov.id;
+              const pluginBrand = prov.id === 'plugin' ? detectPluginBrand(endpoints.plugin || config.plugin?.endpointUrl, models.plugin || config.plugin?.name) : undefined;
+              const displayName = prov.id === 'plugin' && pluginBrand && pluginBrand !== 'custom'
+                ? `${pluginBrand.toUpperCase()} Webhook`
+                : prov.name;
 
               return (
                 <button
@@ -426,9 +433,9 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2 truncate">
-                      <ProviderBrandLogo provider={prov.id} size="xs" withBadge={true} />
+                      <ProviderBrandLogo provider={prov.id} pluginBrand={pluginBrand} size="xs" withBadge={true} />
                       <span className="text-xs font-bold text-zinc-900 truncate">
-                        {prov.name}
+                        {displayName}
                       </span>
                     </div>
                     {isDefault && (
@@ -756,24 +763,84 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
 
           {/* Specialized setting for Plugin Webhook */}
           {activeProvider === 'plugin' && (
-            <div className="p-3.5 rounded-lg bg-zinc-50 border border-black/5 space-y-3">
-              <div className="font-semibold text-zinc-900">Cấu Hình Payload JSON Webhook</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-zinc-500 text-[11px] block mb-0.5">Input Mapping (Gửi đi)</label>
-                  <textarea
-                    rows={3}
-                    defaultValue={config.plugin?.inputMapping}
-                    className="w-full bg-white border border-black/10 rounded-lg p-2 text-[11px] font-mono text-zinc-800 focus:outline-none"
-                  />
+            <div className="space-y-3.5">
+              {/* Banner nhà phát triển nhận diện */}
+              <div className="p-3 rounded-xl bg-purple-50/70 border border-purple-200/80 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <ProviderBrandLogo provider="plugin" pluginBrand={detectPluginBrand(endpoints.plugin, models.plugin)} size="md" withBadge={true} />
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-zinc-950 flex items-center gap-2">
+                      <span>Nhà Phát Triển: {
+                        (() => {
+                          const b = detectPluginBrand(endpoints.plugin, models.plugin);
+                          const found = PLUGIN_PRESETS.find(p => p.brand === b);
+                          return found ? found.name : 'Custom Webhook API';
+                        })()
+                      }</span>
+                      <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200 text-[10px] font-mono font-medium">
+                        Webhook Active
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-zinc-600 truncate mt-0.5 font-mono">
+                      {endpoints.plugin || 'Chưa thiết lập URL'}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-zinc-500 text-[11px] block mb-0.5">Output Mapping (Đường dẫn video trả về)</label>
-                  <textarea
-                    rows={3}
-                    defaultValue={config.plugin?.outputMapping}
-                    className="w-full bg-white border border-black/10 rounded-lg p-2 text-[11px] font-mono text-zinc-800 focus:outline-none"
-                  />
+              </div>
+
+              {/* Preset Selector */}
+              <div>
+                <div className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <span>GỢI Ý KẾT NỐI NHANH CÁC NHÀ PHÁT TRIỂN AI HÀNG ĐẦU</span>
+                  <span className="text-[10px] text-purple-600 font-sans font-medium">Tự động cấu hình Endpoint & Mapping</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {PLUGIN_PRESETS.map((preset) => {
+                    const isPresetActive = detectPluginBrand(endpoints.plugin, models.plugin) === preset.brand;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          setEndpoints(prev => ({ ...prev, plugin: preset.endpointUrl }));
+                          setModels(prev => ({ ...prev, plugin: preset.defaultModel }));
+                        }}
+                        className={`p-2 rounded-lg border text-left transition cursor-pointer flex items-center gap-2 ${
+                          isPresetActive
+                            ? 'bg-purple-50/90 border-purple-500 ring-2 ring-purple-500/10 shadow-2xs'
+                            : 'bg-white hover:bg-zinc-50 border-black/[0.08]'
+                        }`}
+                      >
+                        <ProviderBrandLogo provider={preset.brand} size="xs" withBadge={true} />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11px] font-bold text-zinc-950 truncate">{preset.name.split(' (')[0]}</div>
+                          <div className="text-[9px] text-zinc-500 truncate font-mono">{preset.defaultModel}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-lg bg-zinc-50 border border-black/5 space-y-3">
+                <div className="font-semibold text-zinc-900 text-xs">Cấu Hình Payload JSON Webhook</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-zinc-500 text-[11px] block mb-0.5">Input Mapping (Gửi đi)</label>
+                    <textarea
+                      rows={3}
+                      defaultValue={config.plugin?.inputMapping}
+                      className="w-full bg-white border border-black/10 rounded-lg p-2 text-[11px] font-mono text-zinc-800 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-zinc-500 text-[11px] block mb-0.5">Output Mapping (Đường dẫn video trả về)</label>
+                    <textarea
+                      rows={3}
+                      defaultValue={config.plugin?.outputMapping}
+                      className="w-full bg-white border border-black/10 rounded-lg p-2 text-[11px] font-mono text-zinc-800 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

@@ -28,6 +28,7 @@ import { CreateProjectModal } from './components/CreateProjectModal';
 import { AiEngineSettingsView } from './components/AiEngineSettingsView';
 import { SkillsManagerView } from './components/SkillsManagerView';
 import { CalendarView } from './components/CalendarView';
+import { ProjectsListView } from './components/ProjectsListView';
 import { SocialChannelsView } from './components/SocialChannelsView';
 import { DriveBackupView } from './components/DriveBackupView';
 import { PolicyModal } from './components/PolicyModal';
@@ -422,90 +423,20 @@ export function App() {
                 onOpenGuide={() => setActiveView('user-guide')}
               />
             ) : (
-              <div className="space-y-4 animate-in fade-in duration-150">
-                <div className="studio-card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-base font-bold text-zinc-950 tracking-tight">Tất Cả Dự Án Của {currentUser.name}</h2>
-                    <p className="text-zinc-500 text-xs mt-0.5">Chọn một dự án để xem lại kịch bản, video và phê duyệt xuất bản</p>
-                  </div>
-                  <button
-                    onClick={() => setIsCreateModalOpen(true)}
-                    className="btn-primary cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Dự Án Mới</span>
-                  </button>
-                </div>
-
-                {projects.length === 0 ? (
-                  <div className="studio-card p-12 text-center space-y-3">
-                    <p className="text-xs text-zinc-500">Chưa có dự án nào được lưu trong tài khoản [{currentUser.code}].</p>
-                    <button
-                      onClick={() => setIsCreateModalOpen(true)}
-                      className="btn-primary inline-flex items-center gap-1.5 text-xs cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Tạo Dự Án Video Đầu Tiên</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {projects.map((proj) => (
-                      <div
-                        key={proj.id}
-                        onClick={() => {
-                          setSelectedProject(proj);
-                          setActiveView('review');
-                        }}
-                        className="studio-card studio-card-hover overflow-hidden cursor-pointer group flex flex-col justify-between"
-                      >
-                        <div>
-                          <div className="aspect-video w-full bg-zinc-950 relative overflow-hidden">
-                            <img
-                              src={proj.thumbnailUrl}
-                              alt={proj.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                            />
-                            <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition flex items-center justify-center opacity-0 group-hover:opacity-100">
-                              <div className="w-9 h-9 rounded-full bg-white text-zinc-950 flex items-center justify-center shadow-lg">
-                                <span className="text-xs ml-0.5">▶</span>
-                              </div>
-                            </div>
-                            <span className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-xs text-white font-mono text-[10px] font-medium border border-white/10">
-                              {Math.floor(proj.duration / 60)}:{((proj.duration % 60)).toString().padStart(2, '0')}
-                            </span>
-                            <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-xs text-zinc-200 text-[10px] font-mono border border-white/10">
-                              {proj.aspectRatio}
-                            </span>
-                          </div>
-
-                          <div className="p-3.5 space-y-1.5">
-                            <h3 className="text-zinc-950 font-semibold text-xs line-clamp-2 group-hover:text-zinc-700 transition leading-snug">
-                              {proj.title}
-                            </h3>
-                            <p className="text-zinc-500 text-[11px] line-clamp-2 leading-relaxed">
-                              {proj.metadata.description}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="px-3.5 pb-3 pt-2 border-t border-black/[0.05] flex items-center justify-between text-[11px] text-zinc-500">
-                          <span className="capitalize text-zinc-600 font-mono text-[10px]">{proj.targetChannels.join(' • ')}</span>
-                          <span
-                            className="px-2 py-0.5 rounded text-[10px] font-mono font-medium border bg-zinc-100 text-zinc-800 border-zinc-200"
-                          >
-                            {proj.status === 'published'
-                              ? 'Đã phát sóng'
-                              : proj.status === 'scheduled'
-                                ? 'Đã lên lịch'
-                                : 'Chờ duyệt'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <ProjectsListView
+                currentUser={currentUser}
+                projects={projects}
+                onSelectProject={(p) => {
+                  setSelectedProject(p);
+                  setActiveView('review');
+                }}
+                onCreateNewProject={() => setIsCreateModalOpen(true)}
+                onUpdateProject={handleUpdateProject}
+                onOpenSchedule={(p) => {
+                  setSelectedProject(p);
+                  setActiveView('calendar');
+                }}
+              />
             )
           )}
 
@@ -584,6 +515,7 @@ export function App() {
                 setSelectedProject(p);
                 setActiveView('review');
               }}
+              onUpdateProject={handleUpdateProject}
             />
           )}
 
