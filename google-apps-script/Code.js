@@ -113,7 +113,7 @@ function upgradeLegacySheetTo20Cols(sheet) {
       if (!fullName && !email) continue;
 
       var cccd = "";
-      var cccdMatch = notes.match(/CCCD:s*([0-9Xx]+)/i);
+      var cccdMatch = notes.match(/CCCD:\s*([0-9Xx]+)/i);
       if (cccdMatch) cccd = cccdMatch[1];
 
       var category = "Hợp đồng cá nhân hóa";
@@ -195,9 +195,7 @@ function menuUpgradeTo20Cols() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = getUsersSheet(ss, true);
   upgradeLegacySheetTo20Cols(sheet);
-  SpreadsheetApp.getUi().alert("✅ ĐÃ NÂNG CẤP BẢNG TÍNH SANG 20 CỘT CHUẨN TOÀN DIỆN!
-
-Dữ liệu các hàng cũ đã được căn chỉnh chuẩn xác theo 20 cột và 2 phân hệ hợp đồng.");
+  SpreadsheetApp.getUi().alert("✅ ĐÃ NÂNG CẤP BẢNG TÍNH SANG 20 CỘT CHUẨN TOÀN DIỆN!\n\nDữ liệu các hàng cũ đã được căn chỉnh chuẩn xác theo 20 cột và 2 phân hệ hợp đồng.");
 }
 
 /**
@@ -1029,7 +1027,7 @@ function sendDepositApprovalEmail(email, fullName, idCardNumber, dob, gender, ph
     var remainingAmount = Math.max(0, totalAmount - depositAmount);
 
     var emailBodyHtml =
-      '<div style="font-family: 'Times New Roman', Times, serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 660px; margin: 0 auto; padding: 25px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff;">' +
+      '<div style="font-family: Times New Roman, Times, serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 660px; margin: 0 auto; padding: 25px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff;">' +
       '  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 14px; margin-bottom: 20px;">' +
       '    <h2 style="margin: 0; color: #0f172a; text-transform: uppercase; font-size: 18px; letter-spacing: 0.5px;">HỆ THỐNG CÔNG NGHỆ SYNAPES STUDIO</h2>' +
       '    <p style="margin: 4px 0 0 0; color: #475569; font-size: 13px; font-weight: bold;">BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO — XÁC NHẬN KÝ KẾT ĐẶT CỌC DỰ ÁN</p>' +
@@ -1093,7 +1091,7 @@ function sendFullApprovalEmail(email, fullName, idCardNumber, dob, gender, phone
       .setName("HOP_DONG_DICH_VU_SYNAPES_" + code + ".pdf");
 
     var emailBodyHtml =
-      '<div style="font-family: 'Times New Roman', Times, serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 660px; margin: 0 auto; padding: 25px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff;">' +
+      '<div style="font-family: Times New Roman, Times, serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 660px; margin: 0 auto; padding: 25px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff;">' +
       '  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 14px; margin-bottom: 20px;">' +
       '    <h2 style="margin: 0; color: #0f172a; text-transform: uppercase; font-size: 18px; letter-spacing: 0.5px;">HỆ THỐNG CÔNG NGHỆ SYNAPES STUDIO</h2>' +
       '    <p style="margin: 4px 0 0 0; color: #475569; font-size: 13px; font-weight: bold;">BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO — THÔNG BÁO CẤP TÀI KHOẢN CHÍNH THỨC</p>' +
@@ -1159,7 +1157,7 @@ function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phon
       .setName("BIEN_BAN_BAN_GIAO_SYNAPES_" + code + ".pdf");
 
     var emailBodyHtml =
-      '<div style="font-family: 'Times New Roman', Times, serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 660px; margin: 0 auto; padding: 25px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff;">' +
+      '<div style="font-family: Times New Roman, Times, serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 660px; margin: 0 auto; padding: 25px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff;">' +
       '  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 14px; margin-bottom: 20px;">' +
       '    <h2 style="margin: 0; color: #0f172a; text-transform: uppercase; font-size: 18px; letter-spacing: 0.5px;">HỆ THỐNG CÔNG NGHỆ SYNAPES STUDIO</h2>' +
       '    <p style="margin: 4px 0 0 0; color: #475569; font-size: 13px; font-weight: bold;">BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO — BIÊN BẢN BÀN GIAO HỆ THỐNG CHÍNH THỨC</p>' +
@@ -1210,7 +1208,7 @@ function sendForgotPasswordEmail(email, fullName, code, newPassword) {
     var nowStr = Utilities.formatDate(new Date(), "GMT+7", "dd/MM/yyyy HH:mm:ss");
 
     var emailBodyHtml =
-      '<div style="font-family: 'Times New Roman', Times, serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 620px; margin: 0 auto; padding: 24px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff;">' +
+      '<div style="font-family: Times New Roman, Times, serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 620px; margin: 0 auto; padding: 24px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff;">' +
       '  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 18px;">' +
       '    <h2 style="margin: 0; color: #0f172a; text-transform: uppercase; font-size: 17px;">HỆ THỐNG CÔNG NGHỆ SYNAPES STUDIO</h2>' +
       '    <p style="margin: 4px 0 0 0; color: #64748b; font-size: 12.5px;">XÁC THỰC CẤP LẠI MẬT KHẨU MẶC ĐỊNH THÀNH CÔNG</p>' +
