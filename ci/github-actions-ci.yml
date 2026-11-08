@@ -1,0 +1,52 @@
+name: CI Integrity & Regression Shield
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    name: 🛡️ Verify System Integrity & Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Check Architecture Boundaries (dependency-cruiser)
+        run: npm run lint:architecture
+
+      - name: 🔎 TypeScript TypeCheck
+        run: npx tsc -b
+
+      - name: 🛡️ Golden Master & Feature Integrity Test
+        run: npm run test:integrity
+
+      - name: 🏗️ Production WebApp Build
+        run: npm run build
+
+      - name: 🎭 Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: 🧪 Run Playwright E2E & Visual Smoke Tests
+        run: npx playwright test
+
+      - name: 📊 Upload Playwright Report on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
