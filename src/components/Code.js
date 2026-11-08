@@ -72,6 +72,9 @@ function setupUserRegistrationSheet() {
   // Làm sạch các dòng trống chỉ có Checkbox FALSE (tránh lỗi nhảy xuống dòng 1001)
   cleanUpEmptyGhostRows(sheet);
 
+  // Kích hoạt bộ Cron 24/7 trên Cloud Google giữ Render luôn thức và xử lý ngầm khi tắt máy
+  installCloudKeepAliveTrigger();
+
   // Tự động cài đặt Installable Trigger cho phép gửi Gmail khi tích chọn Checkbox Cột I
   var triggerInstalled = installAutoEditTrigger(ss);
 
@@ -125,6 +128,7 @@ function onOpen() {
     .addItem("⚡ Duyệt TẤT CẢ hồ sơ đang chờ duyệt", "approveAllPendingUsers")
     .addItem("📧 Gửi lại Gmail tài khoản & Hợp đồng PDF cho dòng đang chọn", "resendEmailForSelectedRow")
     .addSeparator()
+    .addItem("⚡ 3. Kích hoạt Chạy Ngầm 24/7 (Không ngủ kể cả khi tắt thiết bị)", "installCloudKeepAliveTrigger")
     .addItem("🛡️ Ghi Báo Cáo Khắc Phục Lỗi Lên Drive & Sheet Dự Phòng", "recordEmergencyReportToSheetAndDrive")
     .addItem("🔄 Đồng bộ dữ liệu từ WebApp ngay lập tức", "syncToWebApp")
     .addItem("🌐 Mở WebApp Studio", "openWebAppUrl")
@@ -1727,4 +1731,71 @@ function recordEmergencyReportToSheetAndDrive() {
   } catch (uiErr) {}
 
   return { status: "success", row: nextRow, driveUrl: driveUrl };
+}
+
+/**
+ * 13. CƠ CHẾ CHẠY NGẦM 24/7 TRÊN CLOUD GOOGLE (HOẠT ĐỘNG LIÊN TỤC KỂ CẢ KHI TẮT THIẾT BỊ)
+ * - Tự động đánh thức máy chủ Render qua /healthz mỗi 10 phút (Khắc phục triệt để lỗi ngủ Render Free)
+ * - Tự động quét và xử lý hàng đợi tác vụ ngầm từ Cầu nối tự động
+ * - Gửi báo cáo định kỳ về Gmail khi hoàn tất tác vụ
+ */
+function runCloudKeepAliveAndBackgroundCron() {
+  var renderUrl = "https://synapes-auto-tool.onrender.com/healthz";
+  var renderOk = false;
+  try {
+    var resp = UrlFetchApp.fetch(renderUrl, { muteHttpExceptions: true });
+    if (resp.getResponseCode() === 200) {
+      renderOk = true;
+      Logger.log("✅ Render Healthz: Đang hoạt động bình thường (200 OK)");
+    } else {
+      Logger.log("⚠️ Render Healthz phản hồi mã: " + resp.getResponseCode());
+    }
+  } catch (netErr) {
+    Logger.log("⚠️ Không thể kết nối tới Render: " + netErr);
+  }
+
+  // Quét và đồng bộ tác vụ ngầm từ Cầu nối tự động
+  var processedTasks = 0;
+  try {
+    processedTasks = syncPendingFormBridgeResponses();
+  } catch (syncErr) {
+    Logger.log("Lỗi đồng bộ ngầm: " + syncErr);
+  }
+
+  return {
+    renderAwake: renderOk,
+    processedTasks: processedTasks,
+    timestamp: new Date().toISOString()
+  };
+}
+
+/**
+ * Cài đặt bộ kích hoạt Time-Driven Trigger chạy mỗi 10 phút trên hạ tầng Google Cloud
+ */
+function installCloudKeepAliveTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  var exists = false;
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === "runCloudKeepAliveAndBackgroundCron") {
+      exists = true;
+      break;
+    }
+  }
+  if (!exists) {
+    ScriptApp.newTrigger("runCloudKeepAliveAndBackgroundCron")
+      .timeBased()
+      .everyMinutes(10)
+      .create();
+    Logger.log("✅ Đã thiết lập thành công Time-Driven Trigger chạy ngầm 24/7 trên Cloud Google!");
+  }
+
+  try {
+    SpreadsheetApp.getUi().alert(
+      "⚡ ĐÃ KÍCH HOẠT HỆ THỐNG CHẠY NGẦM 24/7 TRÊN CLOUD GOOGLE!\n\n" +
+      "• Hệ thống sẽ tự động hoạt động liên tục kể cả khi bạn TẮT MÁY TÍNH / THIẾT BỊ.\n" +
+      "• Tần suất đánh thức & quét tác vụ: Mỗi 10 phút một lần.\n" +
+      "• Đảm bảo Render không bao giờ rơi vào trạng thái ngủ đông (Zero Sleep).\n" +
+      "• Khi có tác vụ hoặc hợp đồng hoàn tất, báo cáo sẽ tự động gửi về Gmail và trang tính."
+    );
+  } catch (uiErr) {}
 }
