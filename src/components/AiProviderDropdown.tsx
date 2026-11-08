@@ -335,11 +335,10 @@ export const AiProviderDropdown: React.FC<AiProviderDropdownProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full bg-white border rounded-xl px-2.5 py-2 text-xs text-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer shadow-2xs ${
-          isOpen
+        className={`w-full bg-white border rounded-xl px-2.5 py-2 text-xs text-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer shadow-2xs ${isOpen
             ? 'border-zinc-950 ring-2 ring-zinc-950/10'
             : 'border-black/[0.12] hover:border-zinc-400'
-        }`}
+          }`}
       >
         <div className="flex items-center gap-2.5 min-w-0">
           <ProviderBrandLogo provider={activeMeta.id} pluginBrand={activeBrandForLogo} size="sm" withBadge={true} />
@@ -347,9 +346,8 @@ export const AiProviderDropdown: React.FC<AiProviderDropdownProps> = ({
             <div className="font-bold text-zinc-950 truncate flex items-center gap-1.5">
               <span>{activeDisplayName}</span>
               <span
-                className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                  activeHasKey ? 'bg-emerald-500' : 'bg-amber-400'
-                }`}
+                className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${activeHasKey ? 'bg-emerald-500' : 'bg-amber-400'
+                  }`}
               />
             </div>
             <div className="text-[10px] text-zinc-500 truncate">
@@ -358,9 +356,8 @@ export const AiProviderDropdown: React.FC<AiProviderDropdownProps> = ({
           </div>
         </div>
         <ChevronDown
-          className={`w-4 h-4 text-zinc-500 flex-shrink-0 transition-transform duration-150 ${
-            isOpen ? 'rotate-180 text-zinc-900' : ''
-          }`}
+          className={`w-4 h-4 text-zinc-500 flex-shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180 text-zinc-900' : ''
+            }`}
         />
       </button>
 
@@ -382,9 +379,8 @@ export const AiProviderDropdown: React.FC<AiProviderDropdownProps> = ({
                   onSelect(p.id);
                   setIsOpen(false);
                 }}
-                className={`w-full px-2.5 py-2 flex items-center justify-between gap-2 text-left transition cursor-pointer ${
-                  isSelected ? 'bg-zinc-950/[0.05]' : 'hover:bg-zinc-50'
-                }`}
+                className={`w-full px-2.5 py-2 flex items-center justify-between gap-2 text-left transition cursor-pointer ${isSelected ? 'bg-zinc-950/[0.05]' : 'hover:bg-zinc-50'
+                  }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <ProviderBrandLogo provider={p.id} pluginBrand={pBrand} size="sm" withBadge={true} />
@@ -476,11 +472,10 @@ export const AiModelDropdown: React.FC<AiModelDropdownProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full bg-white border rounded-xl px-2.5 py-2 text-xs text-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer shadow-2xs ${
-          isOpen
+        className={`w-full bg-white border rounded-xl px-2.5 py-2 text-xs text-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer shadow-2xs ${isOpen
             ? 'border-zinc-950 ring-2 ring-zinc-950/10'
             : 'border-black/[0.12] hover:border-zinc-400'
-        }`}
+          }`}
       >
         <div className="flex items-center gap-2 min-w-0">
           <ProviderBrandLogo provider={currentModelBrand} size="xs" withBadge={true} />
@@ -497,9 +492,8 @@ export const AiModelDropdown: React.FC<AiModelDropdownProps> = ({
           </div>
         </div>
         <ChevronDown
-          className={`w-4 h-4 text-zinc-500 flex-shrink-0 transition-transform duration-150 ${
-            isOpen ? 'rotate-180 text-zinc-900' : ''
-          }`}
+          className={`w-4 h-4 text-zinc-500 flex-shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180 text-zinc-900' : ''
+            }`}
         />
       </button>
 
@@ -520,9 +514,8 @@ export const AiModelDropdown: React.FC<AiModelDropdownProps> = ({
                   onSelect(m.id);
                   setIsOpen(false);
                 }}
-                className={`w-full px-2.5 py-2 flex items-center justify-between gap-2 text-left transition cursor-pointer ${
-                  isSelected ? 'bg-zinc-950/[0.05]' : 'hover:bg-zinc-50'
-                }`}
+                className={`w-full px-2.5 py-2 flex items-center justify-between gap-2 text-left transition cursor-pointer ${isSelected ? 'bg-zinc-950/[0.05]' : 'hover:bg-zinc-50'
+                  }`}
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <ProviderBrandLogo provider={modelBrand} size="xs" withBadge={true} />

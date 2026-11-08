@@ -587,10 +587,10 @@ function buildDirectorSystemPrompt(
   const liveNewsBlock =
     research.headlines.length > 0
       ? `\nTIN TỨC THỜI GIAN THỰC VỪA THU THẬP (BẮT BUỘC CẬP NHẬT VÀO NỘI DUNG KỊCH BẢN):\n` +
-        research.headlines
-          .slice(0, 6)
-          .map((h, i) => `  ${i + 1}. [${h.source}] ${h.title}`)
-          .join('\n')
+      research.headlines
+        .slice(0, 6)
+        .map((h, i) => `  ${i + 1}. [${h.source}] ${h.title}`)
+        .join('\n')
       : '';
 
   const wikiBlock = research.wikiSummary
@@ -862,10 +862,10 @@ function generateBespokeMultiGenreScript(
       research.headlines.length > 0
         ? research.headlines.slice(0, 4).map((h) => `[${h.source.toUpperCase()}] ${h.title}`)
         : [
-            `TRỰC TIẾP 24H: Theo dõi sát diễn biến ${coreSubject}`,
-            'Cập nhật liên tục từ các hãng thông tấn quốc tế và giới quan sát khu vực',
-            'Phân tích đa chiều tác động ngoại giao, an ninh và kinh tế toàn cầu',
-          ];
+          `TRỰC TIẾP 24H: Theo dõi sát diễn biến ${coreSubject}`,
+          'Cập nhật liên tục từ các hãng thông tấn quốc tế và giới quan sát khu vực',
+          'Phân tích đa chiều tác động ngoại giao, an ninh và kinh tế toàn cầu',
+        ];
 
     const scenes = [
       {
@@ -964,9 +964,9 @@ function generateBespokeMultiGenreScript(
       research.headlines.length > 0
         ? research.headlines.slice(0, 4).map((h) => `${h.title} (${h.source})`)
         : [
-            `THỊ TRƯỜNG 24H: Cập nhật biến động ${coreSubject}`,
-            'Theo dõi sát động thái chính sách tiền tệ, tỷ giá và dòng vốn đầu tư tổ chức',
-          ];
+          `THỊ TRƯỜNG 24H: Cập nhật biến động ${coreSubject}`,
+          'Theo dõi sát động thái chính sách tiền tệ, tỷ giá và dòng vốn đầu tư tổ chức',
+        ];
 
     const scenes = [
       {
@@ -1546,9 +1546,9 @@ export async function generateAiVideoScript(
     rawJson.newsTicker ||
     (research.headlines.length > 0
       ? research.headlines
-          .slice(0, 4)
-          .map((h) => `[${h.source}] ${h.title}`)
-          .join('  •  ')
+        .slice(0, 4)
+        .map((h) => `[${h.source}] ${h.title}`)
+        .join('  •  ')
       : storyboard.map((s) => s.headline?.replace(/^\d+\.\s*/, '')).join('  •  '));
 
   onProgress?.('Hoàn tất kết xuất dự án Video! Đang mở Bàn dựng Đa phân cảnh...', 100);
@@ -1567,10 +1567,10 @@ export async function generateAiVideoScript(
       Array.isArray(rawJson.tags) && rawJson.tags.length > 0
         ? rawJson.tags
         : [
-            coreSubject.replace(/[^a-zA-Z0-9À-ỹ]/g, '').slice(0, 20) || 'TinNong24h',
-            videoGenre === 'news-broadcast' ? 'BanTinThoiSu' : 'SynapesStudio',
-            'PhanTichChuyenSau',
-          ],
+          coreSubject.replace(/[^a-zA-Z0-9À-ỹ]/g, '').slice(0, 20) || 'TinNong24h',
+          videoGenre === 'news-broadcast' ? 'BanTinThoiSu' : 'SynapesStudio',
+          'PhanTichChuyenSau',
+        ],
     productLink: rawJson.productLink || 'https://synapes.ai/studio',
     musicTrack: {
       name:

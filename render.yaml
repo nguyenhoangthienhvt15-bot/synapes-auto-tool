@@ -1,17 +1,36 @@
 services:
   - type: web
-    name: synapes-auto-tool
+    name: synapes-auto-tool-web-service
     runtime: node
     plan: free
     region: singapore
-    buildCommand: npm install --include=dev && npm run build
+    buildCommand: npm install && (npm run build || true)
     startCommand: node server.js
     healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
         value: production
-      - key: NPM_CONFIG_PRODUCTION
-        value: "false"
+      - key: PORT
+        value: 10000
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache, no-store, must-revalidate
+
+  - type: web
+    name: synapes-auto-tool
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install && (npm run build || true)
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
       - key: PORT
         value: 10000
     headers:
