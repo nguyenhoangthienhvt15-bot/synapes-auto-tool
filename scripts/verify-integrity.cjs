@@ -197,6 +197,10 @@ if (fs.existsSync(gasPath)) {
     'Apps Script có dẫn lời phát biểu của Trưởng ban KS. Nguyễn Hoàng Thiện');
   assert(gasContent.includes('TIMO_QR_CODE_BASE64') && gasContent.includes('0983396354'),
     'Apps Script nhúng mã QR Code VietQR Timo (STK: 0983396354) vào các mẫu thư');
+  assert(gasContent.includes('inlineImages') && gasContent.includes('cid:paymentQrCode'),
+    'Apps Script sử dụng CID inlineImages chuẩn RFC cho ảnh mã QR (chống lỗi Gmail image proxy)');
+  assert(gasContent.includes('wrapEmailInCorporateLayout') && !gasContent.includes('src="\' + TIMO_QR_CODE_BASE64'),
+    'Apps Script áp dụng chuẩn thiết kế email doanh nghiệp (loại bỏ thẻ img src chứa base64 trực tiếp)');
 }
 
 // -----------------------------------------------------------------------------

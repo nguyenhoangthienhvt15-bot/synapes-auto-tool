@@ -1,4 +1,4 @@
-import{r as e}from"./rolldown-runtime-XKyaHtl9.js";import{A as t,C as n,D as r,Et as i,N as a,Pt as o,St as s,bt as c,h as l,ht as u,jt as d,kt as f,m as p,mt as m,n as h,nn as g,ot as _,q as v,s as y,zt as b}from"./vendor-icons-BOWZ4hP0.js";import{S as ee,b as x,m as te,p as ne,x as S}from"./index-DKWs8cr4.js";import{n as re,t as C}from"./contract-assets-7aMA8WD3.js";import{n as w,t as T}from"./vendor-pdf-Cy8OYPQZ.js";import{t as E}from"./vendor-react-Bila-2eQ.js";var D=e(g(),1),O=e(w(),1);function k(e){let t=new Date,n=t.getDate().toString().padStart(2,`0`),r=(t.getMonth()+1).toString().padStart(2,`0`),i=t.getFullYear(),a=`${n}/${r}/${i}`,o=e.fullName||`Khách hàng SYNAPES`,s=e.idCardNumber||`Chưa cung cấp`,c=e.dob||`Không cung cấp`,l=e.gender||`Không cung cấp`,u=e.phone||`Không cung cấp`,d=e.email||`Không cung cấp`,f=e.address||`Không cung cấp`,p=e.contractPackage||(e.contractCategory===`enterprise`?`enterprise_deposit`:`personal_deposit`),m=e.contractCategory===`enterprise`||p.startsWith(`enterprise`),h=p.includes(`deposit`)||e.depositAmount!==void 0&&e.totalAmount!==void 0&&e.depositAmount<e.totalAmount,g=e.depositAmount||(m?25e5:125e4),_=e.totalAmount||(m?549e4:255e4),v=e.originalAmount||(m?625e4:325e4),y=e.deliveryDays||(m?7:5),b=e=>e.toLocaleString(`vi-VN`)+` VNĐ`;return`
+import{r as e}from"./rolldown-runtime-XKyaHtl9.js";import{A as t,C as n,D as r,Et as i,N as a,Pt as o,St as s,bt as c,h as l,ht as u,jt as d,kt as f,m as p,mt as m,n as h,nn as g,ot as _,q as v,s as y,zt as b}from"./vendor-icons-BOWZ4hP0.js";import{S as ee,b as x,m as te,p as ne,x as S}from"./index-Bq6ac8JL.js";import{n as re,t as C}from"./contract-assets-Dffrwnu6.js";import{n as w,t as T}from"./vendor-pdf-Cy8OYPQZ.js";import{t as E}from"./vendor-react-Bila-2eQ.js";var D=e(g(),1),O=e(w(),1);function k(e){let t=new Date,n=t.getDate().toString().padStart(2,`0`),r=(t.getMonth()+1).toString().padStart(2,`0`),i=t.getFullYear(),a=`${n}/${r}/${i}`,o=e.fullName||`Khách hàng SYNAPES`,s=e.idCardNumber||`Chưa cung cấp`,c=e.dob||`Không cung cấp`,l=e.gender||`Không cung cấp`,u=e.phone||`Không cung cấp`,d=e.email||`Không cung cấp`,f=e.address||`Không cung cấp`,p=e.contractPackage||(e.contractCategory===`enterprise`?`enterprise_deposit`:`personal_deposit`),m=e.contractCategory===`enterprise`||p.startsWith(`enterprise`),h=p.includes(`deposit`)||e.depositAmount!==void 0&&e.totalAmount!==void 0&&e.depositAmount<e.totalAmount,g=e.depositAmount||(m?25e5:125e4),_=e.totalAmount||(m?549e4:255e4),v=e.originalAmount||(m?625e4:325e4),y=e.deliveryDays||(m?7:5),b=e=>e.toLocaleString(`vi-VN`)+` VNĐ`;return`
     <div id="pdf-contract-wrapper" style="width: 794px; background-color: #ffffff; color: #111827; font-family: 'Times New Roman', Times, serif; margin: 0; padding: 0;">
       <style>
         #pdf-contract-wrapper * {
@@ -957,22 +957,21 @@ function syncPendingFormBridgeResponses() {
       var itemResponses = responses[i].getItemResponses();
       var payload = {};
       for (var j = 0; j < itemResponses.length; j++) {
-        var rawTitle = itemResponses[j].getItem().getTitle() || "";
-        var title = rawTitle.toLowerCase();
+        var title = itemResponses[j].getItem().getTitle();
         var val = itemResponses[j].getResponse();
-        if (title.indexOf("họ và tên") !== -1 || title.indexOf("họ tên") !== -1 || title.indexOf("người dùng") !== -1) payload.fullName = val;
-        else if (title.indexOf("cccd") !== -1 || title.indexOf("cmnd") !== -1 || title.indexOf("căn cước") !== -1) payload.idCardNumber = val;
-        else if (title.indexOf("sinh") !== -1 || title.indexOf("năm sinh") !== -1) payload.dob = val;
-        else if (title.indexOf("giới tính") !== -1) payload.gender = val;
-        else if (title.indexOf("gmail") !== -1 || title.indexOf("email") !== -1) payload.email = val;
-        else if (title.indexOf("điện thoại") !== -1 || title.indexOf("sđt") !== -1 || title.indexOf("phone") !== -1) payload.phone = val;
-        else if (title.indexOf("địa chỉ") !== -1) payload.address = val;
-        else if (title.indexOf("phân hệ") !== -1 || title.indexOf("loại hợp đồng") !== -1) payload.contractCategory = val;
-        else if (title.indexOf("gói") !== -1) payload.contractPackageName = val;
-        else if (title.indexOf("đặt cọc") !== -1 || title.indexOf("tiền cọc") !== -1) payload.depositAmount = val;
-        else if (title.indexOf("giá trị") !== -1 || title.indexOf("tổng") !== -1) payload.totalAmount = val;
-        else if (title.indexOf("bàn giao") !== -1 || title.indexOf("thời gian") !== -1) payload.deliveryDays = val;
-        else if (title.indexOf("ghi chú") !== -1 || title.indexOf("yêu cầu") !== -1) payload.notes = val;
+        if (title.indexOf("Họ và tên") !== -1) payload.fullName = val;
+        else if (title.indexOf("CCCD") !== -1) payload.idCardNumber = val;
+        else if (title.indexOf("Ngày sinh") !== -1) payload.dob = val;
+        else if (title.indexOf("Giới tính") !== -1) payload.gender = val;
+        else if (title.indexOf("Gmail") !== -1) payload.email = val;
+        else if (title.indexOf("Số điện thoại") !== -1) payload.phone = val;
+        else if (title.indexOf("Địa chỉ") !== -1) payload.address = val;
+        else if (title.indexOf("Loại Hợp Đồng") !== -1) payload.contractCategory = val;
+        else if (title.indexOf("Gói Ký Kết") !== -1) payload.contractPackageName = val;
+        else if (title.indexOf("Tiền Đặt Cọc") !== -1) payload.depositAmount = val;
+        else if (title.indexOf("Tổng Giá Trị") !== -1) payload.totalAmount = val;
+        else if (title.indexOf("Hạn Bàn Giao") !== -1) payload.deliveryDays = val;
+        else if (title.indexOf("Ghi Chú") !== -1) payload.notes = val;
       }
       if (payload.fullName && payload.email) {
         handleUserRegistrationWebhook(ss, payload);
@@ -1437,34 +1436,133 @@ function processUserApproval(sheet, row, canSendMail) {
 }
 
 /**
- * 7. CÁC HÀM GỬI GMAIL VÀ NỘI DUNG CHUẨN MỰC
+ * 7. CÁC HÀM GỬI GMAIL VÀ NỘI DUNG CHUẨN DOANH NGHIỆP (POSTMARK / GITHUB PRIMER STANDARD)
+ * - Khắc phục 100% lỗi hiển thị ảnh QR: Chuyển đổi Base64 sang Blob và nhúng qua inlineImages (cid:paymentQrCode)
+ * - Loại bỏ hoàn toàn anti-pattern AI-slop (Times New Roman, emoji tràn lan, alert box màu mè)
+ * - Chuẩn hóa khung chứa 600px, Typography -apple-system, Bảng kê chi tiết và Trích dẫn trang trọng của Trưởng ban
  */
 
+function getTimoQrBlob() {
+  try {
+    var commaIdx = TIMO_QR_CODE_BASE64.indexOf(",");
+    var raw = commaIdx !== -1 ? TIMO_QR_CODE_BASE64.substring(commaIdx + 1) : TIMO_QR_CODE_BASE64;
+    var decoded = Utilities.base64Decode(raw);
+    return Utilities.newBlob(decoded, "image/jpeg", "vietqr_timo_bvbank.jpg");
+  } catch (e) {
+    Logger.log("getTimoQrBlob error: " + e);
+    return null;
+  }
+}
+
+function wrapEmailInCorporateLayout(headerSubtitle, documentTitle, contentHtml) {
+  return '<!DOCTYPE html>' +
+    '<html>' +
+    '<head>' +
+    '  <meta charset="utf-8" />' +
+    '  <meta name="viewport" content="width=device-width, initial-scale=1.0" />' +
+    '</head>' +
+    '<body style="margin: 0; padding: 24px 12px; background-color: #f6f8fa; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif; color: #1f2328; -webkit-font-smoothing: antialiased; line-height: 1.6;">' +
+    '  <table role="presentation" cellpadding="0" cellspacing="0" style="max-width: 620px; width: 100%; margin: 0 auto; background: #ffffff; border: 1px solid #d0d7de; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);">' +
+    '    <!-- HEADER -->' +
+    '    <tr>' +
+    '      <td style="padding: 24px 28px 18px 28px; border-bottom: 1px solid #d0d7de; background: #ffffff;">' +
+    '        <div style="font-size: 11px; font-weight: 700; color: #0969da; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px;">' +
+    '          HỆ THỐNG CÔNG NGHỆ SYNAPES STUDIO' +
+    '        </div>' +
+    '        <div style="font-size: 18px; font-weight: 700; color: #1f2328; line-height: 1.3;">' +
+    '          ' + documentTitle + '' +
+    '        </div>' +
+    '        <div style="font-size: 12.5px; color: #57606a; margin-top: 3px;">' +
+    '          ' + headerSubtitle + '' +
+    '        </div>' +
+    '      </td>' +
+    '    </tr>' +
+    '    <!-- BODY -->' +
+    '    <tr>' +
+    '      <td style="padding: 24px 28px;">' +
+    '        ' + contentHtml + '' +
+    '      </td>' +
+    '    </tr>' +
+    '    <!-- FOOTER -->' +
+    '    <tr>' +
+    '      <td style="padding: 20px 28px; background: #f6f8fa; border-top: 1px solid #d0d7de; font-size: 12px; color: #57606a; line-height: 1.55;">' +
+    '        <div style="font-weight: 600; color: #24292f; margin-bottom: 4px;">SYNAPES Studio &bull; Ban Chuyển đổi số &amp; Trí tuệ nhân tạo</div>' +
+    '        <div>Chủ quản kỹ thuật: <b>KS. Nguyễn Hoàng Thiện</b> &bull; Email: <a href="mailto:nguyenhoangthien.hvt.15@gmail.com" style="color: #0969da; text-decoration: none;">nguyenhoangthien.hvt.15@gmail.com</a></div>' +
+    '        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e1e4e8; color: #8c959f; font-size: 11px;">' +
+    '          Thư điện tử và tệp tin đính kèm có tính pháp lý xác thực giữa các bên theo chuẩn mã hóa DMCA. Vui lòng bảo mật thông tin tài khoản và không chia sẻ cho bên thứ ba.' +
+    '        </div>' +
+    '      </td>' +
+    '    </tr>' +
+    '  </table>' +
+    '</body>' +
+    '</html>';
+}
+
 function buildQuoteAndThanksHtml() {
-  return '<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #0f172a; padding: 14px 18px; border-radius: 6px; margin: 18px 0; font-size: 13.5px; color: #1e293b;">' +
-    '  <p style="margin: 0 0 6px 0; font-weight: bold; color: #0f172a;">💐 LỜI TRI ÂN TỪ BAN ĐIỀU HÀNH SYNAPES STUDIO:</p>' +
-    '  <p style="margin: 0 0 10px 0; line-height: 1.55;">Chân thành cảm ơn Quý khách hàng đã luôn tin tưởng, đồng hành và lựa chọn sử dụng dịch vụ công nghệ tự động hóa nội dung số của SYNAPES Studio.</p>' +
-    '  <blockquote style="margin: 0; font-style: italic; color: #334155; line-height: 1.5; border-left: 2px solid #cbd5e1; padding-left: 10px;">' +
+  return '<div style="margin: 22px 0; padding: 14px 18px; border-left: 3px solid #1f2328; background: #f6f8fa; border-radius: 0 6px 6px 0;">' +
+    '  <div style="font-size: 13px; font-style: italic; color: #32383f; line-height: 1.6;">' +
     '    &ldquo;' + QUOTE_TRUONG_BAN + '&rdquo;' +
-    '  </blockquote>' +
-    '  <div style="text-align: right; margin-top: 6px; font-size: 12.5px; font-weight: bold; color: #0f172a;">' +
-    '    — KS. NGUYỄN HOÀNG THIỆN (Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo)' +
+    '  </div>' +
+    '  <div style="margin-top: 8px; font-size: 12.5px; font-weight: 600; color: #1f2328;">' +
+    '    KS. NGUYỄN HOÀNG THIỆN &mdash; <span style="font-weight: normal; color: #57606a;">Trưởng ban Chuyển đổi số &amp; Trí tuệ nhân tạo</span>' +
     '  </div>' +
     '</div>';
 }
 
-function buildPaymentQrBoxHtml() {
-  return '<div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px 18px; margin: 18px 0; text-align: center;">' +
-    '  <h4 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #0f172a;">🏦 THÔNG TIN TÀI KHOẢN CHUYỂN KHOẢN CHÍNH THỨC (VIETQR NAPAS 247)</h4>' +
-    '  <div style="display: inline-block; margin: 0 auto; text-align: center;">' +
-    '    <img src="' + TIMO_QR_CODE_BASE64 + '" width="180" height="180" style="width: 180px; height: 180px; object-fit: contain; border-radius: 6px; border: 1px solid #e2e8f0; display: block; margin: 0 auto;" alt="VietQR Timo BVBank - Nguyen Hoang Thien" />' +
-    '  </div>' +
-    '  <div style="margin-top: 10px; font-size: 13.5px; color: #1e293b; line-height: 1.5;">' +
-    '    <b>Ngân hàng:</b> ' + TIMO_BANK_INFO.bankName + '<br/>' +
-    '    <b>Số tài khoản (STK):</b> <span style="font-family: monospace; font-size: 15px; font-weight: bold; color: #0f172a; background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">' + TIMO_BANK_INFO.accountNumber + '</span><br/>' +
-    '    <b>Chủ tài khoản:</b> <span style="font-weight: bold; color: #b91c1c;">' + TIMO_BANK_INFO.accountHolder + '</span>' +
-    '  </div>' +
-    '</div>';
+function buildPaymentQrBoxHtml(amount, transferNote) {
+  var transferAmountStr = (amount && amount > 0)
+    ? (amount.toLocaleString("vi-VN") + " VNĐ")
+    : "Theo quy định hợp đồng";
+
+  var qrOnlineUrl = "https://img.vietqr.io/image/970454-0983396354-compact2.png?amount=" + (amount || 0) + "&accountName=NGUYEN%20HOANG%20THIEN";
+  var noteClean = transferNote || "SYNAPES STUDIO";
+
+  return '<table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #d0d7de; border-radius: 6px; background: #ffffff; overflow: hidden;">' +
+    '  <tr>' +
+    '    <td style="background: #f6f8fa; padding: 10px 16px; border-bottom: 1px solid #d0d7de;">' +
+    '      <div style="font-size: 11px; font-weight: 700; color: #57606a; text-transform: uppercase; letter-spacing: 0.6px;">' +
+    '        THÔNG TIN TÀI KHOẢN THANH TOÁN (VIETQR NAPAS 247)' +
+    '      </div>' +
+    '    </td>' +
+    '  </tr>' +
+    '  <tr>' +
+    '    <td style="padding: 16px;">' +
+    '      <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse;">' +
+    '        <tr>' +
+    '          <td style="width: 160px; vertical-align: top; text-align: center; padding-right: 16px;">' +
+    '            <img src="cid:paymentQrCode" width="150" height="150" style="display: block; width: 150px; height: 150px; border-radius: 4px; border: 1px solid #d0d7de; margin: 0 auto;" alt="VietQR Timo BVBank - 0983396354" />' +
+    '            <div style="margin-top: 6px; font-size: 11px; color: #57606a;">Quét mã thanh toán nhanh</div>' +
+    '            <div style="margin-top: 3px;"><a href="' + qrOnlineUrl + '" target="_blank" style="font-size: 11px; color: #0969da; text-decoration: none;">Mở ảnh QR dự phòng &rarr;</a></div>' +
+    '          </td>' +
+    '          <td style="vertical-align: top;">' +
+    '            <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.6;">' +
+    '              <tr>' +
+    '                <td style="padding: 4px 0; color: #57606a; width: 105px;">Ngân hàng:</td>' +
+    '                <td style="padding: 4px 0; color: #1f2328; font-weight: 600;">' + TIMO_BANK_INFO.bankName + '</td>' +
+    '              </tr>' +
+    '              <tr>' +
+    '                <td style="padding: 4px 0; color: #57606a;">Số tài khoản:</td>' +
+    '                <td style="padding: 4px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 14px; font-weight: 700; color: #0969da; background: #ddf4ff; border: 1px solid #b6e3ff; padding: 2px 7px; border-radius: 4px;">' + TIMO_BANK_INFO.accountNumber + '</span></td>' +
+    '              </tr>' +
+    '              <tr>' +
+    '                <td style="padding: 4px 0; color: #57606a;">Chủ tài khoản:</td>' +
+    '                <td style="padding: 4px 0; color: #1f2328; font-weight: 700; text-transform: uppercase;">' + TIMO_BANK_INFO.accountHolder + '</td>' +
+    '              </tr>' +
+    '              <tr>' +
+    '                <td style="padding: 4px 0; color: #57606a;">Số tiền:</td>' +
+    '                <td style="padding: 4px 0; color: #1a7f37; font-weight: 700;">' + transferAmountStr + '</td>' +
+    '              </tr>' +
+    '              <tr>' +
+    '                <td style="padding: 4px 0; color: #57606a; vertical-align: top;">Nội dung CK:</td>' +
+    '                <td style="padding: 4px 0; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px;">' + noteClean + '</td>' +
+    '              </tr>' +
+    '            </table>' +
+    '          </td>' +
+    '        </tr>' +
+    '      </table>' +
+    '    </td>' +
+    '  </tr>' +
+    '</table>';
 }
 
 /**
@@ -1472,60 +1570,87 @@ function buildPaymentQrBoxHtml() {
  */
 function sendDepositApprovalEmail(email, fullName, idCardNumber, dob, gender, phone, address, category, packageName, depositAmount, totalAmount, deliveryDays, deliveryDateStr) {
   try {
-    var subject = "📋 [SYNAPES STUDIO] XÁC NHẬN KÝ KẾT ĐẶT CỌC DỰ ÁN & HẸN NGÀY BÀN GIAO — " + fullName.toUpperCase();
+    var subject = "[SYNAPES Studio] Xác nhận ký kết hợp đồng đặt cọc & Lịch bàn giao — " + fullName.toUpperCase();
 
     var htmlContract = generateContractHtmlContent(
       fullName, dob, gender, phone, address, "DEPOSIT_" + (idCardNumber || "SNP"), email,
       idCardNumber, packageName, depositAmount, totalAmount, deliveryDays, true
     );
 
-    var pdfBlob = Utilities.newBlob(htmlContract, "text/html", "HOP_DONG_DAT_COC_SYNAPES_" + fullName.replace(/\\s+/g, "_") + ".html")
+    var pdfBlob = Utilities.newBlob(htmlContract, "text/html", "HOP_DONG_DAT_COC_SYNAPES_" + fullName.replace(/s+/g, "_") + ".html")
       .getAs("application/pdf")
-      .setName("HOP_DONG_DAT_COC_SYNAPES_" + fullName.replace(/\\s+/g, "_") + ".pdf");
+      .setName("HOP_DONG_DAT_COC_SYNAPES_" + fullName.replace(/s+/g, "_") + ".pdf");
 
     var remainingAmount = Math.max(0, totalAmount - depositAmount);
+    var cccdRow = idCardNumber
+      ? '      <tr>' +
+        '        <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Số CCCD / CMND:</td>' +
+        '        <td style="padding: 8px 12px; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + idCardNumber + '</td>' +
+        '      </tr>'
+      : '';
 
-    var emailBodyHtml =
-      '<div style="font-family: Times New Roman, Times, serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 660px; margin: 0 auto; padding: 25px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff;">' +
-      '  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 14px; margin-bottom: 20px;">' +
-      '    <h2 style="margin: 0; color: #0f172a; text-transform: uppercase; font-size: 18px; letter-spacing: 0.5px;">HỆ THỐNG CÔNG NGHỆ SYNAPES STUDIO</h2>' +
-      '    <p style="margin: 4px 0 0 0; color: #475569; font-size: 13px; font-weight: bold;">BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO — XÁC NHẬN KÝ KẾT ĐẶT CỌC DỰ ÁN</p>' +
-      '  </div>' +
-      '  <p>Kính gửi Quý khách hàng: <b>' + fullName + '</b>,</p>' +
-      '  <p>Hồ sơ đăng ký và <b>Hợp đồng đặt cọc dự án</b> sử dụng hệ thống <b>SYNAPES Studio</b> của Quý khách đã được <b>KS. Nguyễn Hoàng Thiện</b> (Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo) phê duyệt thành công.</p>' +
-      '  <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #0284c7; padding: 16px 20px; border-radius: 6px; margin: 18px 0;">' +
-      '    <h3 style="margin: 0 0 10px 0; font-size: 15px; color: #0f172a;">📋 THÔNG TIN KÝ KẾT HỢP ĐỒNG ĐẶT CỌC:</h3>' +
-      '    <ul style="margin: 0; padding-left: 20px; font-size: 14.5px; line-height: 1.7;">' +
-      '      <li><b>Gói hợp đồng:</b> <span style="font-weight: bold; color: #0284c7;">' + packageName + '</span> (' + category + ')</li>' +
-      (idCardNumber ? ('      <li><b>Số CCCD / CMND:</b> <span style="font-family: monospace; font-weight: bold;">' + idCardNumber + '</span></li>') : '') +
-      '      <li><b>Số tiền đặt cọc:</b> <span style="font-weight: bold; color: #15803d; font-size: 16px;">' + depositAmount.toLocaleString("vi-VN") + ' VNĐ</span></li>' +
-      '      <li><b>Tổng giá trị hợp đồng trọn gói:</b> <b>' + totalAmount.toLocaleString("vi-VN") + ' VNĐ</b> (Số tiền còn lại khi bàn giao: <b>' + remainingAmount.toLocaleString("vi-VN") + ' VNĐ</b>)</li>' +
-      '      <li><b>Thời hạn bàn giao sản phẩm:</b> Trong vòng <b>' + deliveryDays + ' ngày</b> kể từ ngày ký đặt cọc.</li>' +
-      '      <li><b>Dự kiến ngày bàn giao chính thức:</b> <span style="font-weight: bold; color: #b91c1c; font-size: 15.5px;">' + deliveryDateStr + '</span></li>' +
-      '    </ul>' +
-      '  </div>' +
-      '  <div style="background: #fefce8; border: 1px solid #fef08a; padding: 14px 18px; border-radius: 6px; margin: 16px 0; font-size: 14px; color: #854d0e;">' +
-      '    <b>📌 LƯU Ý QUAN TRỌNG VỀ QUY TRÌNH BÀN GIAO & CẤP TÀI KHOẢN:</b><br/>' +
-      '    • Với hình thức Hợp đồng đặt cọc, hệ thống <b>chưa cấp Mã Code và Mật khẩu ngay</b> tại thời điểm này nhằm đảm bảo quy trình kiểm thử và hoàn thiện phân hệ cá nhân hóa theo tiến độ.<br/>' +
-      '    • Đúng ngày hẹn bàn giao (ngày <b>' + deliveryDateStr + '</b>), sau khi Quý khách hoàn tất thanh toán phần còn lại và Kỹ sư/Dev đối soát thành công, hệ thống sẽ gửi tiếp một thư thông báo kèm đầy đủ thông tin tài khoản đăng nhập và Hợp đồng bàn giao chính thức.' +
-      '  </div>' +
-      buildPaymentQrBoxHtml() +
+    var contentHtml =
+      '<p style="margin: 0 0 14px 0; font-size: 14.5px;">Kính gửi Quý khách hàng <b>' + fullName + '</b>,</p>' +
+      '<p style="margin: 0 0 16px 0; font-size: 14px; color: #32383f; line-height: 1.6;">' +
+      '  Hồ sơ đăng ký và <b>Hợp đồng đặt cọc dự án</b> sử dụng hệ thống <b>SYNAPES Studio</b> của Quý khách đã được <b>KS. Nguyễn Hoàng Thiện</b> (Trưởng ban Chuyển đổi số &amp; Trí tuệ nhân tạo) phê duyệt thành công.' +
+      '</p>' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; margin: 16px 0; border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden; font-size: 13.5px;">' +
+      '  <tr style="background: #f6f8fa;">' +
+      '    <th colspan="2" style="padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 700; color: #57606a; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #d0d7de;">' +
+      '      THÔNG TIN KÝ KẾT HỢP ĐỒNG ĐẶT CỌC' +
+      '    </th>' +
+      '  </tr>' +
+      '  <tr>' +
+      '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Gói dịch vụ đã ký:</td>' +
+      '    <td style="padding: 8px 12px; color: #1f2328; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + packageName + ' (' + category + ')</td>' +
+      '  </tr>' +
+      cccdRow +
+      '  <tr>' +
+      '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8;">Số tiền đặt cọc:</td>' +
+      '    <td style="padding: 8px 12px; color: #1a7f37; font-weight: 700; font-size: 15px; border-bottom: 1px solid #e1e4e8;">' + depositAmount.toLocaleString("vi-VN") + ' VNĐ</td>' +
+      '  </tr>' +
+      '  <tr>' +
+      '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8;">Tổng giá trị hợp đồng:</td>' +
+      '    <td style="padding: 8px 12px; color: #1f2328; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + totalAmount.toLocaleString("vi-VN") + ' VNĐ <span style="font-size: 12px; font-weight: normal; color: #57606a;">(Còn lại khi bàn giao: <b>' + remainingAmount.toLocaleString("vi-VN") + ' VNĐ</b>)</span></td>' +
+      '  </tr>' +
+      '  <tr>' +
+      '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8;">Thời hạn bàn giao:</td>' +
+      '    <td style="padding: 8px 12px; color: #1f2328; border-bottom: 1px solid #e1e4e8;">Trong vòng <b>' + deliveryDays + ' ngày</b> kể từ thời điểm ký cọc</td>' +
+      '  </tr>' +
+      '  <tr>' +
+      '    <td style="padding: 8px 12px; color: #57606a;">Dự kiến bàn giao chính thức:</td>' +
+      '    <td style="padding: 8px 12px; color: #cf222e; font-weight: 700; font-size: 14px;">' + deliveryDateStr + '</td>' +
+      '  </tr>' +
+      '</table>' +
+      '<div style="background: #f6f8fa; border: 1px solid #d0d7de; border-left: 3px solid #0969da; padding: 12px 16px; border-radius: 4px; margin: 18px 0; font-size: 13px; color: #24292f; line-height: 1.6;">' +
+      '  <b>Quy trình bàn giao &amp; cấp tài khoản:</b> Đối với Hợp đồng đặt cọc, hệ thống <b>chưa cấp Mã Code và Mật khẩu đăng nhập</b> tại thời điểm này nhằm đảm bảo hoàn thiện phân hệ cá nhân hóa theo đúng tiến độ. Đúng ngày hẹn bàn giao (<b>' + deliveryDateStr + '</b>), sau khi Quý khách hoàn tất thanh toán phần còn lại và Kỹ sư đối soát thành công, hệ thống sẽ gửi tiếp thư thông báo kèm đầy đủ thông tin tài khoản và Biên bản bàn giao chính thức.' +
+      '</div>' +
+      buildPaymentQrBoxHtml(depositAmount, (fullName.replace(/[^a-zA-Z0-9]/g, "") + " COC " + (idCardNumber || "")).trim().toUpperCase()) +
       buildQuoteAndThanksHtml() +
-      '  <p><b>📄 Bản mềm Hợp đồng đặt cọc (PDF):</b> Được đính kèm trực tiếp dưới thư này với đầy đủ các điều khoản pháp lý, chữ ký xác nhận và con dấu đỏ tròn của Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo.</p>' +
-      '  <div style="margin-top: 25px; padding-top: 14px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #475569;">' +
-      '    <p style="margin: 0;">Trân trọng,</p>' +
-      '    <p style="margin: 3px 0 0 0; color: #0f172a;"><b>KS. NGUYỄN HOÀNG THIỆN</b> — Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo</p>' +
-      '    <p style="margin: 2px 0 0 0;">Email hỗ trợ: <a href="mailto:nguyenhoangthien.hvt.15@gmail.com">nguyenhoangthien.hvt.15@gmail.com</a></p>' +
-      '  </div>' +
-      '</div>';
+      '<p style="margin: 16px 0 0 0; font-size: 13px; color: #57606a;">' +
+      '  <b>Tệp tin đính kèm:</b> Bản mềm Hợp đồng đặt cọc (PDF có đầy đủ điều khoản pháp lý và dấu mộc đỏ tròn của Trưởng ban KS. Nguyễn Hoàng Thiện) được đính kèm trực tiếp dưới thư này để Quý khách đối soát và lưu trữ.' +
+      '</p>';
 
-    MailApp.sendEmail({
+    var emailBodyHtml = wrapEmailInCorporateLayout(
+      "BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO — PHÊ DUYỆT HỢP ĐỒNG ĐẶT CỌC",
+      "XÁC NHẬN KÝ KẾT HỢP ĐỒNG ĐẶT CỌC & HẸN NGÀY BÀN GIAO",
+      contentHtml
+    );
+
+    var qrBlob = getTimoQrBlob();
+    var emailOptions = {
       to: email,
       subject: subject,
       htmlBody: emailBodyHtml,
       attachments: [pdfBlob]
-    });
+    };
+    if (qrBlob) {
+      emailOptions.inlineImages = {
+        paymentQrCode: qrBlob
+      };
+    }
 
+    MailApp.sendEmail(emailOptions);
     return { success: true };
   } catch (err) {
     Logger.log("Lỗi gửi Gmail đặt cọc: " + err);
@@ -1538,7 +1663,7 @@ function sendDepositApprovalEmail(email, fullName, idCardNumber, dob, gender, ph
  */
 function sendFullApprovalEmail(email, fullName, idCardNumber, dob, gender, phone, address, code, password, category, packageName, totalAmount) {
   try {
-    var subject = "✅ [SYNAPES STUDIO] THÔNG TIN ĐĂNG NHẬP & HỢP ĐỒNG DỊCH VỤ CHÍNH THỨC — " + code;
+    var subject = "[SYNAPES Studio] Thông tin tài khoản đăng nhập & Hợp đồng dịch vụ — Mã: " + code;
 
     var htmlContract = generateContractHtmlContent(
       fullName, dob, gender, phone, address, code, email,
@@ -1549,49 +1674,100 @@ function sendFullApprovalEmail(email, fullName, idCardNumber, dob, gender, phone
       .getAs("application/pdf")
       .setName("HOP_DONG_DICH_VU_SYNAPES_" + code + ".pdf");
 
-    var emailBodyHtml =
-      '<div style="font-family: Times New Roman, Times, serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 660px; margin: 0 auto; padding: 25px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff;">' +
-      '  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 14px; margin-bottom: 20px;">' +
-      '    <h2 style="margin: 0; color: #0f172a; text-transform: uppercase; font-size: 18px; letter-spacing: 0.5px;">HỆ THỐNG CÔNG NGHỆ SYNAPES STUDIO</h2>' +
-      '    <p style="margin: 4px 0 0 0; color: #475569; font-size: 13px; font-weight: bold;">BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO — THÔNG BÁO CẤP TÀI KHOẢN CHÍNH THỨC</p>' +
-      '  </div>' +
-      '  <p>Kính gửi Quý khách hàng: <b>' + fullName + '</b>,</p>' +
-      '  <p>Hồ sơ đăng ký và <b>Hợp đồng dịch vụ điện tử chính thức</b> sử dụng nền tảng <b>SYNAPES Studio</b> của Quý khách đã được <b>KS. Nguyễn Hoàng Thiện</b> (Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo) phê duyệt thành công.</p>' +
-      '  <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #0f172a; padding: 16px 20px; border-radius: 6px; margin: 18px 0;">' +
-      '    <h3 style="margin: 0 0 10px 0; font-size: 15px; color: #0f172a;">🔑 THÔNG TIN TÀI KHOẢN ĐĂNG NHẬP CỦA BẠN:</h3>' +
-      '    <ul style="margin: 0; padding-left: 20px; font-size: 14.5px; line-height: 1.7;">' +
-      '      <li><b>Cổng làm việc trực tuyến:</b> <a href="https://synapes-auto-tool-web-service.onrender.com" target="_blank" style="color: #0284c7; font-weight: bold;">https://synapes-auto-tool-web-service.onrender.com</a></li>' +
-      '      <li><b>Gói dịch vụ đã ký:</b> <b>' + packageName + '</b> (' + category + ')</li>' +
-      (idCardNumber ? ('      <li><b>Số CCCD / CMND:</b> <span style="font-family: monospace; font-weight: bold;">' + idCardNumber + '</span></li>') : '') +
-      '      <li><b>Mã Code Đăng Nhập:</b> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #0f172a; background: #e2e8f0; padding: 2px 8px; border-radius: 4px;">' + code + '</span></li>' +
-      '      <li><b>Mật Khẩu Mặc Định:</b> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #b91c1c; background: #fee2e2; padding: 2px 8px; border-radius: 4px;">' + password + '</span></li>' +
-      '    </ul>' +
-      '  </div>' +
-      '  <div style="background: #f1f5f9; padding: 14px 18px; border-radius: 6px; margin: 15px 0; font-size: 13.5px;">' +
-      '    <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #0f172a;">🛡️ QUY TRÌNH BẢO MẬT & ĐỔI MẬT KHẨU CÁ NHÂN:</h4>' +
-      '    <ul style="margin: 0; padding-left: 18px; line-height: 1.6;">' +
-      '      <li><b>Đổi mật khẩu ngay lần đầu:</b> Sau khi đăng nhập bằng mã Code và mật khẩu mặc định trên, Quý khách vui lòng vào mục Hồ sơ/Cài đặt để thiết lập mật khẩu cá nhân mới. Hệ thống sẽ lập tức mã hóa một chiều an toàn tuyệt đối.</li>' +
-      '      <li><b>Cơ chế Quên Mật Khẩu tự phục vụ:</b> Khi quên mật khẩu, Quý khách chỉ cần bấm <i>"Quên mật khẩu?"</i> trên trang đăng nhập và nhập đúng Gmail + Số điện thoại đăng ký. Hệ thống sẽ tự động cấp lại mật khẩu mặc định mới gửi về Gmail này.</li>' +
-      '      <li><b>Bảo vệ an ninh:</b> Nếu nhập sai thông tin xác thực quá <b>05 lần</b>, hệ thống sẽ tạm khóa tính năng để bảo vệ tài khoản khỏi xâm nhập trái phép.</li>' +
-      '    </ul>' +
-      '  </div>' +
-      buildPaymentQrBoxHtml() +
-      buildQuoteAndThanksHtml() +
-      '  <p><b>📄 Bản mềm Hợp đồng dịch vụ điện tử (PDF):</b> Được đính kèm trực tiếp dưới thư này với đầy đủ các điều khoản pháp lý, chữ ký xác nhận và con dấu đỏ tròn của Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo.</p>' +
-      '  <div style="margin-top: 25px; padding-top: 14px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #475569;">' +
-      '    <p style="margin: 0;">Trân trọng,</p>' +
-      '    <p style="margin: 3px 0 0 0; color: #0f172a;"><b>KS. NGUYỄN HOÀNG THIỆN</b> — Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo</p>' +
-      '    <p style="margin: 2px 0 0 0;">Email hỗ trợ: <a href="mailto:nguyenhoangthien.hvt.15@gmail.com">nguyenhoangthien.hvt.15@gmail.com</a></p>' +
-      '  </div>' +
-      '</div>';
+    var cccdRow = idCardNumber
+      ? '      <tr>' +
+        '        <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Số CCCD / CMND:</td>' +
+        '        <td style="padding: 8px 12px; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + idCardNumber + '</td>' +
+        '      </tr>'
+      : '';
 
-    MailApp.sendEmail({
+    var contentHtml =
+      '<p style="margin: 0 0 14px 0; font-size: 14.5px;">Kính gửi Quý khách hàng <b>' + fullName + '</b>,</p>' +
+      '<p style="margin: 0 0 16px 0; font-size: 14px; color: #32383f; line-height: 1.6;">' +
+      '  Hồ sơ đăng ký và <b>Hợp đồng dịch vụ điện tử chính thức</b> sử dụng nền tảng <b>SYNAPES Studio</b> của Quý khách đã được <b>KS. Nguyễn Hoàng Thiện</b> (Trưởng ban Chuyển đổi số &amp; Trí tuệ nhân tạo) phê duyệt thành công.' +
+      '</p>' +
+      '<!-- BẢNG THÔNG TIN ĐĂNG NHẬP -->' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; margin: 18px 0; border: 1px solid #d0d7de; border-radius: 6px; background: #f6f8fa; overflow: hidden;">' +
+      '  <tr>' +
+      '    <td style="padding: 10px 16px; background: #eaeef2; border-bottom: 1px solid #d0d7de;">' +
+      '      <div style="font-size: 11px; font-weight: 700; color: #57606a; text-transform: uppercase; letter-spacing: 0.6px;">' +
+      '        THÔNG TIN TÀI KHOẢN ĐĂNG NHẬP CHÍNH THỨC' +
+      '      </div>' +
+      '    </td>' +
+      '  </tr>' +
+      '  <tr>' +
+      '    <td style="padding: 18px 16px;">' +
+      '      <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 13.5px;">' +
+      '        <tr>' +
+      '          <td style="padding: 6px 0; color: #57606a; width: 140px;">Cổng làm việc:</td>' +
+      '          <td style="padding: 6px 0;"><a href="https://synapes-auto-tool-web-service.onrender.com" target="_blank" style="color: #0969da; font-weight: 600; text-decoration: none;">https://synapes-auto-tool-web-service.onrender.com</a></td>' +
+      '        </tr>' +
+      '        <tr>' +
+      '          <td style="padding: 6px 0; color: #57606a;">Mã Code Đăng Nhập:</td>' +
+      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #0969da; background: #ddf4ff; border: 1px solid #b6e3ff; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + code + '</span></td>' +
+      '        </tr>' +
+      '        <tr>' +
+      '          <td style="padding: 6px 0; color: #57606a;">Mật Khẩu Mặc Định:</td>' +
+      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #cf222e; background: #ffebe9; border: 1px solid #ffcecb; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + password + '</span></td>' +
+      '        </tr>' +
+      '      </table>' +
+      '      <div style="margin-top: 14px; text-align: center;">' +
+      '        <a href="https://synapes-auto-tool-web-service.onrender.com" target="_blank" style="display: inline-block; background: #1f2328; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 600; padding: 10px 24px; border-radius: 6px;">Truy Cập SYNAPES Studio &rarr;</a>' +
+      '      </div>' +
+      '    </td>' +
+      '  </tr>' +
+      '</table>' +
+      '<!-- HƯỚNG DẪN BẢO MẬT -->' +
+      '<div style="background: #ffffff; border: 1px solid #d0d7de; padding: 12px 16px; border-radius: 4px; margin: 16px 0; font-size: 12.5px; color: #57606a; line-height: 1.6;">' +
+      '  <b>Quy định bảo mật &amp; tài khoản:</b> Sau khi đăng nhập bằng mã Code và mật khẩu mặc định, Quý khách vui lòng vào mục Cài đặt để thiết lập mật khẩu cá nhân mới. Mật khẩu được mã hóa an toàn một chiều (bcrypt). Nếu quên mật khẩu, sử dụng tính năng <i>"Quên mật khẩu?"</i> trên giao diện đăng nhập bằng đúng Gmail và SĐT đăng ký.' +
+      '</div>' +
+      '<!-- TÓM TẮT HỢP ĐỒNG -->' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; margin: 16px 0; border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden; font-size: 13.5px;">' +
+      '  <tr style="background: #f6f8fa;">' +
+      '    <th colspan="2" style="padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 700; color: #57606a; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #d0d7de;">' +
+      '      CHI TIẾT HỢP ĐỒNG DỊCH VỤ CHÍNH THỨC' +
+      '    </th>' +
+      '  </tr>' +
+      '  <tr>' +
+      '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Gói dịch vụ đã ký:</td>' +
+      '    <td style="padding: 8px 12px; color: #1f2328; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + packageName + ' (' + category + ')</td>' +
+      '  </tr>' +
+      cccdRow +
+      '  <tr>' +
+      '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8;">Tổng giá trị thanh toán:</td>' +
+      '    <td style="padding: 8px 12px; color: #1a7f37; font-weight: 700; font-size: 15px; border-bottom: 1px solid #e1e4e8;">' + totalAmount.toLocaleString("vi-VN") + ' VNĐ (Thanh toán 100%)</td>' +
+      '  </tr>' +
+      '  <tr>' +
+      '    <td style="padding: 8px 12px; color: #57606a;">Thời hạn &amp; quyền hạn:</td>' +
+      '    <td style="padding: 8px 12px; color: #1a7f37; font-weight: 600;">Kích hoạt vĩnh viễn &bull; Hạn mức chức năng tối đa</td>' +
+      '  </tr>' +
+      '</table>' +
+      buildPaymentQrBoxHtml(totalAmount, (fullName.replace(/[^a-zA-Z0-9]/g, "") + " FULL " + code).trim().toUpperCase()) +
+      buildQuoteAndThanksHtml() +
+      '<p style="margin: 16px 0 0 0; font-size: 13px; color: #57606a;">' +
+      '  <b>Tệp tin đính kèm:</b> Bản mềm Hợp đồng dịch vụ điện tử chính thức (PDF có đầy đủ điều khoản pháp lý và dấu mộc đỏ tròn của Trưởng ban KS. Nguyễn Hoàng Thiện) được đính kèm trực tiếp dưới thư này để Quý khách lưu trữ.' +
+      '</p>';
+
+    var emailBodyHtml = wrapEmailInCorporateLayout(
+      "BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO — PHÊ DUYỆT TÀI KHOẢN CHÍNH THỨC",
+      "THÔNG BÁO CẤP TÀI KHOẢN ĐĂNG NHẬP & HỢP ĐỒNG DỊCH VỤ",
+      contentHtml
+    );
+
+    var qrBlob = getTimoQrBlob();
+    var emailOptions = {
       to: email,
       subject: subject,
       htmlBody: emailBodyHtml,
       attachments: [pdfBlob]
-    });
+    };
+    if (qrBlob) {
+      emailOptions.inlineImages = {
+        paymentQrCode: qrBlob
+      };
+    }
 
+    MailApp.sendEmail(emailOptions);
     return { success: true };
   } catch (err) {
     Logger.log("Lỗi gửi Gmail phê duyệt 100%: " + err);
@@ -1604,7 +1780,7 @@ function sendFullApprovalEmail(email, fullName, idCardNumber, dob, gender, phone
  */
 function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phone, address, code, password, category, packageName, totalAmount) {
   try {
-    var subject = "🚀 [SYNAPES STUDIO] BÀN GIAO CHÍNH THỨC HỆ THỐNG & CẤP TÀI KHOẢN ĐĂNG NHẬP — " + code;
+    var subject = "[SYNAPES Studio] Biên bản bàn giao hệ thống & Kích hoạt tài khoản — Mã: " + code;
 
     var htmlContract = generateContractHtmlContent(
       fullName, dob, gender, phone, address, code, email,
@@ -1615,42 +1791,100 @@ function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phon
       .getAs("application/pdf")
       .setName("BIEN_BAN_BAN_GIAO_SYNAPES_" + code + ".pdf");
 
-    var emailBodyHtml =
-      '<div style="font-family: Times New Roman, Times, serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 660px; margin: 0 auto; padding: 25px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff;">' +
-      '  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 14px; margin-bottom: 20px;">' +
-      '    <h2 style="margin: 0; color: #0f172a; text-transform: uppercase; font-size: 18px; letter-spacing: 0.5px;">HỆ THỐNG CÔNG NGHỆ SYNAPES STUDIO</h2>' +
-      '    <p style="margin: 4px 0 0 0; color: #475569; font-size: 13px; font-weight: bold;">BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO — BIÊN BẢN BÀN GIAO HỆ THỐNG CHÍNH THỨC</p>' +
-      '  </div>' +
-      '  <p>Kính gửi Quý khách hàng: <b>' + fullName + '</b>,</p>' +
-      '  <p>Hệ thống sản xuất video tự động <b>SYNAPES Studio</b> của Quý khách theo Hợp đồng đặt cọc đã được đội ngũ Kỹ sư hoàn tất triển khai, tối ưu hóa và xác nhận thanh toán đủ 100%.</p>' +
-      '  <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #16a34a; padding: 16px 20px; border-radius: 6px; margin: 18px 0;">' +
-      '    <h3 style="margin: 0 0 10px 0; font-size: 15px; color: #166534;">🎉 THÔNG TIN TÀI KHOẢN CHÍNH THỨC ĐƯỢC BÀN GIAO:</h3>' +
-      '    <ul style="margin: 0; padding-left: 20px; font-size: 14.5px; line-height: 1.7;">' +
-      '      <li><b>Cổng làm việc trực tuyến:</b> <a href="https://synapes-auto-tool-web-service.onrender.com" target="_blank" style="color: #0284c7; font-weight: bold;">https://synapes-auto-tool-web-service.onrender.com</a></li>' +
-      '      <li><b>Gói giải pháp bàn giao:</b> <b>' + packageName + '</b> (' + category + ')</li>' +
-      (idCardNumber ? ('      <li><b>Số CCCD / CMND:</b> <span style="font-family: monospace; font-weight: bold;">' + idCardNumber + '</span></li>') : '') +
-      '      <li><b>Mã Code Đăng Nhập:</b> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #0f172a; background: #e2e8f0; padding: 2px 8px; border-radius: 4px;">' + code + '</span></li>' +
-      '      <li><b>Mật Khẩu Mặc Định:</b> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #b91c1c; background: #fee2e2; padding: 2px 8px; border-radius: 4px;">' + password + '</span></li>' +
-      '      <li><b>Trạng thái bàn giao:</b> <span style="font-weight: bold; color: #16a34a;">ĐÃ BÀN GIAO TOÀN DIỆN & KÍCH HOẠT VĨNH VIỄN</span></li>' +
-      '    </ul>' +
-      '  </div>' +
-      buildPaymentQrBoxHtml() +
-      buildQuoteAndThanksHtml() +
-      '  <p><b>📄 Bản mềm Biên bản bàn giao & Hợp đồng chính thức (PDF):</b> Được đính kèm trực tiếp dưới thư này với đầy đủ các điều khoản pháp lý, chữ ký xác nhận và con dấu đỏ tròn của Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo.</p>' +
-      '  <div style="margin-top: 25px; padding-top: 14px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #475569;">' +
-      '    <p style="margin: 0;">Trân trọng,</p>' +
-      '    <p style="margin: 3px 0 0 0; color: #0f172a;"><b>KS. NGUYỄN HOÀNG THIỆN</b> — Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo</p>' +
-      '    <p style="margin: 2px 0 0 0;">Email hỗ trợ: <a href="mailto:nguyenhoangthien.hvt.15@gmail.com">nguyenhoangthien.hvt.15@gmail.com</a></p>' +
-      '  </div>' +
-      '</div>';
+    var cccdRow = idCardNumber
+      ? '      <tr>' +
+        '        <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Số CCCD / CMND:</td>' +
+        '        <td style="padding: 8px 12px; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + idCardNumber + '</td>' +
+        '      </tr>'
+      : '';
 
-    MailApp.sendEmail({
+    var contentHtml =
+      '<p style="margin: 0 0 14px 0; font-size: 14.5px;">Kính gửi Quý khách hàng <b>' + fullName + '</b>,</p>' +
+      '<p style="margin: 0 0 16px 0; font-size: 14px; color: #32383f; line-height: 1.6;">' +
+      '  Hệ thống sản xuất video tự động <b>SYNAPES Studio</b> của Quý khách theo Hợp đồng đặt cọc đã được đội ngũ Kỹ sư hoàn tất triển khai, kiểm thử tối ưu hóa và xác nhận hoàn tất thanh toán đủ 100%.' +
+      '</p>' +
+      '<!-- BẢNG THÔNG TIN ĐĂNG NHẬP -->' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; margin: 18px 0; border: 1px solid #d0d7de; border-radius: 6px; background: #f6f8fa; overflow: hidden;">' +
+      '  <tr>' +
+      '    <td style="padding: 10px 16px; background: #eaeef2; border-bottom: 1px solid #d0d7de;">' +
+      '      <div style="font-size: 11px; font-weight: 700; color: #57606a; text-transform: uppercase; letter-spacing: 0.6px;">' +
+      '        TÀI KHOẢN TRUY CẬP HỆ THỐNG ĐÃ KÍCH HOẠT' +
+      '      </div>' +
+      '    </td>' +
+      '  </tr>' +
+      '  <tr>' +
+      '    <td style="padding: 18px 16px;">' +
+      '      <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 13.5px;">' +
+      '        <tr>' +
+      '          <td style="padding: 6px 0; color: #57606a; width: 140px;">Cổng làm việc:</td>' +
+      '          <td style="padding: 6px 0;"><a href="https://synapes-auto-tool-web-service.onrender.com" target="_blank" style="color: #0969da; font-weight: 600; text-decoration: none;">https://synapes-auto-tool-web-service.onrender.com</a></td>' +
+      '        </tr>' +
+      '        <tr>' +
+      '          <td style="padding: 6px 0; color: #57606a;">Mã Code Đăng Nhập:</td>' +
+      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #0969da; background: #ddf4ff; border: 1px solid #b6e3ff; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + code + '</span></td>' +
+      '        </tr>' +
+      '        <tr>' +
+      '          <td style="padding: 6px 0; color: #57606a;">Mật Khẩu Mặc Định:</td>' +
+      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #cf222e; background: #ffebe9; border: 1px solid #ffcecb; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + password + '</span></td>' +
+      '        </tr>' +
+      '        <tr>' +
+      '          <td style="padding: 6px 0; color: #57606a;">Trạng thái:</td>' +
+      '          <td style="padding: 6px 0;"><span style="color: #1a7f37; font-weight: 700;">ĐÃ BÀN GIAO TOÀN DIỆN &bull; KÍCH HOẠT VĨNH VIỄN</span></td>' +
+      '        </tr>' +
+      '      </table>' +
+      '      <div style="margin-top: 14px; text-align: center;">' +
+      '        <a href="https://synapes-auto-tool-web-service.onrender.com" target="_blank" style="display: inline-block; background: #1f2328; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 600; padding: 10px 24px; border-radius: 6px;">Bắt Đầu Sử Dụng SYNAPES Studio &rarr;</a>' +
+      '      </div>' +
+      '    </td>' +
+      '  </tr>' +
+      '</table>' +
+      '<!-- TÓM TẮT BÀN GIAO -->' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; margin: 16px 0; border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden; font-size: 13.5px;">' +
+      '  <tr style="background: #f6f8fa;">' +
+      '    <th colspan="2" style="padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 700; color: #57606a; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #d0d7de;">' +
+      '      THÔNG TIN BIÊN BẢN BÀN GIAO' +
+      '    </th>' +
+      '  </tr>' +
+      '  <tr>' +
+      '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Gói giải pháp:</td>' +
+      '    <td style="padding: 8px 12px; color: #1f2328; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + packageName + ' (' + category + ')</td>' +
+      '  </tr>' +
+      cccdRow +
+      '  <tr>' +
+      '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8;">Tổng giá trị bàn giao:</td>' +
+      '    <td style="padding: 8px 12px; color: #1a7f37; font-weight: 700; font-size: 15px; border-bottom: 1px solid #e1e4e8;">' + totalAmount.toLocaleString("vi-VN") + ' VNĐ (Xác nhận hoàn tất 100%)</td>' +
+      '  </tr>' +
+      '  <tr>' +
+      '    <td style="padding: 8px 12px; color: #57606a;">Chính sách bảo hành:</td>' +
+      '    <td style="padding: 8px 12px; color: #1f2328;">Bảo hành &amp; hỗ trợ kỹ thuật toàn thời gian</td>' +
+      '  </tr>' +
+      '</table>' +
+      buildPaymentQrBoxHtml(totalAmount, (fullName.replace(/[^a-zA-Z0-9]/g, "") + " HANDOVER " + code).trim().toUpperCase()) +
+      buildQuoteAndThanksHtml() +
+      '<p style="margin: 16px 0 0 0; font-size: 13px; color: #57606a;">' +
+      '  <b>Tệp tin đính kèm:</b> Bản mềm Biên bản bàn giao &amp; Hợp đồng dịch vụ hoàn chỉnh (PDF có dấu mộc đỏ tròn của Trưởng ban KS. Nguyễn Hoàng Thiện) được đính kèm trực tiếp dưới thư này.' +
+      '</p>';
+
+    var emailBodyHtml = wrapEmailInCorporateLayout(
+      "BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO — BIÊN BẢN BÀN GIAO CHÍNH THỨC",
+      "BIÊN BẢN BÀN GIAO HỆ THỐNG & KÍCH HOẠT TÀI KHOẢN",
+      contentHtml
+    );
+
+    var qrBlob = getTimoQrBlob();
+    var emailOptions = {
       to: email,
       subject: subject,
       htmlBody: emailBodyHtml,
       attachments: [pdfBlob]
-    });
+    };
+    if (qrBlob) {
+      emailOptions.inlineImages = {
+        paymentQrCode: qrBlob
+      };
+    }
 
+    MailApp.sendEmail(emailOptions);
     return { success: true };
   } catch (err) {
     Logger.log("Lỗi gửi Gmail bàn giao: " + err);
@@ -1663,34 +1897,65 @@ function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phon
  */
 function sendForgotPasswordEmail(email, fullName, code, newPassword) {
   try {
-    var subject = "🔑 [SYNAPES STUDIO] CẤP LẠI MẬT KHẨU MẶC ĐỊNH — MÃ CODE: " + code;
+    var subject = "[SYNAPES Studio] Cấp lại mật khẩu mặc định — Mã: " + code;
     var nowStr = Utilities.formatDate(new Date(), "GMT+7", "dd/MM/yyyy HH:mm:ss");
 
-    var emailBodyHtml =
-      '<div style="font-family: Times New Roman, Times, serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 620px; margin: 0 auto; padding: 24px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff;">' +
-      '  <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 18px;">' +
-      '    <h2 style="margin: 0; color: #0f172a; text-transform: uppercase; font-size: 17px;">HỆ THỐNG CÔNG NGHỆ SYNAPES STUDIO</h2>' +
-      '    <p style="margin: 4px 0 0 0; color: #64748b; font-size: 12.5px;">XÁC THỰC CẤP LẠI MẬT KHẨU MẶC ĐỊNH THÀNH CÔNG</p>' +
-      '  </div>' +
-      '  <p>Xin chào <b>' + (fullName || "Khách hàng SYNAPES") + '</b>,</p>' +
-      '  <p>Hệ thống đã tiếp nhận yêu cầu lấy lại mật khẩu và đối soát chính xác thông tin Gmail & Số điện thoại đăng ký của bạn vào lúc <b>' + nowStr + '</b>.</p>' +
-      '  <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #16a34a; padding: 15px 18px; border-radius: 6px; margin: 18px 0;">' +
-      '    <div style="font-size: 14.5px; margin-bottom: 6px;"><b>• Mã Code Đăng Nhập:</b> <span style="font-family: monospace; font-weight: bold; font-size: 15px; background: #e2e8f0; padding: 2px 8px; border-radius: 4px;">' + code + '</span></div>' +
-      '    <div style="font-size: 14.5px;"><b>• Mật Khẩu Mặc Định Mới:</b> <span style="font-family: monospace; font-weight: bold; font-size: 16px; color: #b91c1c; background: #fee2e2; padding: 2px 8px; border-radius: 4px;">' + newPassword + '</span></div>' +
-      '  </div>' +
-      '  <p style="font-size: 13.5px; color: #334155;">Vui lòng sử dụng mật khẩu mặc định mới này để đăng nhập tại <a href="https://synapes-auto-tool-web-service.onrender.com" target="_blank">https://synapes-auto-tool-web-service.onrender.com</a> và thiết lập lại mật khẩu cá nhân của bạn.</p>' +
-      buildPaymentQrBoxHtml() +
-      buildQuoteAndThanksHtml() +
-      '  <div style="margin-top: 20px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 12.5px; color: #64748b;">' +
-      '    <b>Ban Chuyển đổi số & Trí tuệ nhân tạo SYNAPES</b> — KS. Nguyễn Hoàng Thiện (nguyenhoangthien.hvt.15@gmail.com)' +
-      '  </div>' +
-      '</div>';
+    var contentHtml =
+      '<p style="margin: 0 0 14px 0; font-size: 14.5px;">Kính gửi <b>' + (fullName || "Quý khách hàng") + '</b>,</p>' +
+      '<p style="margin: 0 0 16px 0; font-size: 14px; color: #32383f; line-height: 1.6;">' +
+      '  Hệ thống đã tiếp nhận yêu cầu đặt lại mật khẩu và đối soát chính xác thông tin đăng ký của bạn vào lúc <b>' + nowStr + '</b>.' +
+      '</p>' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; margin: 18px 0; border: 1px solid #d0d7de; border-radius: 6px; background: #f6f8fa; overflow: hidden;">' +
+      '  <tr>' +
+      '    <td style="padding: 10px 16px; background: #eaeef2; border-bottom: 1px solid #d0d7de;">' +
+      '      <div style="font-size: 11px; font-weight: 700; color: #57606a; text-transform: uppercase; letter-spacing: 0.6px;">' +
+      '        THÔNG TIN XÁC THỰC MẬT KHẨU MỚI' +
+      '      </div>' +
+      '    </td>' +
+      '  </tr>' +
+      '  <tr>' +
+      '    <td style="padding: 18px 16px;">' +
+      '      <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 13.5px;">' +
+      '        <tr>' +
+      '          <td style="padding: 6px 0; color: #57606a; width: 140px;">Mã Code Đăng Nhập:</td>' +
+      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #0969da; background: #ddf4ff; border: 1px solid #b6e3ff; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + code + '</span></td>' +
+      '        </tr>' +
+      '        <tr>' +
+      '          <td style="padding: 6px 0; color: #57606a;">Mật Khẩu Mặc Định Mới:</td>' +
+      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #cf222e; background: #ffebe9; border: 1px solid #ffcecb; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + newPassword + '</span></td>' +
+      '        </tr>' +
+      '      </table>' +
+      '      <div style="margin-top: 14px; text-align: center;">' +
+      '        <a href="https://synapes-auto-tool-web-service.onrender.com" target="_blank" style="display: inline-block; background: #1f2328; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 600; padding: 10px 24px; border-radius: 6px;">Đăng Nhập Ngay &rarr;</a>' +
+      '      </div>' +
+      '    </td>' +
+      '  </tr>' +
+      '</table>' +
+      '<div style="background: #ffffff; border: 1px solid #d0d7de; padding: 12px 16px; border-radius: 4px; margin: 16px 0; font-size: 12.5px; color: #57606a; line-height: 1.6;">' +
+      '  <b>Lưu ý:</b> Vì lý do an toàn, Quý khách vui lòng đăng nhập và đổi sang mật khẩu riêng ngay trong phiên làm việc đầu tiên.' +
+      '</div>' +
+      buildPaymentQrBoxHtml(0, ("SYNAPES " + code).trim().toUpperCase()) +
+      buildQuoteAndThanksHtml();
 
-    MailApp.sendEmail({
+    var emailBodyHtml = wrapEmailInCorporateLayout(
+      "BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO — BẢO MẬT TÀI KHOẢN",
+      "XÁC THỰC CẤP LẠI MẬT KHẨU MẶC ĐỊNH THÀNH CÔNG",
+      contentHtml
+    );
+
+    var qrBlob = getTimoQrBlob();
+    var emailOptions = {
       to: email,
       subject: subject,
       htmlBody: emailBodyHtml
-    });
+    };
+    if (qrBlob) {
+      emailOptions.inlineImages = {
+        paymentQrCode: qrBlob
+      };
+    }
+
+    MailApp.sendEmail(emailOptions);
     return { success: true };
   } catch (err) {
     Logger.log("Lỗi gửi mail quên mật khẩu: " + err);
@@ -2297,36 +2562,31 @@ function handleUserRegistrationWebhook(ss, payload) {
   var dobStr = dobParsed.formattedDob || String(payload.dob || "").trim();
   if (dobStr) dobStr = "'" + dobStr;
 
-  var categoryStr = (payload.contractCategory === "enterprise" || String(payload.contractCategory || "").indexOf("toàn hệ") !== -1)
+  var categoryStr = payload.contractCategory === "enterprise"
     ? "Hợp đồng toàn hệ"
     : "Hợp đồng cá nhân hóa";
 
-  var packageStr = payload.contractPackageName || (categoryStr === "Hợp đồng toàn hệ" ? "Ký đặt cọc phân bổ" : "Ký đặt cọc dự án cá nhân");
+  var packageStr = payload.contractPackageName || (payload.contractCategory === "enterprise" ? "Hợp đồng toàn hệ" : "Hợp đồng cá nhân hóa");
 
   var depositVal = parseFloat(String(payload.depositAmount || "").replace(/[^0-9]/g, "")) || 0;
   var totalVal = parseFloat(String(payload.totalAmount || "").replace(/[^0-9]/g, "")) || 0;
   var daysVal = parseInt(String(payload.deliveryDays || "").replace(/[^0-9]/g, "")) || 0;
 
-  var pkgLower = (packageStr + " " + categoryStr).toLowerCase();
-  var isDepositContract = pkgLower.indexOf("cọc") !== -1 || pkgLower.indexOf("coc") !== -1 || depositVal > 0;
-
-  if (isDepositContract) {
-    if (pkgLower.indexOf("toàn hệ") !== -1 || pkgLower.indexOf("toan he") !== -1 || pkgLower.indexOf("phân bổ") !== -1 || pkgLower.indexOf("phan bo") !== -1) {
-      if (depositVal === 0) depositVal = 2500000;
-      if (totalVal === 0) totalVal = 5490000;
+  var pkgLower = packageStr.toLowerCase();
+  if (depositVal === 0) {
+    if (pkgLower.indexOf("cọc dự án cá nhân") !== -1 || pkgLower.indexOf("coc du an ca nhan") !== -1) {
+      depositVal = 1250000;
+      totalVal = 2550000;
+      daysVal = daysVal || 5;
+    } else if (pkgLower.indexOf("cọc phân bổ") !== -1 || pkgLower.indexOf("coc phan bo") !== -1) {
+      depositVal = 2500000;
+      totalVal = 5490000;
+      daysVal = daysVal || 5;
+    } else if (pkgLower.indexOf("toàn hệ") !== -1 || pkgLower.indexOf("toan he") !== -1) {
+      totalVal = totalVal || 5490000;
     } else {
-      if (depositVal === 0) depositVal = 1250000;
-      if (totalVal === 0) totalVal = 2550000;
+      totalVal = totalVal || 2550000;
     }
-    daysVal = daysVal || 5;
-  } else {
-    depositVal = 0;
-    if (pkgLower.indexOf("toàn hệ") !== -1 || pkgLower.indexOf("toan he") !== -1) {
-      if (totalVal === 0) totalVal = 5490000;
-    } else {
-      if (totalVal === 0) totalVal = 2550000;
-    }
-    daysVal = 0;
   }
 
   var depositStr = depositVal > 0 ? (depositVal.toLocaleString("vi-VN") + " VNĐ") : "0 VNĐ";
