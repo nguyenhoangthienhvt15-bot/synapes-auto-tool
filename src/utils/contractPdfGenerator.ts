@@ -221,24 +221,24 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
         }
         #pdf-contract-wrapper .stamp-container {
           position: relative;
-          height: 120px;
+          height: 135px;
           display: flex;
           align-items: center;
           justify-content: center;
           margin: 2px auto;
         }
         #pdf-contract-wrapper .stamp-img {
-          width: 145px;
-          height: 115px;
+          width: 132px;
+          height: 132px;
           object-fit: contain;
-          transform: rotate(-2deg);
-          filter: contrast(1.08);
+          transform: rotate(-1.5deg);
+          filter: contrast(1.05);
           pointer-events: none;
         }
         #pdf-contract-wrapper .buyer-sign-box {
-          height: 120px;
+          height: 135px;
           display: flex;
-           flex-direction: column;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
           margin: 2px auto;
