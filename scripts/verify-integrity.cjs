@@ -133,6 +133,37 @@ if (fs.existsSync(webhookServicePath)) {
 }
 
 // -----------------------------------------------------------------------------
+// NHÓM 5: BẢO VỆ TÍNH NĂNG BÓC TÁCH & NHÂN BẢN VIDEO (BYOK VIDEO CLONER)
+// -----------------------------------------------------------------------------
+console.log('\n--- 5. Kiểm tra Video Deconstruct & Clone Engine (BYOK Architecture) ---');
+
+const clonerServicePath = path.join(ROOT, 'src', 'services', 'videoDeconstructService.ts');
+const clonerViewPath = path.join(ROOT, 'src', 'components', 'VideoClonerView.tsx');
+const backendEnginePath = path.join(ROOT, 'server', 'studioBackendEngine.mjs');
+
+assert(fs.existsSync(clonerServicePath), 'File src/services/videoDeconstructService.ts tồn tại');
+assert(fs.existsSync(clonerViewPath), 'File src/components/VideoClonerView.tsx tồn tại');
+
+if (fs.existsSync(clonerServicePath)) {
+  const clonerServiceContent = fs.readFileSync(clonerServicePath, 'utf8');
+  assert(clonerServiceContent.includes('deconstructVideoDna'), 'Có hàm bóc tách cấu trúc Video DNA');
+  assert(clonerServiceContent.includes('synthesizeClonedProject'), 'Có hàm tái cấu trúc & nhân bản kịch bản cho chủ đề mới');
+}
+
+if (fs.existsSync(clonerViewPath)) {
+  const clonerViewContent = fs.readFileSync(clonerViewPath, 'utf8');
+  assert(clonerViewContent.includes('Bước 1: Nạp Video Mẫu') || clonerViewContent.includes('Bóc Tách'), 'Giao diện có cổng nạp video mẫu');
+  assert(clonerViewContent.includes('Nhân Bản') || clonerViewContent.includes('Bước 2'), 'Giao diện có cổng nhân bản chủ đề mới');
+  assert(clonerViewContent.includes('BYOK') || clonerViewContent.includes('Khóa API'), 'Hiển thị trạng thái khóa API BYOK');
+}
+
+if (fs.existsSync(backendEnginePath)) {
+  const backendContent = fs.readFileSync(backendEnginePath, 'utf8');
+  assert(backendContent.includes('/api/video-deconstruct'), 'Có endpoint /api/video-deconstruct trên server backend');
+  assert(backendContent.includes('/api/video-clone-synthesize'), 'Có endpoint /api/video-clone-synthesize trên server backend');
+}
+
+// -----------------------------------------------------------------------------
 // KẾT LUẬN TOÀN BỘ BÀI TEST
 // -----------------------------------------------------------------------------
 console.log('\n============================================================');

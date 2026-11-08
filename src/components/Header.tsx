@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserAccount } from '../types';
-import { Bell, KeyRound, LogOut, Shield, ChevronRight, BookOpen, Terminal } from 'lucide-react';
+import { Bell, KeyRound, LogOut, Shield, ChevronRight, BookOpen, Terminal, Sparkles } from 'lucide-react';
 
 interface HeaderProps {
   currentUser: UserAccount | null;
@@ -107,6 +107,16 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
           >
             Lịch Phát Sóng
+          </button>
+
+          <button
+            onClick={() => onSelectView('video-cloner')}
+            className={`studio-segmented-item flex items-center gap-1.5 cursor-pointer ${activeView === 'video-cloner' ? 'active' : ''
+              }`}
+            title="Bóc tách & Nhân bản Video bằng API Keys cá nhân"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Nhân Bản Video (BYOK)</span>
           </button>
 
           <button

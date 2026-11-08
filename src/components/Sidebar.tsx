@@ -52,6 +52,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
 
             <button
+              onClick={() => onSelectView('video-cloner')}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${activeView === 'video-cloner'
+                  ? 'bg-zinc-200/70 text-zinc-950 font-semibold'
+                  : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/70'
+                }`}
+              title="Phân tích bóc tách & Nhân bản Video bằng API Keys cá nhân"
+            >
+              <div className="flex items-center gap-2.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span>Nhân Bản Video (BYOK)</span>
+              </div>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-medium bg-amber-50 text-amber-700 border border-amber-200/60">
+                Mới
+              </span>
+            </button>
+
+            <button
               onClick={() => onSelectView('skills')}
               className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition text-left cursor-pointer ${activeView === 'skills'
                   ? 'bg-zinc-200/70 text-zinc-950 font-semibold'

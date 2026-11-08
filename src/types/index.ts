@@ -193,11 +193,12 @@ export interface McpVideoServer {
   status: 'ready' | 'recommended' | 'community';
 }
 
-export type AIProviderId = 'gemini' | 'openai' | 'claude' | 'deepseek' | 'grok' | 'plugin';
+export type AIProviderId = 'gemini' | 'openai' | 'claude' | 'deepseek' | 'grok' | 'plugin' | 'groq' | 'elevenlabs';
 
 export interface AIProviderConfig {
   mode: AIProviderId;
   activeProvider?: AIProviderId;
+  byokProfile?: 'zero-cost' | 'fast-frugal' | 'flagship' | 'custom';
   gemini: {
     apiKey: string;
     model: string;
@@ -223,6 +224,16 @@ export interface AIProviderConfig {
     model: string;
     endpointUrl?: string;
   };
+  groq?: {
+    apiKey: string;
+    model: string;
+    endpointUrl?: string;
+  };
+  elevenlabs?: {
+    apiKey: string;
+    voiceId?: string;
+    model?: string;
+  };
   plugin: {
     id: string;
     name: string;
@@ -232,6 +243,80 @@ export interface AIProviderConfig {
     outputMapping: string;
     timeoutSeconds: number;
   };
+}
+
+export interface DeconstructedScene {
+  sceneNumber: number;
+  timeStart: string;
+  timeEnd: string;
+  durationSec: number;
+  shotType: 'close-up' | 'medium-shot' | 'wide-angle' | 'macro' | 'screen-recording' | 'motion-graphic' | string;
+  visualCategory: 'talking-head' | 'b-roll-stock' | 'ai-art' | 'diagram' | 'typography' | string;
+  visualDescription: string;
+  transcript: string;
+  suggestedAiPrompt: string;
+  onScreenText?: string;
+  sfxCue?: string;
+}
+
+export interface VideoDnaBlueprint {
+  sourceUrl?: string;
+  sourceTitle?: string;
+  durationSec: number;
+  totalScenes: number;
+  averageShotDuration: number;
+  wordsPerMinute: number;
+  hookScore: number;
+  hookAnalysis: {
+    verbalHook: string;
+    visualHook: string;
+    audioHook: string;
+    curiosityGapStrategy: string;
+  };
+  retentionStrategy: string;
+  pacingStyle: 'ultra-fast' | 'dynamic-tiktok' | 'documentary' | 'deep-dive' | string;
+  visualStyle: {
+    colorPalette: string[];
+    lightingMood: string;
+    aestheticTag: string;
+    recommendedAspectRatio: '16:9' | '9:16';
+  };
+  audioAnalysis: {
+    bgmGenre: string;
+    bpmTempo: number;
+    voiceTone: string;
+    sfxFrequency: 'high' | 'medium' | 'minimal' | string;
+  };
+  scenes: DeconstructedScene[];
+  rawTranscript: string;
+}
+
+export interface ClonedVideoProject {
+  id: string;
+  originalDna: VideoDnaBlueprint;
+  newTopic: string;
+  targetAudience: string;
+  selectedProvider: AIProviderId | string;
+  selectedModel: string;
+  newScript: {
+    title: string;
+    headline: string;
+    hookSentence: string;
+    bodyStory: string;
+    callToAction: string;
+    tags: string[];
+  };
+  newStoryboard: Array<{
+    sceneNumber: number;
+    timeRange: string;
+    spokenText: string;
+    visualPrompt: string;
+    cameraInstruction: string;
+    sfx: string;
+    generatedMediaUrl?: string;
+  }>;
+  createdAt: string;
+  status: 'analyzed' | 'scripted' | 'generating-assets' | 'ready-for-review' | 'approved';
 }
 
 export interface StitcherClip {

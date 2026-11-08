@@ -406,6 +406,84 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
           </div>
         </div>
 
+        {/* BYOK 3 SMART PROFILES */}
+        <div className="p-4 bg-gradient-to-r from-zinc-900 to-zinc-950 text-white rounded-xl border border-zinc-800 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span className="text-xs font-bold uppercase tracking-wider text-zinc-200">
+                Gợi Ý Cấu Hình BYOK Nhanh (Smart Profiles)
+              </span>
+            </div>
+            <span className="text-[10px] text-zinc-400 font-mono">1-Click Tối Ưu Hóa Chi Phí</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+            {/* Profile 1: Zero-Cost */}
+            <div
+              onClick={() => {
+                setActiveProvider('gemini');
+                setModels((prev) => ({ ...prev, gemini: 'gemini-2.0-flash' }));
+                setTestResult('🟢 Đã kích hoạt [Chế Độ 0 Đồng]: Sử dụng Gemini 2.0 Flash miễn phí 100% tại Google AI Studio!');
+                setTimeout(() => setTestResult(null), 4000);
+              }}
+              className="p-3 bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/80 hover:border-emerald-500/50 rounded-lg cursor-pointer transition"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-bold text-xs text-emerald-400 flex items-center gap-1">
+                  🟢 Chế Độ 0 Đồng (Free)
+                </span>
+                <span className="text-[10px] font-mono text-zinc-400">0đ / Video</span>
+              </div>
+              <p className="text-[11px] text-zinc-300 leading-tight">
+                Gemini 2.0 Flash (Free 15 RPM) + Kho Ảnh Curated + Gemini TTS. Phù hợp người mới bắt đầu.
+              </p>
+            </div>
+
+            {/* Profile 2: Fast & Frugal */}
+            <div
+              onClick={() => {
+                setActiveProvider('deepseek');
+                setModels((prev) => ({ ...prev, deepseek: 'deepseek-chat' }));
+                setTestResult('⚡ Đã kích hoạt [Chế Độ Siêu Tốc & Tiết Kiệm]: Sử dụng DeepSeek V3 siêu rẻ (~200đ/video)!');
+                setTimeout(() => setTestResult(null), 4000);
+              }}
+              className="p-3 bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/80 hover:border-amber-500/50 rounded-lg cursor-pointer transition"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-bold text-xs text-amber-400 flex items-center gap-1">
+                  ⚡ Siêu Tốc & Tiết Kiệm
+                </span>
+                <span className="text-[10px] font-mono text-zinc-400">~200đ / Video</span>
+              </div>
+              <p className="text-[11px] text-zinc-300 leading-tight">
+                DeepSeek V3 / R1 logic kịch bản sâu + Gemini Flash bóc tách video. Cực rẻ và tốc độ cao.
+              </p>
+            </div>
+
+            {/* Profile 3: Flagship */}
+            <div
+              onClick={() => {
+                setActiveProvider('claude');
+                setModels((prev) => ({ ...prev, claude: 'claude-3-7-sonnet-20250219' }));
+                setTestResult('🌟 Đã kích hoạt [Chế Độ Điện Ảnh Đỉnh Cao]: Sử dụng Claude 3.7 Sonnet văn phong đỉnh cao!');
+                setTimeout(() => setTestResult(null), 4000);
+              }}
+              className="p-3 bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/80 hover:border-indigo-500/50 rounded-lg cursor-pointer transition"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-bold text-xs text-indigo-400 flex items-center gap-1">
+                  🌟 Điện Ảnh Đỉnh Cao
+                </span>
+                <span className="text-[10px] font-mono text-zinc-400">Gói Pro Hãng</span>
+              </div>
+              <p className="text-[11px] text-zinc-300 leading-tight">
+                Claude 3.7 Sonnet + ElevenLabs lồng tiếng + Kling AI v1.5 render video chuyển động.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Provider Switcher Cards Bar */}
         <div>
           <div className="text-[11px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-2">

@@ -34,6 +34,7 @@ import { DriveBackupView } from './components/DriveBackupView';
 import { PolicyModal } from './components/PolicyModal';
 import { UserGuideView } from './components/UserGuideView';
 import { McpVideoToolsHub } from './components/McpVideoToolsHub';
+import { VideoClonerView } from './components/VideoClonerView';
 
 // Icons
 import { CheckCircle2, Plus } from 'lucide-react';
@@ -503,6 +504,20 @@ export function App() {
                   setIsCreateModalOpen(true);
                 }
               }}
+            />
+          )}
+
+          {/* VIEW: BÓC TÁCH & NHÂN BẢN VIDEO AI (BYOK POWERED) */}
+          {activeView === 'video-cloner' && (
+            <VideoClonerView
+              config={aiConfig}
+              onOpenSettings={() => setActiveView('ai-engine')}
+              onProjectCreated={(newProj) => {
+                setProjects([newProj, ...projects]);
+                setSelectedProject(newProj);
+                showToast(`🎉 Đã thêm dự án nhân bản [${newProj.title}] vào hàng đợi!`);
+              }}
+              onNavigateToReview={() => setActiveView('pending-approval')}
             />
           )}
 
