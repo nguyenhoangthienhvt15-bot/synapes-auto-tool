@@ -411,6 +411,19 @@ export async function flushPendingWebhookQueue(webhookUrlOverride?: string): Pro
   }
 }
 
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 2200): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return resp;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+}
+
 /**
  * Tự động dò tìm URL Webhook được lưu trên Google Sheet (ở cả 2 tab)
  */
@@ -419,7 +432,7 @@ export async function discoverWebhookUrlFromSheet(sheetId: string = GOOGLE_SHEET
   for (const gid of gids) {
     try {
       const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&gid=${gid}&_t=${Date.now()}`;
-      const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+      const res = await fetchWithTimeout(url, { method: 'GET', cache: 'no-store' }, 1800);
       if (res.ok) {
         const text = await res.text();
         const found = extractWebhookUrlFromRawText(text);
@@ -1119,7 +1132,7 @@ async function fetchGvizByGid(sheetId: string, gid: string): Promise<any | null>
   const timestamp = Date.now();
   try {
     const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&gid=${gid}&_t=${timestamp}`;
-    const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+    const res = await fetchWithTimeout(url, { method: 'GET', cache: 'no-store' }, 2000);
     if (res.ok) {
       const text = await res.text();
       extractWebhookUrlFromRawText(text);
@@ -1151,7 +1164,7 @@ async function fetchGvizByGid(sheetId: string, gid: string): Promise<any | null>
     const timeout = setTimeout(() => {
       cleanup();
       resolve(null);
-    }, 4000);
+    }, 2000);
 
     (window as any)[callbackName] = (resp: any) => {
       cleanup();

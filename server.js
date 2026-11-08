@@ -48,8 +48,44 @@ const COMPRESSIBLE_EXTS = new Set([
   '.map',
 ]);
 
+// High-speed in-memory buffer cache for static assets (< 5MB)
+const fileCache = new Map();
+
+function getCachedFile(filePath, ext) {
+  try {
+    const stat = fs.statSync(filePath);
+    const cacheKey = `${filePath}:${stat.mtimeMs}`;
+    const cached = fileCache.get(cacheKey);
+    if (cached) return cached;
+
+    // Read and pre-compress if within 5MB
+    if (stat.size <= 5 * 1024 * 1024) {
+      const buffer = fs.readFileSync(filePath);
+      const isCompressible = COMPRESSIBLE_EXTS.has(ext);
+      const gzipBuffer = isCompressible ? zlib.gzipSync(buffer, { level: 6 }) : null;
+      const etag = `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
+      const item = {
+        buffer,
+        gzipBuffer,
+        size: stat.size,
+        etag,
+        mtime: stat.mtimeMs,
+      };
+      // Keep cache size bounded
+      if (fileCache.size > 200) {
+        fileCache.clear();
+      }
+      fileCache.set(cacheKey, item);
+      return item;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 const server = http.createServer(async (req, res) => {
-  // Security headers
+  // Security & Performance Headers
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
 
@@ -61,7 +97,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Health check endpoint for Render Web Service
+  // Health check endpoint for Render / Docker Web Service
   if (cleanUrl === '/healthz' || cleanUrl === '/ping') {
     res.writeHead(200, {
       'Content-Type': 'application/json; charset=utf-8',
@@ -96,7 +132,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Check if file exists
+  // Check if file exists, with index.html SPA fallback
   let stat = null;
   try {
     stat = fs.statSync(filePath);
@@ -105,7 +141,6 @@ const server = http.createServer(async (req, res) => {
       stat = fs.statSync(filePath);
     }
   } catch {
-    // SPA fallback: serve index.html for any client-side routes
     filePath = path.join(DIST_DIR, 'index.html');
     try {
       stat = fs.statSync(filePath);
@@ -119,8 +154,9 @@ const server = http.createServer(async (req, res) => {
   const ext = path.extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
-  // Cache policy
-  if (filePath.endsWith('index.html')) {
+  // Cache-Control Policy
+  const isHtml = filePath.endsWith('index.html');
+  if (isHtml) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   } else if (cleanUrl.startsWith('/assets/')) {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
@@ -130,14 +166,41 @@ const server = http.createServer(async (req, res) => {
 
   res.setHeader('Content-Type', contentType);
 
+  // High-performance cached serving
+  const cached = getCachedFile(filePath, ext);
+  const etag = cached ? cached.etag : `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
+  res.setHeader('ETag', etag);
+
+  // 304 Not Modified validation
+  if (req.headers['if-none-match'] === etag) {
+    res.writeHead(304);
+    res.end();
+    return;
+  }
+
   const acceptEncoding = req.headers['accept-encoding'] || '';
   const canGzip = COMPRESSIBLE_EXTS.has(ext) && acceptEncoding.includes('gzip');
 
+  if (cached) {
+    if (canGzip && cached.gzipBuffer) {
+      res.setHeader('Content-Encoding', 'gzip');
+      res.setHeader('Content-Length', cached.gzipBuffer.length);
+      res.writeHead(200);
+      res.end(cached.gzipBuffer);
+    } else {
+      res.setHeader('Content-Length', cached.buffer.length);
+      res.writeHead(200);
+      res.end(cached.buffer);
+    }
+    return;
+  }
+
+  // Stream fallback for large media files (> 5MB)
   if (canGzip) {
     res.setHeader('Content-Encoding', 'gzip');
     res.writeHead(200);
     const rawStream = fs.createReadStream(filePath);
-    const gzip = zlib.createGzip({ level: 6 });
+    const gzip = zlib.createGzip({ level: 4 });
     rawStream.pipe(gzip).pipe(res);
   } else {
     res.setHeader('Content-Length', stat.size);

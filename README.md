@@ -6,15 +6,18 @@ Hệ thống quản lý sản xuất và xuất bản video tự động hóa b�
 
 ## 🚀 Hướng Dẫn Khởi Động Nhanh
 
-### Cách 1: Click chuột (Dành cho Windows)
+### Cách 1: Khởi Động Nhanh Siêu Tốc (Khuyên Dùng cho Người Dùng)
 - Nhấp đúp chuột vào tệp `start.bat` trong thư mục `c:\Users\84364\autovideo-webapp`.
-- Trình duyệt sẽ tự động mở tại địa chỉ: `http://localhost:5173`.
+- Hệ thống tự động biên dịch và kích hoạt máy chủ Production tối ưu hóa trên cổng **`http://localhost:10000`**.
+- Thời gian tải trang phản hồi cực nhanh (< 10ms) nhờ cơ chế nén Gzip, In-memory RAM Cache và ETag 304.
 
-### Cách 2: Chạy lệnh Terminal
+### Cách 2: Chế Độ Nhà Phát Triển (Dành cho Lập Trình Viên)
+- Nhấp đúp chuột vào tệp `dev.bat` hoặc chạy lệnh:
 ```bash
 cd c:\Users\84364\autovideo-webapp
 npm run dev
 ```
+- Truy cập tại `http://localhost:5173` để sửa code và hot-reload trực tiếp.
 
 ---
 
