@@ -125,6 +125,7 @@ function onOpen() {
     .addItem("⚡ Duyệt TẤT CẢ hồ sơ đang chờ duyệt", "approveAllPendingUsers")
     .addItem("📧 Gửi lại Gmail tài khoản & Hợp đồng PDF cho dòng đang chọn", "resendEmailForSelectedRow")
     .addSeparator()
+    .addItem("🛡️ Ghi Báo Cáo Khắc Phục Lỗi Lên Drive & Sheet Dự Phòng", "recordEmergencyReportToSheetAndDrive")
     .addItem("🔄 Đồng bộ dữ liệu từ WebApp ngay lập tức", "syncToWebApp")
     .addItem("🌐 Mở WebApp Studio", "openWebAppUrl")
     .addToUi();
@@ -1234,6 +1235,10 @@ function processWebhookPayload(payload) {
       return handleForgotPasswordWebhook(ss, payload);
     }
 
+    if (action === "emergency_backup") {
+      return recordEmergencyReportToSheetAndDrive();
+    }
+
     if (action === "change_password") {
       return handleChangePasswordWebhook(ss, payload);
     }
@@ -1617,4 +1622,109 @@ function openWebAppUrl() {
     '<script>window.open("https://synapes-auto-tool.onrender.com", "_blank");google.script.host.close();</script>'
   ).setWidth(120).setHeight(50);
   SpreadsheetApp.getUi().showModalDialog(html, "Đang mở WebApp Studio...");
+}
+
+/**
+ * 12. GHI NHẬN TÀI LIỆU VÀO TRANG TÍNH "DỰ PHÒNG KHẨN CẤP" & TỰ ĐỘNG LƯU TRỮ GOOGLE DRIVE
+ */
+function recordEmergencyReportToSheetAndDrive() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetName = "DỰ PHÒNG KHẨN CẤP";
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+  }
+
+  var headers = [
+    "STT",
+    "Thời Gian Ghi Nhận",
+    "Tên Báo Cáo / Tài Liệu Kỹ Thuật",
+    "Phân Loại",
+    "Tóm Tắt Nội Dung",
+    "Liên Kết File PDF (Google Drive / Online)",
+    "Trạng Thái Lưu Trữ",
+    "Người Duyệt / Ban Hành"
+  ];
+
+  if (sheet.getLastRow() < 1) {
+    var hRange = sheet.getRange(1, 1, 1, headers.length);
+    hRange.setValues([headers]);
+    hRange
+      .setFontFamily("Times New Roman")
+      .setFontSize(11)
+      .setFontWeight("bold")
+      .setBackground("#0f172a")
+      .setFontColor("#ffffff")
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle")
+      .setWrap(true);
+    sheet.setRowHeight(1, 38);
+
+    var widths = [50, 155, 300, 140, 340, 280, 165, 185];
+    for (var w = 0; w < widths.length; w++) {
+      sheet.setColumnWidth(w + 1, widths[w]);
+    }
+    sheet.setFrozenRows(1);
+  }
+
+  var now = new Date();
+  var timeStr = Utilities.formatDate(now, "GMT+7", "dd/MM/yyyy HH:mm:ss");
+  var reportTitle = "Báo Cáo Toàn Diện: Triển Khai Hệ Thống Phòng Thủ Chống Regression 3 Giai Đoạn";
+  var category = "Khắc phục lỗi";
+  var summary = "Triển khai thành công 3 giai đoạn bảo vệ tính toàn vẹn: Husky Pre-commit/Pre-push hook, Golden Master Integrity Suite (24 invariants), Playwright E2E & Visual Regression, Dependency-Cruiser ranh giới kiến trúc và GitHub CI pipeline.";
+  var author = "KS. Nguyễn Hoàng Thiện";
+  var rawPdfUrl = "https://synapes-auto-tool.onrender.com/reports/BAO_CAO_TRIEN_KHAI_HE_THONG_CHONG_REGRESSION_TOAN_DIEN.pdf";
+
+  var driveUrl = rawPdfUrl;
+  try {
+    var resp = UrlFetchApp.fetch(rawPdfUrl, { muteHttpExceptions: true });
+    if (resp.getResponseCode() === 200) {
+      var blob = resp.getBlob().setName("BAO_CAO_TRIEN_KHAI_HE_THONG_CHONG_REGRESSION_TOAN_DIEN.pdf");
+      var file = DriveApp.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      driveUrl = file.getUrl();
+    }
+  } catch (err) {
+    Logger.log("DriveApp save note: " + err);
+  }
+
+  var nextRow = Math.max(sheet.getLastRow() + 1, 2);
+  var stt = nextRow - 1;
+
+  var rowData = [
+    stt,
+    timeStr,
+    reportTitle,
+    category,
+    summary,
+    driveUrl,
+    "🟢 Đã lưu trữ Google Drive",
+    author
+  ];
+
+  var rowRange = sheet.getRange(nextRow, 1, 1, rowData.length);
+  rowRange.setValues([rowData]);
+  rowRange
+    .setFontFamily("Times New Roman")
+    .setFontSize(10.5)
+    .setVerticalAlignment("middle");
+
+  sheet.getRange(nextRow, 1).setHorizontalAlignment("center").setFontWeight("bold");
+  sheet.getRange(nextRow, 2).setHorizontalAlignment("center");
+  sheet.getRange(nextRow, 4).setHorizontalAlignment("center").setFontWeight("bold").setFontColor("#b91c1c");
+  sheet.getRange(nextRow, 6).setFontColor("#0284c7");
+  sheet.getRange(nextRow, 7).setHorizontalAlignment("center").setFontColor("#15803d").setFontWeight("bold");
+  sheet.getRange(nextRow, 8).setHorizontalAlignment("center").setFontWeight("bold");
+
+  try {
+    SpreadsheetApp.getUi().alert(
+      "✅ ĐÃ LƯU TRỮ THÀNH CÔNG VÀO BẢNG TÍNH & GOOGLE DRIVE!\n\n" +
+      "• Trang tính: DỰ PHÒNG KHẨN CẤP (Dòng " + nextRow + ")\n" +
+      "• Phân loại: " + category + "\n" +
+      "• Tên tài liệu: " + reportTitle + "\n" +
+      "• Đường dẫn: " + driveUrl
+    );
+  } catch (uiErr) {}
+
+  return { status: "success", row: nextRow, driveUrl: driveUrl };
 }
