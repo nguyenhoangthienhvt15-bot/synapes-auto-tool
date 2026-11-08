@@ -65,6 +65,173 @@ var ROUND_STAMP_BASE64 = "${ROUND_STAMP_BASE64}";
 var TIMO_QR_CODE_BASE64 = "${TIMO_QR_CODE_BASE64}";
 
 /**
+ * NÂNG CẤP BẢNG TÍNH 13 CỘT SANG 20 CỘT CHUẨN TOÀN DIỆN (BẢO TOÀN 100% DỮ LIỆU)
+ * Chuyển đổi chính xác các cột cũ, bảo lưu hồ sơ khách hàng, phân loại gói và tạo 2 cấp checkbox
+ */
+function upgradeLegacySheetTo20Cols(sheet) {
+  if (!sheet) return;
+  var col4Header = String(sheet.getRange(1, 4).getValue() || "").toLowerCase();
+  var isAlready20 = (col4Header.indexOf("cccd") !== -1 || col4Header.indexOf("cmnd") !== -1);
+  if (isAlready20) return;
+
+  var lastRow = sheet.getLastRow();
+  var numRows = Math.max(lastRow - 1, 0);
+
+  var oldRows = [];
+  if (numRows > 0) {
+    oldRows = sheet.getRange(2, 1, numRows, Math.max(sheet.getLastColumn(), 13)).getValues();
+  }
+
+  // 20 Cột Chuẩn Toàn Diện
+  var headers = [
+    "STT",
+    "Thời Gian Đăng Ký",
+    "Họ Và Tên Khách Hàng",
+    "Số CCCD / CMND",
+    "Ngày Sinh (DD/MM/YYYY)",
+    "Giới Tính",
+    "Gmail Đăng Ký",
+    "Số Điện Thoại",
+    "Địa Chỉ Hiện Tại",
+    "Loại Hợp Đồng",
+    "Gói Ký Kết",
+    "Tiền Đặt Cọc (VNĐ)",
+    "Tổng Giá Trị (VNĐ)",
+    "Hạn Bàn Giao (Số Ngày)",
+    "Duyệt Ký Lần 1",
+    "Mã Code Khách Hàng",
+    "Mật Khẩu Studio",
+    "Duyệt Bàn Giao Lần 2",
+    "Trạng Thái Gửi Mail",
+    "Ghi Chú Hợp Đồng"
+  ];
+
+  sheet.getRange(1, 1, 1, headers.length).clearDataValidations();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.getRange(1, 1, 1, headers.length)
+    .setFontFamily("Times New Roman")
+    .setFontSize(11)
+    .setFontWeight("bold")
+    .setBackground("#18181b")
+    .setFontColor("#ffffff")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setWrap(true);
+  sheet.setRowHeight(1, 42);
+
+  var widths = [50, 140, 185, 130, 120, 85, 210, 120, 240, 150, 190, 130, 130, 110, 115, 150, 130, 125, 185, 195];
+  for (var w = 0; w < widths.length; w++) {
+    sheet.setColumnWidth(w + 1, widths[w]);
+  }
+  sheet.setFrozenRows(1);
+
+  if (oldRows.length > 0) {
+    var newRows = [];
+    for (var i = 0; i < oldRows.length; i++) {
+      var r = oldRows[i];
+      var stt = r[0] || (i + 1);
+      var regTime = r[1] || "";
+      var fullName = r[2] || "";
+      var dob = r[3] || "";
+      var gender = r[4] || "Nam";
+      var email = r[5] || "";
+      var phone = r[6] || "";
+      var address = r[7] || "";
+      var oldApproved = (r[8] === true || String(r[8]).toUpperCase() === "TRUE");
+      var code = r[9] || "";
+      var pass = r[10] || "";
+      var status = r[11] || "";
+      var notes = String(r[12] || "");
+
+      if (!fullName && !email) continue;
+
+      var cccd = "";
+      var cccdMatch = notes.match(/CCCD:\s*([0-9Xx]+)/i);
+      if (cccdMatch) cccd = cccdMatch[1];
+
+      var category = "Hợp đồng cá nhân hóa";
+      var pkgName = "Ký đặt cọc dự án cá nhân";
+      var deposit = "1.250.000";
+      var total = "2.550.000";
+      var deliveryDays = 5;
+
+      var lowerNotes = notes.toLowerCase();
+      if (lowerNotes.indexOf("toàn hệ") !== -1 || lowerNotes.indexOf("toan he") !== -1) {
+        category = "Hợp đồng toàn hệ";
+        if (lowerNotes.indexOf("chính thức") !== -1 || lowerNotes.indexOf("100%") !== -1) {
+          pkgName = "Ký hợp đồng dự án toàn hệ chính thức";
+          deposit = "0";
+          total = "5.490.000";
+          deliveryDays = 1;
+        } else {
+          pkgName = "Ký đặt cọc phân bổ";
+          deposit = "2.500.000";
+          total = "5.490.000";
+          deliveryDays = 7;
+        }
+      } else {
+        category = "Hợp đồng cá nhân hóa";
+        if (lowerNotes.indexOf("chính thức") !== -1 || (lowerNotes.indexOf("100%") !== -1 && lowerNotes.indexOf("đặt cọc") === -1)) {
+          pkgName = "Ký hợp đồng dự án cá nhân";
+          deposit = "0";
+          total = "2.550.000";
+          deliveryDays = 1;
+        } else {
+          pkgName = "Ký đặt cọc dự án cá nhân";
+          deposit = "1.250.000";
+          total = "2.550.000";
+          deliveryDays = 5;
+        }
+      }
+
+      var row20 = [
+        stt,
+        regTime,
+        fullName,
+        cccd,
+        dob,
+        gender,
+        email,
+        phone,
+        address,
+        category,
+        pkgName,
+        deposit,
+        total,
+        deliveryDays,
+        oldApproved,
+        code,
+        pass,
+        false,
+        status || "⏳ Chờ Kỹ sư duyệt Lần 1 (Gửi HĐ đặt cọc)",
+        notes
+      ];
+      newRows.push(row20);
+    }
+
+    if (newRows.length > 0) {
+      sheet.getRange(2, 1, newRows.length, 20).clearDataValidations();
+      sheet.getRange(2, 1, newRows.length, 20).setValues(newRows);
+
+      var cb15 = sheet.getRange(2, 15, newRows.length, 1);
+      cb15.setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
+      cb15.setHorizontalAlignment("center");
+
+      var cb18 = sheet.getRange(2, 18, newRows.length, 1);
+      cb18.setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
+      cb18.setHorizontalAlignment("center");
+    }
+  }
+}
+
+function menuUpgradeTo20Cols() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getUsersSheet(ss, true);
+  upgradeLegacySheetTo20Cols(sheet);
+  SpreadsheetApp.getUi().alert("✅ ĐÃ NÂNG CẤP BẢNG TÍNH SANG 20 CỘT CHUẨN TOÀN DIỆN!\n\nDữ liệu các hàng cũ đã được căn chỉnh chuẩn xác theo 20 cột và 2 phân hệ hợp đồng.");
+}
+
+/**
  * 1. HÀM KHỞI TẠO & KÍCH HOẠT TỰ ĐỘNG TOÀN DIỆN (CHẠY ĐẦU TIÊN TRONG APPS SCRIPT)
  * - Cấu hình bảng tính 20 cột chuẩn: STT, Thời Gian, Họ Tên, CCCD/CMND, Ngày Sinh, Giới Tính,
  *   Gmail, SĐT, Địa Chỉ, Loại Hợp Đồng, Gói Ký Kết, Tiền Đặt Cọc, Tổng Giá Trị, Hạn Bàn Giao,
@@ -79,6 +246,9 @@ function setupUserRegistrationSheet() {
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = getUsersSheet(ss, true);
+
+  // Nâng cấp dữ liệu các dòng cũ từ 13 cột sang 20 cột (bảo toàn 100% dữ liệu)
+  upgradeLegacySheetTo20Cols(sheet);
 
   // 20 Cột Chuẩn Toàn Diện
   var headers = [
@@ -172,11 +342,12 @@ function onOpen() {
   try {
     var ui = SpreadsheetApp.getUi();
     ui.createMenu("🚀 SYNAPES Studio")
-      .addItem("1. ⚡ Kích hoạt hệ thống tự động toàn diện (Setup Sheet 20 Cột + Gửi Gmail)", "setupUserRegistrationSheet")
+      .addItem("1. ⚡ Thiết Lập Bảng Tính 20 Cột & Duyệt 2 Cấp (Duyệt Lần 1 & Duyệt Lần 2)", "setupUserRegistrationSheet")
+      .addItem("⚡ Nâng cấp Bảng tính 13 cột sang 20 cột chuẩn (Bảo toàn dữ liệu)", "menuUpgradeTo20Cols")
       .addSeparator()
       .addItem("2. 📄 Xem thử mẫu Hợp đồng PDF có con dấu đỏ (Dòng đang chọn)", "previewSelectedUserContractModal")
-      .addItem("3. ✅ Duyệt dòng đang chọn (Duyệt Lần 1 — Gửi Mail Ký Kết / Cấp TK)", "approveSelectedUserRow")
-      .addItem("4. 🚀 Duyệt Bàn giao Lần 2 (Cột 18 — Cấp TK cho HĐ Đặt cọc)", "approveSelectedFinalHandoverRow")
+      .addItem("3. ✅ Duyệt Lần 1 dòng đang chọn (Cột 15 — HĐ Đặt Cọc: Gửi HĐ, KHÔNG cấp pass / HĐ 100%: Cấp pass)", "approveSelectedUserRow")
+      .addItem("4. 🚀 Duyệt Bàn giao Lần 2 (Cột 18 — Cấp TK cho HĐ Đặt cọc khi đã giao)", "approveSelectedFinalHandoverRow")
       .addSeparator()
       .addItem("5. ⚡ Duyệt TẤT CẢ hồ sơ đang chờ duyệt Lần 1", "approveAllPendingUsers")
       .addItem("6. 🔄 Đồng bộ toàn bộ tài khoản sang Quản Lý Mật Khẩu", "syncAllAccountsMenu")
@@ -479,13 +650,11 @@ function handleSheetCheckboxEdit(e, canSendMail) {
     return;
   }
 
-  // 3. Tương thích ngược: Duyệt Cột 9 (Sheet 13 Cột cũ)
+  // 3. Tương thích ngược: Duyệt Cột 9 (Sheet 13 Cột cũ) -> Nâng cấp tức thì sang 20 cột và duyệt Lần 1
   if (!is20Cols && col === 9) {
-    var mailStatusOld = String(sheet.getRange(row, 12).getDisplayValue() || "");
-    if (!canSendMail && mailStatusOld.indexOf("ĐÃ GỬI GMAIL") !== -1) {
-      return;
-    }
-    processLegacyApproval(sheet, row, canSendMail);
+    upgradeLegacySheetTo20Cols(sheet);
+    sheet.getRange(row, 15).setValue(true);
+    processFirstApproval(sheet, row, canSendMail);
     return;
   }
 }
@@ -824,75 +993,12 @@ function processFinalHandoverApproval(sheet, row, canSendMail) {
 }
 
 /**
- * 6. XỬ LÝ PHÊ DUYỆT TƯƠNG THÍCH CHO SHEET 13 CỘT CŨ
+ * 6. XỬ LÝ PHÊ DUYỆT TƯƠNG THÍCH CHO SHEET 13 CỘT CŨ (TỰ ĐỘNG CHUYỂN ĐỔI SANG 20 CỘT VÀ DUYỆT LẦN 1)
  */
 function processLegacyApproval(sheet, row, canSendMail) {
-  if (canSendMail === undefined) canSendMail = true;
-
-  var displayVals = sheet.getRange(row, 1, 1, 13).getDisplayValues()[0];
-  var rawVals = sheet.getRange(row, 1, 1, 13).getValues()[0];
-
-  var fullName = String(displayVals[2] || "").trim();
-  var dobRaw = displayVals[3] || "";
-  if (rawVals[3] instanceof Date) {
-    dobRaw = Utilities.formatDate(rawVals[3], "GMT+7", "dd/MM/yyyy");
-  }
-  var gender = String(displayVals[4] || "Nam").trim();
-  var email = String(displayVals[5] || "").trim();
-  var phone = String(displayVals[6] || "").trim();
-  var address = String(displayVals[7] || "").trim();
-  var existingCode = String(displayVals[9] || "").trim();
-  var existingPass = String(displayVals[10] || "").trim();
-
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-
-  if (!fullName || !email || email.indexOf("@") === -1) {
-    ss.toast("⚠️ Dòng " + row + " chưa có đầy đủ Họ tên hoặc Gmail hợp lệ!", "SYNAPES Studio", 6);
-    return false;
-  }
-
-  var creds = generateCodeAndPassword(ss, fullName, dobRaw, row);
-  var code = (existingCode && existingCode.indexOf("SNP_") === 0) ? existingCode : creds.code;
-  var password = (existingPass && existingPass.indexOf("SNP_") === 0) ? existingPass : creds.password;
-
-  sheet.getRange(row, 10).setValue(code).setFontWeight("bold").setHorizontalAlignment("center");
-  sheet.getRange(row, 11).setValue(password).setFontWeight("bold").setFontColor("#b91c1c").setHorizontalAlignment("center");
-
-  syncAccountToMainSheet(code, fullName, email, password, phone, address, false);
-  reconcileAllApprovedUsersToAccountsSheet(ss);
-
-  var nowStr = Utilities.formatDate(new Date(), "GMT+7", "dd/MM/yyyy HH:mm:ss");
-
-  if (!canSendMail) {
-    sheet.getRange(row, 12).setValue("⏳ Đã tạo Mã (Bấm menu SYNAPES Studio ➔ Mục 1 để bật gửi Gmail tự động)");
-    return true;
-  }
-
-  var emailResult = sendFullApprovalEmail(
-    email,
-    fullName,
-    "",
-    creds.dobFormatted || dobRaw,
-    gender,
-    phone,
-    address,
-    code,
-    password,
-    "Hợp đồng cá nhân hóa",
-    "Gói Cơ Bản Studio",
-    2550000
-  );
-
-  if (emailResult.success) {
-    sheet.getRange(row, 12).setValue("✅ ĐÃ GỬI GMAIL (" + nowStr + ")").setFontColor("#15803d").setFontWeight("bold");
-    sheet.getRange(row, 13).setValue("📄 HOP_DONG_DICH_VU_SYNAPES_" + code + ".pdf (Đã duyệt & Đã gửi Gmail)");
-    ss.toast("✅ Đã cấp mã " + code + " và gửi Gmail kèm Hợp đồng PDF tới " + email, "🚀 SYNAPES Studio", 6);
-    return true;
-  } else {
-    sheet.getRange(row, 12).setValue("⚠️ Lỗi gửi mail: " + emailResult.error).setFontColor("#b91c1c");
-    ss.toast("⚠️ Lỗi gửi Gmail: " + emailResult.error, "SYNAPES Studio", 8);
-    return false;
-  }
+  upgradeLegacySheetTo20Cols(sheet);
+  sheet.getRange(row, 15).setValue(true);
+  return processFirstApproval(sheet, row, canSendMail);
 }
 
 function processUserApproval(sheet, row, canSendMail) {
@@ -1028,7 +1134,7 @@ function sendFullApprovalEmail(email, fullName, idCardNumber, dob, gender, phone
       '  <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #0f172a; padding: 16px 20px; border-radius: 6px; margin: 18px 0;">' +
       '    <h3 style="margin: 0 0 10px 0; font-size: 15px; color: #0f172a;">🔑 THÔNG TIN TÀI KHOẢN ĐĂNG NHẬP CỦA BẠN:</h3>' +
       '    <ul style="margin: 0; padding-left: 20px; font-size: 14.5px; line-height: 1.7;">' +
-      '      <li><b>Cổng làm việc trực tuyến:</b> <a href="https://synapes-auto-tool.onrender.com" target="_blank" style="color: #0284c7; font-weight: bold;">https://synapes-auto-tool.onrender.com</a></li>' +
+      '      <li><b>Cổng làm việc trực tuyến:</b> <a href="https://synapes-auto-tool-web-service.onrender.com" target="_blank" style="color: #0284c7; font-weight: bold;">https://synapes-auto-tool-web-service.onrender.com</a></li>' +
       '      <li><b>Gói dịch vụ đã ký:</b> <b>' + packageName + '</b> (' + category + ')</li>' +
       (idCardNumber ? ('      <li><b>Số CCCD / CMND:</b> <span style="font-family: monospace; font-weight: bold;">' + idCardNumber + '</span></li>') : '') +
       '      <li><b>Mã Code Đăng Nhập:</b> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #0f172a; background: #e2e8f0; padding: 2px 8px; border-radius: 4px;">' + code + '</span></li>' +
@@ -1094,7 +1200,7 @@ function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phon
       '  <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #16a34a; padding: 16px 20px; border-radius: 6px; margin: 18px 0;">' +
       '    <h3 style="margin: 0 0 10px 0; font-size: 15px; color: #166534;">🎉 THÔNG TIN TÀI KHOẢN CHÍNH THỨC ĐƯỢC BÀN GIAO:</h3>' +
       '    <ul style="margin: 0; padding-left: 20px; font-size: 14.5px; line-height: 1.7;">' +
-      '      <li><b>Cổng làm việc trực tuyến:</b> <a href="https://synapes-auto-tool.onrender.com" target="_blank" style="color: #0284c7; font-weight: bold;">https://synapes-auto-tool.onrender.com</a></li>' +
+      '      <li><b>Cổng làm việc trực tuyến:</b> <a href="https://synapes-auto-tool-web-service.onrender.com" target="_blank" style="color: #0284c7; font-weight: bold;">https://synapes-auto-tool-web-service.onrender.com</a></li>' +
       '      <li><b>Gói giải pháp bàn giao:</b> <b>' + packageName + '</b> (' + category + ')</li>' +
       (idCardNumber ? ('      <li><b>Số CCCD / CMND:</b> <span style="font-family: monospace; font-weight: bold;">' + idCardNumber + '</span></li>') : '') +
       '      <li><b>Mã Code Đăng Nhập:</b> <span style="font-family: monospace; font-size: 16px; font-weight: bold; color: #0f172a; background: #e2e8f0; padding: 2px 8px; border-radius: 4px;">' + code + '</span></li>' +
@@ -1146,7 +1252,7 @@ function sendForgotPasswordEmail(email, fullName, code, newPassword) {
       '    <div style="font-size: 14.5px; margin-bottom: 6px;"><b>• Mã Code Đăng Nhập:</b> <span style="font-family: monospace; font-weight: bold; font-size: 15px; background: #e2e8f0; padding: 2px 8px; border-radius: 4px;">' + code + '</span></div>' +
       '    <div style="font-size: 14.5px;"><b>• Mật Khẩu Mặc Định Mới:</b> <span style="font-family: monospace; font-weight: bold; font-size: 16px; color: #b91c1c; background: #fee2e2; padding: 2px 8px; border-radius: 4px;">' + newPassword + '</span></div>' +
       '  </div>' +
-      '  <p style="font-size: 13.5px; color: #334155;">Vui lòng sử dụng mật khẩu mặc định mới này để đăng nhập tại <a href="https://synapes-auto-tool.onrender.com" target="_blank">https://synapes-auto-tool.onrender.com</a> và thiết lập lại mật khẩu cá nhân của bạn.</p>' +
+      '  <p style="font-size: 13.5px; color: #334155;">Vui lòng sử dụng mật khẩu mặc định mới này để đăng nhập tại <a href="https://synapes-auto-tool-web-service.onrender.com" target="_blank">https://synapes-auto-tool-web-service.onrender.com</a> và thiết lập lại mật khẩu cá nhân của bạn.</p>' +
       buildPaymentQrBoxHtml() +
       buildQuoteAndThanksHtml() +
       '  <div style="margin-top: 20px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 12.5px; color: #64748b;">' +
@@ -1235,7 +1341,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
     '  <b>BÊN A: BÊN CUNG CẤP DỊCH VỤ NỀN TẢNG (SYNAPES STUDIO)</b><br/>' +
     '  • Đơn vị phát triển: Nền tảng Tự động hóa Nội dung số SYNAPES Studio<br/>' +
     '  • Đại diện giao dịch: <b>KS. NGUYỄN HOÀNG THIỆN</b> &nbsp;|&nbsp; Chức vụ: <b>Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo</b><br/>' +
-    '  • Hộp thư điện tử: nguyenhoangthien.hvt.15@gmail.com &nbsp;|&nbsp; Cổng dịch vụ: https://synapes-auto-tool.onrender.com' +
+    '  • Hộp thư điện tử: nguyenhoangthien.hvt.15@gmail.com &nbsp;|&nbsp; Cổng dịch vụ: https://synapes-auto-tool-web-service.onrender.com' +
     '</div>' +
     '<div class="party-box">' +
     '  <b>BÊN B: BÊN MUA HÀNG VÀ SỬ DỤNG DỊCH VỤ (KHÁCH HÀNG)</b><br/>' +
@@ -1476,13 +1582,11 @@ function approveSelectedUserRow() {
 
   installAutoEditTrigger(ss);
   var is20 = isNew20ColsSheet(sheet);
-  if (is20) {
-    sheet.getRange(row, 15).setValue(true);
-    processFirstApproval(sheet, row, true);
-  } else {
-    sheet.getRange(row, 9).setValue(true);
-    processLegacyApproval(sheet, row, true);
+  if (!is20) {
+    upgradeLegacySheetTo20Cols(sheet);
   }
+  sheet.getRange(row, 15).setValue(true);
+  processFirstApproval(sheet, row, true);
 }
 
 function approveSelectedFinalHandoverRow() {
@@ -1507,12 +1611,11 @@ function approveSelectedFinalHandoverRow() {
 
   installAutoEditTrigger(ss);
   var is20 = isNew20ColsSheet(sheet);
-  if (is20) {
-    sheet.getRange(row, 18).setValue(true);
-    processFinalHandoverApproval(sheet, row, true);
-  } else {
-    SpreadsheetApp.getUi().alert("⚠️ Tính năng Duyệt Bàn Giao Lần 2 áp dụng cho bảng tính 20 cột (Cột 18). Vui lòng chạy Menu Mục 1 để nâng cấp bảng tính.");
+  if (!is20) {
+    upgradeLegacySheetTo20Cols(sheet);
   }
+  sheet.getRange(row, 18).setValue(true);
+  processFinalHandoverApproval(sheet, row, true);
 }
 
 function approveAllPendingUsers() {
@@ -1524,34 +1627,30 @@ function approveAllPendingUsers() {
   }
 
   installAutoEditTrigger(ss);
+  if (!isNew20ColsSheet(sheet)) {
+    upgradeLegacySheetTo20Cols(sheet);
+  }
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) {
     SpreadsheetApp.getUi().alert("ℹ️ Hiện chưa có hồ sơ khách hàng nào trên bảng tính.");
     return;
   }
 
-  var is20 = isNew20ColsSheet(sheet);
   var maxCols = Math.max(sheet.getLastColumn(), 20);
   var data = sheet.getRange(2, 1, lastRow - 1, maxCols).getDisplayValues();
   var count = 0;
 
   for (var i = 0; i < data.length; i++) {
     var fullName = String(data[i][2] || "").trim();
-    var email = String(is20 ? data[i][6] : data[i][5] || "").trim();
+    var email = String(data[i][6] || "").trim();
     if (!fullName || !email || email.indexOf("@") === -1) continue;
 
-    var statusColIdx = is20 ? 18 : 11;
-    var mailStatus = String(data[i][statusColIdx] || "").trim();
+    var mailStatus = String(data[i][18] || "").trim();
 
     if (mailStatus.indexOf("ĐÃ GỬI") === -1 && mailStatus.indexOf("ĐÃ BÀN GIAO") === -1) {
       var targetRow = i + 2;
-      if (is20) {
-        sheet.getRange(targetRow, 15).setValue(true);
-        if (processFirstApproval(sheet, targetRow, true)) count++;
-      } else {
-        sheet.getRange(targetRow, 9).setValue(true);
-        if (processLegacyApproval(sheet, targetRow, true)) count++;
-      }
+      sheet.getRange(targetRow, 15).setValue(true);
+      if (processFirstApproval(sheet, targetRow, true)) count++;
     }
   }
 
@@ -1623,20 +1722,32 @@ function processWebhookPayload(payload) {
       return recordEmergencyReportToSheetAndDrive(ss, payload);
     }
 
-    if (action === "approve") {
+    if (action === "approve" || action === "approve_user" || action === "approve_first_stage") {
       var uSheet = getUsersSheet(ss, false);
       if (uSheet) {
+        if (!isNew20ColsSheet(uSheet)) {
+          upgradeLegacySheetTo20Cols(uSheet);
+        }
         var target = findOrCreateUserRowByEmail(uSheet, payload.email, payload.fullName, true);
-        var is20 = isNew20ColsSheet(uSheet);
         if (target && target.row) {
-          if (is20) {
-            uSheet.getRange(target.row, 15).setValue(true);
-            processFirstApproval(uSheet, target.row, true);
-          } else {
-            uSheet.getRange(target.row, 9).setValue(true);
-            processLegacyApproval(uSheet, target.row, true);
-          }
-          return { status: "success", action: "approve", row: target.row };
+          uSheet.getRange(target.row, 15).setValue(true);
+          processFirstApproval(uSheet, target.row, true);
+          return { status: "success", action: "approve_first_stage", row: target.row };
+        }
+      }
+    }
+
+    if (action === "approve_final_handover" || action === "approve_second_stage") {
+      var uSheet = getUsersSheet(ss, false);
+      if (uSheet) {
+        if (!isNew20ColsSheet(uSheet)) {
+          upgradeLegacySheetTo20Cols(uSheet);
+        }
+        var target = findOrCreateUserRowByEmail(uSheet, payload.email, payload.fullName, true);
+        if (target && target.row) {
+          uSheet.getRange(target.row, 18).setValue(true);
+          processFinalHandoverApproval(uSheet, target.row, true);
+          return { status: "success", action: "approve_final_handover", row: target.row };
         }
       }
     }
@@ -1987,7 +2098,7 @@ function syncToWebApp() {
 
 function openWebAppUrl() {
   var html =
-    '<script>window.open("https://synapes-auto-tool.onrender.com", "_blank");google.script.host.close();</script>';
+    '<script>window.open("https://synapes-auto-tool-web-service.onrender.com", "_blank");google.script.host.close();</script>';
   SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html), "Đang mở SYNAPES Studio...");
 }
 
@@ -2027,8 +2138,7 @@ function recordEmergencyReportToSheetAndDrive(ss, payload) {
 function runCloudKeepAliveAndBackgroundCron() {
   var endpoints = [
     "https://synapes-auto-tool-web-service.onrender.com/ping",
-    "https://synapes-auto-tool-web-service.onrender.com/healthz",
-    "https://synapes-auto-tool.onrender.com/ping"
+    "https://synapes-auto-tool-web-service.onrender.com/healthz"
   ];
 
   for (var i = 0; i < endpoints.length; i++) {

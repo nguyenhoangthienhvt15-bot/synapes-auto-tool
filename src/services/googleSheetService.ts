@@ -562,8 +562,14 @@ export async function sendForgotPasswordViaSheet(params: {
 
 /**
  * Phê duyệt hồ sơ đăng ký cục bộ và sinh Code + Mật khẩu + Gửi qua Apps Script nếu có
+ * Hỗ trợ cơ chế tích duyệt 2 cấp:
+ * - Stage 1 (Duyệt Ký Lần 1):
+ *   + Hợp đồng đặt cọc: KHÔNG cấp mật khẩu ngay, đánh dấu isApproved = true.
+ *   + Hợp đồng thanh toán 100%: Cấp ngay mã code + mật khẩu, đánh dấu isApproved = true, isFinalDelivered = true.
+ * - Stage 2 (Duyệt Bàn Giao Lần 2):
+ *   + Dành cho Hợp đồng đặt cọc: Cấp mã code + mật khẩu, đánh dấu isFinalDelivered = true.
  */
-export function approveStoredRegistration(id: string): {
+export function approveStoredRegistration(id: string, stage: 1 | 2 = 1): {
   success: boolean;
   code?: string;
   password?: string;
@@ -574,43 +580,107 @@ export function approveStoredRegistration(id: string): {
     const item = list.find((r) => r.id === id);
     if (!item) return { success: false };
 
-    const baseCode = item.assignedCode || generateUserCode(item.dob);
-    let code = baseCode;
-    let suffix = 2;
-    while (
-      list.some(
-        (other) =>
-          other.id !== item.id &&
-          other.assignedCode &&
-          other.assignedCode.toUpperCase() === code.toUpperCase()
-      )
-    ) {
-      code = `${baseCode}_${suffix}`;
-      suffix++;
+    const isDeposit = (item.depositAmount && item.depositAmount > 0) ||
+      (item.contractPackageName || item.notes || '').toLowerCase().includes('đặt cọc') ||
+      (item.contractPackageName || item.notes || '').toLowerCase().includes('deposit');
+
+    if (stage === 1) {
+      if (isDeposit) {
+        item.isApproved = true;
+        item.status = 'approved';
+        item.isFinalDelivered = false;
+        localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(list));
+
+        callAppsScriptWebhook({
+          action: 'approve_first_stage',
+          email: item.email,
+          fullName: item.fullName,
+          dob: formatDobToDDMMYYYY(item.dob),
+          gender: item.gender || 'Nam',
+          phone: item.phone,
+          address: item.address,
+        }).catch(() => { });
+
+        return { success: true, registration: item };
+      } else {
+        const baseCode = item.assignedCode || generateUserCode(item.dob);
+        let code = baseCode;
+        let suffix = 2;
+        while (
+          list.some(
+            (other) =>
+              other.id !== item.id &&
+              other.assignedCode &&
+              other.assignedCode.toUpperCase() === code.toUpperCase()
+          )
+        ) {
+          code = `${baseCode}_${suffix}`;
+          suffix++;
+        }
+        const password = item.assignedPassword || generateUserPassword();
+
+        item.isApproved = true;
+        item.isFinalDelivered = true;
+        item.assignedCode = code;
+        item.assignedPassword = password;
+        item.status = 'approved';
+
+        localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(list));
+
+        callAppsScriptWebhook({
+          action: 'approve_user',
+          email: item.email,
+          fullName: item.fullName,
+          dob: formatDobToDDMMYYYY(item.dob),
+          gender: item.gender || 'Nam',
+          phone: item.phone,
+          address: item.address,
+          code,
+          password,
+        }).catch(() => { });
+
+        return { success: true, code, password, registration: item };
+      }
+    } else {
+      // Stage 2: Duyệt bàn giao lần 2 (Cấp mã + pass sau khi thanh toán đủ)
+      const baseCode = item.assignedCode || generateUserCode(item.dob);
+      let code = baseCode;
+      let suffix = 2;
+      while (
+        list.some(
+          (other) =>
+            other.id !== item.id &&
+            other.assignedCode &&
+            other.assignedCode.toUpperCase() === code.toUpperCase()
+        )
+      ) {
+        code = `${baseCode}_${suffix}`;
+        suffix++;
+      }
+      const password = item.assignedPassword || generateUserPassword();
+
+      item.isApproved = true;
+      item.isFinalDelivered = true;
+      item.assignedCode = code;
+      item.assignedPassword = password;
+      item.status = 'approved';
+
+      localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(list));
+
+      callAppsScriptWebhook({
+        action: 'approve_final_handover',
+        email: item.email,
+        fullName: item.fullName,
+        dob: formatDobToDDMMYYYY(item.dob),
+        gender: item.gender || 'Nam',
+        phone: item.phone,
+        address: item.address,
+        code,
+        password,
+      }).catch(() => { });
+
+      return { success: true, code, password, registration: item };
     }
-    const password = item.assignedPassword || generateUserPassword();
-
-    item.isApproved = true;
-    item.assignedCode = code;
-    item.assignedPassword = password;
-    item.status = 'approved';
-
-    localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(list));
-
-    // Đồng bộ lệnh phê duyệt & gửi Gmail lên Google Sheet Apps Script
-    callAppsScriptWebhook({
-      action: 'approve_user',
-      email: item.email,
-      fullName: item.fullName,
-      dob: formatDobToDDMMYYYY(item.dob),
-      gender: item.gender || 'Nam',
-      phone: item.phone,
-      address: item.address,
-      code,
-      password,
-    }).catch(() => { });
-
-    return { success: true, code, password, registration: item };
   } catch {
     return { success: false };
   }
