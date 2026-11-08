@@ -4,6 +4,7 @@ export const GOOGLE_SHEET_ID = '1E9zec8lX52-ofleS0MG-oRSc8k_hK9aBtC1XBaqNafY';
 export const GOOGLE_SHEET_GID_ACCOUNTS = '0'; // Tab "Quản Lý Mật Khẩu"
 export const GOOGLE_SHEET_GID_USERS = '2096171544'; // Tab "THÔNG TIN NGƯỜI DÙNG"
 export const GOOGLE_SHEET_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/edit?usp=sharing`;
+export const DEFAULT_FORM_BRIDGE_URL = 'https://docs.google.com/forms/d/1XzfZQN4hBgTRpwxyk_PTh6H_0IlIQoC3FCEfCZ3xoQ8/formResponse';
 
 const STORAGE_KEY = 'synapes_cached_sheet_rows';
 const LAST_SYNC_KEY = 'synapes_last_sheet_sync';
@@ -201,9 +202,9 @@ export function getAppsScriptWebhookUrl(): string {
     if (stored && !isValidWebhookUrl(stored)) {
       localStorage.removeItem(WEBHOOK_STORAGE_KEY);
     }
-    return '';
+    return DEFAULT_FORM_BRIDGE_URL;
   } catch {
-    return '';
+    return DEFAULT_FORM_BRIDGE_URL;
   }
 }
 
@@ -228,23 +229,7 @@ export function setAppsScriptWebhookUrl(url: string): void {
 function extractWebhookUrlFromRawText(rawText: string): string | null {
   if (!rawText) return null;
 
-  // Ưu tiên 1: Cầu nối tự động Google Form Bridge (https://docs.google.com/forms/d/e/.../formResponse?entry.XXXX=)
-  const formMatch = rawText.match(
-    /https:\/\/docs\.google\.com\/forms\/[^\s"'\\<>]+formResponse\?entry\.\d+=/
-  );
-  if (formMatch && formMatch[0] && isValidWebhookUrl(formMatch[0])) {
-    const foundFormUrl = formMatch[0].trim();
-    if (getAppsScriptWebhookUrl() !== foundFormUrl) {
-      try {
-        localStorage.setItem(WEBHOOK_STORAGE_KEY, foundFormUrl);
-      } catch {
-        // ignore
-      }
-    }
-    return foundFormUrl;
-  }
-
-  // Ưu tiên 2: Google Apps Script Web App URL (https://script.google.com/macros/s/.../exec)
+  // Ưu tiên 1: Google Apps Script Web App URL (https://script.google.com/macros/s/.../exec)
   const gasMatches = rawText.match(
     /https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec/g
   );
@@ -264,6 +249,26 @@ function extractWebhookUrlFromRawText(rawText: string): string | null {
     }
   }
 
+  // Ưu tiên 2: Cầu nối tự động Google Form Bridge (https://docs.google.com/forms/d/...)
+  const formMatch = rawText.match(
+    /https:\/\/docs\.google\.com\/forms\/d\/[A-Za-z0-9_-]+/
+  );
+  if (formMatch && formMatch[0]) {
+    const rawUrl = formMatch[0].trim();
+    const formIdMatch = rawUrl.match(/\/forms\/d\/([A-Za-z0-9_-]+)/);
+    if (formIdMatch && formIdMatch[1]) {
+      const normalizedFormUrl = `https://docs.google.com/forms/d/${formIdMatch[1]}/formResponse`;
+      if (getAppsScriptWebhookUrl() !== normalizedFormUrl) {
+        try {
+          localStorage.setItem(WEBHOOK_STORAGE_KEY, normalizedFormUrl);
+        } catch {
+          // ignore
+        }
+      }
+      return normalizedFormUrl;
+    }
+  }
+
   return null;
 }
 
@@ -280,11 +285,12 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
   let webhookUrl = getAppsScriptWebhookUrl();
 
   // Nếu chưa có trong localStorage, thử tự động dò từ Google Sheet live ngay lập tức
-  if (!webhookUrl) {
-    webhookUrl = (await discoverWebhookUrlFromSheet()) || '';
+  if (!webhookUrl || webhookUrl === DEFAULT_FORM_BRIDGE_URL) {
+    const discovered = await discoverWebhookUrlFromSheet();
+    if (discovered) webhookUrl = discovered;
   }
 
-  const enrichedPayload = {
+  const enrichedPayload: Record<string, any> = {
     ...payload,
     requestId: payload.requestId || `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
   };
@@ -294,26 +300,59 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
     return { sent: false, webhookUrl: '' };
   }
 
-  // CƠ CHẾ A: Gửi qua Cầu nối tự động Google Form Bridge (docs.google.com/forms/.../formResponse?entry.XXXX=)
+  // CƠ CHẾ A: Gửi qua Cầu nối tự động Google Form Bridge (docs.google.com/forms/...)
   if (webhookUrl.includes('docs.google.com/forms')) {
     try {
-      const [formActionUrl, queryPart] = webhookUrl.split('?');
-      const entryMatch = (queryPart || '').match(/entry\.\d+/);
-      if (formActionUrl && entryMatch) {
-        const entryKey = entryMatch[0];
-        const jsonStr = JSON.stringify(enrichedPayload);
-        const bodyStr = `${encodeURIComponent(entryKey)}=${encodeURIComponent(jsonStr)}&submit=Submit`;
+      const formActionUrl = webhookUrl.split('?')[0].replace(/\/viewform$/, '/formResponse').replace(/\/edit$/, '/formResponse');
+      const formParams = new URLSearchParams();
 
-        await fetch(formActionUrl, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-          },
-          body: bodyStr,
-        });
-        return { sent: true, webhookUrl };
+      if (enrichedPayload.action === 'register' || enrichedPayload.fullName || enrichedPayload.email) {
+        formParams.append('entry.1151079902', enrichedPayload.fullName || '');
+        formParams.append('entry.1501072816', enrichedPayload.idCardNumber || '');
+        formParams.append('entry.1306932060', enrichedPayload.dob || '');
+        formParams.append('entry.795301612', enrichedPayload.gender || 'Nam');
+        formParams.append('entry.368593840', enrichedPayload.email || '');
+        formParams.append('entry.1772830631', enrichedPayload.phone || '');
+        formParams.append('entry.338397966', enrichedPayload.address || '');
+        formParams.append('entry.1008863253', enrichedPayload.contractCategory === 'enterprise' ? 'Hợp đồng toàn hệ' : 'Hợp đồng cá nhân hóa');
+        formParams.append('entry.117592632', enrichedPayload.contractPackageName || '');
+        formParams.append('entry.1122926950', enrichedPayload.depositAmount ? `${Number(enrichedPayload.depositAmount).toLocaleString('vi-VN')} VNĐ` : '0 VNĐ');
+        formParams.append('entry.1728904839', enrichedPayload.totalAmount ? `${Number(enrichedPayload.totalAmount).toLocaleString('vi-VN')} VNĐ` : '0 VNĐ');
+        formParams.append('entry.102692895', enrichedPayload.deliveryDays ? `${enrichedPayload.deliveryDays} ngày` : (enrichedPayload.depositAmount > 0 ? '5 ngày' : 'Bàn giao ngay'));
+        formParams.append('entry.770343613', enrichedPayload.notes || '📄 Hợp đồng đã ký điện tử qua WebApp — Chờ Kỹ sư duyệt');
+      } else {
+        formParams.append('entry.1151079902', enrichedPayload.fullName || 'SYNAPES System');
+        formParams.append('entry.368593840', enrichedPayload.email || 'system@synapes.io');
+        formParams.append('entry.1772830631', enrichedPayload.phone || '');
+        formParams.append('entry.770343613', `[ACTION:${enrichedPayload.action}] ${JSON.stringify(enrichedPayload)}`);
       }
+
+      // Hỗ trợ nếu form URL có query entry.XXXX đơn lẻ kiểu cũ
+      const [, queryPart] = webhookUrl.split('?');
+      const singleEntryMatch = (queryPart || '').match(/entry\.\d+/);
+      if (singleEntryMatch) {
+        formParams.append(singleEntryMatch[0], JSON.stringify(enrichedPayload));
+      }
+
+      await fetch(formActionUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        },
+        body: formParams.toString(),
+      });
+
+      // Đồng thời chuyển tiếp qua backend Node.js server để lưu dự phòng đa tầng
+      try {
+        fetch('/api/save-registration', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(enrichedPayload),
+        }).catch(() => { });
+      } catch { }
+
+      return { sent: true, webhookUrl: formActionUrl };
     } catch {
       enqueuePendingWebhookPayload(enrichedPayload);
       return { sent: false, webhookUrl };

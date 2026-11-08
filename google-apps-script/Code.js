@@ -198,6 +198,12 @@ function menuUpgradeTo20Cols() {
   SpreadsheetApp.getUi().alert("✅ ĐÃ NÂNG CẤP BẢNG TÍNH SANG 20 CỘT CHUẨN TOÀN DIỆN!\n\nDữ liệu các hàng cũ đã được căn chỉnh chuẩn xác theo 20 cột và 2 phân hệ hợp đồng.");
 }
 
+function menuSyncFormResponses() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var count = syncPendingFormBridgeResponses();
+  SpreadsheetApp.getUi().alert("✅ ĐÃ ĐỒNG BỘ DỮ LIỆU TỪ GOOGLE FORM!\n\nĐã kiểm tra và đồng bộ " + count + " hồ sơ khách hàng mới nhất vào trang THÔNG TIN NGƯỜI DÙNG.");
+}
+
 /**
  * 1. HÀM KHỞI TẠO & KÍCH HOẠT TỰ ĐỘNG TOÀN DIỆN (CHẠY ĐẦU TIÊN TRONG APPS SCRIPT)
  * - Cấu hình bảng tính 20 cột chuẩn: STT, Thời Gian, Họ Tên, CCCD/CMND, Ngày Sinh, Giới Tính,
@@ -311,6 +317,7 @@ function onOpen() {
     ui.createMenu("🚀 SYNAPES Studio")
       .addItem("1. ⚡ Thiết Lập Bảng Tính 20 Cột & Duyệt 2 Cấp (Duyệt Lần 1 & Duyệt Lần 2)", "setupUserRegistrationSheet")
       .addItem("⚡ Nâng cấp Bảng tính 13 cột sang 20 cột chuẩn (Bảo toàn dữ liệu)", "menuUpgradeTo20Cols")
+      .addItem("🔄 Đồng bộ ngay hồ sơ từ Google Form vào Sheet", "menuSyncFormResponses")
       .addSeparator()
       .addItem("2. 📄 Xem thử mẫu Hợp đồng PDF có con dấu đỏ (Dòng đang chọn)", "previewSelectedUserContractModal")
       .addItem("3. ✅ Duyệt Lần 1 dòng đang chọn (Cột 15 — HĐ Đặt Cọc: Gửi HĐ, KHÔNG cấp pass / HĐ 100%: Cấp pass)", "approveSelectedUserRow")
@@ -502,12 +509,13 @@ function syncPendingFormBridgeResponses() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var formUrl = ss.getFormUrl();
-    if (!formUrl) return;
+    if (!formUrl) return 0;
 
     var form = FormApp.openByUrl(formUrl);
     var responses = form.getResponses();
-    if (!responses || responses.length === 0) return;
+    if (!responses || responses.length === 0) return 0;
 
+    var count = 0;
     for (var i = 0; i < responses.length; i++) {
       var itemResponses = responses[i].getItemResponses();
       var payload = {};
@@ -530,10 +538,13 @@ function syncPendingFormBridgeResponses() {
       }
       if (payload.fullName && payload.email) {
         handleUserRegistrationWebhook(ss, payload);
+        count++;
       }
     }
+    return count;
   } catch (err) {
     Logger.log("syncPendingFormBridgeResponses error: " + err);
+    return 0;
   }
 }
 
@@ -548,6 +559,16 @@ function autoPublishWebhookUrlToSheet(ss, customUrl) {
       try {
         url = ScriptApp.getService().getUrl();
       } catch (e) {}
+    }
+    if (!url) {
+      try {
+        var fUrl = ss.getFormUrl();
+        if (fUrl) url = fUrl;
+      } catch (e2) {}
+    }
+
+    if (url && url.indexOf("docs.google.com/forms") !== -1) {
+      url = url.replace("/viewform", "/formResponse").replace("/edit", "/formResponse");
     }
 
     if (url && usersSheet) {
@@ -1629,6 +1650,16 @@ function approveAllPendingUsers() {
  */
 function doGet(e) {
   var params = (e && e.parameter) ? e.parameter : {};
+  if (params.payload) {
+    try {
+      var parsedPayload = JSON.parse(params.payload);
+      for (var k in parsedPayload) {
+        if (parsedPayload.hasOwnProperty(k)) {
+          params[k] = parsedPayload[k];
+        }
+      }
+    } catch (ePayload) {}
+  }
   var callback = params.callback;
   var action = params.action;
 
@@ -1661,6 +1692,16 @@ function doPost(e) {
     }
   } else if (e && e.parameter) {
     payload = e.parameter;
+  }
+  if (payload.payload) {
+    try {
+      var parsedPost = JSON.parse(payload.payload);
+      for (var kp in parsedPost) {
+        if (parsedPost.hasOwnProperty(kp)) {
+          payload[kp] = parsedPost[kp];
+        }
+      }
+    } catch (ePost) {}
   }
 
   var result = processWebhookPayload(payload);
