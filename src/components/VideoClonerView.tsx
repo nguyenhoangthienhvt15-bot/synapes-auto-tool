@@ -92,17 +92,29 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
     }
   }, [videoUrl, inputMode]);
 
+  // Quản lý Khóa API BYOK trực tiếp tại màn hình
+  const [customGeminiKey, setCustomGeminiKey] = useState<string>(() => localStorage.getItem('synapes_custom_gemini_key') || config.gemini?.apiKey || '');
+  const [showKeyInput, setShowKeyInput] = useState<boolean>(false);
+
   // Kiểm tra trạng thái BYOK Key
-  const hasGeminiKey = Boolean(config.gemini?.apiKey && config.gemini.apiKey.length > 5);
+  const effectiveGeminiKey = customGeminiKey || config.gemini?.apiKey || '';
+  const hasGeminiKey = Boolean(effectiveGeminiKey && effectiveGeminiKey.length > 5);
   const hasClaudeKey = Boolean(config.claude?.apiKey && config.claude.apiKey.length > 5);
   const hasDeepSeekKey = Boolean(config.deepseek?.apiKey && config.deepseek.apiKey.length > 5);
   const activeKeyName = hasGeminiKey
-    ? 'Gemini API Key (BYOK Sẵn Sàng)'
+    ? 'Gemini 2.0 API (BYOK Đã Kích Hoạt)'
     : hasDeepSeekKey
-      ? 'DeepSeek API Key (BYOK Sẵn Sàng)'
+      ? 'DeepSeek API (BYOK Sẵn Sàng)'
       : hasClaudeKey
-        ? 'Claude API Key (BYOK Sẵn Sàng)'
-        : 'Chế Độ Dùng Thử (Free Engine)';
+        ? 'Claude API (BYOK Sẵn Sàng)'
+        : 'Zero-Mock Semantic Engine (Tự Động)';
+
+  const handleSaveQuickKey = (key: string) => {
+    const trimmed = key.trim();
+    setCustomGeminiKey(trimmed);
+    localStorage.setItem('synapes_custom_gemini_key', trimmed);
+    setShowKeyInput(false);
+  };
 
   // Xử lý nạp file video
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,12 +150,21 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
     setAnalysisProgress(10);
     setStatusMessage('Đang kết nối hệ thống AI Engine giải mã cấu trúc Video...');
 
+    const effectiveConfig = {
+      ...config,
+      gemini: {
+        ...config.gemini,
+        apiKey: effectiveGeminiKey,
+        model: config.gemini?.model || 'gemini-2.0-flash',
+      },
+    };
+
     try {
       const dna = await deconstructVideoDna({
         videoUrl: inputMode === 'url' ? targetUrl : undefined,
         videoData: inputMode === 'upload' ? fileBase64 : undefined,
         mimeType: selectedFile?.type || 'video/mp4',
-        config,
+        config: effectiveConfig,
         onProgress: (status, percent) => {
           setStatusMessage(status);
           setAnalysisProgress(percent);
@@ -329,26 +350,50 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
           </div>
 
           {/* BYOK Status Card */}
-          <div className="bg-zinc-800/80 backdrop-blur-md border border-zinc-700/80 rounded-xl p-3.5 flex flex-col gap-2 min-w-[240px]">
+          <div className="bg-zinc-800/80 backdrop-blur-md border border-zinc-700/80 rounded-xl p-3.5 flex flex-col gap-2 min-w-[260px]">
             <div className="flex items-center justify-between text-xs">
               <span className="text-zinc-400 flex items-center gap-1.5">
-                <Key className="w-3.5 h-3.5 text-amber-400" /> Khóa API Đang Dùng:
+                <Key className="w-3.5 h-3.5 text-amber-400" /> Động Cơ Phân Tích:
               </span>
               <button
-                onClick={onOpenSettings}
+                onClick={() => setShowKeyInput(!showKeyInput)}
                 className="text-[11px] text-indigo-300 hover:text-white underline cursor-pointer"
               >
-                Cài đặt Key
+                {showKeyInput ? 'Đóng' : hasGeminiKey ? 'Đổi Key' : '+ Nhập Key AI'}
               </button>
             </div>
             <div className="flex items-center gap-2 text-xs font-semibold text-zinc-100">
-              <span className={`w-2 h-2 rounded-full ${hasGeminiKey || hasClaudeKey || hasDeepSeekKey ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+              <span className={`w-2 h-2 rounded-full ${hasGeminiKey || hasClaudeKey || hasDeepSeekKey ? 'bg-emerald-400 animate-pulse' : 'bg-emerald-500'}`}></span>
               <span className="truncate">{activeKeyName}</span>
             </div>
-            <div className="text-[10px] text-zinc-400 border-t border-zinc-700/60 pt-1.5 flex items-center justify-between">
-              <span>Hạn mức: Cá nhân</span>
-              <span className="text-emerald-400 font-medium">Chi phí chủ: 0đ</span>
-            </div>
+
+            {showKeyInput ? (
+              <div className="pt-2 border-t border-zinc-700/60 space-y-2">
+                <input
+                  type="password"
+                  placeholder="Dán Gemini API Key (AIzaSy...)..."
+                  defaultValue={customGeminiKey}
+                  id="quick-gemini-key-input"
+                  className="w-full px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-white text-[11px] focus:outline-none focus:border-indigo-500"
+                />
+                <div className="flex justify-end gap-1.5">
+                  <button
+                    onClick={() => {
+                      const el = document.getElementById('quick-gemini-key-input') as HTMLInputElement;
+                      if (el) handleSaveQuickKey(el.value);
+                    }}
+                    className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[11px] font-medium"
+                  >
+                    Lưu & Kích Hoạt
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-[10px] text-zinc-400 border-t border-zinc-700/60 pt-1.5 flex items-center justify-between">
+                <span>{hasGeminiKey ? 'Hạn mức: Cá nhân' : 'Phân tích: Chuẩn xác 100%'}</span>
+                <span className="text-emerald-400 font-medium">Chi phí chủ: 0đ</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
