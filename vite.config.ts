@@ -45,6 +45,16 @@ export default defineConfig({
           if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
             return 'vendor-react';
           }
+          if (id.includes('node_modules/jspdf') || id.includes('node_modules/html2canvas')) {
+            return 'vendor-pdf';
+          }
+          if (
+            id.includes('src/data/appsScriptCode') ||
+            id.includes('src/data/stampBase64') ||
+            id.includes('src/data/qrCodeBase64')
+          ) {
+            return 'contract-assets';
+          }
           if (id.includes('node_modules')) {
             return 'vendor-libs';
           }

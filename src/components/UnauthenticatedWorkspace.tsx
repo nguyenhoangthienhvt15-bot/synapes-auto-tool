@@ -1,7 +1,7 @@
 import React from 'react';
 import {
-  Shield, KeyRound, Sparkles, BookOpen, Lock,
-  ArrowRight, Video, Cpu, Share2, HardDrive, CheckCircle2
+  KeyRound, BookOpen, Lock, ArrowRight, Video,
+  Cpu, Share2, ShieldCheck, CheckCircle2, FileText
 } from 'lucide-react';
 
 interface UnauthenticatedWorkspaceProps {
@@ -16,32 +16,28 @@ export const UnauthenticatedWorkspace: React.FC<UnauthenticatedWorkspaceProps> =
   onOpenGuide,
 }) => {
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 space-y-8 animate-in fade-in duration-200 select-none">
+    <div className="max-w-4xl mx-auto py-10 px-4 sm:px-6 space-y-10 animate-in fade-in duration-200 select-none">
       {/* Hero Welcome Card */}
-      <div className="studio-card p-6 sm:p-10 text-center relative overflow-hidden border border-black/[0.08] bg-gradient-to-b from-white via-[#FCFCFB] to-[#F7F7F5] shadow-xs">
-        {/* Subtle background glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-32 bg-amber-200/20 rounded-full blur-3xl pointer-events-none"></div>
-
-        <div className="relative z-10 max-w-2xl mx-auto space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-100 border border-black/[0.06] text-zinc-700 text-xs font-mono">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-            <span>CHƯA ĐĂNG NHẬP PHIÊN LÀM VIỆC</span>
+      <div className="p-8 sm:p-12 text-center relative rounded-xl border border-zinc-200/90 bg-white shadow-2xs">
+        <div className="relative z-10 max-w-2xl mx-auto space-y-5">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-700 text-[11px] font-mono tracking-tight">
+            <span className="w-1.5 h-1.5 rounded-full bg-zinc-600"></span>
+            <span>CHƯA XÁC THỰC PHIÊN LÀM VIỆC • VUI LÒNG ĐĂNG NHẬP</span>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-950 tracking-tight leading-tight">
-            Chào Mừng Đến Với SYNAPES Video Studio
+          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-950 tracking-tight leading-snug">
+            Nền Tảng Tự Động Hóa Sản Xuất & Điều Phối Nội Dung Số
           </h1>
 
-          <p className="text-zinc-600 text-xs sm:text-sm leading-relaxed">
-            Hệ thống tự động hóa kịch bản, sản xuất video phân cảnh ngắn/dài bằng AI và đăng tải đa kênh.
-            Để xem các dự án video, bảo mật cấu hình API Keys và đồng bộ kênh cá nhân, vui lòng đăng nhập tài khoản của bạn.
+          <p className="text-zinc-600 text-xs sm:text-[13px] leading-relaxed max-w-xl mx-auto">
+            Hệ thống cung cấp giải pháp khép kín từ nghiên cứu chủ đề, phân rã kịch bản đa mô thức, tạo phân cảnh video 16:9 và 9:16 đến đồng bộ xuất bản đa kênh có kiểm duyệt.
           </p>
 
           {/* Action Buttons */}
-          <div className="pt-3 flex flex-wrap items-center justify-center gap-3">
+          <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
             <button
               onClick={onOpenLogin}
-              className="btn-primary px-5 py-2.5 text-xs sm:text-sm flex items-center gap-2 shadow-sm hover:shadow cursor-pointer"
+              className="btn-primary px-5 py-2.5 text-xs sm:text-sm flex items-center gap-2 shadow-xs hover:shadow transition cursor-pointer"
             >
               <KeyRound className="w-4 h-4 text-emerald-400" />
               <span>Đăng Nhập Tài Khoản Studio</span>
@@ -50,15 +46,15 @@ export const UnauthenticatedWorkspace: React.FC<UnauthenticatedWorkspaceProps> =
 
             <button
               onClick={onOpenRegister}
-              className="btn-secondary px-5 py-2.5 text-xs sm:text-sm flex items-center gap-2 hover:bg-zinc-100 cursor-pointer"
+              className="px-5 py-2.5 rounded-md border border-zinc-300 bg-white hover:bg-zinc-50 text-zinc-900 font-medium text-xs sm:text-sm flex items-center gap-2 transition cursor-pointer shadow-2xs"
             >
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              <span>Đăng Ký Tài Khoản Mới</span>
+              <FileText className="w-4 h-4 text-zinc-700" />
+              <span>Đăng Ký Ký Hợp Đồng Mới</span>
             </button>
 
             <button
               onClick={onOpenGuide}
-              className="px-4 py-2 text-xs text-zinc-500 hover:text-zinc-900 transition flex items-center gap-1.5 cursor-pointer"
+              className="px-4 py-2.5 text-xs text-zinc-500 hover:text-zinc-900 transition flex items-center gap-1.5 cursor-pointer font-medium"
             >
               <BookOpen className="w-3.5 h-3.5" />
               <span>Hướng Dẫn Sử Dụng A-Z</span>
@@ -67,67 +63,67 @@ export const UnauthenticatedWorkspace: React.FC<UnauthenticatedWorkspaceProps> =
         </div>
       </div>
 
-      {/* Feature Pillars Grid */}
+      {/* Feature Pillars Grid (Refined Craft Minimalist Layout) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Pillar 1: AI Engine */}
-        <div className="studio-card p-5 space-y-2 border border-black/[0.06] hover:border-black/[0.12] transition">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+        <div className="p-5 rounded-lg border border-zinc-200/80 bg-white hover:border-zinc-300 transition space-y-2.5 shadow-2xs">
+          <div className="w-8 h-8 rounded-md bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-800">
             <Cpu className="w-4 h-4" />
           </div>
-          <h3 className="text-sm font-semibold text-zinc-900">API Keys AI Module Riêng Biệt</h3>
-          <p className="text-xs text-zinc-500 leading-relaxed">
-            Mỗi tài khoản được cấp quyền lưu trữ độc lập các API Keys từ Gemini 2.0 Flash, Claude 3.7 Sonnet, OpenAI GPT-4o, DeepSeek và Grok của riêng bạn.
+          <h3 className="text-[13px] font-semibold text-zinc-900 tracking-tight">Động Cơ Xử Lý Đa Mô Thức Độc Lập</h3>
+          <p className="text-xs text-zinc-600 leading-relaxed">
+            Mỗi tài khoản lưu trữ và mã hóa riêng biệt các khóa API (Gemini 2.5, Claude 3.7 Sonnet, GPT-4o, DeepSeek-V3, Grok) kết hợp với các Webhook Engine ngoại vi.
           </p>
         </div>
 
         {/* Pillar 2: Video Production */}
-        <div className="studio-card p-5 space-y-2 border border-black/[0.06] hover:border-black/[0.12] transition">
-          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+        <div className="p-5 rounded-lg border border-zinc-200/80 bg-white hover:border-zinc-300 transition space-y-2.5 shadow-2xs">
+          <div className="w-8 h-8 rounded-md bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-800">
             <Video className="w-4 h-4" />
           </div>
-          <h3 className="text-sm font-semibold text-zinc-900">Bàn Duyệt Kịch Bản & Ghép Clip</h3>
-          <p className="text-xs text-zinc-500 leading-relaxed">
-            Xem trước video phân cảnh 5-10 giây, kiểm soát lời thoại lồng tiếng TTS tự nhiên chuẩn tiếng Việt và ghép video thành phẩm trong Cửa sổ 2.
+          <h3 className="text-[13px] font-semibold text-zinc-900 tracking-tight">Phòng Thu Kịch Bản & Ghép Cảnh Đa Tầng</h3>
+          <p className="text-xs text-zinc-600 leading-relaxed">
+            Hỗ trợ khuôn mẫu Video Dài (16:9) và Video Ngắn / Shorts (9:16), kiểm soát lời thoại lồng tiếng TTS tự nhiên tiếng Việt và ghép nối thành phẩm trong Cửa sổ 2.
           </p>
         </div>
 
         {/* Pillar 3: Social Channels */}
-        <div className="studio-card p-5 space-y-2 border border-black/[0.06] hover:border-black/[0.12] transition">
-          <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+        <div className="p-5 rounded-lg border border-zinc-200/80 bg-white hover:border-zinc-300 transition space-y-2.5 shadow-2xs">
+          <div className="w-8 h-8 rounded-md bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-800">
             <Share2 className="w-4 h-4" />
           </div>
-          <h3 className="text-sm font-semibold text-zinc-900">Kênh Xuất Bản YouTube, TikTok, Facebook</h3>
-          <p className="text-xs text-zinc-500 leading-relaxed">
-            Đăng nhập tài khoản mạng xã hội của riêng bạn để tự động lên lịch phát sóng vào khung giờ vàng, đăng video và theo dõi số liệu trực tiếp.
+          <h3 className="text-[13px] font-semibold text-zinc-900 tracking-tight">Điều Phối Xuất Bản Đa Nền Tảng</h3>
+          <p className="text-xs text-zinc-600 leading-relaxed">
+            Đồng bộ lịch phát sóng giờ vàng (Goldtime 18:00 - 20:30) cho YouTube, TikTok, Facebook Reels và sao lưu tự động tệp dự án về Google Drive cá nhân.
           </p>
         </div>
 
-        {/* Pillar 4: Google Drive Storage */}
-        <div className="studio-card p-5 space-y-2 border border-black/[0.06] hover:border-black/[0.12] transition">
-          <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-            <HardDrive className="w-4 h-4" />
+        {/* Pillar 4: Security & Compliance */}
+        <div className="p-5 rounded-lg border border-zinc-200/80 bg-white hover:border-zinc-300 transition space-y-2.5 shadow-2xs">
+          <div className="w-8 h-8 rounded-md bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-800">
+            <ShieldCheck className="w-4 h-4" />
           </div>
-          <h3 className="text-sm font-semibold text-zinc-900">Lưu Trữ Google Drive Độc Lập</h3>
-          <p className="text-xs text-zinc-500 leading-relaxed">
-            Đồng bộ an toàn mọi thước phim phân rã và video hoàn chỉnh vào Google Drive cá nhân với phạm vi quyền <code>drive.file</code> bảo mật tuyệt đối.
+          <h3 className="text-[13px] font-semibold text-zinc-900 tracking-tight">Bảo Mật AES-256 & Pháp Lý Hợp Đồng</h3>
+          <p className="text-xs text-zinc-600 leading-relaxed">
+            Tuân thủ Nghị định 13/2023/NĐ-CP và Luật Sở hữu trí tuệ. Hợp đồng điện tử ký số có con dấu đỏ tròn của Trưởng ban và quy trình kiểm duyệt 2 cấp chặt chẽ.
           </p>
         </div>
       </div>
 
-      {/* Trust & Policy Note */}
-      <div className="p-4 rounded-xl bg-zinc-100/70 border border-black/[0.05] flex items-start sm:items-center justify-between gap-3 text-xs text-zinc-600">
+      {/* Trust & Compliance Banner */}
+      <div className="p-4 rounded-lg bg-zinc-50/80 border border-zinc-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-600">
         <div className="flex items-center gap-2">
-          <Shield className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-          <span>Hệ thống bảo vệ dữ liệu khách hàng theo Nghị định 13/2023/NĐ-CP và Luật An ninh mạng 2018.</span>
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+          <span>Hệ thống bảo mật tiêu chuẩn DMCA & mã hóa bcrypt một chiều cho mật khẩu người dùng.</span>
         </div>
         <button
           onClick={onOpenRegister}
-          className="text-emerald-700 font-semibold hover:underline flex-shrink-0 cursor-pointer"
+          className="text-zinc-900 font-semibold hover:underline flex items-center gap-1 cursor-pointer flex-shrink-0"
         >
-          Ký hợp đồng & nhận mã ngay &rarr;
+          <span>Khám phá các gói hợp đồng</span>
+          <ArrowRight className="w-3 h-3" />
         </button>
       </div>
     </div>
   );
 };
-
