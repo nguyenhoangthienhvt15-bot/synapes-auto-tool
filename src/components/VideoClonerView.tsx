@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   Link as LinkIcon,
@@ -18,7 +18,12 @@ import {
   ShieldCheck,
   AlertCircle,
   Play,
+  Pause,
   RotateCcw,
+  Eye,
+  Columns,
+  Maximize2,
+  VolumeX,
 } from 'lucide-react';
 import {
   AIProviderConfig,
@@ -27,7 +32,12 @@ import {
   ClonedVideoProject,
   Project,
 } from '../types';
-import { deconstructVideoDna, synthesizeClonedProject } from '../services/videoDeconstructService';
+import {
+  deconstructVideoDna,
+  synthesizeClonedProject,
+  extractVideoInfo,
+  ExtractedVideoInfo,
+} from '../services/videoDeconstructService';
 
 interface VideoClonerViewProps {
   config: AIProviderConfig;
@@ -43,11 +53,15 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
   onNavigateToReview,
 }) => {
   const [inputMode, setInputMode] = useState<'url' | 'upload'>('url');
-  const [videoUrl, setVideoUrl] = useState<string>('');
+  const [videoUrl, setVideoUrl] = useState<string>('https://www.youtube.com/shorts/sample-hook-viral');
+  const [detectedVideo, setDetectedVideo] = useState<ExtractedVideoInfo | null>(() =>
+    extractVideoInfo('https://www.youtube.com/shorts/sample-hook-viral')
+  );
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileBase64, setFileBase64] = useState<string>('');
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string>('');
 
-  // Trạng thái xử lý
+  // Trạng thái bóc tách
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [analysisProgress, setAnalysisProgress] = useState<number>(0);
   const [statusMessage, setStatusMessage] = useState<string>('');
@@ -59,6 +73,24 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
   const [isSynthesizing, setIsSynthesizing] = useState<boolean>(false);
   const [clonedProject, setClonedProject] = useState<ClonedVideoProject | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Trạng thái Bàn Trình Chiếu Xem Thử Sản Phẩm Nhân Bản (Interactive Preview Player)
+  const [isPlayingPreview, setIsPlayingPreview] = useState<boolean>(false);
+  const [currentSceneIdx, setCurrentSceneIdx] = useState<number>(0);
+  const [isSplitCompare, setIsSplitCompare] = useState<boolean>(false);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const playTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Nhận diện video tức thì khi người dùng gõ hoặc dán link
+  useEffect(() => {
+    if (inputMode === 'url' && videoUrl.trim()) {
+      const info = extractVideoInfo(videoUrl);
+      setDetectedVideo(info);
+    } else {
+      setDetectedVideo(null);
+    }
+  }, [videoUrl, inputMode]);
 
   // Kiểm tra trạng thái BYOK Key
   const hasGeminiKey = Boolean(config.gemini?.apiKey && config.gemini.apiKey.length > 5);
@@ -77,6 +109,9 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
+      const blobUrl = URL.createObjectURL(file);
+      setFilePreviewUrl(blobUrl);
+
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === 'string') {
@@ -88,8 +123,9 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
   };
 
   // Kích hoạt bóc tách video
-  const handleStartDeconstruct = async () => {
-    if (inputMode === 'url' && !videoUrl.trim()) {
+  const handleStartDeconstruct = async (urlToUse?: string) => {
+    const targetUrl = urlToUse || videoUrl;
+    if (inputMode === 'url' && !targetUrl.trim()) {
       alert('Vui lòng dán đường dẫn video (YouTube, TikTok, Facebook, Reels)!');
       return;
     }
@@ -100,11 +136,11 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
 
     setIsAnalyzing(true);
     setAnalysisProgress(10);
-    setStatusMessage('Đang kết nối hệ thống phân tích...');
+    setStatusMessage('Đang kết nối hệ thống AI Engine giải mã cấu trúc Video...');
 
     try {
       const dna = await deconstructVideoDna({
-        videoUrl: inputMode === 'url' ? videoUrl : undefined,
+        videoUrl: inputMode === 'url' ? targetUrl : undefined,
         videoData: inputMode === 'upload' ? fileBase64 : undefined,
         mimeType: selectedFile?.type || 'video/mp4',
         config,
@@ -121,6 +157,15 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
       setIsAnalyzing(false);
       alert('Đã xảy ra sự cố khi phân tích. Đã áp dụng mẫu DNA Video tối ưu để bạn tiếp tục!');
     }
+  };
+
+  // Tự động giải mã ngay khi người dùng chọn mẫu nhanh
+  const handleSelectSample = (sampleUrl: string) => {
+    setVideoUrl(sampleUrl);
+    setInputMode('url');
+    const info = extractVideoInfo(sampleUrl);
+    setDetectedVideo(info);
+    handleStartDeconstruct(sampleUrl);
   };
 
   // Kích hoạt nhân bản cho chủ đề mới
@@ -145,6 +190,8 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
 
       setClonedProject(result);
       setIsSynthesizing(false);
+      setCurrentSceneIdx(0);
+      setIsPlayingPreview(true);
     } catch (err) {
       console.error('Lỗi nhân bản kịch bản:', err);
       setIsSynthesizing(false);
@@ -152,11 +199,55 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
     }
   };
 
+  // Trình phát giọng đọc Web Speech API cục bộ
+  const speakSceneText = (text: string) => {
+    if (isMuted) return;
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'vi-VN';
+      utterance.rate = 1.05;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  // Bộ điều khiển Preview Player tự động chuyển cảnh
+  useEffect(() => {
+    if (isPlayingPreview && clonedProject && clonedProject.newStoryboard.length > 0) {
+      const currentScene = clonedProject.newStoryboard[currentSceneIdx];
+      if (currentScene) {
+        speakSceneText(currentScene.spokenText);
+      }
+
+      playTimerRef.current = setTimeout(() => {
+        if (currentSceneIdx < clonedProject.newStoryboard.length - 1) {
+          setCurrentSceneIdx((prev) => prev + 1);
+        } else {
+          setIsPlayingPreview(false);
+          setCurrentSceneIdx(0);
+        }
+      }, 5500);
+    } else {
+      if (playTimerRef.current) clearTimeout(playTimerRef.current);
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
+
+    return () => {
+      if (playTimerRef.current) clearTimeout(playTimerRef.current);
+    };
+  }, [isPlayingPreview, currentSceneIdx, clonedProject, isMuted]);
+
   // Sao chép prompt AI
   const copyPrompt = (text: string, idx: number) => {
     navigator.clipboard.writeText(text);
     setCopiedIndex(idx);
     setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
+  const copyKeyText = (text: string, keyName: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(keyName);
+    setTimeout(() => setCopiedKey(null), 2000);
   };
 
   // Đưa vào Bàn dựng & Hàng đợi Duyệt của Studio
@@ -190,7 +281,7 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
         visualPrompt: s.visualPrompt,
         headline: s.spokenText.slice(0, 30),
         sfx: s.sfx,
-        imageUrl: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80',
+        imageUrl: s.generatedMediaUrl || 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80',
         transition: 'cut',
       })),
       metadata: {
@@ -233,7 +324,7 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
               <span>Bóc Tách & Nhân Bản Video Triệu View</span>
             </h1>
             <p className="text-sm text-zinc-400 mt-1 max-w-2xl leading-relaxed">
-              Dán đường dẫn hoặc tải video mẫu lên để hệ thống trích xuất 100% cấu trúc DNA (Hook 3s, nhịp cắt cảnh, B-roll, âm nhạc) và tự động nhân bản ra sản phẩm video tương tự cho chủ đề mới của bạn.
+              Dán đường dẫn hoặc tải video mẫu lên để hệ thống hiển thị video ngay lập tức, giải mã chi tiết toàn bộ cấu trúc (Hook 3s, nhịp cắt, B-roll, âm nhạc), gợi ý công thức viết prompt và cung cấp bản xem thử trực quan sản phẩm tương tự!
             </p>
           </div>
 
@@ -262,7 +353,7 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Video Input Portal */}
+      {/* 2. Video Input Portal & Instant Video Player */}
       <div className="bg-white border border-black/[0.08] rounded-2xl p-6 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
           <div className="flex items-center gap-2">
@@ -290,9 +381,9 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
         </div>
 
         {inputMode === 'url' ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <label className="text-xs font-semibold text-zinc-700">
-              Nhập đường dẫn Video (YouTube, TikTok, Facebook Watch, Instagram Reels):
+              Nhập hoặc dán đường dẫn Video (YouTube, TikTok, Facebook Watch, Instagram Reels):
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -303,43 +394,44 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
                 className="flex-1 px-3.5 py-2.5 text-xs bg-zinc-50 border border-black/10 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-zinc-900 text-zinc-900"
               />
               <button
-                onClick={handleStartDeconstruct}
+                onClick={() => handleStartDeconstruct()}
                 disabled={isAnalyzing}
                 className="btn-primary px-5 py-2.5 text-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isAnalyzing ? (
                   <>
                     <Zap className="w-3.5 h-3.5 animate-spin" />
-                    <span>Đang Bóc Tách...</span>
+                    <span>Đang Phân Tích...</span>
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Bóc Tách DNA</span>
+                    <span>Bóc Tách Cấu Trúc</span>
                   </>
                 )}
               </button>
             </div>
+
             <div className="flex items-center gap-2 pt-1 text-[11px] text-zinc-500">
-              <span>Ví dụ mẫu nhanh:</span>
+              <span className="font-semibold">Mẫu video thử nghiệm nhanh:</span>
               <button
                 type="button"
-                onClick={() => setVideoUrl('https://www.youtube.com/shorts/sample-hook-retention')}
+                onClick={() => handleSelectSample('https://www.youtube.com/shorts/sample-hook-viral')}
                 className="text-indigo-600 hover:underline cursor-pointer"
               >
-                [Mẫu Shorts Hook 3s Viral]
+                [1. Mẫu Shorts Hook 3s Viral]
               </button>
               <button
                 type="button"
-                onClick={() => setVideoUrl('https://www.tiktok.com/@techlead/video/sample-review')}
+                onClick={() => handleSelectSample('https://www.youtube.com/watch?v=sample-tech-review')}
                 className="text-indigo-600 hover:underline cursor-pointer"
               >
-                [Mẫu Review Triệu View]
+                [2. Mẫu Review Chuyên Sâu]
               </button>
             </div>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <label className="text-xs font-semibold text-zinc-700">Chọn tệp video từ máy tính (MP4, WebM, MOV):</label>
             <div className="border-2 border-dashed border-zinc-200 rounded-xl p-6 text-center hover:border-zinc-400 transition bg-zinc-50/50">
               <Upload className="w-8 h-8 text-zinc-400 mx-auto mb-2" />
@@ -355,16 +447,16 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
                 </div>
               )}
             </div>
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-1">
               <button
-                onClick={handleStartDeconstruct}
+                onClick={() => handleStartDeconstruct()}
                 disabled={isAnalyzing || !selectedFile}
                 className="btn-primary px-6 py-2.5 text-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isAnalyzing ? (
                   <>
                     <Zap className="w-3.5 h-3.5 animate-spin" />
-                    <span>Đang Bóc Tách...</span>
+                    <span>Đang Phân Tích...</span>
                   </>
                 ) : (
                   <>
@@ -373,6 +465,52 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* 🎬 HIỂN THỊ VIDEO TRỰC QUAN NGAY KHI DÁN LINK HOẶC NẠP TỆP */}
+        {(detectedVideo || filePreviewUrl) && (
+          <div className="mt-4 p-4 bg-zinc-950 text-white rounded-2xl border border-zinc-800 space-y-3 shadow-lg animate-in fade-in">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+                <span className="font-bold text-zinc-100 flex items-center gap-1.5">
+                  <Play className="w-3.5 h-3.5 text-rose-400" />
+                  Đang Xem Video Mẫu Trực Tiếp
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-zinc-800 text-zinc-300 border border-zinc-700">
+                  {detectedVideo?.platform || 'Tệp Video'}
+                </span>
+              </div>
+              {!dnaBlueprint && !isAnalyzing && (
+                <button
+                  onClick={() => handleStartDeconstruct()}
+                  className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition shadow-sm"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>Bóc Tách Chi Tiết Cấu Trúc Ngay</span>
+                </button>
+              )}
+            </div>
+
+            {/* Video Player Container */}
+            <div className="w-full rounded-xl overflow-hidden bg-black flex items-center justify-center max-h-[460px] aspect-video relative">
+              {detectedVideo?.embedUrl ? (
+                <iframe
+                  src={detectedVideo.embedUrl}
+                  title="Video Mẫu"
+                  className="w-full h-full border-0 rounded-xl"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                ></iframe>
+              ) : filePreviewUrl ? (
+                <video src={filePreviewUrl} controls className="w-full h-full max-h-[460px] object-contain rounded-xl" />
+              ) : (
+                <div className="p-8 text-center text-zinc-500 text-xs">
+                  Không thể nhúng trực tiếp, nhấn "Bóc Tách Cấu Trúc" để AI trích xuất dữ liệu.
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -397,13 +535,14 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
         )}
       </div>
 
-      {/* 3. Deconstructed Video DNA Dashboard */}
+      {/* 3. Phân Tích Chi Tiết Toàn Bộ Cấu Trúc Video (Deconstructed DNA Dashboard) */}
       {dnaBlueprint && (
         <div className="bg-white border border-black/[0.08] rounded-2xl p-6 shadow-xs space-y-6">
           <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
             <div>
               <span className="text-[11px] font-bold tracking-wider uppercase text-emerald-600">ĐÃ GIẢI MÃ THÀNH CÔNG</span>
-              <h2 className="font-bold text-zinc-900 text-lg">Bản Đồ Cấu Trúc DNA Video Gốc</h2>
+              <h2 className="font-bold text-zinc-900 text-lg">Phân Tích Chi Tiết Toàn Bộ Cấu Trúc Video</h2>
+              <p className="text-xs text-zinc-500 mt-0.5">Tiêu đề: {dnaBlueprint.sourceTitle || 'Video viral mẫu'}</p>
             </div>
             <div className="flex items-center gap-2">
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
@@ -524,7 +663,95 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
             </div>
           </div>
 
-          {/* 4. Khung Nhân Bản Cho Chủ Đề Mới */}
+          {/* 4. ĐỊNH HƯỚNG GỢI Ý CÁCH VIẾT PROMPT XÂY DỰNG NỘI DUNG TƯƠNG TỰ */}
+          <div className="p-5 bg-gradient-to-br from-zinc-900 via-zinc-950 to-zinc-900 text-white rounded-2xl border border-zinc-800 space-y-4 shadow-lg">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-amber-400" />
+                <h3 className="font-bold text-white text-base">
+                  Định Hướng & Công Thức Viết Prompt Xây Dựng Nội Dung Tương Tự
+                </h3>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                PROMPT ENGINEERING MATRIX
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              {/* Formula A: Visual Prompt */}
+              <div className="p-3.5 bg-zinc-800/80 rounded-xl border border-zinc-700/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-indigo-300 flex items-center gap-1.5">
+                    <Film className="w-3.5 h-3.5 text-indigo-400" /> 1. Công Thức Prompt Thị Giác (Midjourney/Flux/Kling)
+                  </span>
+                  <button
+                    onClick={() => copyKeyText(dnaBlueprint.promptGuide?.visualFormula || '', 'visual')}
+                    className="text-[10px] text-zinc-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    {copiedKey === 'visual' ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedKey === 'visual' ? 'Đã chép' : 'Sao chép'}</span>
+                  </button>
+                </div>
+                <div className="p-2.5 bg-zinc-900/90 rounded-lg font-mono text-[11px] text-zinc-300 border border-zinc-800/80">
+                  {dnaBlueprint.promptGuide?.visualFormula || '[Shot Type] + [Chủ thể] + [Hành động/Biểu cảm] + [Ánh sáng cinematic] + [8k photorealistic]'}
+                </div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Đặc tả rõ góc máy (Close-up, Macro, FPV Drone) và ánh sáng (Volumetric lighting, Cyberpunk neon) để AI tạo ra hình ảnh chuẩn điện ảnh.
+                </p>
+              </div>
+
+              {/* Formula B: Scripting Prompt */}
+              <div className="p-3.5 bg-zinc-800/80 rounded-xl border border-zinc-700/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-amber-300 flex items-center gap-1.5">
+                    <Flame className="w-3.5 h-3.5 text-amber-400" /> 2. Công Thức Viết Kịch Bản Giữ Chân (Script Formula)
+                  </span>
+                  <button
+                    onClick={() => copyKeyText(dnaBlueprint.promptGuide?.scriptFormula || '', 'script')}
+                    className="text-[10px] text-zinc-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    {copiedKey === 'script' ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedKey === 'script' ? 'Đã chép' : 'Sao chép'}</span>
+                  </button>
+                </div>
+                <div className="p-2.5 bg-zinc-900/90 rounded-lg font-mono text-[11px] text-zinc-300 border border-zinc-800/80">
+                  {dnaBlueprint.promptGuide?.scriptFormula || 'Hook 3s -> Pain Point -> Curiosity Gap -> Giải pháp 3 bước -> Actionable CTA'}
+                </div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Nguyên tắc ngắt nhịp: Mỗi câu thoại không quá 12-15 từ, giữ khoảng trống tò mò không lời giải cho đến 70% thời lượng video.
+                </p>
+              </div>
+            </div>
+
+            {/* Negative Prompts & Cinematic Keywords */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs pt-1">
+              <div className="p-3 bg-zinc-900/80 rounded-xl border border-zinc-800 space-y-1.5">
+                <span className="font-bold text-rose-400 uppercase tracking-wider text-[10px]">
+                  ⚠️ Những Điều Cấm Kỵ Cần Tránh (Negative Rules):
+                </span>
+                <ul className="list-disc list-inside space-y-1 text-zinc-300 text-[11px]">
+                  <li>Không mở đầu bằng câu chào rườm rà (ví dụ: "Xin chào các bạn...").</li>
+                  <li>Không để bất kỳ phân cảnh tĩnh nào kéo dài quá 3 giây.</li>
+                  <li>Không dùng nhạc nền quá lớn lấn át tần số giọng thuyết minh.</li>
+                </ul>
+              </div>
+
+              <div className="p-3 bg-zinc-900/80 rounded-xl border border-zinc-800 space-y-1.5">
+                <span className="font-bold text-emerald-400 uppercase tracking-wider text-[10px]">
+                  ✨ Bộ Từ Khóa Điện Ảnh Hollywood Đề Xuất:
+                </span>
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {(dnaBlueprint.promptGuide?.cinematicKeywords || ['Macro close-up', 'Volumetric lighting', 'Kinetic typography', 'Anamorphic lens flare']).map((kw, kIdx) => (
+                    <span key={kIdx} className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-200 border border-zinc-700 font-mono text-[10px]">
+                      {kw}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. Khung Nhân Bản Cho Chủ Đề Mới */}
           <div className="p-5 bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/40 border-2 border-indigo-200 rounded-2xl space-y-4">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-indigo-600" />
@@ -586,16 +813,16 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
         </div>
       )}
 
-      {/* 5. Cloned Video Project Output Hub */}
+      {/* 6. BÀN TRÌNH CHIẾU XEM THỬ SẢN PHẨM TƯƠNG TỰ (AI INTERACTIVE PREVIEW PLAYER) */}
       {clonedProject && (
         <div className="bg-white border-2 border-emerald-500/80 rounded-2xl p-6 shadow-md space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-zinc-100 pb-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  🎉 NHÂN BẢN THÀNH CÔNG
+                  🎉 SẢN PHẨM NHÂN BẢN HOÀN TẤT
                 </span>
-                <span className="text-xs text-zinc-500 font-mono">ID: {clonedProject.id}</span>
+                <span className="text-xs text-zinc-500 font-mono">Mã Dự Án: {clonedProject.id}</span>
               </div>
               <h2 className="text-xl font-bold text-zinc-950">{clonedProject.newScript.title}</h2>
               <p className="text-xs text-zinc-600 mt-0.5">{clonedProject.newScript.headline}</p>
@@ -603,6 +830,14 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
 
             {/* Action Buttons Hub */}
             <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setIsSplitCompare((prev) => !prev)}
+                className="btn-secondary px-3.5 py-2 text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Columns className="w-3.5 h-3.5" />
+                <span>{isSplitCompare ? 'Xem Riêng Sản Phẩm Mới' : 'So Sánh Gốc vs Mới'}</span>
+              </button>
+
               <button
                 onClick={handleSendToStudioPipeline}
                 className="btn-primary px-4 py-2 text-xs flex items-center gap-2 cursor-pointer shadow-sm bg-emerald-600 hover:bg-emerald-700"
@@ -613,8 +848,145 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
             </div>
           </div>
 
+          {/* MÀN HÌNH XEM THỬ VIDEO TƯƠNG TỰ (SIMULATED AI VIDEO PLAYER) */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4 text-emerald-600" />
+                <h3 className="font-bold text-zinc-900 text-sm">
+                  Bàn Trình Chiếu Xem Thử Sản Phẩm Tương Tự (Live AI Video Player)
+                </h3>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <button
+                  onClick={() => setIsMuted((prev) => !prev)}
+                  className="p-1.5 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-100 cursor-pointer"
+                  title={isMuted ? 'Bật giọng thuyết minh' : 'Tắt giọng thuyết minh'}
+                >
+                  {isMuted ? <VolumeX className="w-4 h-4 text-rose-500" /> : <Volume2 className="w-4 h-4 text-emerald-600" />}
+                </button>
+                <span className="font-mono text-zinc-500">
+                  Cảnh {currentSceneIdx + 1} / {clonedProject.newStoryboard.length}
+                </span>
+              </div>
+            </div>
+
+            {/* Interactive Player Box */}
+            <div className={`grid gap-4 ${isSplitCompare ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+              {/* CỘT SO SÁNH: VIDEO GỐC NẾU BẬT SPLIT COMPARE */}
+              {isSplitCompare && (
+                <div className="bg-zinc-950 rounded-2xl p-4 text-white border border-zinc-800 space-y-2">
+                  <div className="flex items-center justify-between text-xs pb-1 border-b border-zinc-800">
+                    <span className="font-bold text-zinc-300">1. Video Gốc Mẫu:</span>
+                    <span className="text-[10px] text-zinc-400 font-mono">Bản Đối Chứng</span>
+                  </div>
+                  <div className="w-full aspect-video rounded-xl overflow-hidden bg-black flex items-center justify-center">
+                    {detectedVideo?.embedUrl ? (
+                      <iframe src={detectedVideo.embedUrl} title="Video Gốc" className="w-full h-full border-0" allowFullScreen></iframe>
+                    ) : (
+                      <div className="text-zinc-500 text-xs">Không có link nhúng video gốc</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* MÀN HÌNH SẢN PHẨM TƯƠNG TỰ (AI REPLICATED CANVAS) */}
+              <div className="bg-zinc-950 rounded-2xl p-4 text-white border border-zinc-800 space-y-3 relative overflow-hidden shadow-xl">
+                <div className="flex items-center justify-between text-xs pb-1 border-b border-zinc-800">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span className="font-bold text-emerald-400">2. Sản Phẩm Tương Tự (AI Replicated Preview)</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[10px] bg-zinc-800 text-zinc-300 font-mono">
+                    {clonedProject.newStoryboard[currentSceneIdx]?.timeRange || '00:00'}
+                  </span>
+                </div>
+
+                {/* Simulated Screen with Background Image & Kinetic Subtitles */}
+                <div className="w-full aspect-video max-h-[420px] rounded-xl overflow-hidden bg-zinc-900 relative flex items-center justify-center group select-none">
+                  <img
+                    src={clonedProject.newStoryboard[currentSceneIdx]?.generatedMediaUrl || 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80'}
+                    alt="Scene Visual"
+                    className="w-full h-full object-cover transition-transform duration-700 scale-105 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/30"></div>
+
+                  {/* SFX & Camera Badge */}
+                  <div className="absolute top-3 left-3 flex items-center gap-2">
+                    <span className="px-2 py-1 rounded-md text-[10px] font-mono font-semibold bg-black/60 backdrop-blur-md border border-white/20 text-white">
+                      📷 {clonedProject.newStoryboard[currentSceneIdx]?.cameraInstruction || 'Medium Shot'}
+                    </span>
+                    <span className="px-2 py-1 rounded-md text-[10px] font-mono bg-rose-500/80 text-white backdrop-blur-md">
+                      🔊 {clonedProject.newStoryboard[currentSceneIdx]?.sfx || 'Whoosh'}
+                    </span>
+                  </div>
+
+                  {/* KINETIC SUBTITLES DANCING OVERLAY */}
+                  <div className="absolute bottom-6 left-4 right-4 text-center">
+                    <div className="inline-block px-4 py-2 rounded-xl bg-black/75 backdrop-blur-md border border-white/15 text-white font-bold text-sm sm:text-base leading-snug shadow-2xl animate-in slide-in-from-bottom-2">
+                      "{clonedProject.newStoryboard[currentSceneIdx]?.spokenText}"
+                    </div>
+                    <div className="text-[10px] text-zinc-400 font-mono mt-1.5 drop-shadow-md">
+                      Prompt AI: {clonedProject.newStoryboard[currentSceneIdx]?.visualPrompt.slice(0, 70)}...
+                    </div>
+                  </div>
+                </div>
+
+                {/* Player Controls & Scene Timeline */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setIsPlayingPreview((prev) => !prev)}
+                        className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition shadow-sm"
+                      >
+                        {isPlayingPreview ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                        <span>{isPlayingPreview ? 'Tạm Dừng' : 'Phát Xem Thử'}</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setCurrentSceneIdx(0);
+                          setIsPlayingPreview(true);
+                        }}
+                        className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 cursor-pointer"
+                        title="Phát lại từ đầu"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <span className="text-[11px] text-zinc-400">
+                      Bấm vào từng cảnh bên dưới để nhảy trực tiếp
+                    </span>
+                  </div>
+
+                  {/* Scene Navigation Pills */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                    {clonedProject.newStoryboard.map((scene, sIdx) => (
+                      <button
+                        key={sIdx}
+                        onClick={() => {
+                          setCurrentSceneIdx(sIdx);
+                          speakSceneText(scene.spokenText);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-mono transition flex-shrink-0 cursor-pointer ${
+                          currentSceneIdx === sIdx
+                            ? 'bg-emerald-500 text-zinc-950 font-bold ring-2 ring-emerald-300'
+                            : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                        }`}
+                      >
+                        Cảnh #{scene.sceneNumber} ({scene.timeRange})
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Kịch bản chi tiết */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-2">
             <div className="lg:col-span-1 p-4 bg-zinc-50 border border-zinc-200 rounded-xl space-y-3 text-xs">
               <div>
                 <span className="font-bold text-zinc-700 uppercase tracking-wider text-[10px]">Câu Mở Đầu (Hook 3s):</span>
@@ -644,7 +1016,18 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
               </h3>
               <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
                 {clonedProject.newStoryboard.map((scene, sIdx) => (
-                  <div key={sIdx} className="p-3 bg-zinc-50 border border-zinc-200/90 rounded-xl text-xs space-y-1.5">
+                  <div
+                    key={sIdx}
+                    onClick={() => {
+                      setCurrentSceneIdx(sIdx);
+                      speakSceneText(scene.spokenText);
+                    }}
+                    className={`p-3 rounded-xl text-xs space-y-1.5 transition cursor-pointer border ${
+                      currentSceneIdx === sIdx
+                        ? 'bg-emerald-50/70 border-emerald-400 ring-1 ring-emerald-300'
+                        : 'bg-zinc-50 border-zinc-200/90 hover:bg-zinc-100/60'
+                    }`}
+                  >
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="font-bold text-zinc-900">Cảnh #{scene.sceneNumber} • {scene.timeRange}</span>
                       <span className="text-zinc-500 font-mono text-[10px]">{scene.cameraInstruction}</span>
@@ -653,7 +1036,10 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
                     <div className="p-2 bg-white border border-zinc-200 rounded-lg text-[10px] font-mono text-zinc-600 flex items-center justify-between">
                       <span className="truncate mr-2">Prompt: {scene.visualPrompt}</span>
                       <button
-                        onClick={() => copyPrompt(scene.visualPrompt, 100 + sIdx)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyPrompt(scene.visualPrompt, 100 + sIdx);
+                        }}
                         className="text-zinc-500 hover:text-zinc-900 cursor-pointer"
                         title="Copy Prompt"
                       >
