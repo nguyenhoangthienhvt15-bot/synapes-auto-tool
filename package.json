@@ -13,7 +13,7 @@
     "test": "npm run test:integrity",
     "lint:architecture": "depcruise src --config .dependency-cruiser.cjs",
     "test:e2e": "playwright test",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.4",
