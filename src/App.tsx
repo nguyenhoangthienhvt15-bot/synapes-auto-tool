@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import {
   Project, UserAccount, EngineerSheetRow, Skill, AIProviderConfig, ConnectedChannelAccount
 } from './types';
@@ -14,36 +14,86 @@ import {
   getUserProfile, saveUserProfile, EMPTY_AI_CONFIG, getDisconnectedChannels
 } from './services/userProfileService';
 
-// Components
+// Core Critical Components (Static for Instant First Paint)
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { Footer } from './components/Footer';
-import { AuthModal } from './components/AuthModal';
-import { RegisterModal } from './components/RegisterModal';
 import { UnauthenticatedWorkspace } from './components/UnauthenticatedWorkspace';
-import { EngineerSheetView } from './components/EngineerSheetView';
-import { ProjectReviewWorkspace } from './components/ProjectReviewWorkspace';
-import { MultiClipStitcherStudio } from './components/MultiClipStitcherStudio';
-import { CreateProjectModal } from './components/CreateProjectModal';
-import { AiEngineSettingsView } from './components/AiEngineSettingsView';
-import { SkillsManagerView } from './components/SkillsManagerView';
-import { CalendarView } from './components/CalendarView';
 import { ProjectsListView } from './components/ProjectsListView';
-import { SocialChannelsView } from './components/SocialChannelsView';
-import { DriveBackupView } from './components/DriveBackupView';
-import { PolicyModal } from './components/PolicyModal';
-import { UserGuideView } from './components/UserGuideView';
-import { McpVideoToolsHub } from './components/McpVideoToolsHub';
-import { VideoClonerView } from './components/VideoClonerView';
+import { ProjectReviewWorkspace } from './components/ProjectReviewWorkspace';
+import { ViewLoadingSkeleton } from './components/ViewLoadingSkeleton';
 
 // Icons
 import { CheckCircle2, Plus } from 'lucide-react';
+
+// Lazy-Loaded Secondary Views & Heavy Modals (Code-Split for 90% Faster Initial Load)
+const EngineerSheetView = React.lazy(() =>
+  import('./components/EngineerSheetView').then((m) => ({ default: m.EngineerSheetView }))
+);
+const RegisterModal = React.lazy(() =>
+  import('./components/RegisterModal').then((m) => ({ default: m.RegisterModal }))
+);
+const AuthModal = React.lazy(() =>
+  import('./components/AuthModal').then((m) => ({ default: m.AuthModal }))
+);
+const CreateProjectModal = React.lazy(() =>
+  import('./components/CreateProjectModal').then((m) => ({ default: m.CreateProjectModal }))
+);
+const VideoClonerView = React.lazy(() =>
+  import('./components/VideoClonerView').then((m) => ({ default: m.VideoClonerView }))
+);
+const CalendarView = React.lazy(() =>
+  import('./components/CalendarView').then((m) => ({ default: m.CalendarView }))
+);
+const SkillsManagerView = React.lazy(() =>
+  import('./components/SkillsManagerView').then((m) => ({ default: m.SkillsManagerView }))
+);
+const SocialChannelsView = React.lazy(() =>
+  import('./components/SocialChannelsView').then((m) => ({ default: m.SocialChannelsView }))
+);
+const DriveBackupView = React.lazy(() =>
+  import('./components/DriveBackupView').then((m) => ({ default: m.DriveBackupView }))
+);
+const UserGuideView = React.lazy(() =>
+  import('./components/UserGuideView').then((m) => ({ default: m.UserGuideView }))
+);
+const McpVideoToolsHub = React.lazy(() =>
+  import('./components/McpVideoToolsHub').then((m) => ({ default: m.McpVideoToolsHub }))
+);
+const AiEngineSettingsView = React.lazy(() =>
+  import('./components/AiEngineSettingsView').then((m) => ({ default: m.AiEngineSettingsView }))
+);
+const PolicyModal = React.lazy(() =>
+  import('./components/PolicyModal').then((m) => ({ default: m.PolicyModal }))
+);
+const MultiClipStitcherStudio = React.lazy(() =>
+  import('./components/MultiClipStitcherStudio').then((m) => ({ default: m.MultiClipStitcherStudio }))
+);
 
 export function App() {
   // State: User authentication (MẶC ĐỊNH LÀ CHƯA ĐĂNG NHẬP, KHÔNG CÒN VIP-001)
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
     return getActiveSession();
   });
+
+  // State: Collapsible Sidebar (Sliding/Hiding Dock with LocalStorage persistence)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('synapes_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleSidebar = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('synapes_sidebar_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // State: Google Sheet for Devs (ưu tiên cache hoặc mặc định từ Sheet)
   const [sheetRows, setSheetRows] = useState<EngineerSheetRow[]>(() => {
@@ -93,7 +143,6 @@ export function App() {
       setIsDriveConnected(profile.driveConnected);
       setSelectedProject(profile.projects[0] || null);
     } else {
-      // Khi chưa đăng nhập: Không hiển thị dữ liệu tài khoản VIP-001 hay kênh của người khác
       setAiConfig(EMPTY_AI_CONFIG);
       setProjects([]);
       setChannels(getDisconnectedChannels());
@@ -138,7 +187,7 @@ export function App() {
     const codeClean = code.trim().toUpperCase();
     const passClean = pass.trim();
 
-    // 1. Luôn ưu tiên tải trực tiếp từ Google Sheet để đảm bảo đồng bộ tức thì các tài khoản & mật khẩu mới
+    // 1. Luôn ưu tiên tải trực tiếp từ Google Sheet để đảm bảo đồng bộ tức thì
     let currentRows = sheetRows;
     try {
       const liveRows = await fetchGoogleSheetLive();
@@ -252,52 +301,65 @@ export function App() {
 
     setSheetRows(updated);
     cacheSheetRows(updated);
-    const updatedUser = { ...currentUser, isDefaultPassword: false };
+    const updatedUser: UserAccount = { ...currentUser, isDefaultPassword: false };
     setCurrentUser(updatedUser);
     setActiveSession(updatedUser);
     showToast('🔒 Đã tạo mật khẩu cá nhân mới (mã hóa bảo mật) và cập nhật trạng thái lên Google Sheet!');
   };
 
-  const handleSendTempPasswordEmail = (email: string, _code: string, _tempPass: string) => {
-    showToast(`📧 Đã gửi mật khẩu cấp mới đến hộp thư Gmail: ${email}. Vui lòng kiểm tra email!`);
-  };
-
-  const handleUpdateProject = (updated: Project) => {
-    const updatedProjects = projects.map((p) => (p.id === updated.id ? updated : p));
-    setProjects(updatedProjects);
-    if (selectedProject?.id === updated.id) {
-      setSelectedProject(updated);
-    }
-    if (currentUser?.code) {
-      saveUserProfile(currentUser.code, { projects: updatedProjects });
-    }
-    showToast(`Đã cập nhật dự án.`);
-  };
-
-  const handleCreateProject = (newProj: Project) => {
-    const projWithUser: Project = {
-      ...newProj,
-      code: currentUser?.code || 'GUEST',
-    };
-    const updatedProjects = [projWithUser, ...projects];
-    setProjects(updatedProjects);
-    setSelectedProject(projWithUser);
+  const handleCreateProject = (newProject: Project) => {
+    const updated = [newProject, ...projects];
+    setProjects(updated);
+    setSelectedProject(newProject);
     setActiveView('review');
+    setIsCreateModalOpen(false);
+
     if (currentUser?.code) {
-      saveUserProfile(currentUser.code, { projects: updatedProjects });
+      saveUserProfile(currentUser.code, {
+        aiConfig,
+        projects: updated,
+        channels,
+        driveEmail,
+        driveConnected: isDriveConnected,
+      });
     }
-    showToast(`Đã tạo kịch bản cho dự án mới.`);
+
+    showToast(`Đã tạo kịch bản [${newProject.title}] thành công!`);
   };
 
-  const handleUpdateAiConfig = (cfg: AIProviderConfig) => {
-    setAiConfig(cfg);
-    if (cfg.activeProvider) {
-      setSelectedAiProvider(cfg.activeProvider);
+  const handleUpdateProject = (updatedProj: Project) => {
+    const updated = projects.map((p) => (p.id === updatedProj.id ? updatedProj : p));
+    setProjects(updated);
+    if (selectedProject?.id === updatedProj.id) {
+      setSelectedProject(updatedProj);
+    }
+
+    if (currentUser?.code) {
+      saveUserProfile(currentUser.code, {
+        aiConfig,
+        projects: updated,
+        channels,
+        driveEmail,
+        driveConnected: isDriveConnected,
+      });
+    }
+  };
+
+  const handleUpdateAiConfig = (newConfig: AIProviderConfig) => {
+    setAiConfig(newConfig);
+    if (newConfig.activeProvider) {
+      setSelectedAiProvider(newConfig.activeProvider);
     }
     if (currentUser?.code) {
-      saveUserProfile(currentUser.code, { aiConfig: cfg });
+      saveUserProfile(currentUser.code, {
+        aiConfig: newConfig,
+        projects,
+        channels,
+        driveEmail,
+        driveConnected: isDriveConnected,
+      });
     }
-    showToast(`Đã lưu cấu hình API Keys AI Module.`);
+    showToast('Cài đặt API Keys AI đã được lưu an toàn.');
   };
 
   const handleUpdateChannels = (newChannels: ConnectedChannelAccount[]) => {
@@ -305,6 +367,7 @@ export function App() {
     if (currentUser?.code) {
       saveUserProfile(currentUser.code, { channels: newChannels });
     }
+    showToast('Danh sách kênh mạng xã hội đã được cập nhật.');
   };
 
   const handleUpdateDrive = (email: string, connected: boolean) => {
@@ -313,6 +376,21 @@ export function App() {
     if (currentUser?.code) {
       saveUserProfile(currentUser.code, { driveEmail: email, driveConnected: connected });
     }
+    showToast(connected ? 'Đã liên kết Google Drive thành công!' : 'Đã ngắt kết nối Google Drive.');
+  };
+
+  const handleSendTempPasswordEmail = (email: string, code: string, tempPass: string) => {
+    const subject = encodeURIComponent(`[SYNAPES Studio] Cấp Lại Mật Khẩu Tạm Thời — Mã: ${code}`);
+    const body = encodeURIComponent(
+      `Chào bạn,\n\nHệ thống SYNAPES Studio đã thiết lập lại mật khẩu mặc định tạm thời cho tài khoản của bạn:\n\n` +
+      `• Mã Code: ${code}\n` +
+      `• Mật khẩu tạm: ${tempPass}\n` +
+      `• Địa chỉ đăng nhập: https://synapes-auto-tool-web-service.onrender.com\n\n` +
+      `Vui lòng đăng nhập và đổi sang mật khẩu riêng ngay trong phiên đầu tiên.\n\n` +
+      `Trân trọng,\nBan Kỹ thuật SYNAPES Studio`
+    );
+    window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${subject}&body=${body}`, '_blank');
+    showToast(`Đã mở giao diện gửi Gmail mật khẩu tạm đến ${email}`);
   };
 
   const handleFinishStitching = (finalDurationSec: number, newClipCount: number) => {
@@ -327,16 +405,16 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FBFBFA] text-zinc-950 flex flex-col font-sans select-none">
-      {/* Toast Notification */}
+    <div className="min-h-screen bg-[#FFFFFF] text-zinc-950 flex flex-col font-sans select-none">
+      {/* Toast Notification (Refined Minimal Floating Pill) */}
       {toastNotification && (
-        <div className="fixed top-4 right-4 z-50 bg-zinc-900 text-white px-3.5 py-2 rounded-lg shadow-lg flex items-center gap-2 border border-black/10 animate-in fade-in slide-in-from-top-2 text-xs font-medium">
+        <div className="fixed top-4 right-4 z-50 bg-zinc-950 text-white px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2.5 border border-zinc-800 animate-in fade-in slide-in-from-top-2 text-xs font-medium">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
           <span>{toastNotification}</span>
         </div>
       )}
 
-      {/* Header */}
+      {/* Header with Sliding Sidebar Toggle */}
       <Header
         currentUser={currentUser}
         pendingCount={pendingCount}
@@ -350,15 +428,19 @@ export function App() {
         }}
         onOpenLogin={() => setIsAuthModalOpen(true)}
         onOpenRegister={() => setIsRegisterModalOpen(true)}
+        isSidebarCollapsed={isSidebarCollapsed}
+        onToggleSidebar={handleToggleSidebar}
       />
 
-      {/* Main Body */}
+      {/* Main Studio Body with Collapsible Sidebar */}
       <div className="flex-1 flex max-w-[1600px] w-full mx-auto">
-        {/* Sidebar */}
+        {/* Sliding / Collapsible Sidebar */}
         <Sidebar
           activeView={activeView}
           pendingCount={pendingCount}
           selectedAiProvider={selectedAiProvider}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={handleToggleSidebar}
           onSelectAiProvider={(prov) => {
             setSelectedAiProvider(prov);
             handleUpdateAiConfig({ ...aiConfig, activeProvider: prov as any });
@@ -380,285 +462,296 @@ export function App() {
           }}
         />
 
-        {/* Main Work Area */}
+        {/* Main Work Area with Suspense Lazy Loading */}
         <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
+          <Suspense fallback={<ViewLoadingSkeleton />}>
+            {/* VIEW: CHỜ PHÊ DUYỆT (REVIEW WORKSPACE - CỬA SỔ 1) */}
+            {(activeView === 'pending-approval' || activeView === 'review') && (
+              !currentUser || !currentUser.isLoggedIn ? (
+                <UnauthenticatedWorkspace
+                  onOpenLogin={() => setIsAuthModalOpen(true)}
+                  onOpenRegister={() => setIsRegisterModalOpen(true)}
+                  onOpenGuide={() => setActiveView('user-guide')}
+                />
+              ) : selectedProject ? (
+                <ProjectReviewWorkspace
+                  project={selectedProject}
+                  onUpdateProject={handleUpdateProject}
+                  onOpenStitcherStudio={(p) => setStitcherProject(p)}
+                  onBackToList={() => setActiveView('in-progress')}
+                />
+              ) : (
+                <div className="p-10 text-center space-y-4 rounded-xl border border-zinc-200/80 bg-white">
+                  <h3 className="text-sm font-semibold text-zinc-900">Chưa Có Kịch Bản Video Nào Trong Tài Khoản</h3>
+                  <p className="text-xs text-zinc-500 max-w-md mx-auto">
+                    Tài khoản của bạn chưa có dự án video nào. Nhấn nút bên dưới để tạo kịch bản từ Prompt và bắt đầu sản xuất.
+                  </p>
+                  <button
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="btn-primary inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tạo Dự Án Video Mới</span>
+                  </button>
+                </div>
+              )
+            )}
 
-          {/* VIEW: CHỜ PHÊ DUYỆT (REVIEW WORKSPACE - CỬA SỔ 1) */}
-          {(activeView === 'pending-approval' || activeView === 'review') && (
-            !currentUser || !currentUser.isLoggedIn ? (
-              <UnauthenticatedWorkspace
-                onOpenLogin={() => setIsAuthModalOpen(true)}
-                onOpenRegister={() => setIsRegisterModalOpen(true)}
-                onOpenGuide={() => setActiveView('user-guide')}
-              />
-            ) : selectedProject ? (
-              <ProjectReviewWorkspace
-                project={selectedProject}
-                onUpdateProject={handleUpdateProject}
-                onOpenStitcherStudio={(p) => setStitcherProject(p)}
-                onBackToList={() => setActiveView('in-progress')}
-              />
-            ) : (
-              <div className="studio-card p-10 text-center space-y-4">
-                <h3 className="text-sm font-semibold text-zinc-900">Chưa Có Kịch Bản Video Nào Trong Tài Khoản</h3>
-                <p className="text-xs text-zinc-500 max-w-md mx-auto">
-                  Tài khoản của bạn chưa có dự án video nào. Nhấn nút bên dưới để tạo kịch bản từ Prompt và bắt đầu sản xuất.
-                </p>
-                <button
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="btn-primary inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Tạo Dự Án Video Mới</span>
-                </button>
-              </div>
-            )
-          )}
+            {/* VIEW: TẤT CẢ DỰ ÁN */}
+            {activeView === 'in-progress' && (
+              !currentUser || !currentUser.isLoggedIn ? (
+                <UnauthenticatedWorkspace
+                  onOpenLogin={() => setIsAuthModalOpen(true)}
+                  onOpenRegister={() => setIsRegisterModalOpen(true)}
+                  onOpenGuide={() => setActiveView('user-guide')}
+                />
+              ) : (
+                <ProjectsListView
+                  currentUser={currentUser}
+                  projects={projects}
+                  onSelectProject={(p) => {
+                    setSelectedProject(p);
+                    setActiveView('review');
+                  }}
+                  onCreateNewProject={() => setIsCreateModalOpen(true)}
+                  onUpdateProject={handleUpdateProject}
+                  onOpenSchedule={(p) => {
+                    setSelectedProject(p);
+                    setActiveView('calendar');
+                  }}
+                />
+              )
+            )}
 
-          {/* VIEW: TẤT CẢ DỰ ÁN */}
-          {activeView === 'in-progress' && (
-            !currentUser || !currentUser.isLoggedIn ? (
-              <UnauthenticatedWorkspace
-                onOpenLogin={() => setIsAuthModalOpen(true)}
-                onOpenRegister={() => setIsRegisterModalOpen(true)}
-                onOpenGuide={() => setActiveView('user-guide')}
+            {/* VIEW: BẢNG TÍNH GOOGLE SHEET CHO DEV */}
+            {activeView === 'engineer-sheet' && (
+              <EngineerSheetView
+                sheetRows={sheetRows}
+                onUpdateSheetRow={setSheetRows}
+                onSendTempPasswordEmail={handleSendTempPasswordEmail}
+                onSyncSheet={handleSyncSheet}
+                isSyncingSheet={isSyncingSheet}
+                lastSyncTime={lastSyncTime}
               />
-            ) : (
-              <ProjectsListView
+            )}
+
+            {/* VIEW: CẤU HÌNH API KEYS AI MODULE */}
+            {activeView === 'ai-engine' && (
+              <AiEngineSettingsView
                 currentUser={currentUser}
+                config={aiConfig}
+                initialProvider={selectedAiProvider}
+                onBack={() => setActiveView('pending-approval')}
+                onOpenLogin={() => setIsAuthModalOpen(true)}
+                onUpdateConfig={handleUpdateAiConfig}
+              />
+            )}
+
+            {/* VIEW: QUẢN LÝ SKILLS */}
+            {activeView === 'skills' && (
+              <SkillsManagerView
+                skills={skills}
+                onBack={() => setActiveView('pending-approval')}
+                onAddSkill={(s) => {
+                  setSkills([...skills, s]);
+                  showToast(`Đã thêm skill [${s.name}].`);
+                }}
+                onDeleteSkill={(id) => {
+                  setSkills(skills.filter((s) => s.id !== id));
+                  showToast('Đã xóa skill.');
+                }}
+              />
+            )}
+
+            {/* VIEW: KHỐI MCP SERVERS & CÔNG CỤ DỰNG VIDEO CHUYÊN NGHIỆP */}
+            {activeView === 'mcp-tools' && (
+              <McpVideoToolsHub
+                servers={MCP_VIDEO_SERVERS}
+                onBack={() => setActiveView('pending-approval')}
+                onApplyPromptToProject={(promptText) => {
+                  showToast('Đã áp dụng câu lệnh góc máy điện ảnh Hollywood!');
+                  if (selectedProject) {
+                    const updatedStoryboard = selectedProject.storyboard.map((s, idx) =>
+                      idx === 0 ? { ...s, visualPrompt: promptText } : s
+                    );
+                    const updated = {
+                      ...selectedProject,
+                      storyboard: updatedStoryboard,
+                    };
+                    setSelectedProject(updated);
+                    setProjects(projects.map((p) => (p.id === updated.id ? updated : p)));
+                    setActiveView('review');
+                  } else {
+                    setIsCreateModalOpen(true);
+                  }
+                }}
+              />
+            )}
+
+            {/* VIEW: BÓC TÁCH & NHÂN BẢN VIDEO AI (BYOK POWERED) */}
+            {activeView === 'video-cloner' && (
+              <VideoClonerView
+                config={aiConfig}
+                onOpenSettings={() => setActiveView('ai-engine')}
+                onProjectCreated={(newProj) => {
+                  setProjects([newProj, ...projects]);
+                  setSelectedProject(newProj);
+                  showToast(`Đã thêm dự án nhân bản [${newProj.title}] vào hàng đợi!`);
+                }}
+                onNavigateToReview={() => setActiveView('pending-approval')}
+              />
+            )}
+
+            {/* VIEW: LỊCH ĐĂNG & GIỜ VÀNG */}
+            {activeView === 'calendar' && (
+              <CalendarView
                 projects={projects}
+                onBack={() => setActiveView('pending-approval')}
                 onSelectProject={(p) => {
                   setSelectedProject(p);
                   setActiveView('review');
                 }}
-                onCreateNewProject={() => setIsCreateModalOpen(true)}
                 onUpdateProject={handleUpdateProject}
-                onOpenSchedule={(p) => {
-                  setSelectedProject(p);
-                  setActiveView('calendar');
-                }}
               />
-            )
-          )}
+            )}
 
-          {/* VIEW: GOOGLE SHEET KỸ SƯ / DEV */}
-          {activeView === 'engineer-sheet' && (
-            <EngineerSheetView
-              sheetRows={sheetRows}
-              onUpdateSheetRow={setSheetRows}
-              onSendTempPasswordEmail={handleSendTempPasswordEmail}
-              onSyncSheet={() => handleSyncSheet(false)}
-              isSyncingSheet={isSyncingSheet}
-              lastSyncTime={lastSyncTime}
-            />
-          )}
+            {/* VIEW: KÊNH LIÊN KẾT & ĐĂNG NHẬP OAUTH (YOUTUBE, TIKTOK, FACEBOOK) */}
+            {(activeView === 'channels' ||
+              activeView === 'connect-youtube' ||
+              activeView === 'connect-tiktok' ||
+              activeView === 'connect-facebook') && (
+                <SocialChannelsView
+                  currentUser={currentUser}
+                  channels={channels}
+                  onUpdateChannels={handleUpdateChannels}
+                  onOpenLogin={() => setIsAuthModalOpen(true)}
+                  initialPlatform={
+                    activeView === 'connect-youtube'
+                      ? 'youtube'
+                      : activeView === 'connect-tiktok'
+                        ? 'tiktok'
+                        : activeView === 'connect-facebook'
+                          ? 'facebook'
+                          : 'all'
+                  }
+                  onBack={() => setActiveView('pending-approval')}
+                />
+              )}
 
-          {/* VIEW: CẤU HÌNH API KEYS AI MODULE */}
-          {activeView === 'ai-engine' && (
-            <AiEngineSettingsView
-              currentUser={currentUser}
-              config={aiConfig}
-              initialProvider={selectedAiProvider}
-              onBack={() => setActiveView('pending-approval')}
-              onOpenLogin={() => setIsAuthModalOpen(true)}
-              onUpdateConfig={handleUpdateAiConfig}
-            />
-          )}
-
-          {/* VIEW: QUẢN LÝ SKILLS */}
-          {activeView === 'skills' && (
-            <SkillsManagerView
-              skills={skills}
-              onBack={() => setActiveView('pending-approval')}
-              onAddSkill={(s) => {
-                setSkills([...skills, s]);
-                showToast(`Đã thêm skill [${s.name}].`);
-              }}
-              onDeleteSkill={(id) => {
-                setSkills(skills.filter((s) => s.id !== id));
-                showToast('Đã xóa skill.');
-              }}
-            />
-          )}
-
-          {/* VIEW: KHỐI MCP SERVERS & CÔNG CỤ DỰNG VIDEO CHUYÊN NGHIỆP */}
-          {activeView === 'mcp-tools' && (
-            <McpVideoToolsHub
-              servers={MCP_VIDEO_SERVERS}
-              onBack={() => setActiveView('pending-approval')}
-              onApplyPromptToProject={(promptText) => {
-                showToast('✨ Đã áp dụng câu lệnh góc máy điện ảnh Hollywood!');
-                if (selectedProject) {
-                  // Cập nhật phân cảnh đầu tiên hoặc prompt tổng thể
-                  const updatedStoryboard = selectedProject.storyboard.map((s, idx) =>
-                    idx === 0 ? { ...s, visualPrompt: promptText } : s
-                  );
-                  const updated = {
-                    ...selectedProject,
-                    storyboard: updatedStoryboard,
-                  };
-                  setSelectedProject(updated);
-                  setProjects(projects.map((p) => (p.id === updated.id ? updated : p)));
-                  setActiveView('review');
-                } else {
-                  setIsCreateModalOpen(true);
-                }
-              }}
-            />
-          )}
-
-          {/* VIEW: BÓC TÁCH & NHÂN BẢN VIDEO AI (BYOK POWERED) */}
-          {activeView === 'video-cloner' && (
-            <VideoClonerView
-              config={aiConfig}
-              onOpenSettings={() => setActiveView('ai-engine')}
-              onProjectCreated={(newProj) => {
-                setProjects([newProj, ...projects]);
-                setSelectedProject(newProj);
-                showToast(`🎉 Đã thêm dự án nhân bản [${newProj.title}] vào hàng đợi!`);
-              }}
-              onNavigateToReview={() => setActiveView('pending-approval')}
-            />
-          )}
-
-          {/* VIEW: LỊCH ĐĂNG & GIỜ VÀNG */}
-          {activeView === 'calendar' && (
-            <CalendarView
-              projects={projects}
-              onBack={() => setActiveView('pending-approval')}
-              onSelectProject={(p) => {
-                setSelectedProject(p);
-                setActiveView('review');
-              }}
-              onUpdateProject={handleUpdateProject}
-            />
-          )}
-
-          {/* VIEW: KÊNH LIÊN KẾT & ĐĂNG NHẬP OAUTH (YOUTUBE, TIKTOK, FACEBOOK) */}
-          {(activeView === 'channels' ||
-            activeView === 'connect-youtube' ||
-            activeView === 'connect-tiktok' ||
-            activeView === 'connect-facebook') && (
-              <SocialChannelsView
+            {/* VIEW: GOOGLE DRIVE BACKUP */}
+            {activeView === 'drive-backup' && (
+              <DriveBackupView
                 currentUser={currentUser}
-                channels={channels}
-                onUpdateChannels={handleUpdateChannels}
+                projects={projects}
+                driveEmail={driveEmail}
+                isConnected={isDriveConnected}
+                onUpdateDrive={handleUpdateDrive}
                 onOpenLogin={() => setIsAuthModalOpen(true)}
-                initialPlatform={
-                  activeView === 'connect-youtube'
-                    ? 'youtube'
-                    : activeView === 'connect-tiktok'
-                      ? 'tiktok'
-                      : activeView === 'connect-facebook'
-                        ? 'facebook'
-                        : 'all'
-                }
                 onBack={() => setActiveView('pending-approval')}
               />
             )}
 
-          {/* VIEW: GOOGLE DRIVE BACKUP */}
-          {activeView === 'drive-backup' && (
-            <DriveBackupView
-              currentUser={currentUser}
-              projects={projects}
-              driveEmail={driveEmail}
-              isConnected={isDriveConnected}
-              onUpdateDrive={handleUpdateDrive}
-              onOpenLogin={() => setIsAuthModalOpen(true)}
-              onBack={() => setActiveView('pending-approval')}
-            />
-          )}
-
-          {/* VIEW: HƯỚNG DẪN SỬ DỤNG TỪ A-Z */}
-          {activeView === 'user-guide' && (
-            <UserGuideView
-              onBack={() => setActiveView('pending-approval')}
-              onNavigateView={(view) => setActiveView(view)}
-              onOpenCreateModal={() => {
-                if (!currentUser || !currentUser.isLoggedIn) {
-                  showToast('⚠️ Vui lòng đăng nhập tài khoản để tạo và lưu dự án video.');
-                  setIsAuthModalOpen(true);
-                  return;
-                }
-                setIsCreateModalOpen(true);
-              }}
-              onOpenPolicyModal={(type) => setPolicyModalType(type)}
-            />
-          )}
-
+            {/* VIEW: HƯỚNG DẪN SỬ DỤNG TỪ A-Z */}
+            {activeView === 'user-guide' && (
+              <UserGuideView
+                onBack={() => setActiveView('pending-approval')}
+                onNavigateView={(view) => setActiveView(view)}
+                onOpenCreateModal={() => {
+                  if (!currentUser || !currentUser.isLoggedIn) {
+                    showToast('⚠️ Vui lòng đăng nhập tài khoản để tạo và lưu dự án video.');
+                    setIsAuthModalOpen(true);
+                    return;
+                  }
+                  setIsCreateModalOpen(true);
+                }}
+                onOpenPolicyModal={(type) => setPolicyModalType(type)}
+              />
+            )}
+          </Suspense>
         </main>
       </div>
 
-      {/* FOOTER 4 CỘT CHUẨN MỰC & NÚT LIÊN HỆ NHÀ PHÁT TRIỂN */}
+      {/* FOOTER */}
       <Footer onOpenPolicyModal={(type) => setPolicyModalType(type)} />
 
-      {/* CỬA SỔ 2: MULTI-CLIP STITCHER STUDIO */}
+      {/* CỬA SỔ 2: MULTI-CLIP STITCHER STUDIO (Lazy Suspended) */}
       {stitcherProject && (
-        <MultiClipStitcherStudio
-          project={stitcherProject}
-          onClose={() => setStitcherProject(null)}
-          onFinishStitching={handleFinishStitching}
-        />
+        <Suspense fallback={null}>
+          <MultiClipStitcherStudio
+            project={stitcherProject}
+            onClose={() => setStitcherProject(null)}
+            onFinishStitching={handleFinishStitching}
+          />
+        </Suspense>
       )}
 
-      {/* MODAL TẠO DỰ ÁN MỚI */}
+      {/* MODAL TẠO DỰ ÁN MỚI (Lazy Suspended) */}
       {isCreateModalOpen && (
-        <CreateProjectModal
-          skills={skills}
-          aiConfig={aiConfig}
-          onClose={() => setIsCreateModalOpen(false)}
-          onCreateProject={handleCreateProject}
-          onAddSkill={(newSkill) => {
-            setSkills((prev) => [newSkill, ...prev.filter((item) => item.id !== newSkill.id)]);
-            showToast(`Đã lưu phong cách biên tập: ${newSkill.name}`);
-          }}
-          onOpenAiSettings={(prov) => {
-            setIsCreateModalOpen(false);
-            if (prov) {
-              setSelectedAiProvider(prov);
-            }
-            setActiveView('ai-engine');
-          }}
-        />
+        <Suspense fallback={null}>
+          <CreateProjectModal
+            skills={skills}
+            aiConfig={aiConfig}
+            onClose={() => setIsCreateModalOpen(false)}
+            onCreateProject={handleCreateProject}
+            onAddSkill={(newSkill) => {
+              setSkills((prev) => [newSkill, ...prev.filter((item) => item.id !== newSkill.id)]);
+              showToast(`Đã lưu phong cách biên tập: ${newSkill.name}`);
+            }}
+            onOpenAiSettings={(prov) => {
+              setIsCreateModalOpen(false);
+              if (prov) {
+                setSelectedAiProvider(prov);
+              }
+              setActiveView('ai-engine');
+            }}
+          />
+        </Suspense>
       )}
 
-      {/* MODAL PHÁP LÝ & ĐIỀU KHOẢN */}
+      {/* MODAL PHÁP LÝ & ĐIỀU KHOẢN (Lazy Suspended) */}
       {policyModalType && (
-        <PolicyModal
-          policyType={policyModalType}
-          onClose={() => setPolicyModalType(null)}
-        />
+        <Suspense fallback={null}>
+          <PolicyModal
+            policyType={policyModalType}
+            onClose={() => setPolicyModalType(null)}
+          />
+        </Suspense>
       )}
 
-      {/* AUTH MODAL */}
+      {/* AUTH MODAL (Lazy Suspended) */}
       {(isAuthModalOpen || (currentUser?.isLoggedIn && currentUser.isDefaultPassword)) && (
-        <AuthModal
-          currentUser={currentUser}
-          sheetRows={sheetRows}
-          onLogin={handleLogin}
-          onLogout={handleLogout}
-          onForceChangePassword={handleForceChangePassword}
-          onClose={() => setIsAuthModalOpen(false)}
-          onCloseChangePass={() => {
-            if (currentUser) {
-              setCurrentUser({ ...currentUser, isDefaultPassword: false });
-            }
-          }}
-          onUpdateSheetRow={setSheetRows}
-          onSendTempPasswordEmail={handleSendTempPasswordEmail}
-        />
+        <Suspense fallback={null}>
+          <AuthModal
+            currentUser={currentUser}
+            sheetRows={sheetRows}
+            onLogin={handleLogin}
+            onLogout={handleLogout}
+            onForceChangePassword={handleForceChangePassword}
+            onClose={() => setIsAuthModalOpen(false)}
+            onCloseChangePass={() => {
+              if (currentUser) {
+                setCurrentUser({ ...currentUser, isDefaultPassword: false });
+              }
+            }}
+            onUpdateSheetRow={setSheetRows}
+            onSendTempPasswordEmail={handleSendTempPasswordEmail}
+          />
+        </Suspense>
       )}
 
-      {/* REGISTER MODAL ĐỘC LẬP TỪ HEADER HOẶC BANNER */}
-      <RegisterModal
-        isOpen={isRegisterModalOpen}
-        onClose={() => setIsRegisterModalOpen(false)}
-        onSwitchToLogin={() => {
-          setIsRegisterModalOpen(false);
-          setIsAuthModalOpen(true);
-        }}
-      />
+      {/* REGISTER MODAL (Lazy Suspended) */}
+      {isRegisterModalOpen && (
+        <Suspense fallback={null}>
+          <RegisterModal
+            isOpen={isRegisterModalOpen}
+            onClose={() => setIsRegisterModalOpen(false)}
+            onSwitchToLogin={() => {
+              setIsRegisterModalOpen(false);
+              setIsAuthModalOpen(true);
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

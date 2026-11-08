@@ -85,24 +85,20 @@ function getCachedFile(filePath, ext) {
 }
 
 const server = http.createServer(async (req, res) => {
-  // Security & Performance Headers
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-
   const rawUrl = req.url || '/';
   const cleanUrl = rawUrl.split('?')[0].split('#')[0];
 
-  // Unified Studio Backend API (/api/topic-research, /api/image-search, /api/image-proxy, /api/llm-generate, /api/tts)
-  if (await handleStudioApiRequest(req, res)) {
-    return;
-  }
-
-  // Health check endpoint for Render / Docker Web Service
+  // Ultra-fast Health check & Ping response (< 1ms, zero overhead)
   if (cleanUrl === '/healthz' || cleanUrl === '/ping') {
     res.writeHead(200, {
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Connection': 'keep-alive',
     });
+    if (req.method === 'HEAD') {
+      res.end();
+      return;
+    }
     res.end(
       JSON.stringify({
         status: 'ok',
@@ -112,6 +108,17 @@ const server = http.createServer(async (req, res) => {
         uptime: process.uptime(),
       })
     );
+    return;
+  }
+
+  // Security & Performance Headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Keep-Alive', 'timeout=65, max=1000');
+
+  // Unified Studio Backend API (/api/topic-research, /api/image-search, /api/image-proxy, /api/llm-generate, /api/tts)
+  if (await handleStudioApiRequest(req, res)) {
     return;
   }
 

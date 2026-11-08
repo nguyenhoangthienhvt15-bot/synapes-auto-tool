@@ -36,7 +36,7 @@ const gasCode = `/**
  * HỆ THỐNG ĐỒNG BỘ GOOGLE SHEET & WEBAPP — SYNAPES STUDIO
  * Tác giả: Kỹ sư Nguyễn Hoàng Thiện (nguyenhoangthien.hvt.15@gmail.com)
  * Chức vụ: Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo
- * WebApp URL: https://synapes-auto-tool.onrender.com
+ * WebApp URL: https://synapes-auto-tool-web-service.onrender.com
  * Google Sheet ID: 1E9zec8lX52-ofleS0MG-oRSc8k_hK9aBtC1XBaqNafY
  * ==============================================================================
  */
@@ -2025,12 +2025,19 @@ function recordEmergencyReportToSheetAndDrive(ss, payload) {
 }
 
 function runCloudKeepAliveAndBackgroundCron() {
-  try {
-    var renderUrl = "https://synapes-auto-tool.onrender.com";
-    var response = UrlFetchApp.fetch(renderUrl, { muteHttpExceptions: true });
-    Logger.log("Keep-alive render status: " + response.getResponseCode());
-  } catch (e) {
-    Logger.log("runCloudKeepAliveAndBackgroundCron render ping error: " + e);
+  var endpoints = [
+    "https://synapes-auto-tool-web-service.onrender.com/ping",
+    "https://synapes-auto-tool-web-service.onrender.com/healthz",
+    "https://synapes-auto-tool.onrender.com/ping"
+  ];
+
+  for (var i = 0; i < endpoints.length; i++) {
+    try {
+      var response = UrlFetchApp.fetch(endpoints[i], { muteHttpExceptions: true, validateHttpsCertificates: false });
+      Logger.log("Keep-alive ping " + endpoints[i] + " -> Status: " + response.getResponseCode());
+    } catch (e) {
+      Logger.log("runCloudKeepAliveAndBackgroundCron ping error (" + endpoints[i] + "): " + e);
+    }
   }
 
   try {
@@ -2085,3 +2092,4 @@ fs.writeFileSync(appsScriptTsPath, tsContent, 'utf8');
 console.log('✅ Đã cập nhật file: ' + appsScriptTsPath);
 
 console.log('\n🎉 ĐỒNG BỘ MÃ NGUỒN APPS SCRIPT HOÀN TẤT THÀNH CÔNG!');
+
