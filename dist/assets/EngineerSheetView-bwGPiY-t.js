@@ -1,4 +1,4 @@
-import{r as e}from"./rolldown-runtime-XKyaHtl9.js";import{A as t,C as n,D as r,Et as i,N as a,Pt as o,St as s,bt as c,h as l,ht as u,jt as d,kt as f,m as p,mt as m,n as h,nn as g,ot as _,q as v,s as y,zt as b}from"./vendor-icons-BOWZ4hP0.js";import{S as ee,b as x,m as te,p as ne,x as S}from"./index-CyYVsHky.js";import{n as re,t as C}from"./contract-assets-CDXfbgGP.js";import{n as w,t as T}from"./vendor-pdf-Cy8OYPQZ.js";import{t as E}from"./vendor-react-Bila-2eQ.js";var D=e(g(),1),O=e(w(),1);function k(e){let t=new Date,n=t.getDate().toString().padStart(2,`0`),r=(t.getMonth()+1).toString().padStart(2,`0`),i=t.getFullYear(),a=`${n}/${r}/${i}`,o=e.fullName||`Khách hàng SYNAPES`,s=e.idCardNumber||`Chưa cung cấp`,c=e.dob||`Không cung cấp`,l=e.gender||`Không cung cấp`,u=e.phone||`Không cung cấp`,d=e.email||`Không cung cấp`,f=e.address||`Không cung cấp`,p=e.contractPackage||(e.contractCategory===`enterprise`?`enterprise_deposit`:`personal_deposit`),m=e.contractCategory===`enterprise`||p.startsWith(`enterprise`),h=p.includes(`deposit`)||e.depositAmount!==void 0&&e.totalAmount!==void 0&&e.depositAmount<e.totalAmount,g=e.depositAmount||(m?25e5:125e4),_=e.totalAmount||(m?549e4:255e4),v=e.originalAmount||(m?625e4:325e4),y=e.deliveryDays||(m?7:5),b=e=>e.toLocaleString(`vi-VN`)+` VNĐ`;return`
+import{r as e}from"./rolldown-runtime-XKyaHtl9.js";import{A as t,C as n,D as r,Et as i,N as a,Pt as o,St as s,bt as c,h as l,ht as u,jt as d,kt as f,m as p,mt as m,n as h,nn as g,ot as _,q as v,s as y,zt as b}from"./vendor-icons-BOWZ4hP0.js";import{S as ee,b as x,m as te,p as ne,x as S}from"./index-DKWs8cr4.js";import{n as re,t as C}from"./contract-assets-7aMA8WD3.js";import{n as w,t as T}from"./vendor-pdf-Cy8OYPQZ.js";import{t as E}from"./vendor-react-Bila-2eQ.js";var D=e(g(),1),O=e(w(),1);function k(e){let t=new Date,n=t.getDate().toString().padStart(2,`0`),r=(t.getMonth()+1).toString().padStart(2,`0`),i=t.getFullYear(),a=`${n}/${r}/${i}`,o=e.fullName||`Khách hàng SYNAPES`,s=e.idCardNumber||`Chưa cung cấp`,c=e.dob||`Không cung cấp`,l=e.gender||`Không cung cấp`,u=e.phone||`Không cung cấp`,d=e.email||`Không cung cấp`,f=e.address||`Không cung cấp`,p=e.contractPackage||(e.contractCategory===`enterprise`?`enterprise_deposit`:`personal_deposit`),m=e.contractCategory===`enterprise`||p.startsWith(`enterprise`),h=p.includes(`deposit`)||e.depositAmount!==void 0&&e.totalAmount!==void 0&&e.depositAmount<e.totalAmount,g=e.depositAmount||(m?25e5:125e4),_=e.totalAmount||(m?549e4:255e4),v=e.originalAmount||(m?625e4:325e4),y=e.deliveryDays||(m?7:5),b=e=>e.toLocaleString(`vi-VN`)+` VNĐ`;return`
     <div id="pdf-contract-wrapper" style="width: 794px; background-color: #ffffff; color: #111827; font-family: 'Times New Roman', Times, serif; margin: 0; padding: 0;">
       <style>
         #pdf-contract-wrapper * {
@@ -957,21 +957,22 @@ function syncPendingFormBridgeResponses() {
       var itemResponses = responses[i].getItemResponses();
       var payload = {};
       for (var j = 0; j < itemResponses.length; j++) {
-        var title = itemResponses[j].getItem().getTitle();
+        var rawTitle = itemResponses[j].getItem().getTitle() || "";
+        var title = rawTitle.toLowerCase();
         var val = itemResponses[j].getResponse();
-        if (title.indexOf("Họ và tên") !== -1) payload.fullName = val;
-        else if (title.indexOf("CCCD") !== -1) payload.idCardNumber = val;
-        else if (title.indexOf("Ngày sinh") !== -1) payload.dob = val;
-        else if (title.indexOf("Giới tính") !== -1) payload.gender = val;
-        else if (title.indexOf("Gmail") !== -1) payload.email = val;
-        else if (title.indexOf("Số điện thoại") !== -1) payload.phone = val;
-        else if (title.indexOf("Địa chỉ") !== -1) payload.address = val;
-        else if (title.indexOf("Loại Hợp Đồng") !== -1) payload.contractCategory = val;
-        else if (title.indexOf("Gói Ký Kết") !== -1) payload.contractPackageName = val;
-        else if (title.indexOf("Tiền Đặt Cọc") !== -1) payload.depositAmount = val;
-        else if (title.indexOf("Tổng Giá Trị") !== -1) payload.totalAmount = val;
-        else if (title.indexOf("Hạn Bàn Giao") !== -1) payload.deliveryDays = val;
-        else if (title.indexOf("Ghi Chú") !== -1) payload.notes = val;
+        if (title.indexOf("họ và tên") !== -1 || title.indexOf("họ tên") !== -1 || title.indexOf("người dùng") !== -1) payload.fullName = val;
+        else if (title.indexOf("cccd") !== -1 || title.indexOf("cmnd") !== -1 || title.indexOf("căn cước") !== -1) payload.idCardNumber = val;
+        else if (title.indexOf("sinh") !== -1 || title.indexOf("năm sinh") !== -1) payload.dob = val;
+        else if (title.indexOf("giới tính") !== -1) payload.gender = val;
+        else if (title.indexOf("gmail") !== -1 || title.indexOf("email") !== -1) payload.email = val;
+        else if (title.indexOf("điện thoại") !== -1 || title.indexOf("sđt") !== -1 || title.indexOf("phone") !== -1) payload.phone = val;
+        else if (title.indexOf("địa chỉ") !== -1) payload.address = val;
+        else if (title.indexOf("phân hệ") !== -1 || title.indexOf("loại hợp đồng") !== -1) payload.contractCategory = val;
+        else if (title.indexOf("gói") !== -1) payload.contractPackageName = val;
+        else if (title.indexOf("đặt cọc") !== -1 || title.indexOf("tiền cọc") !== -1) payload.depositAmount = val;
+        else if (title.indexOf("giá trị") !== -1 || title.indexOf("tổng") !== -1) payload.totalAmount = val;
+        else if (title.indexOf("bàn giao") !== -1 || title.indexOf("thời gian") !== -1) payload.deliveryDays = val;
+        else if (title.indexOf("ghi chú") !== -1 || title.indexOf("yêu cầu") !== -1) payload.notes = val;
       }
       if (payload.fullName && payload.email) {
         handleUserRegistrationWebhook(ss, payload);
@@ -2296,31 +2297,36 @@ function handleUserRegistrationWebhook(ss, payload) {
   var dobStr = dobParsed.formattedDob || String(payload.dob || "").trim();
   if (dobStr) dobStr = "'" + dobStr;
 
-  var categoryStr = payload.contractCategory === "enterprise"
+  var categoryStr = (payload.contractCategory === "enterprise" || String(payload.contractCategory || "").indexOf("toàn hệ") !== -1)
     ? "Hợp đồng toàn hệ"
     : "Hợp đồng cá nhân hóa";
 
-  var packageStr = payload.contractPackageName || (payload.contractCategory === "enterprise" ? "Hợp đồng toàn hệ" : "Hợp đồng cá nhân hóa");
+  var packageStr = payload.contractPackageName || (categoryStr === "Hợp đồng toàn hệ" ? "Ký đặt cọc phân bổ" : "Ký đặt cọc dự án cá nhân");
 
   var depositVal = parseFloat(String(payload.depositAmount || "").replace(/[^0-9]/g, "")) || 0;
   var totalVal = parseFloat(String(payload.totalAmount || "").replace(/[^0-9]/g, "")) || 0;
   var daysVal = parseInt(String(payload.deliveryDays || "").replace(/[^0-9]/g, "")) || 0;
 
-  var pkgLower = packageStr.toLowerCase();
-  if (depositVal === 0) {
-    if (pkgLower.indexOf("cọc dự án cá nhân") !== -1 || pkgLower.indexOf("coc du an ca nhan") !== -1) {
-      depositVal = 1250000;
-      totalVal = 2550000;
-      daysVal = daysVal || 5;
-    } else if (pkgLower.indexOf("cọc phân bổ") !== -1 || pkgLower.indexOf("coc phan bo") !== -1) {
-      depositVal = 2500000;
-      totalVal = 5490000;
-      daysVal = daysVal || 5;
-    } else if (pkgLower.indexOf("toàn hệ") !== -1 || pkgLower.indexOf("toan he") !== -1) {
-      totalVal = totalVal || 5490000;
+  var pkgLower = (packageStr + " " + categoryStr).toLowerCase();
+  var isDepositContract = pkgLower.indexOf("cọc") !== -1 || pkgLower.indexOf("coc") !== -1 || depositVal > 0;
+
+  if (isDepositContract) {
+    if (pkgLower.indexOf("toàn hệ") !== -1 || pkgLower.indexOf("toan he") !== -1 || pkgLower.indexOf("phân bổ") !== -1 || pkgLower.indexOf("phan bo") !== -1) {
+      if (depositVal === 0) depositVal = 2500000;
+      if (totalVal === 0) totalVal = 5490000;
     } else {
-      totalVal = totalVal || 2550000;
+      if (depositVal === 0) depositVal = 1250000;
+      if (totalVal === 0) totalVal = 2550000;
     }
+    daysVal = daysVal || 5;
+  } else {
+    depositVal = 0;
+    if (pkgLower.indexOf("toàn hệ") !== -1 || pkgLower.indexOf("toan he") !== -1) {
+      if (totalVal === 0) totalVal = 5490000;
+    } else {
+      if (totalVal === 0) totalVal = 2550000;
+    }
+    daysVal = 0;
   }
 
   var depositStr = depositVal > 0 ? (depositVal.toLocaleString("vi-VN") + " VNĐ") : "0 VNĐ";
