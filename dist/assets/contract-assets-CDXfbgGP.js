@@ -1865,13 +1865,29 @@ function handleUserRegistrationWebhook(ss, payload) {
 
   var packageStr = payload.contractPackageName || (payload.contractCategory === "enterprise" ? "Hợp đồng toàn hệ" : "Hợp đồng cá nhân hóa");
 
-  var depositVal = Number(payload.depositAmount) || 0;
+  var depositVal = parseFloat(String(payload.depositAmount || "").replace(/[^0-9]/g, "")) || 0;
+  var totalVal = parseFloat(String(payload.totalAmount || "").replace(/[^0-9]/g, "")) || 0;
+  var daysVal = parseInt(String(payload.deliveryDays || "").replace(/[^0-9]/g, "")) || 0;
+
+  var pkgLower = packageStr.toLowerCase();
+  if (depositVal === 0) {
+    if (pkgLower.indexOf("cọc dự án cá nhân") !== -1 || pkgLower.indexOf("coc du an ca nhan") !== -1) {
+      depositVal = 1250000;
+      totalVal = 2550000;
+      daysVal = daysVal || 5;
+    } else if (pkgLower.indexOf("cọc phân bổ") !== -1 || pkgLower.indexOf("coc phan bo") !== -1) {
+      depositVal = 2500000;
+      totalVal = 5490000;
+      daysVal = daysVal || 5;
+    } else if (pkgLower.indexOf("toàn hệ") !== -1 || pkgLower.indexOf("toan he") !== -1) {
+      totalVal = totalVal || 5490000;
+    } else {
+      totalVal = totalVal || 2550000;
+    }
+  }
+
   var depositStr = depositVal > 0 ? (depositVal.toLocaleString("vi-VN") + " VNĐ") : "0 VNĐ";
-
-  var totalVal = Number(payload.totalAmount) || 0;
   var totalStr = totalVal > 0 ? (totalVal.toLocaleString("vi-VN") + " VNĐ") : "0 VNĐ";
-
-  var daysVal = Number(payload.deliveryDays) || 0;
   var deliveryStr = daysVal > 0 ? (daysVal + " ngày") : (depositVal > 0 ? "5 ngày" : "Bàn giao ngay");
 
   var contractNote = payload.notes || (isSigned
