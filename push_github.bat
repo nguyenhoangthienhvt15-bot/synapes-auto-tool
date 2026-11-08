@@ -27,12 +27,17 @@ echo DA DAY MA NGUON LEN GITHUB THANH CONG!
 echo.
 echo Buoc 3: Deploy len Render (hoan toan mien phi):
 echo   1. Truy cap https://dashboard.render.com
-echo   2. Bam nut "New +" o goc phai -> Chon "Static Site"
-echo   3. Chon repository vua day len
-echo   4. Render se tu dong nhan file render.yaml:
+echo   2. Bam nut "New +" o goc phai -> Chon "Web Service" (hoac "Blueprint" de tu doc render.yaml)
+echo   3. Chon repository vua day len (Connect repository)
+echo   4. Thiet lap thong so Web Service:
+echo      - Name: synapes-auto-tool
+echo      - Runtime: Node
 echo      - Build Command: npm install && npm run build
-echo      - Publish Directory: dist
-echo   5. Bam "Create Static Site" -> Cho 1-2 phut la co link online!
+echo      - Start Command: node server.js
+echo      - Plan: Free
+echo   5. Bam "Deploy Web Service" -> Cho 1-2 phut la hoan tat!
+echo   Luu y: Tren goi Render Free, neu khong co nguoi truy cap sau 15 phut,
+echo   may chu se ngu dong (Spin down) va mat ~50s khoi dong o lan truy cap dau tien.
 echo ========================================================
 pause
 

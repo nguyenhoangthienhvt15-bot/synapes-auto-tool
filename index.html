@@ -1,17 +1,72 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="UTF-8" />
+    <title>SYNAPES Studio — AI Video Production Hub</title>
     <link rel="icon" type="image/jpeg" href="/logo.jpg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SYNAPES Auto Tool — Automated Video Publisher</title>
-    <!-- High-Performance Typography: Plus Jakarta Sans + Inter + JetBrains Mono -->
+    <meta name="description" content="SYNAPES Auto Tool — Hệ Thống Sản Xuất & Xuất Bản Video AI Đa Nền Tảng" />
+
+    <!-- Instant System Font Fallback & Zero-FOUT Inline Critical Style -->
+    <style>
+      :root {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background-color: #FBFBFA;
+        color: #09090b;
+      }
+      #root:empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: #FBFBFA;
+      }
+      .app-initial-loader {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+      .app-initial-spinner {
+        width: 32px;
+        height: 32px;
+        border: 2.5px solid rgba(0, 0, 0, 0.08);
+        border-top-color: #18181b;
+        border-radius: 50%;
+        animation: app-spin 0.65s linear infinite;
+      }
+      .app-initial-text {
+        font-size: 12px;
+        font-weight: 500;
+        color: #71717a;
+        letter-spacing: -0.01em;
+      }
+      @keyframes app-spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+
+    <!-- Asynchronous High-Performance Typography: Non-blocking -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      onload="this.onload=null;this.rel='stylesheet'"
+    >
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+    </noscript>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="app-initial-loader">
+        <div class="app-initial-spinner"></div>
+        <div class="app-initial-text">SYNAPES Studio đang khởi động...</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
