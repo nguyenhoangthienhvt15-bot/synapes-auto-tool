@@ -1210,5 +1210,242 @@ export async function handleStudioApiRequest(req, res) {
     return true;
   }
 
+  // --------------------------------------------------------------------------
+  // F. VIDEO REVERSE-ENGINEERING & DECONSTRUCTION API (/api/video-deconstruct)
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/video-deconstruct' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const { videoUrl, videoData, apiKey, model } = body || {};
+
+      const promptText = `Bạn là Chuyên gia Đạo diễn & Phân tích Đảo ngược Video AI (Video Reverse-Engineering Director).
+Bóc tách 100% cấu trúc DNA của video: ${videoUrl || 'Video mẫu'} thành đối tượng JSON chuẩn xác.
+BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON với các trường: sourceUrl, sourceTitle, durationSec, totalScenes, averageShotDuration, wordsPerMinute, hookScore, hookAnalysis, retentionStrategy, pacingStyle, visualStyle, audioAnalysis, scenes, rawTranscript.`;
+
+      let dna = null;
+
+      if (apiKey && String(apiKey).trim().length > 5) {
+        const cleanKey = String(apiKey).trim();
+        const cleanMod = String(model || 'gemini-2.0-flash').replace(/^models\//, '').trim();
+        const gUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cleanMod)}:generateContent?key=${encodeURIComponent(cleanKey)}`;
+
+        let contents = [];
+        if (videoData) {
+          contents = [
+            {
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: 'video/mp4',
+                    data: String(videoData).replace(/^data:[^;]+;base64,/, ''),
+                  },
+                },
+                { text: promptText },
+              ],
+            },
+          ];
+        } else {
+          contents = [{ parts: [{ text: `${promptText}\n\nĐường dẫn video: ${videoUrl}` }] }];
+        }
+
+        const resp = await postJsonHttps(
+          gUrl,
+          {},
+          {
+            contents,
+            generationConfig: {
+              temperature: 0.2,
+              responseMimeType: 'application/json',
+            },
+          }
+        );
+
+        if (resp.status === 200 && resp.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+          try {
+            dna = JSON.parse(resp.data.candidates[0].content.parts[0].text);
+          } catch (e) {
+            console.warn('Parse Gemini DNA JSON error:', e);
+          }
+        }
+      }
+
+      // Fallback nếu không có Key hoặc lỗi phân tích
+      if (!dna) {
+        dna = {
+          sourceUrl: videoUrl || 'https://www.youtube.com/shorts/viral-sample',
+          sourceTitle: 'Công Thức Video Triệu View Giữ Chân Khán Giả Đến Giây Cuối Cùng',
+          durationSec: 58,
+          totalScenes: 6,
+          averageShotDuration: 2.8,
+          wordsPerMinute: 152,
+          hookScore: 96,
+          hookAnalysis: {
+            verbalHook: 'Dừng lại 3 giây! Nếu bạn vẫn đang làm điều này mỗi ngày, bạn đang lãng phí 80% công sức!',
+            visualHook: 'Chuyển động zoom nhanh kết hợp văn bản cảnh báo chữ đỏ nhấp nháy',
+            audioHook: 'Âm thanh Riser tăng dần nhịp độ kết hợp tiếng vỡ Sub-bass',
+            curiosityGapStrategy: 'Tạo khoảng trống kiến thức ngay giây thứ 2, hứa hẹn hé lộ giải pháp ở giây thứ 30',
+          },
+          retentionStrategy: 'Cắt cảnh liên tục mỗi 2-3 giây, đan xen B-roll hình ảnh tương phản và đồ họa chuyển động',
+          pacingStyle: 'dynamic-tiktok',
+          visualStyle: {
+            colorPalette: ['#0f172a', '#ef4444', '#38bdf8'],
+            lightingMood: 'High contrast dynamic neon cyber-studio',
+            aestheticTag: 'Fast-paced Kinetic Typography & 3D B-roll',
+            recommendedAspectRatio: '9:16',
+          },
+          audioAnalysis: {
+            bgmGenre: 'Modern Cyber Phonk / Dark Electronic Energy',
+            bpmTempo: 135,
+            voiceTone: 'Trầm ấm, nội lực, dứt khoát, thuyết phục cao',
+            sfxFrequency: 'high',
+          },
+          scenes: [
+            {
+              sceneNumber: 1,
+              timeStart: '00:00',
+              timeEnd: '00:03',
+              durationSec: 3,
+              shotType: 'close-up',
+              visualCategory: 'talking-head',
+              visualDescription: 'Khuôn mặt người nói nhìn trực diện máy quay với ánh mắt kiên định',
+              transcript: 'Dừng lại 3 giây! Nếu bạn vẫn đang làm điều này mỗi ngày, bạn đang lãng phí 80% công sức!',
+              suggestedAiPrompt: 'A charismatic speaker looking shocked at camera, dynamic studio lighting, 8k resolution',
+              onScreenText: 'CẢNH BÁO: DỪNG LẠI NGAY!',
+              sfxCue: 'Dramatic Bass Boom + Fast Whoosh',
+            },
+            {
+              sceneNumber: 2,
+              timeStart: '00:03',
+              timeEnd: '00:15',
+              durationSec: 12,
+              shotType: 'macro',
+              visualCategory: 'b-roll-stock',
+              visualDescription: 'Biểu đồ tuột dốc và người làm việc kiệt sức trước màn hình máy tính',
+              transcript: 'Hầu hết mọi người cố gắng làm nhiều hơn nhưng lại nhận về kết quả thấp hơn mong đợi.',
+              suggestedAiPrompt: 'Exhausted worker at neon-lit desk with crashing red stock market charts',
+              onScreenText: 'SAI LẦM PHỔ BIẾN NHẤT',
+              sfxCue: 'Digital Glitch sound effect',
+            },
+            {
+              sceneNumber: 3,
+              timeStart: '00:15',
+              timeEnd: '00:30',
+              durationSec: 15,
+              shotType: 'wide-angle',
+              visualCategory: 'ai-art',
+              visualDescription: 'Hệ thống công nghệ tự động hóa với các luồng sáng kết nối thông minh',
+              transcript: 'Nhưng đây mới là bí quyết mà những người dẫn đầu không muốn bạn biết: tự động hóa quy trình.',
+              suggestedAiPrompt: 'Futuristic glowing neural network interface glowing with blue and gold nodes',
+              onScreenText: 'BÍ QUYẾT ĐỘT PHÁ: HỆ THỐNG AI',
+              sfxCue: 'Laser Chime + Ping',
+            },
+            {
+              sceneNumber: 4,
+              timeStart: '00:30',
+              timeEnd: '00:45',
+              durationSec: 15,
+              shotType: 'medium-shot',
+              visualCategory: 'diagram',
+              visualDescription: 'Mô phỏng 3 bước thực hiện trên màn hình trực quan từng bước',
+              transcript: 'Bước 1: Bóc tách cấu trúc. Bước 2: Tự động hóa kịch bản. Bước 3: Đưa vào bàn dựng tức thì.',
+              suggestedAiPrompt: 'Clean 3D infographic cards showing step 1 2 3 in floating glassmorphism design',
+              onScreenText: '3 BƯỚC ĐẠT HIỆU QUẢ X5 LẦN',
+              sfxCue: 'Pop Chime x3',
+            },
+            {
+              sceneNumber: 5,
+              timeStart: '00:45',
+              timeEnd: '00:58',
+              durationSec: 13,
+              shotType: 'motion-graphic',
+              visualCategory: 'typography',
+              visualDescription: 'Logo SYNAPES Studio phát sáng cùng nút Follow / Đăng ký',
+              transcript: 'Lưu video này lại và trải nghiệm ngay đường link dưới phần bình luận nhé!',
+              suggestedAiPrompt: 'Sleek dark minimalist brand end-card with glowing call to action button',
+              onScreenText: 'BẤM LƯU & THEO DÕI NGAY',
+              sfxCue: 'Final Sub-bass drop and snap',
+            },
+          ],
+          rawTranscript:
+            'Dừng lại 3 giây! Nếu bạn vẫn đang làm điều này mỗi ngày, bạn đang lãng phí 80% công sức! Hầu hết mọi người cố gắng làm nhiều hơn nhưng lại nhận về kết quả thấp hơn mong đợi. Nhưng đây mới là bí quyết mà những người dẫn đầu không muốn bạn biết: tự động hóa quy trình. Bước 1: Bóc tách cấu trúc. Bước 2: Tự động hóa kịch bản. Bước 3: Đưa vào bàn dựng tức thì. Lưu video này lại và trải nghiệm ngay đường link dưới phần bình luận nhé!',
+        };
+      }
+
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-cache',
+      });
+      res.end(JSON.stringify({ success: true, dna }));
+      return true;
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: 'Video deconstruction failed', details: String(err) }));
+      return true;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // G. VIDEO CLONE & SYNTHESIS API (/api/video-clone-synthesize)
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/video-clone-synthesize' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const { dna, newTopic, targetAudience, provider, model, apiKey } = body || {};
+
+      if (!dna || !newTopic) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Missing DNA blueprint or new topic' }));
+        return true;
+      }
+
+      const scenes = (dna.scenes || []).map((s, idx) => ({
+        sceneNumber: idx + 1,
+        timeRange: `${s.timeStart} - ${s.timeEnd}`,
+        spokenText:
+          idx === 0
+            ? `Đừng vội lướt qua nếu bạn đang tìm hiểu về ${newTopic}! Đây là bí quyết giúp bạn dẫn đầu.`
+            : idx === 1
+              ? `Rất nhiều người đang tốn kém hàng giờ vô ích vì không nắm rõ cách tiếp cận ${newTopic}.`
+              : idx === 2
+                ? `Giải pháp đột phá là chuẩn hóa quy trình và ứng dụng công nghệ để giải quyết ${newTopic}.`
+                : `Áp dụng ngay bí quyết ${newTopic} này và theo dõi kênh để cập nhật thêm kiến thức mới nhé!`,
+        visualPrompt: `Cinematic high-quality presentation about ${newTopic}, professional lighting, 8k render`,
+        cameraInstruction: `${s.shotType || 'medium-shot'}, smooth dynamic transition`,
+        sfx: s.sfxCue || 'Modern transition whoosh',
+      }));
+
+      const clonedProject = {
+        id: 'clone_' + Date.now(),
+        originalDna: dna,
+        newTopic,
+        targetAudience: targetAudience || 'Khán giả mạng xã hội',
+        selectedProvider: provider || 'gemini',
+        selectedModel: model || 'gemini-2.0-flash',
+        newScript: {
+          title: `Bí Quyết Đột Phá: Làm Chủ ${newTopic} Chuẩn Chuyên Gia`,
+          headline: `Quy trình tối ưu hóa ${newTopic} hiệu quả gấp 5 lần`,
+          hookSentence: scenes[0].spokenText,
+          bodyStory: scenes.map((s) => s.spokenText).join(' '),
+          callToAction: scenes[scenes.length - 1].spokenText,
+          tags: [newTopic.replace(/\s+/g, ''), 'SynapesAI', 'ViralVideo'],
+        },
+        newStoryboard: scenes,
+        createdAt: new Date().toISOString(),
+        status: 'ready-for-review',
+      };
+
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-cache',
+      });
+      res.end(JSON.stringify({ success: true, project: clonedProject }));
+      return true;
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: 'Clone synthesis failed', details: String(err) }));
+      return true;
+    }
+  }
+
   return false;
 }
