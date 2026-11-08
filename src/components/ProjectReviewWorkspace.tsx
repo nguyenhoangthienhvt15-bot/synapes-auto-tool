@@ -378,6 +378,63 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
         </button>
       </div>
 
+      {/* Pending Approval Inspection Banner (Bàn làm việc Chờ Duyệt) */}
+      {project.status === 'pending_approval' && (
+        <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/25 text-zinc-900 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-start md:items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white border border-amber-300 flex items-center justify-center shadow-xs flex-shrink-0">
+              <ProviderBrandLogo provider={project.aiSource.type} size="sm" withBadge={false} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-zinc-950">
+                  Video Tạo Từ Công Cụ {project.aiSource.name}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  ĐANG CHỜ DUYỆT
+                </span>
+              </div>
+              <p className="text-xs text-zinc-600 mt-0.5">
+                {project.aiSource.model ? (
+                  <>Kịch bản do <strong>{project.aiSource.model}</strong> gợi ý • Phân cảnh do <strong>{project.aiSource.name}</strong> hoàn tất render.</>
+                ) : (
+                  <>Sản phẩm video hoàn thiện từ Plugin sẵn sàng để xem xét.</>
+                )}
+                {' '}Vui lòng kiểm tra kỹ video trên trình phát HD bên dưới trước khi phê duyệt.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end md:self-auto flex-wrap">
+            <button
+              onClick={() => setShowAiRevisionModal(true)}
+              className="px-3 py-1.5 rounded-lg bg-white hover:bg-zinc-100 text-zinc-700 text-xs font-medium border border-zinc-300 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="Yêu cầu sửa lại phân cảnh hoặc âm thanh"
+            >
+              <Edit3 className="w-3.5 h-3.5 text-zinc-500" />
+              <span>Yêu Cầu Sửa Lại</span>
+            </button>
+            <button
+              onClick={() => handleStartPublishing(true)}
+              className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+              title="Hẹn giờ phát sóng vào khung giờ vàng tương tác cao"
+            >
+              <Clock className="w-3.5 h-3.5 text-amber-400" />
+              <span>Lên Lịch Giờ Vàng</span>
+            </button>
+            <button
+              onClick={() => handleStartPublishing(false)}
+              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+              title="Duyệt sản phẩm và xuất bản ngay"
+            >
+              <CheckCircle2 className="w-4 h-4 text-white" />
+              <span>PHÊ DUYỆT & ĐĂNG NGAY</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Split-View: Media Stage (58%) & Project Inspector (42%) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
 

@@ -27,4 +27,5 @@ dist-ssr
 *.webm
 *.mp4
 *.png
+!public/*.png
 !src/assets/*.png
