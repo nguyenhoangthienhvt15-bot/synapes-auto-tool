@@ -339,9 +339,17 @@ export interface StitcherClip {
   transition: 'cut' | 'fade' | 'dissolve';
 }
 
+export type ContractCategory = 'personal' | 'enterprise';
+export type ContractPackage =
+  | 'personal_deposit'
+  | 'personal_full'
+  | 'enterprise_deposit'
+  | 'enterprise_full';
+
 export interface UserRegistrationData {
   id?: string;
   fullName: string;
+  idCardNumber?: string; // Số CCCD / CMND
   dob: string; // DD/MM/YYYY
   gender?: string; // Nam / Nữ / Khác
   email: string; // Gmail
@@ -349,9 +357,17 @@ export interface UserRegistrationData {
   addressType: 'gps' | 'manual';
   address: string;
   coords?: { lat: number; lng: number };
+  contractCategory?: ContractCategory; // 'personal' (Cá nhân hóa) | 'enterprise' (Toàn hệ)
+  contractPackage?: ContractPackage;
+  contractPackageName?: string;
+  depositAmount?: number;
+  totalAmount?: number;
+  originalAmount?: number;
+  deliveryDays?: number; // Số ngày đến hạn bàn giao (dành cho đặt cọc)
   termsAccepted: boolean;
   registeredAt: string;
   isApproved?: boolean;
+  isFinalDelivered?: boolean;
   assignedCode?: string;
   assignedPassword?: string;
   status?: 'pending' | 'approved';
@@ -362,14 +378,21 @@ export interface UserRegistrationSheetRow {
   stt: number;
   registeredAt: string;
   fullName: string;
+  idCardNumber: string;
   dob: string;
   gender: string;
   email: string;
   phone: string;
   address: string;
+  contractCategory: string;
+  contractPackageName: string;
+  depositAmount: string;
+  totalAmount: string;
+  deliveryDays: string;
   isApproved: boolean;
   code: string;
   password: string;
+  isFinalDelivered: boolean;
   emailStatus: string;
   notes: string;
 }

@@ -506,11 +506,19 @@ export async function saveUserRegistration(
     const webhookRes = await callAppsScriptWebhook({
       action: 'register',
       fullName: normalizedData.fullName,
+      idCardNumber: normalizedData.idCardNumber || '',
       dob: normalizedData.dob,
       gender: normalizedData.gender || 'Nam',
       email: normalizedData.email,
       phone: normalizedData.phone,
       address: normalizedData.address,
+      contractCategory: normalizedData.contractCategory || 'personal',
+      contractPackage: normalizedData.contractPackage || 'personal_deposit',
+      contractPackageName: normalizedData.contractPackageName || '',
+      depositAmount: normalizedData.depositAmount || 0,
+      totalAmount: normalizedData.totalAmount || 0,
+      originalAmount: normalizedData.originalAmount || 0,
+      deliveryDays: normalizedData.deliveryDays || 0,
       termsAccepted: normalizedData.termsAccepted,
       registeredAt: normalizedData.registeredAt,
       notes: normalizedData.notes || (normalizedData.termsAccepted ? 'Đã ký hợp đồng qua WebApp' : 'Chờ ký hợp đồng'),
@@ -869,43 +877,115 @@ export function parseUsersSheetGvizResponse(response: any): {
     });
 
     // Kiểm tra xem có phải dòng tiêu đề hoặc dòng trống không
-    const fullName = cellVals[2] || '';
-    const email = cellVals[5] || '';
-    if (!fullName && !email) continue;
+    const col2 = cellVals[2] || '';
+    const col5 = cellVals[5] || '';
+    const col6 = cellVals[6] || '';
+    if (!col2 && !col5 && !col6) continue;
     if (
-      fullName.toLowerCase().includes('họ và tên') ||
-      email.toLowerCase().includes('gmail đăng ký')
+      col2.toLowerCase().includes('họ và tên') ||
+      col5.toLowerCase().includes('gmail đăng ký') ||
+      col6.toLowerCase().includes('gmail đăng ký')
     ) {
       continue;
     }
 
+    // Nhận diện cấu trúc 20 cột (Cột 4 là CCCD, Cột 6 là Gmail, Cột 9 là Loại HĐ) hoặc 13 cột cũ
+    const isNew20Cols =
+      cellVals.length >= 15 ||
+      (col6 && col6.includes('@')) ||
+      (cellVals[3] && /^\d{9,12}$/.test(cellVals[3].replace(/\s+/g, ''))) ||
+      (cellVals[9] && (cellVals[9].toLowerCase().includes('cá nhân') || cellVals[9].toLowerCase().includes('toàn hệ')));
+
+    let fullName = '';
+    let idCardNumber = '';
+    let dob = '';
+    let gender = 'Nam';
+    let email = '';
+    let phone = '';
+    let address = '';
+    let contractCategory: 'personal' | 'enterprise' = 'personal';
+    let contractPackageName = '';
+    let depositAmount = 0;
+    let totalAmount = 0;
+    let deliveryDays = 0;
+    let isApproved = false;
+    let assignedCode = '';
+    let assignedPassword = '';
+    let isFinalDelivered = false;
+    let emailStatus = '';
+    let notes = '';
+
     const registeredAt = cellVals[1] || '';
-    const dob = formatDobToDDMMYYYY(cellVals[3] || '');
-    const gender = cellVals[4] || 'Nam';
-    const phone = cellVals[6] || '';
-    const address = cellVals[7] || '';
-    const rawApproved = r.c[8]?.v;
-    const isApproved =
-      rawApproved === true ||
-      String(rawApproved).toUpperCase() === 'TRUE' ||
-      Boolean(cellVals[9] && cellVals[9].startsWith('SNP_'));
-    const assignedCode = (cellVals[9] || '').toUpperCase();
-    const assignedPassword = cellVals[10] || '';
-    const emailStatus = cellVals[11] || '';
-    const notes = cellVals[12] || '';
+
+    if (isNew20Cols) {
+      // 20 Cột Chuẩn
+      fullName = cellVals[2] || '';
+      idCardNumber = cellVals[3] || '';
+      dob = formatDobToDDMMYYYY(cellVals[4] || '');
+      gender = cellVals[5] || 'Nam';
+      email = cellVals[6] || '';
+      phone = cellVals[7] || '';
+      address = cellVals[8] || '';
+      contractCategory = (cellVals[9]?.toLowerCase().includes('toàn hệ') ? 'enterprise' : 'personal');
+      contractPackageName = cellVals[10] || '';
+      depositAmount = parseFloat((cellVals[11] || '').replace(/[^0-9]/g, '')) || 0;
+      totalAmount = parseFloat((cellVals[12] || '').replace(/[^0-9]/g, '')) || 0;
+      deliveryDays = parseInt((cellVals[13] || '').replace(/[^0-9]/g, '')) || 0;
+      
+      const rawApproved = r.c[14]?.v;
+      isApproved =
+        rawApproved === true ||
+        String(rawApproved).toUpperCase() === 'TRUE' ||
+        Boolean(cellVals[15] && cellVals[15].startsWith('SNP_'));
+      assignedCode = (cellVals[15] || '').toUpperCase();
+      assignedPassword = cellVals[16] || '';
+      
+      const rawFinalDelivered = r.c[17]?.v;
+      isFinalDelivered =
+        rawFinalDelivered === true ||
+        String(rawFinalDelivered).toUpperCase() === 'TRUE';
+      
+      emailStatus = cellVals[18] || '';
+      notes = cellVals[19] || '';
+    } else {
+      // 13 Cột Kế Thừa
+      fullName = cellVals[2] || '';
+      dob = formatDobToDDMMYYYY(cellVals[3] || '');
+      gender = cellVals[4] || 'Nam';
+      email = cellVals[5] || '';
+      phone = cellVals[6] || '';
+      address = cellVals[7] || '';
+      
+      const rawApproved = r.c[8]?.v;
+      isApproved =
+        rawApproved === true ||
+        String(rawApproved).toUpperCase() === 'TRUE' ||
+        Boolean(cellVals[9] && cellVals[9].startsWith('SNP_'));
+      assignedCode = (cellVals[9] || '').toUpperCase();
+      assignedPassword = cellVals[10] || '';
+      emailStatus = cellVals[11] || '';
+      notes = cellVals[12] || '';
+    }
 
     const regItem: UserRegistrationData = {
       id: `sheet_row_${idx + 2}`,
       fullName,
+      idCardNumber: idCardNumber || undefined,
       dob,
       gender,
       email,
       phone,
       addressType: address.toLowerCase().includes('gps') ? 'gps' : 'manual',
       address,
+      contractCategory,
+      contractPackageName: contractPackageName || undefined,
+      depositAmount: depositAmount || undefined,
+      totalAmount: totalAmount || undefined,
+      deliveryDays: deliveryDays || undefined,
       termsAccepted: notes.toLowerCase().includes('đã ký'),
       registeredAt,
       isApproved,
+      isFinalDelivered,
       assignedCode: assignedCode || undefined,
       assignedPassword: assignedPassword || undefined,
       status: isApproved ? 'approved' : 'pending',

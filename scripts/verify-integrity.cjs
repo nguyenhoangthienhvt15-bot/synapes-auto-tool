@@ -164,6 +164,42 @@ if (fs.existsSync(backendEnginePath)) {
 }
 
 // -----------------------------------------------------------------------------
+// NHÓM 6: BẢO VỆ HỆ THỐNG ĐĂNG KÝ CCCD, HỢP ĐỒNG 2 TẦNG & QUY TRÌNH DUYỆT 2 LẦN
+// -----------------------------------------------------------------------------
+console.log('\n--- 6. Kiểm tra CCCD, Hợp Đồng 2 Tầng, 20 Cột & Duyệt 2 Lần ---');
+
+const registerModalPath = path.join(ROOT, 'src', 'components', 'RegisterModal.tsx');
+assert(fs.existsSync(registerModalPath), 'File RegisterModal.tsx tồn tại');
+
+if (fs.existsSync(registerModalPath)) {
+  const regContent = fs.readFileSync(registerModalPath, 'utf8');
+  assert(regContent.includes('idCardNumber') && (regContent.includes('Căn cước công dân') || regContent.includes('CCCD')),
+    'Có trường nhập Căn cước công dân (CCCD / CMND)');
+  assert(regContent.includes('Hợp đồng cá nhân hóa') && regContent.includes('Hợp đồng toàn hệ'),
+    'Hỗ trợ 2 phân hệ Hợp đồng: Cá nhân hóa & Toàn hệ');
+  assert(regContent.includes('Ký đặt cọc dự án cá nhân') && regContent.includes('Ký hợp đồng dự án cá nhân'),
+    'Có 2 tùy chọn gói cho Hợp đồng cá nhân hóa (Đặt cọc 1.250k & Thanh toán 100% 2.550k)');
+  assert(regContent.includes('Ký đặt cọc phân bổ') && regContent.includes('Ký hợp đồng dự án toàn hệ chính thức'),
+    'Có 2 tùy chọn gói cho Hợp đồng toàn hệ (Đặt cọc 2.500k & Thanh toán 100% 5.490k)');
+  assert(regContent.includes('Tôi đã hiểu và chịu trách nhiệm với các điều khoản đề ra giữa cả hai bên'),
+    'Có checkbox cam kết trách nhiệm giữa cả hai bên');
+  assert(regContent.includes('Gửi hợp đồng'),
+    'Có nút "Gửi hợp đồng" chuyển hồ sơ sang Google Sheet');
+}
+
+if (fs.existsSync(gasPath)) {
+  const gasContent = fs.readFileSync(gasPath, 'utf8');
+  assert(gasContent.includes('Số CCCD / CMND') && gasContent.includes('Duyệt Ký Lần 1') && gasContent.includes('Duyệt Bàn Giao Lần 2'),
+    'Apps Script cấu hình 20 cột chuẩn (CCCD, Duyệt Lần 1, Duyệt Lần 2)');
+  assert(gasContent.includes('processFirstApproval') && gasContent.includes('processFinalHandoverApproval'),
+    'Apps Script có đủ 2 luồng xử lý: Duyệt Ký Lần 1 & Duyệt Bàn Giao Lần 2');
+  assert(gasContent.includes('Chúng ta đặt câu hỏi cho mọi vấn đề có thể và chúng ta sẽ đưa ra giải pháp có thể và hơn cả là tốt nhất'),
+    'Apps Script có dẫn lời phát biểu của Trưởng ban KS. Nguyễn Hoàng Thiện');
+  assert(gasContent.includes('TIMO_QR_CODE_BASE64') && gasContent.includes('0983396354'),
+    'Apps Script nhúng mã QR Code VietQR Timo (STK: 0983396354) vào các mẫu thư');
+}
+
+// -----------------------------------------------------------------------------
 // KẾT LUẬN TOÀN BỘ BÀI TEST
 // -----------------------------------------------------------------------------
 console.log('\n============================================================');
