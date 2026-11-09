@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Plus, Film, Clock, Calendar, Folder, Share2,
   HardDrive, Cpu, BookOpen, ChevronDown, Terminal,
-  PanelLeftClose, PanelLeftOpen, Layers, Table
+  PanelLeftClose, PanelLeftOpen, Layers
 } from 'lucide-react';
 import { MiniPeakHoursAreaChart } from './MiniPeakHoursAreaChart';
 import { ProviderBrandLogo } from './AiProviderDropdown';
@@ -134,18 +134,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title="Quản Lý Kênh & Mạng Xã Hội"
           >
             <Share2 className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={() => onSelectView('engineer-sheet')}
-            className={`w-10 h-10 rounded-lg flex items-center justify-center transition cursor-pointer ${
-              activeView === 'engineer-sheet'
-                ? 'bg-zinc-100 text-zinc-950 font-bold border border-zinc-300'
-                : 'text-zinc-500 hover:text-zinc-950 hover:bg-zinc-50'
-            }`}
-            title="Bảng Tính Kỹ Sư & Phê Duyệt"
-          >
-            <Table className="w-4 h-4" />
           </button>
         </div>
 
@@ -331,20 +319,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="flex items-center gap-2.5">
                 <Share2 className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Quản Lý Kênh & Mạng Xã Hội</span>
-              </div>
-            </button>
-
-            <button
-              onClick={() => onSelectView('engineer-sheet')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition text-left cursor-pointer ${
-                activeView === 'engineer-sheet'
-                  ? 'bg-zinc-100 text-zinc-950 font-semibold'
-                  : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Table className="w-3.5 h-3.5 text-zinc-500" />
-                <span>Bảng Tính Kỹ Sư & Phê Duyệt</span>
               </div>
             </button>
           </div>

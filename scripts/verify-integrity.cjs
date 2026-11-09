@@ -120,6 +120,13 @@ if (fs.existsSync(headerPath)) {
     'Tab "Lịch Phát Sóng" được tích hợp trong thanh điều hướng Header');
 }
 
+const sidebarPath = path.join(ROOT, 'src', 'components', 'Sidebar.tsx');
+if (fs.existsSync(sidebarPath)) {
+  const sidebarContent = fs.readFileSync(sidebarPath, 'utf8');
+  assert(!sidebarContent.includes('Bảng Tính Kỹ Sư') && !sidebarContent.includes('engineer-sheet'),
+    'Sidebar đã loại bỏ hoàn toàn Bảng Tính Kỹ Sư để bảo mật thông tin nội bộ của Dev/Kỹ sư');
+}
+
 // -----------------------------------------------------------------------------
 // NHÓM 4: BẢO VỆ PLUGIN WEBHOOK & AI PROVIDER LOGO
 // -----------------------------------------------------------------------------
