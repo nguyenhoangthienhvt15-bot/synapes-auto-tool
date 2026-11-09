@@ -272,6 +272,10 @@ function extractWebhookUrlFromRawText(rawText: string): string | null {
   return null;
 }
 
+// Bộ nhớ cache URL Webhook tự động khám phá trong phiên chạy để loại bỏ độ trễ (0ms delay)
+let cachedDiscoveredWebhookUrl: string | null = null;
+let lastDiscoveryTimestamp = 0;
+
 /**
  * Gửi dữ liệu tới Google Sheet bằng 2 cơ chế:
  * 1. Cầu nối Google Form Auto-Bridge (POST application/x-www-form-urlencoded no-cors — hoạt động 100% không cần Deploy Web App)
@@ -284,10 +288,26 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
 }> {
   let webhookUrl = getAppsScriptWebhookUrl();
 
-  // Nếu chưa có trong localStorage, thử tự động dò từ Google Sheet live ngay lập tức
-  if (!webhookUrl || webhookUrl === DEFAULT_FORM_BRIDGE_URL) {
-    const discovered = await discoverWebhookUrlFromSheet();
-    if (discovered) webhookUrl = discovered;
+  // Nếu trong bộ nhớ cache đã có Webhook URL được khám phá trước đó, ưu tiên sử dụng ngay lập tức (0ms)
+  if ((!webhookUrl || webhookUrl === DEFAULT_FORM_BRIDGE_URL) && cachedDiscoveredWebhookUrl) {
+    webhookUrl = cachedDiscoveredWebhookUrl;
+  }
+
+  // Tự động khám phá Webhook URL trong nền (HOÀN TOÀN KHÔNG CHẶN LUỒNG - NON-BLOCKING)
+  // để thao tác "Ký Hợp Đồng" phản hồi ngay lập tức cho người dùng
+  const now = Date.now();
+  if (!webhookUrl || (webhookUrl === DEFAULT_FORM_BRIDGE_URL && now - lastDiscoveryTimestamp > 60000)) {
+    lastDiscoveryTimestamp = now;
+    discoverWebhookUrlFromSheet().then((discovered) => {
+      if (discovered) {
+        cachedDiscoveredWebhookUrl = discovered;
+      }
+    }).catch(() => {});
+  }
+
+  // Nếu chưa có cấu hình riêng, mặc định phát trực tiếp qua Cầu nối Google Form Bridge tốc độ cao
+  if (!webhookUrl) {
+    webhookUrl = DEFAULT_FORM_BRIDGE_URL;
   }
 
   const enrichedPayload: Record<string, any> = {
@@ -334,23 +354,29 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
         formParams.append(singleEntryMatch[0], JSON.stringify(enrichedPayload));
       }
 
-      await fetch(formActionUrl, {
+      // Gửi song song đa luồng (Google Form + Backend Node.js Relay) với keepalive: true để không chặn luồng
+      const formFetchPromise = fetch(formActionUrl, {
         method: 'POST',
         mode: 'no-cors',
+        keepalive: true,
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
         },
         body: formParams.toString(),
-      });
+      }).catch(() => null);
 
-      // Đồng thời chuyển tiếp qua backend Node.js server để lưu dự phòng đa tầng
-      try {
-        fetch('/api/save-registration', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(enrichedPayload),
-        }).catch(() => { });
-      } catch { }
+      const backendRelayPromise = fetch('/api/save-registration', {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(enrichedPayload),
+      }).catch(() => null);
+
+      // Chờ tối đa 350ms để cập nhật ngay UI cho người dùng
+      await Promise.race([
+        Promise.allSettled([formFetchPromise, backendRelayPromise]),
+        new Promise((resolve) => setTimeout(resolve, 350)),
+      ]);
 
       return { sent: true, webhookUrl: formActionUrl };
     } catch {
@@ -376,6 +402,7 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
   try {
     fetch('/api/save-registration', {
       method: 'POST',
+      keepalive: true,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...enrichedPayload, webhookUrl }),
     }).catch(() => { });
@@ -403,7 +430,7 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
     const timer = setTimeout(() => {
       cleanup();
       resolve({ sent: true, webhookUrl });
-    }, 4500);
+    }, 800);
 
     (window as any)[cbName] = (resp: any) => {
       cleanup();
