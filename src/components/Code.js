@@ -438,7 +438,7 @@ function installAutoEditTrigger(ss) {
     var triggers = ScriptApp.getProjectTriggers();
     for (var i = 0; i < triggers.length; i++) {
       var fn = triggers[i].getHandlerFunction();
-      if (fn === "onInstallableEdit" || fn === "onEdit") {
+      if (fn === "onInstallableEdit" || fn === "onEdit" || fn === "onSpreadsheetFormSubmit") {
         ScriptApp.deleteTrigger(triggers[i]);
       }
     }
@@ -446,6 +446,16 @@ function installAutoEditTrigger(ss) {
       .forSpreadsheet(ss)
       .onEdit()
       .create();
+
+    // Tự động cài thêm trigger cấp Bảng tính khi có Form Submit để cập nhật tức thì (0ms)
+    try {
+      ScriptApp.newTrigger("onSpreadsheetFormSubmit")
+        .forSpreadsheet(ss)
+        .onFormSubmit()
+        .create();
+    } catch (eTrig) {
+      Logger.log("Notice: onSpreadsheetFormSubmit trigger: " + eTrig);
+    }
     return true;
   } catch (err) {
     Logger.log("Không thể tự tạo Trigger: " + err);
@@ -496,16 +506,103 @@ function setupGoogleFormBridge(ss) {
   }
 }
 
+/**
+ * Trích xuất dữ liệu từ các câu trả lời của Google Form thành đối tượng payload
+ */
+function parseItemResponsesToPayload(itemResponses) {
+  var payload = {};
+  for (var j = 0; j < itemResponses.length; j++) {
+    var title = itemResponses[j].getItem().getTitle();
+    var val = itemResponses[j].getResponse();
+    if (title.indexOf("Họ và tên") !== -1) payload.fullName = val;
+    else if (title.indexOf("CCCD") !== -1) payload.idCardNumber = val;
+    else if (title.indexOf("Ngày sinh") !== -1) payload.dob = val;
+    else if (title.indexOf("Giới tính") !== -1) payload.gender = val;
+    else if (title.indexOf("Gmail") !== -1) payload.email = val;
+    else if (title.indexOf("Số điện thoại") !== -1) payload.phone = val;
+    else if (title.indexOf("Địa chỉ") !== -1) payload.address = val;
+    else if (title.indexOf("Loại Hợp Đồng") !== -1) payload.contractCategory = val;
+    else if (title.indexOf("Gói Ký Kết") !== -1) payload.contractPackageName = val;
+    else if (title.indexOf("Tiền Đặt Cọc") !== -1) payload.depositAmount = val;
+    else if (title.indexOf("Tổng Giá Trị") !== -1) payload.totalAmount = val;
+    else if (title.indexOf("Hạn Bàn Giao") !== -1) payload.deliveryDays = val;
+    else if (title.indexOf("Ghi Chú") !== -1) payload.notes = val;
+  }
+  return payload;
+}
+
+/**
+ * Trigger chạy ngay lập tức khi Form có phản hồi mới từ FormApp
+ */
 function onFormBridgeSubmit(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (e && e.response) {
+      var itemResponses = e.response.getItemResponses();
+      var payload = parseItemResponsesToPayload(itemResponses);
+      if (payload && payload.fullName && payload.email) {
+        handleUserRegistrationWebhook(ss, payload);
+        SpreadsheetApp.flush();
+        return;
+      }
+    }
     syncPendingFormBridgeResponses();
   } catch (err) {
     Logger.log("onFormBridgeSubmit error: " + err);
+    syncPendingFormBridgeResponses();
   }
 }
 
-function syncPendingFormBridgeResponses() {
+/**
+ * Trigger chạy ngay lập tức cấp Bảng tính khi có phản hồi Form gửi vào Sheet
+ */
+function onSpreadsheetFormSubmit(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (e && e.namedValues) {
+      var nv = e.namedValues;
+      var getVal = function(prefix) {
+        for (var k in nv) {
+          if (k.toLowerCase().indexOf(prefix.toLowerCase()) !== -1) {
+            var arr = nv[k];
+            return Array.isArray(arr) ? arr[0] : arr;
+          }
+        }
+        return "";
+      };
+      var payload = {
+        fullName: getVal("Họ và tên"),
+        idCardNumber: getVal("CCCD"),
+        dob: getVal("Ngày sinh"),
+        gender: getVal("Giới tính"),
+        email: getVal("Gmail"),
+        phone: getVal("Số điện thoại"),
+        address: getVal("Địa chỉ"),
+        contractCategory: getVal("Loại Hợp Đồng"),
+        contractPackageName: getVal("Gói Ký Kết"),
+        depositAmount: getVal("Tiền Đặt Cọc"),
+        totalAmount: getVal("Tổng Giá Trị"),
+        deliveryDays: getVal("Hạn Bàn Giao"),
+        notes: getVal("Ghi Chú")
+      };
+      if (payload.fullName && payload.email) {
+        handleUserRegistrationWebhook(ss, payload);
+        SpreadsheetApp.flush();
+        return;
+      }
+    }
+    syncPendingFormBridgeResponses();
+  } catch (err) {
+    Logger.log("onSpreadsheetFormSubmit error: " + err);
+    syncPendingFormBridgeResponses();
+  }
+}
+
+/**
+ * Đồng bộ các phản hồi Google Form mới nhất
+ * Tối ưu tốc độ cao: chỉ quét ngược tối đa 3-5 response mới nhất để tránh lặp lịch sử
+ */
+function syncPendingFormBridgeResponses(maxScan) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var formUrl = ss.getFormUrl();
@@ -516,31 +613,17 @@ function syncPendingFormBridgeResponses() {
     if (!responses || responses.length === 0) return 0;
 
     var count = 0;
-    for (var i = 0; i < responses.length; i++) {
+    var limit = typeof maxScan === "number" ? maxScan : 3;
+    var startIdx = Math.max(0, responses.length - limit);
+    for (var i = responses.length - 1; i >= startIdx; i--) {
       var itemResponses = responses[i].getItemResponses();
-      var payload = {};
-      for (var j = 0; j < itemResponses.length; j++) {
-        var title = itemResponses[j].getItem().getTitle();
-        var val = itemResponses[j].getResponse();
-        if (title.indexOf("Họ và tên") !== -1) payload.fullName = val;
-        else if (title.indexOf("CCCD") !== -1) payload.idCardNumber = val;
-        else if (title.indexOf("Ngày sinh") !== -1) payload.dob = val;
-        else if (title.indexOf("Giới tính") !== -1) payload.gender = val;
-        else if (title.indexOf("Gmail") !== -1) payload.email = val;
-        else if (title.indexOf("Số điện thoại") !== -1) payload.phone = val;
-        else if (title.indexOf("Địa chỉ") !== -1) payload.address = val;
-        else if (title.indexOf("Loại Hợp Đồng") !== -1) payload.contractCategory = val;
-        else if (title.indexOf("Gói Ký Kết") !== -1) payload.contractPackageName = val;
-        else if (title.indexOf("Tiền Đặt Cọc") !== -1) payload.depositAmount = val;
-        else if (title.indexOf("Tổng Giá Trị") !== -1) payload.totalAmount = val;
-        else if (title.indexOf("Hạn Bàn Giao") !== -1) payload.deliveryDays = val;
-        else if (title.indexOf("Ghi Chú") !== -1) payload.notes = val;
-      }
-      if (payload.fullName && payload.email) {
+      var payload = parseItemResponsesToPayload(itemResponses);
+      if (payload && payload.fullName && payload.email) {
         handleUserRegistrationWebhook(ss, payload);
         count++;
       }
     }
+    SpreadsheetApp.flush();
     return count;
   } catch (err) {
     Logger.log("syncPendingFormBridgeResponses error: " + err);
@@ -827,6 +910,7 @@ function processFirstApproval(sheet, row, canSendMail) {
 
     if (!canSendMail) {
       sheet.getRange(row, 19).setValue("⏳ Đã duyệt ký (Bấm menu SYNAPES Studio ➔ Mục 1 để bật gửi Gmail tự động)");
+      SpreadsheetApp.flush();
       return true;
     }
 
@@ -850,10 +934,12 @@ function processFirstApproval(sheet, row, canSendMail) {
       sheet.getRange(row, 19).setValue("✅ ĐÃ GỬI MAIL ĐẶT CỌC (Hẹn giao: " + deliveryDateStr + ")").setFontColor("#15803d").setFontWeight("bold");
       sheet.getRange(row, 20).setValue("📄 HĐ Đặt Cọc đã ký (Hẹn giao: " + deliveryDateStr + " — Chờ duyệt Cột 18)");
       ss.toast("✅ Đã gửi Gmail xác nhận đặt cọc (Hẹn bàn giao: " + deliveryDateStr + ") tới " + email, "🚀 SYNAPES Studio", 6);
+      SpreadsheetApp.flush();
       return true;
     } else {
       sheet.getRange(row, 19).setValue("⚠️ Lỗi gửi mail: " + mailResult.error).setFontColor("#b91c1c");
       ss.toast("⚠️ Lỗi gửi Gmail: " + mailResult.error, "SYNAPES Studio", 8);
+      SpreadsheetApp.flush();
       return false;
     }
   }
@@ -871,6 +957,7 @@ function processFirstApproval(sheet, row, canSendMail) {
 
   if (!canSendMail) {
     sheet.getRange(row, 19).setValue("⏳ Đã tạo Mã (Bấm menu SYNAPES Studio ➔ Mục 1 để bật gửi Gmail tự động)");
+    SpreadsheetApp.flush();
     return true;
   }
 
@@ -893,10 +980,12 @@ function processFirstApproval(sheet, row, canSendMail) {
     sheet.getRange(row, 19).setValue("✅ ĐÃ GỬI GMAIL CẤP TK (" + nowStr + ")").setFontColor("#15803d").setFontWeight("bold");
     sheet.getRange(row, 20).setValue("📄 HOP_DONG_SYNAPES_" + code + ".pdf (Đã cấp TK & HĐ 100%)");
     ss.toast("✅ Đã cấp mã " + code + " và gửi Gmail kích hoạt tới " + email, "🚀 SYNAPES Studio", 6);
+    SpreadsheetApp.flush();
     return true;
   } else {
     sheet.getRange(row, 19).setValue("⚠️ Lỗi gửi mail: " + fullMailResult.error).setFontColor("#b91c1c");
     ss.toast("⚠️ Lỗi gửi Gmail: " + fullMailResult.error, "SYNAPES Studio", 8);
+    SpreadsheetApp.flush();
     return false;
   }
 }
@@ -957,6 +1046,7 @@ function processFinalHandoverApproval(sheet, row, canSendMail) {
 
   syncAccountToMainSheet(code, fullName, email, password, phone, address, false);
   reconcileAllApprovedUsersToAccountsSheet(ss);
+  SpreadsheetApp.flush();
 
   var now = new Date();
   var nowStr = Utilities.formatDate(now, "GMT+7", "dd/MM/yyyy HH:mm:ss");
@@ -964,6 +1054,7 @@ function processFinalHandoverApproval(sheet, row, canSendMail) {
   if (!canSendMail) {
     sheet.getRange(row, 19).setValue("⏳ Đã duyệt Bàn giao Lần 2 (Bấm menu SYNAPES Studio ➔ Mục 4 hoặc Mục 1 để gửi Gmail tức thì)");
     ss.toast("🚀 Đã duyệt Bàn Giao Lần 2! Cần cấp quyền gửi mail: Bấm menu SYNAPES Studio ➔ Mục 4 để gửi ngay Gmail kèm HĐ hoàn chỉnh!", "SYNAPES Studio", 8);
+    SpreadsheetApp.flush();
     return true;
   }
 
@@ -988,10 +1079,12 @@ function processFinalHandoverApproval(sheet, row, canSendMail) {
     sheet.getRange(row, 19).setValue("✅ ĐÃ BÀN GIAO & GỬI GMAIL (" + nowStr + ")").setFontColor("#15803d").setFontWeight("bold");
     sheet.getRange(row, 20).setValue("🎉 BÀN GIAO HOÀN TẤT & TRẢ ĐỦ 100% — CẤP MÃ " + code);
     ss.toast("✅ Đã bàn giao hệ thống và gửi tài khoản mã " + code + " kèm HĐ hoàn chỉnh tới " + email, "🚀 SYNAPES Studio", 6);
+    SpreadsheetApp.flush();
     return true;
   } else {
     sheet.getRange(row, 19).setValue("⚠️ Lỗi gửi mail bàn giao: " + handoverMailResult.error).setFontColor("#b91c1c");
     ss.toast("⚠️ Lỗi gửi Gmail: " + handoverMailResult.error, "SYNAPES Studio", 8);
+    SpreadsheetApp.flush();
     return false;
   }
 }
@@ -2291,6 +2384,9 @@ function handleUserRegistrationWebhook(ss, payload) {
       "2. DUYỆT BÀN GIAO LẦN 2 (Cột 18): Áp dụng cho HĐ Đặt cọc khi đến ngày giao hàng và khách thanh toán đủ tiền, Kỹ sư tích Cột 18 để bàn giao và cấp tài khoản.";
     sheet.getRange(targetRow, 20).setNote(contractSummaryNote);
   }
+
+  // Đẩy tức thì dữ liệu ra giao diện Bảng tính để Kỹ sư/Dev thấy ngay lập tức trên màn hình
+  SpreadsheetApp.flush();
 
   return {
     status: "success",
