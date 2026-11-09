@@ -408,8 +408,51 @@ export function classifyTopicDomain(query = '') {
 // ============================================================================
 const IMAGE_PROXY_CACHE = new Map();
 
+/**
+ * Chống lỗ hổng SSRF (Server-Side Request Forgery):
+ * Chặn hoàn toàn các URL trỏ về localhost, IP loopback, IP Private nội bộ và cloud metadata services.
+ */
+export function isSafeExternalUrl(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return false;
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname === '::1' ||
+      hostname === '169.254.169.254' || // AWS / GCP / Azure Cloud Metadata Service
+      hostname === 'metadata.google.internal' ||
+      hostname.endsWith('.internal') ||
+      hostname.endsWith('.local')
+    ) {
+      return false;
+    }
+    // Chặn dải IP private IPv4: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16
+    const ipMatch = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+    if (ipMatch) {
+      const b1 = parseInt(ipMatch[1], 10);
+      const b2 = parseInt(ipMatch[2], 10);
+      if (b1 === 127 || b1 === 10 || b1 === 0) return false;
+      if (b1 === 192 && b2 === 168) return false;
+      if (b1 === 172 && b2 >= 16 && b2 <= 31) return false;
+      if (b1 === 169 && b2 === 254) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function fetchRemoteBuffer(targetUrl, redirectsLeft = 4, timeoutMs = 8500) {
   return new Promise((resolve, reject) => {
+    if (!isSafeExternalUrl(targetUrl)) {
+      reject(new Error('SSRF Blocked: Invalid or private target URL'));
+      return;
+    }
     if (redirectsLeft <= 0) {
       reject(new Error('Too many redirects'));
       return;
@@ -779,10 +822,21 @@ function fetchOpenAiSpeech(apiKey, text, voice = 'onyx') {
 // ============================================================================
 // 5. SERVER-SIDE MULTI-LLM PROXY (BYPASSES BROWSER CORS FOR CLAUDE/DEEPSEEK/GROK/GEMINI/OPENAI)
 // ============================================================================
+const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024; // 10MB limit chống tấn công DoS tràn bộ nhớ RAM
+
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on('data', (c) => chunks.push(c));
+    let receivedBytes = 0;
+    req.on('data', (c) => {
+      receivedBytes += c.length;
+      if (receivedBytes > MAX_REQUEST_BODY_BYTES) {
+        req.destroy();
+        reject(new Error('Payload Too Large: Vượt quá giới hạn 10MB cho phép'));
+        return;
+      }
+      chunks.push(c);
+    });
     req.on('end', () => {
       try {
         const str = Buffer.concat(chunks).toString('utf8');
@@ -797,6 +851,10 @@ function readJsonBody(req) {
 
 async function postJsonHttps(targetUrl, headers, bodyObj, timeoutMs = 25000) {
   return new Promise((resolve, reject) => {
+    if (!isSafeExternalUrl(targetUrl)) {
+      reject(new Error('SSRF Blocked: Invalid or private target URL'));
+      return;
+    }
     const parsed = new URL(targetUrl);
     const payload = JSON.stringify(bodyObj);
     const client = parsed.protocol === 'http:' ? http : https;

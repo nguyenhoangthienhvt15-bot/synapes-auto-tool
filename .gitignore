@@ -11,6 +11,10 @@ node_modules
 # dist (tracked to guarantee instant zero-delay serving on cloud)
 dist-ssr
 *.local
+.env
+.env.*
+*.pem
+*.key
 
 # Editor directories and files
 .vscode/*

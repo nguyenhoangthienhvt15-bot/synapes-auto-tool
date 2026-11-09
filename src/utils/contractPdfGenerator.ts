@@ -10,6 +10,16 @@ import { jsPDF } from 'jspdf';
  * và chống tràn lề phải trên mọi trình đọc PDF (WPS Office, Adobe Reader, Chrome PDF).
  */
 
+function escapeHtml(str: string | undefined | null): string {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function generateContractDocHtml(data: UserRegistrationData): string {
   const currentDate = new Date();
   const day = currentDate.getDate().toString().padStart(2, '0');
@@ -17,13 +27,13 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
   const year = currentDate.getFullYear();
   const dateFormatted = `${day}/${month}/${year}`;
 
-  const fullNameDisplay = data.fullName || 'Khách hàng SYNAPES';
-  const idCardDisplay = data.idCardNumber || 'Chưa cung cấp';
-  const dobDisplay = data.dob || 'Không cung cấp';
-  const genderDisplay = data.gender || 'Không cung cấp';
-  const phoneDisplay = data.phone || 'Không cung cấp';
-  const emailDisplay = data.email || 'Không cung cấp';
-  const addressDisplay = data.address || 'Không cung cấp';
+  const fullNameDisplay = escapeHtml(data.fullName) || 'Khách hàng SYNAPES';
+  const idCardDisplay = escapeHtml(data.idCardNumber) || 'Chưa cung cấp';
+  const dobDisplay = escapeHtml(data.dob) || 'Không cung cấp';
+  const genderDisplay = escapeHtml(data.gender) || 'Không cung cấp';
+  const phoneDisplay = escapeHtml(data.phone) || 'Không cung cấp';
+  const emailDisplay = escapeHtml(data.email) || 'Không cung cấp';
+  const addressDisplay = escapeHtml(data.address) || 'Không cung cấp';
 
   // Lấy ảnh chữ ký tay người dùng (nếu có trong dữ liệu hoặc trong bộ nhớ lưu trữ theo email người dùng)
   const signatureDisplay = data.signatureImage || (typeof window !== 'undefined'
