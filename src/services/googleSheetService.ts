@@ -493,7 +493,15 @@ export async function discoverWebhookUrlFromSheet(sheetId: string = GOOGLE_SHEET
 export function getStoredRegistrations(): UserRegistrationData[] {
   try {
     const raw = localStorage.getItem(REGISTRATION_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const list: UserRegistrationData[] = raw ? JSON.parse(raw) : [];
+    return list.map((item) => {
+      if (!item.signatureImage) {
+        const savedSig = (item.email ? localStorage.getItem(`synapes_user_signature_${item.email.toLowerCase()}`) : null) ||
+                         localStorage.getItem('synapes_user_signature_latest') || '';
+        if (savedSig) item.signatureImage = savedSig;
+      }
+      return item;
+    });
   } catch {
     return [];
   }
@@ -539,6 +547,13 @@ export async function saveUserRegistration(
       current.push(normalizedData);
     }
 
+    if (normalizedData.signatureImage) {
+      try {
+        localStorage.setItem(`synapes_user_signature_${normalizedData.email.toLowerCase()}`, normalizedData.signatureImage);
+        localStorage.setItem('synapes_user_signature_latest', normalizedData.signatureImage);
+      } catch { }
+    }
+
     localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(current));
 
     // Gửi trực tiếp lên Google Sheet "THÔNG TIN NGƯỜI DÙNG" qua Apps Script Webhook
@@ -560,6 +575,8 @@ export async function saveUserRegistration(
       deliveryDays: normalizedData.deliveryDays || 0,
       termsAccepted: normalizedData.termsAccepted,
       registeredAt: normalizedData.registeredAt,
+      signatureImage: normalizedData.signatureImage || '',
+      buyerSignature: normalizedData.signatureImage || '',
       notes: normalizedData.notes || (normalizedData.termsAccepted ? 'Đã ký hợp đồng qua WebApp' : 'Chờ ký hợp đồng'),
     });
 

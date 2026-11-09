@@ -25,6 +25,12 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
   const emailDisplay = data.email || 'Không cung cấp';
   const addressDisplay = data.address || 'Không cung cấp';
 
+  // Lấy ảnh chữ ký tay người dùng (nếu có trong dữ liệu hoặc trong bộ nhớ lưu trữ)
+  const signatureDisplay = data.signatureImage || (typeof window !== 'undefined'
+    ? ((data.email ? localStorage.getItem(`synapes_user_signature_${data.email.toLowerCase()}`) : null) ||
+       localStorage.getItem('synapes_user_signature_latest') || '')
+    : '');
+
   // Xác định gói và phương thức
   const pkg = data.contractPackage || (data.contractCategory === 'enterprise' ? 'enterprise_deposit' : 'personal_deposit');
   const isEnterprise = data.contractCategory === 'enterprise' || pkg.startsWith('enterprise');
@@ -460,9 +466,16 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
             <div class="signature-sub"><i>(Chữ ký điện tử xác nhận cam kết)</i></div>
 
             <div class="buyer-sign-box">
+              ${signatureDisplay ? `
+                <div style="height: 52px; margin-bottom: 5px; display: flex; align-items: center; justify-content: center;">
+                  <img src="${signatureDisplay}" style="max-height: 48px; max-width: 170px; object-fit: contain;" alt="Chữ ký tay Bên B" />
+                </div>
+              ` : `
+                <div style="height: 18px;"></div>
+              `}
               <div class="buyer-seal-badge">
-                ĐÃ KÝ ĐIỆN TỬ HỢP LỆ<br/>
-                <span style="font-size: 7.8pt; font-weight: normal;">Ngày ký: ${dateFormatted}</span><br/>
+                ĐÃ KÝ XÁC NHẬN ĐIỆN TỬ<br/>
+                <span style="font-size: 8pt; font-weight: normal;">Ngày: ${dateFormatted}</span><br/>
                 <span style="font-size: 7.8pt; font-weight: normal; font-family: monospace;">CCCD: ${idCardDisplay}</span>
               </div>
             </div>

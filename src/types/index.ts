@@ -364,6 +364,7 @@ export interface UserRegistrationData {
   totalAmount?: number;
   originalAmount?: number;
   deliveryDays?: number; // Số ngày đến hạn bàn giao (dành cho đặt cọc)
+  signatureImage?: string; // Ảnh chữ ký tay điện tử Base64 PNG
   termsAccepted: boolean;
   registeredAt: string;
   isApproved?: boolean;

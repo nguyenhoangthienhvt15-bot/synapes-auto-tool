@@ -205,6 +205,33 @@ if (fs.existsSync(gasPath)) {
     'Apps Script tạo file PDF HĐ bàn giao hoàn chỉnh và xác nhận bên mua trả đủ 100% giá trị hợp đồng');
   assert(gasContent.includes('ĐÃ BÀN GIAO SẢN PHẨM HOÀN CHỈNH') && gasContent.includes('ĐÃ THANH TOÁN ĐỦ 100%'),
     'Thư Gmail duyệt Lần 2 xác nhận bàn giao sản phẩm hoàn chỉnh và thanh toán đủ 100% kèm Code & Pass');
+  assert(gasContent.includes('buyerSigHtml') && gasContent.includes('ĐÃ KÝ XÁC NHẬN ĐIỆN TỬ'),
+    'Apps Script nhúng ảnh chữ ký tay Bên B ngay phía trên khung xanh ĐÃ KÝ XÁC NHẬN ĐIỆN TỬ');
+}
+
+// --- 7. Kiểm tra Tính Năng Vẽ Chữ Ký Tay (Signature Pad) ---
+console.log('\n--- 7. Kiểm tra Tính Năng Vẽ Chữ Ký Tay (Signature Pad) ---');
+const sigModalPath = path.resolve(__dirname, '../src/components/SignatureModal.tsx');
+assert(fs.existsSync(sigModalPath), 'File src/components/SignatureModal.tsx tồn tại');
+if (fs.existsSync(sigModalPath)) {
+  const sigModalContent = fs.readFileSync(sigModalPath, 'utf8');
+  assert(sigModalContent.includes('canvasRef') && sigModalContent.includes('toDataURL'),
+    'SignatureModal hỗ trợ vẽ cảm ứng / chuột trên canvas và xuất ảnh PNG');
+}
+
+const regModalPath = path.resolve(__dirname, '../src/components/RegisterModal.tsx');
+if (fs.existsSync(regModalPath)) {
+  const regContent = fs.readFileSync(regModalPath, 'utf8');
+  assert(regContent.includes('SignatureModal') && regContent.includes('Mục Ký Tên Điện Tử'),
+    'RegisterModal tích hợp nút Ký tên và modal vẽ chữ ký tay');
+  assert(regContent.includes('signatureImage'),
+    'RegisterModal lưu ảnh chữ ký tay vào hồ sơ hợp đồng');
+}
+
+if (fs.existsSync(contractPdfGenPath)) {
+  const pdfGenContent = fs.readFileSync(contractPdfGenPath, 'utf8');
+  assert(pdfGenContent.includes('signatureDisplay') && pdfGenContent.includes('ĐÃ KÝ XÁC NHẬN ĐIỆN TỬ'),
+    'contractPdfGenerator.ts hiển thị chữ ký tay Bên B ngay phía trên khung xanh ĐÃ KÝ XÁC NHẬN ĐIỆN TỬ');
 }
 
 // -----------------------------------------------------------------------------
