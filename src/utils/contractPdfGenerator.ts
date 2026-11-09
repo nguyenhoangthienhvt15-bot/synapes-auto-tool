@@ -36,14 +36,19 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
   const deliveryDays = data.deliveryDays || (isEnterprise ? 7 : 5);
 
   const formatVnd = (n: number) => n.toLocaleString('vi-VN') + ' VNĐ';
+  const isFinalHandover = Boolean(data.isFinalDelivered);
 
   const contractTitle = isDeposit
-    ? 'HỢP ĐỒNG ĐẶT CỌC CUNG CẤP HỆ THỐNG CÔNG NGHỆ & DỊCH VỤ PHẦN MỀM'
+    ? (isFinalHandover
+      ? 'HỢP ĐỒNG BÀN GIAO SẢN PHẨM HOÀN CHỈNH & XÁC NHẬN THANH TOÁN ĐỦ 100% GIÁ TRỊ'
+      : 'HỢP ĐỒNG ĐẶT CỌC CUNG CẤP HỆ THỐNG CÔNG NGHỆ & DỊCH VỤ PHẦN MỀM')
     : 'HỢP ĐỒNG CUNG CẤP DỊCH VỤ PHẦN MỀM & BẢN QUYỀN HỆ THỐNG CÔNG NGHỆ';
 
-  const contractSubtitle = isEnterprise
-    ? '(GÓI TOÀN HỆ THỐNG CAO CẤP — HẠN MỨC CHỨC NĂNG TỐI ĐA)'
-    : '(GÓI CÁ NHÂN HÓA — TỰ ĐỘNG HÓA SÁNG TẠO NỘI DUNG ĐA TẦNG)';
+  const contractSubtitle = isFinalHandover
+    ? '(BIÊN BẢN BÀN GIAO HOÀN TẤT & QUYẾT TOÁN 100% — KÍCH HOẠT VĨNH VIỄN)'
+    : (isEnterprise
+      ? '(GÓI TOÀN HỆ THỐNG CAO CẤP — HẠN MỨC CHỨC NĂNG TỐI ĐA)'
+      : '(GÓI CÁ NHÂN HÓA — TỰ ĐỘNG HÓA SÁNG TẠO NỘI DUNG ĐA TẦNG)');
 
   return `
     <div id="pdf-contract-wrapper" style="width: 794px; background-color: #ffffff; color: #111827; font-family: 'Times New Roman', Times, serif; margin: 0; padding: 0;">
@@ -386,7 +391,9 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
         <div class="section-title">Điều 2. Giá trị hợp đồng, nghĩa vụ bàn giao & phương thức thanh toán</div>
         <p>
           2.1. <b>Giá trị hợp đồng:</b> Gói ký kết là <b>${data.contractPackageName || (isEnterprise ? 'Hợp đồng toàn hệ' : 'Hợp đồng cá nhân hóa')}</b>.
-          ${isDeposit ? `
+          ${isFinalHandover ? `
+          Tổng giá trị bàn giao toàn vẹn của hệ thống là <b>${formatVnd(totalAmount)}</b>. <b>Xác nhận thanh toán:</b> Bên B đã hoàn tất chi trả đủ 100% giá trị hợp đồng (bao gồm tiền đặt cọc ${formatVnd(depositAmount)} và tiền quyết toán hoàn tất bàn giao ${formatVnd(totalAmount - depositAmount)}). Bên A xác nhận đã nhận đủ toàn bộ số tiền và không còn khiếu nại hay công nợ nào phát sinh giữa hai bên.
+          ` : isDeposit ? `
           Giá đặt cọc là <b>${formatVnd(depositAmount)}</b>. Tổng giá trị toàn vẹn bàn giao hệ thống là <b>${formatVnd(totalAmount)}</b> (Giá giảm ưu đãi từ giá gốc niêm yết: <span style="text-decoration: line-through;">${formatVnd(originalAmount)}</span>). Số tiền còn lại <b>${formatVnd(totalAmount - depositAmount)}</b> sẽ được thanh toán khi hoàn tất bàn giao.
           ` : `
           Tổng giá trị thanh toán trọn gói 100% một lần là <b>${formatVnd(totalAmount)}</b> (Giá giảm ưu đãi từ giá gốc niêm yết: <span style="text-decoration: line-through;">${formatVnd(originalAmount)}</span>).
@@ -394,8 +401,10 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
         </p>
         <p>
           2.2. <b>Nghĩa vụ bàn giao của Bên A:</b>
-          ${isDeposit ? `
-          Người bán (Bên A) có nghĩa vụ bàn giao sản phẩm (hệ thống) đúng thời hạn, tính từ thời điểm đặt cọc là <b>${deliveryDays} ngày</b>. Khi đến hạn bàn giao, Kỹ sư/Dev của Bên A xác nhận Bên B đã thanh toán đầy đủ số tiền còn lại và gửi thông báo hoàn tất bàn giao kèm tài khoản đăng nhập về Gmail của Bên B.
+          ${isFinalHandover ? `
+          <b>Bàn giao sản phẩm hoàn chỉnh:</b> Bên A chính thức bàn giao sản phẩm hệ thống phần mềm SYNAPES Studio hoàn chỉnh cho Bên B (bao gồm cả trường hợp hoàn thành và bàn giao sớm hơn thời hạn ${deliveryDays} ngày theo thỏa thuận để Bên B kịp thời khai thác thực tế). Kèm theo đó là Mã Code đăng nhập, Mật khẩu và quyền truy cập vĩnh viễn đã được gửi trực tiếp về Gmail <b>${emailDisplay}</b> của Bên B.
+          ` : isDeposit ? `
+          Người bán (Bên A) có nghĩa vụ bàn giao sản phẩm (hệ thống) đúng thời hạn, tính từ thời điểm đặt cọc là <b>${deliveryDays} ngày</b> (chấp nhận bàn giao sớm hơn hạn khi Kỹ sư hoàn tất triển khai). Khi bàn giao, Kỹ sư/Dev của Bên A xác nhận Bên B đã thanh toán đầy đủ số tiền còn lại và gửi thông báo hoàn tất bàn giao kèm tài khoản đăng nhập về Gmail của Bên B.
           ` : `
           Bên A có nghĩa vụ cấp đủ Mã Code đăng nhập, Mật khẩu cùng bản hợp đồng chính thức gửi về Gmail của Bên B ngay sau khi Kỹ sư duyệt xác nhận.
           `}
@@ -503,7 +512,10 @@ export function generateContractHtml(data: UserRegistrationData): string {
  */
 export async function downloadPersonalizedContractPdf(data: UserRegistrationData): Promise<void> {
   const cleanName = (data.fullName || 'SYNAPES').trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\u00C0-\u1EF9]/g, '');
-  const filename = `HOP_DONG_DICH_VU_SYNAPES_${cleanName || 'KHACH_HANG'}.pdf`;
+  const isFinalHandover = Boolean(data.isFinalDelivered);
+  const filename = isFinalHandover
+    ? `HOP_DONG_BAN_GIAO_HOAN_CHINH_SYNAPES_${cleanName || 'KHACH_HANG'}.pdf`
+    : `HOP_DONG_DICH_VU_SYNAPES_${cleanName || 'KHACH_HANG'}.pdf`;
 
   const container = document.createElement('div');
   container.id = 'temp-pdf-contract-host';

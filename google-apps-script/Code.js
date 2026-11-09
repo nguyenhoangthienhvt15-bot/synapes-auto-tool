@@ -922,8 +922,11 @@ function processFinalHandoverApproval(sheet, row, canSendMail) {
   var address = String(displayVals[8] || "").trim();
   var contractCategory = String(displayVals[9] || "Hợp đồng cá nhân hóa").trim();
   var contractPackageName = String(displayVals[10] || "").trim();
+  var depositStr = String(displayVals[11] || "").trim();
+  var depositAmount = parseFloat(depositStr.replace(/[^0-9]/g, "")) || 0;
   var totalStr = String(displayVals[12] || "").trim();
   var totalAmount = parseFloat(totalStr.replace(/[^0-9]/g, "")) || 0;
+  var deliveryDays = parseInt(String(displayVals[13] || "").replace(/[^0-9]/g, ""), 10) || 0;
 
   var existingCode = String(displayVals[15] || "").trim();
   var existingPass = String(displayVals[16] || "").trim();
@@ -942,6 +945,10 @@ function processFinalHandoverApproval(sheet, row, canSendMail) {
   sheet.getRange(row, 16).setValue(code).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#0f172a");
   sheet.getRange(row, 17).setValue(password).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#b91c1c");
 
+  // Đảm bảo cả Cột 15 (Duyệt Ký Lần 1) và Cột 18 (Duyệt Bàn Giao Lần 2) đều được tích chọn
+  sheet.getRange(row, 15).setValue(true);
+  sheet.getRange(row, 18).setValue(true);
+
   syncAccountToMainSheet(code, fullName, email, password, phone, address, false);
   reconcileAllApprovedUsersToAccountsSheet(ss);
 
@@ -949,7 +956,8 @@ function processFinalHandoverApproval(sheet, row, canSendMail) {
   var nowStr = Utilities.formatDate(now, "GMT+7", "dd/MM/yyyy HH:mm:ss");
 
   if (!canSendMail) {
-    sheet.getRange(row, 19).setValue("⏳ Đã duyệt Bàn giao (Bấm menu SYNAPES Studio ➔ Mục 1 để bật gửi Gmail tự động)");
+    sheet.getRange(row, 19).setValue("⏳ Đã duyệt Bàn giao Lần 2 (Bấm menu SYNAPES Studio ➔ Mục 4 hoặc Mục 1 để gửi Gmail tức thì)");
+    ss.toast("🚀 Đã duyệt Bàn Giao Lần 2! Cần cấp quyền gửi mail: Bấm menu SYNAPES Studio ➔ Mục 4 để gửi ngay Gmail kèm HĐ hoàn chỉnh!", "SYNAPES Studio", 8);
     return true;
   }
 
@@ -965,13 +973,15 @@ function processFinalHandoverApproval(sheet, row, canSendMail) {
     password,
     contractCategory,
     contractPackageName,
-    totalAmount
+    totalAmount,
+    depositAmount,
+    deliveryDays
   );
 
   if (handoverMailResult.success) {
     sheet.getRange(row, 19).setValue("✅ ĐÃ BÀN GIAO & GỬI GMAIL (" + nowStr + ")").setFontColor("#15803d").setFontWeight("bold");
-    sheet.getRange(row, 20).setValue("🎉 BÀN GIAO THÀNH CÔNG — CẤP MÃ " + code);
-    ss.toast("✅ Đã bàn giao hệ thống và gửi tài khoản mã " + code + " tới " + email, "🚀 SYNAPES Studio", 6);
+    sheet.getRange(row, 20).setValue("🎉 BÀN GIAO HOÀN TẤT & TRẢ ĐỦ 100% — CẤP MÃ " + code);
+    ss.toast("✅ Đã bàn giao hệ thống và gửi tài khoản mã " + code + " kèm HĐ hoàn chỉnh tới " + email, "🚀 SYNAPES Studio", 6);
     return true;
   } else {
     sheet.getRange(row, 19).setValue("⚠️ Lỗi gửi mail bàn giao: " + handoverMailResult.error).setFontColor("#b91c1c");
@@ -1341,18 +1351,22 @@ function sendFullApprovalEmail(email, fullName, idCardNumber, dob, gender, phone
 /**
  * Gửi Gmail Bàn Giao Sản Phẩm Lần 2 (Cấp Mã + Pass sau khi Kỹ sư duyệt Cột 18 cho HĐ Đặt cọc)
  */
-function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phone, address, code, password, category, packageName, totalAmount) {
+function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phone, address, code, password, category, packageName, totalAmount, depositAmount, deliveryDays) {
   try {
-    var subject = "[SYNAPES Studio] Biên bản bàn giao hệ thống & Kích hoạt tài khoản — Mã: " + code;
+    var subject = "[SYNAPES Studio] Xác nhận hoàn tất hợp đồng, thanh toán đủ 100% & Bàn giao hệ thống — Mã: " + code;
+
+    var depositVal = Number(depositAmount) || 0;
+    var totalVal = Number(totalAmount) || 0;
+    var remainingVal = Math.max(0, totalVal - depositVal);
 
     var htmlContract = generateContractHtmlContent(
       fullName, dob, gender, phone, address, code, email,
-      idCardNumber, packageName, 0, totalAmount, 0, false
+      idCardNumber, packageName, depositVal, totalVal, deliveryDays, false, true
     );
 
-    var pdfBlob = Utilities.newBlob(htmlContract, "text/html", "BIEN_BAN_BAN_GIAO_SYNAPES_" + code + ".html")
+    var pdfBlob = Utilities.newBlob(htmlContract, "text/html", "HOP_DONG_BAN_GIAO_HOAN_CHINH_SYNAPES_" + code + ".html")
       .getAs("application/pdf")
-      .setName("BIEN_BAN_BAN_GIAO_SYNAPES_" + code + ".pdf");
+      .setName("HOP_DONG_BAN_GIAO_HOAN_CHINH_SYNAPES_" + code + ".pdf");
 
     var cccdRow = idCardNumber
       ? '      <tr>' +
@@ -1364,7 +1378,7 @@ function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phon
     var contentHtml =
       '<p style="margin: 0 0 14px 0; font-size: 14.5px;">Kính gửi Quý khách hàng <b>' + fullName + '</b>,</p>' +
       '<p style="margin: 0 0 16px 0; font-size: 14px; color: #32383f; line-height: 1.6;">' +
-      '  Hệ thống sản xuất video tự động <b>SYNAPES Studio</b> của Quý khách theo Hợp đồng đặt cọc đã được đội ngũ Kỹ sư hoàn tất triển khai, kiểm thử tối ưu hóa và xác nhận hoàn tất thanh toán đủ 100%.' +
+      '  Đội ngũ Kỹ sư/Dev <b>SYNAPES Studio</b> trân trọng thông báo: Hệ thống phần mềm tự động hóa sản xuất nội dung số của Quý khách theo Hợp đồng đặt cọc đã được hoàn tất triển khai kiểm thử toàn diện và bàn giao chính thức (chấp nhận bàn giao thành công ngay khi Kỹ sư hoàn tất trước hạn). Đồng thời, hệ thống xác nhận Bên Mua đã hoàn tất chi trả đủ 100% toàn bộ giá trị hợp đồng.' +
       '</p>' +
       '<!-- BẢNG THÔNG TIN ĐĂNG NHẬP -->' +
       '<table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; margin: 18px 0; border: 1px solid #d0d7de; border-radius: 6px; background: #f6f8fa; overflow: hidden;">' +
@@ -1387,16 +1401,16 @@ function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phon
       '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #0969da; background: #ddf4ff; border: 1px solid #b6e3ff; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + code + '</span></td>' +
       '        </tr>' +
       '        <tr>' +
-      '          <td style="padding: 6px 0; color: #57606a;">Mật Khẩu Mặc Định:</td>' +
+      '          <td style="padding: 6px 0; color: #57606a;">Mật Khẩu Khởi Tạo:</td>' +
       '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #cf222e; background: #ffebe9; border: 1px solid #ffcecb; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + password + '</span></td>' +
       '        </tr>' +
       '        <tr>' +
       '          <td style="padding: 6px 0; color: #57606a;">Trạng thái:</td>' +
-      '          <td style="padding: 6px 0;"><span style="color: #1a7f37; font-weight: 700;">ĐÃ BÀN GIAO TOÀN DIỆN &bull; KÍCH HOẠT VĨNH VIỄN</span></td>' +
+      '          <td style="padding: 6px 0;"><span style="color: #1a7f37; font-weight: 700;">ĐÃ BÀN GIAO HOÀN CHỈNH &bull; KÍCH HOẠT VĨNH VIỄN</span></td>' +
       '        </tr>' +
       '      </table>' +
       '      <div style="margin-top: 14px; text-align: center;">' +
-      '        <a href="https://synapes-auto-tool-web-service.onrender.com" target="_blank" style="display: inline-block; background: #1f2328; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 600; padding: 10px 24px; border-radius: 6px;">Bắt Đầu Sử Dụng SYNAPES Studio &rarr;</a>' +
+      '        <a href="https://synapes-auto-tool-web-service.onrender.com" target="_blank" style="display: inline-block; background: #1f2328; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 600; padding: 10px 24px; border-radius: 6px;">Đăng Nhập Ngay &rarr;</a>' +
       '      </div>' +
       '    </td>' +
       '  </tr>' +
@@ -1405,7 +1419,7 @@ function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phon
       '<table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; margin: 16px 0; border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden; font-size: 13.5px;">' +
       '  <tr style="background: #f6f8fa;">' +
       '    <th colspan="2" style="padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 700; color: #57606a; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #d0d7de;">' +
-      '      THÔNG TIN BIÊN BẢN BÀN GIAO' +
+      '      XÁC NHẬN HOÀN TẤT HỢP ĐỒNG &amp; THANH TOÁN 100%' +
       '    </th>' +
       '  </tr>' +
       '  <tr>' +
@@ -1413,24 +1427,46 @@ function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phon
       '    <td style="padding: 8px 12px; color: #1f2328; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + packageName + ' (' + category + ')</td>' +
       '  </tr>' +
       cccdRow +
+      (depositVal > 0 ? (
+        '  <tr>' +
+        '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8;">Tiền đặt cọc đã đóng (Đợt 1):</td>' +
+        '    <td style="padding: 8px 12px; color: #1f2328; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + depositVal.toLocaleString("vi-VN") + ' VNĐ</td>' +
+        '  </tr>' +
+        '  <tr>' +
+        '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8;">Tiền thanh toán bàn giao (Đợt 2):</td>' +
+        '    <td style="padding: 8px 12px; color: #1f2328; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + remainingVal.toLocaleString("vi-VN") + ' VNĐ</td>' +
+        '  </tr>'
+      ) : '') +
       '  <tr>' +
-      '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8;">Tổng giá trị bàn giao:</td>' +
-      '    <td style="padding: 8px 12px; color: #1a7f37; font-weight: 700; font-size: 15px; border-bottom: 1px solid #e1e4e8;">' + totalAmount.toLocaleString("vi-VN") + ' VNĐ (Xác nhận hoàn tất 100%)</td>' +
+      '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8;">Tổng giá trị hợp đồng:</td>' +
+      '    <td style="padding: 8px 12px; color: #1a7f37; font-weight: 700; font-size: 15px; border-bottom: 1px solid #e1e4e8;">' + totalVal.toLocaleString("vi-VN") + ' VNĐ</td>' +
+      '  </tr>' +
+      '  <tr>' +
+      '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8;">Tình trạng thanh toán:</td>' +
+      '    <td style="padding: 8px 12px; color: #1a7f37; font-weight: 700; border-bottom: 1px solid #e1e4e8;">ĐÃ THANH TOÁN ĐỦ 100% (Xác nhận quyết toán đủ, không còn công nợ)</td>' +
+      '  </tr>' +
+      '  <tr>' +
+      '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8;">Tình trạng bàn giao:</td>' +
+      '    <td style="padding: 8px 12px; color: #0969da; font-weight: 700; border-bottom: 1px solid #e1e4e8;">ĐÃ BÀN GIAO SẢN PHẨM HOÀN CHỈNH (Chấp nhận bàn giao sớm trước hạn)</td>' +
+      '  </tr>' +
+      '  <tr>' +
+      '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8;">Quyền sở hữu kịch bản &amp; video:</td>' +
+      '    <td style="padding: 8px 12px; color: #1f2328; border-bottom: 1px solid #e1e4e8;">Khách hàng sở hữu 100% bản quyền vĩnh viễn theo chuẩn DMCA</td>' +
       '  </tr>' +
       '  <tr>' +
       '    <td style="padding: 8px 12px; color: #57606a;">Chính sách bảo hành:</td>' +
       '    <td style="padding: 8px 12px; color: #1f2328;">Bảo hành &amp; hỗ trợ kỹ thuật toàn thời gian</td>' +
       '  </tr>' +
       '</table>' +
-      buildPaymentQrBoxHtml(totalAmount, (fullName.replace(/[^a-zA-Z0-9]/g, "") + " HANDOVER " + code).trim().toUpperCase()) +
+      buildPaymentQrBoxHtml(totalVal, (fullName.replace(/[^a-zA-Z0-9]/g, "") + " COMPLETED " + code).trim().toUpperCase()) +
       buildQuoteAndThanksHtml() +
       '<p style="margin: 16px 0 0 0; font-size: 13px; color: #57606a;">' +
-      '  <b>Tệp tin đính kèm:</b> Bản mềm Biên bản bàn giao &amp; Hợp đồng dịch vụ hoàn chỉnh (PDF có dấu mộc đỏ tròn của Trưởng ban KS. Nguyễn Hoàng Thiện) được đính kèm trực tiếp dưới thư này.' +
+      '  <b>Tệp tin đính kèm:</b> Bản mềm Hợp đồng bàn giao sản phẩm hoàn chỉnh &amp; Xác nhận bên mua thanh toán đủ 100% (PDF có dấu mộc đỏ tròn của Trưởng ban KS. Nguyễn Hoàng Thiện) được đính kèm trực tiếp dưới thư này.' +
       '</p>';
 
     var emailBodyHtml = wrapEmailInCorporateLayout(
       "BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO — BIÊN BẢN BÀN GIAO CHÍNH THỨC",
-      "BIÊN BẢN BÀN GIAO HỆ THỐNG & KÍCH HOẠT TÀI KHOẢN",
+      "XÁC NHẬN HOÀN TẤT HỢP ĐỒNG & BÀN GIAO HỆ THỐNG",
       contentHtml
     );
 
@@ -1529,7 +1565,7 @@ function sendForgotPasswordEmail(email, fullName, code, newPassword) {
 /**
  * 8. TẠO NỘI DUNG HTML HỢP ĐỒNG ĐẦY ĐỦ KÈM CON DẤU ĐỎ TRƯỞNG BAN ĐỂ XUẤT FILE PDF ĐÍNH KÈM GMAIL
  */
-function generateContractHtmlContent(fullName, dob, gender, phone, address, code, email, idCardNumber, packageName, depositAmount, totalAmount, deliveryDays, isDepositContract) {
+function generateContractHtmlContent(fullName, dob, gender, phone, address, code, email, idCardNumber, packageName, depositAmount, totalAmount, deliveryDays, isDepositContract, isFinalHandover) {
   var now = new Date();
   var day = Utilities.formatDate(now, "GMT+7", "dd");
   var month = Utilities.formatDate(now, "GMT+7", "MM");
@@ -1541,21 +1577,48 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
   var daysVal = Number(deliveryDays) || 0;
   var pkgName = packageName || "Hợp đồng dịch vụ phần mềm SYNAPES Studio";
   var cccd = idCardNumber || "";
+  var isHandover = Boolean(isFinalHandover);
 
-  var contractTitle = isDepositContract
-    ? "HỢP ĐỒNG ĐẶT CỌC DỰ ÁN & BÀN GIAO HỆ THỐNG CÔNG NGHỆ"
-    : (pkgName.toLowerCase().indexOf("toàn hệ") !== -1
-      ? "HỢP ĐỒNG DỊCH VỤ TOÀN HỆ & BÀN GIAO HỆ THỐNG CHÍNH THỨC"
-      : "HỢP ĐỒNG ĐIỆN TỬ CUNG CẤP & SỬ DỤNG DỊCH VỤ PHẦN MỀM");
+  var contractTitle = isHandover
+    ? "HỢP ĐỒNG BÀN GIAO SẢN PHẨM HOÀN CHỈNH & XÁC NHẬN THANH TOÁN ĐỦ 100% GIÁ TRỊ"
+    : (isDepositContract
+      ? "HỢP ĐỒNG ĐẶT CỌC DỰ ÁN & BÀN GIAO HỆ THỐNG CÔNG NGHỆ"
+      : (pkgName.toLowerCase().indexOf("toàn hệ") !== -1
+        ? "HỢP ĐỒNG DỊCH VỤ TOÀN HỆ & BÀN GIAO HỆ THỐNG CHÍNH THỨC"
+        : "HỢP ĐỒNG ĐIỆN TỬ CUNG CẤP & SỬ DỤNG DỊCH VỤ PHẦN MỀM"));
 
-  var contractSubtitle = isDepositContract
-    ? "THỎA THUẬN KÝ KẾT ĐẶT CỌC & CAM KẾT TIẾN ĐỘ BÀN GIAO PHẦN MỀM"
-    : "NỀN TẢNG SẢN XUẤT VIDEO TỰ ĐỘNG SYNAPES STUDIO (BẢN CHÍNH THỨC)";
+  var contractSubtitle = isHandover
+    ? "NỀN TẢNG SẢN XUẤT VIDEO TỰ ĐỘNG SYNAPES STUDIO (BIÊN BẢN BÀN GIAO & QUYẾT TOÁN CHÍNH THỨC)"
+    : (isDepositContract
+      ? "THỎA THUẬN KÝ KẾT ĐẶT CỌC & CAM KẾT TIẾN ĐỘ BÀN GIAO PHẦN MỀM"
+      : "NỀN TẢNG SẢN XUẤT VIDEO TỰ ĐỘNG SYNAPES STUDIO (BẢN CHÍNH THỨC)");
 
   // Con dấu đỏ tròn Trưởng ban: Nhúng trực tiếp Base64 chuẩn tách nền (Không dùng hộp chữ nhật)
   var stampImgHtml = '<div style="height: 140px; margin: 4px auto; text-align: center;">' +
     '<img src="' + ROUND_STAMP_BASE64 + '" width="135" height="135" style="width: 135px; height: 135px; object-fit: contain; margin: 0 auto; display: block; transform: rotate(-1.5deg);" alt="Con dấu Trưởng ban KS. Nguyễn Hoàng Thiện" />' +
     '</div>';
+
+  var financialBoxHtml = "";
+  if (isHandover) {
+    var remVal = Math.max(0, totalVal - depositVal);
+    financialBoxHtml = '<div class="financial-box">' +
+      '  <b>XÁC NHẬN HOÀN TẤT BÀN GIAO &amp; THANH TOÁN ĐỦ 100%:</b><br/>' +
+      '  • Gói hợp đồng đã chọn: <b>' + pkgName + '</b><br/>' +
+      '  • Tổng giá trị hợp đồng toàn vẹn: <span style="color: #15803d; font-weight: bold; font-size: 11pt;">' + totalVal.toLocaleString("vi-VN") + ' VNĐ</span>' +
+      (depositVal > 0 ? (' &nbsp;|&nbsp; Tiền đặt cọc (Đợt 1): <b>' + depositVal.toLocaleString("vi-VN") + ' VNĐ</b> &nbsp;|&nbsp; Tiền quyết toán đợt 2: <b>' + remVal.toLocaleString("vi-VN") + ' VNĐ</b><br/>') : '<br/>') +
+      '  • Xác nhận thanh toán: <span style="color: #15803d; font-weight: bold;">BÊN MUA (BÊN B) ĐÃ THANH TOÁN ĐỦ 100% TOÀN BỘ GIÁ TRỊ HỢP ĐỒNG</span> (Bên A xác nhận đã nhận đủ tiền và hoàn tất quyết toán tài chính, không còn bất kỳ khoản công nợ hay khiếu nại nào giữa hai bên).<br/>' +
+      '  • Xác nhận bàn giao: <span style="color: #0969da; font-weight: bold;">BÊN A ĐÃ BÀN GIAO HOÀN CHỈNH TOÀN DIỆN HỆ THỐNG</span> (Đội ngũ Kỹ sư hoàn tất triển khai, tối ưu hóa và chính thức bàn giao sản phẩm, chấp nhận bàn giao sớm hơn thời hạn cam kết để Bên B kịp thời đưa vào khai thác thực tế).<br/>' +
+      '  • Chính sách bảo hành: Bên A cam kết bảo hành và cung cấp giải pháp hỗ trợ kỹ thuật toàn thời gian.' +
+      '</div>';
+  } else if (depositVal > 0 || totalVal > 0) {
+    financialBoxHtml = '<div class="financial-box">' +
+      '  <b>ĐIỀU KHOẢN TÀI CHÍNH & TIẾN ĐỘ BÀN GIAO:</b><br/>' +
+      '  • Gói hợp đồng đã chọn: <b>' + pkgName + '</b><br/>' +
+      (depositVal > 0 ? ('  • Tiền đặt cọc dự án: <span style="color: #15803d; font-weight: bold;">' + depositVal.toLocaleString("vi-VN") + ' VNĐ</span> &nbsp;|&nbsp; Tổng giá trị toàn vẹn: <b>' + totalVal.toLocaleString("vi-VN") + ' VNĐ</b><br/>') : ('  • Tổng giá trị hợp đồng thanh toán trọn gói: <span style="color: #15803d; font-weight: bold;">' + totalVal.toLocaleString("vi-VN") + ' VNĐ</span><br/>')) +
+      (daysVal > 0 ? ('  • Thời hạn bàn giao sản phẩm: Bên A có nghĩa vụ bàn giao hệ thống đúng thời hạn trong vòng <b>' + daysVal + ' ngày</b> kể từ thời điểm ký đặt cọc.<br/>') : '') +
+      '  • Phương thức thanh toán: Chuyển khoản ngân hàng <b>' + TIMO_BANK_INFO.bankName + '</b>, STK: <b>' + TIMO_BANK_INFO.accountNumber + '</b> (' + TIMO_BANK_INFO.accountHolder + ').' +
+      '</div>';
+  }
 
   return '<!DOCTYPE html>' +
     '<html><head><meta charset="utf-8">' +
@@ -1603,15 +1666,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
     '  • Số điện thoại: ' + phone + ' &nbsp;|&nbsp; Gmail đăng ký: ' + (email || "") + '<br/>' +
     '  • Địa chỉ hiện tại: ' + address +
     '</div>' +
-    (depositVal > 0 || totalVal > 0 ? (
-      '<div class="financial-box">' +
-      '  <b>ĐIỀU KHOẢN TÀI CHÍNH & TIẾN ĐỘ BÀN GIAO:</b><br/>' +
-      '  • Gói hợp đồng đã chọn: <b>' + pkgName + '</b><br/>' +
-      (depositVal > 0 ? ('  • Tiền đặt cọc dự án: <span style="color: #15803d; font-weight: bold;">' + depositVal.toLocaleString("vi-VN") + ' VNĐ</span> &nbsp;|&nbsp; Tổng giá trị toàn vẹn: <b>' + totalVal.toLocaleString("vi-VN") + ' VNĐ</b><br/>') : ('  • Tổng giá trị hợp đồng thanh toán trọn gói: <span style="color: #15803d; font-weight: bold;">' + totalVal.toLocaleString("vi-VN") + ' VNĐ</span><br/>')) +
-      (daysVal > 0 ? ('  • Thời hạn bàn giao sản phẩm: Bên A có nghĩa vụ bàn giao hệ thống đúng thời hạn trong vòng <b>' + daysVal + ' ngày</b> kể từ thời điểm ký đặt cọc.<br/>') : '') +
-      '  • Phương thức thanh toán: Chuyển khoản ngân hàng <b>' + TIMO_BANK_INFO.bankName + '</b>, STK: <b>' + TIMO_BANK_INFO.accountNumber + '</b> (' + TIMO_BANK_INFO.accountHolder + ').' +
-      '</div>'
-    ) : '') +
+    financialBoxHtml +
     '<div class="section">Điều 1. Quy chế cung cấp, quyền hạn và chức năng phần mềm SYNAPES Studio</div>' +
     '<p>1.1. Bên A cung cấp giải pháp công nghệ tự động hóa sản xuất nội dung số SYNAPES Studio cho Bên B với Mã định danh hợp đồng <b>' + code + '</b>.</p>' +
     '<p>1.2. Quyền hạn và phân hệ chức năng: Tự động hóa tạo - đăng tải tuân thủ cấu trúc đa tầng; biên tập chuyên nghiệp khuôn mẫu 16:9 và 9:16 (Shorts/Reels); báo cáo đánh giá xu hướng và dữ liệu thời gian thực; hệ thống an toàn thông tin chuẩn DMCA và mã hóa AES-256; cập nhật mở rộng tính năng theo thời gian thực.</p>' +
