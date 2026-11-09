@@ -494,18 +494,16 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
                               <CheckSquare className="w-3 h-3 text-emerald-600" />
                               <span>ĐÃ GIAO LẦN 2</span>
                             </span>
-                          ) : reg.isApproved ? (
+                          ) : (
                             <button
                               type="button"
                               onClick={() => handleApproveRegistration(reg.id || '', 2)}
                               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-600 text-white hover:bg-amber-700 transition shadow-xs cursor-pointer"
-                              title="Duyệt Bàn Giao Lần 2: Cấp Mã Code + Mật khẩu và gửi Gmail bàn giao hoàn tất"
+                              title="Duyệt Bàn Giao Lần 2: Cấp Mã Code + Mật khẩu, gửi Gmail bàn giao hoàn tất và HĐ xác nhận trả đủ 100% (chấp nhận duyệt sớm trước hạn)"
                             >
                               <Square className="w-3.5 h-3.5 text-amber-200" />
                               <span>Duyệt Giao Lần 2</span>
                             </button>
-                          ) : (
-                            <span className="text-zinc-400 italic text-[11px]">Chờ duyệt Lần 1</span>
                           )}
                         </td>
                         <td className="py-2.5 px-3 font-mono text-[11px]">

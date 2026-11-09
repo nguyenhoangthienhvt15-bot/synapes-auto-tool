@@ -201,6 +201,10 @@ if (fs.existsSync(gasPath)) {
     'Apps Script sử dụng CID inlineImages chuẩn RFC cho ảnh mã QR (chống lỗi Gmail image proxy)');
   assert(gasContent.includes('wrapEmailInCorporateLayout') && !gasContent.includes('src="\' + TIMO_QR_CODE_BASE64'),
     'Apps Script áp dụng chuẩn thiết kế email doanh nghiệp (loại bỏ thẻ img src chứa base64 trực tiếp)');
+  assert(gasContent.includes('HOP_DONG_BAN_GIAO_HOAN_CHINH_SYNAPES_') && gasContent.includes('HỢP ĐỒNG BÀN GIAO SẢN PHẨM HOÀN CHỈNH & XÁC NHẬN THANH TOÁN ĐỦ 100%'),
+    'Apps Script tạo file PDF HĐ bàn giao hoàn chỉnh và xác nhận bên mua trả đủ 100% giá trị hợp đồng');
+  assert(gasContent.includes('ĐÃ BÀN GIAO SẢN PHẨM HOÀN CHỈNH') && gasContent.includes('ĐÃ THANH TOÁN ĐỦ 100%'),
+    'Thư Gmail duyệt Lần 2 xác nhận bàn giao sản phẩm hoàn chỉnh và thanh toán đủ 100% kèm Code & Pass');
 }
 
 // -----------------------------------------------------------------------------
