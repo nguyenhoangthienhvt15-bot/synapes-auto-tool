@@ -4,7 +4,7 @@ import {
   FileText, ShieldCheck, CheckCircle2, AlertCircle,
   ArrowRight, ArrowLeft, RefreshCw, Check, Sparkles,
   CreditCard, Layers, Clock, DollarSign, Award, Info, QrCode,
-  Building
+  Building, PenTool, CheckCircle
 } from 'lucide-react';
 import { UserRegistrationData, ContractCategory, ContractPackage } from '../types';
 import {
@@ -13,6 +13,7 @@ import {
   discoverWebhookUrlFromSheet,
 } from '../services/googleSheetService';
 import { QR_CODE_BASE64 } from '../data/qrCodeBase64';
+import { SignatureModal } from './SignatureModal';
 
 interface RegisterModalProps {
   isOpen: boolean;
@@ -52,6 +53,22 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+
+  // Chữ ký tay điện tử của người dùng (Bên B)
+  const [signatureImage, setSignatureImage] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('synapes_user_signature_latest') || '';
+    }
+    return '';
+  });
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+
+  useEffect(() => {
+    if (email && typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`synapes_user_signature_${email.trim().toLowerCase()}`);
+      if (saved) setSignatureImage(saved);
+    }
+  }, [email]);
 
   // Helper thông tin chi tiết gói hợp đồng
   const getPackageDetails = (pkg: ContractPackage) => {
@@ -350,6 +367,11 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       return;
     }
 
+    if (!signatureImage) {
+      setFormError('Vui lòng bấm nút "Ký tên" để vẽ chữ ký tay xác nhận hợp đồng trước khi gửi.');
+      return;
+    }
+
     if (currentPkgInfo.isDeposit && (!deliveryDays || deliveryDays < 1)) {
       setFormError('Vui lòng nhập số ngày cam kết bàn giao hợp lệ (tối thiểu 1 ngày).');
       return;
@@ -380,10 +402,18 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       totalAmount: pkgDetails.totalAmount,
       originalAmount: pkgDetails.originalAmount,
       deliveryDays: pkgDetails.isDeposit ? deliveryDays : 0,
+      signatureImage: signatureImage || undefined,
       termsAccepted: true,
       registeredAt: new Date().toLocaleString('vi-VN'),
       notes: `📄 Hợp đồng đã ký [${pkgDetails.name}] — Chờ Kỹ sư duyệt`
     };
+
+    if (signatureImage && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`synapes_user_signature_${email.trim().toLowerCase()}`, signatureImage);
+        localStorage.setItem('synapes_user_signature_latest', signatureImage);
+      } catch { }
+    }
 
     try {
       await saveUserRegistration(registrationData);
@@ -1106,6 +1136,82 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                 </button>
               </div>
 
+              {/* MỤC KÝ TÊN TAY ĐIỆN TỬ (BÊN B) */}
+              <div className="p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-zinc-900 text-white flex items-center justify-center font-bold text-xs shadow-xs flex-shrink-0">
+                      ✍️
+                    </div>
+                    <div>
+                      <div className="font-bold text-zinc-950 text-xs flex items-center gap-1.5">
+                        <span>Mục Ký Tên Điện Tử (Bên Mua Hàng &amp; Sử Dụng Dịch Vụ)</span>
+                        <span className="text-[10px] font-normal px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-200">
+                          Bắt buộc
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-zinc-500">
+                        Chữ ký tay điện tử sẽ được nhúng trên toàn bộ các hợp đồng pháp lý của bạn
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowSignatureModal(true)}
+                    className="btn-secondary py-1.5 px-3 text-xs font-semibold flex items-center gap-1.5 cursor-pointer flex-shrink-0 shadow-xs hover:border-zinc-400"
+                  >
+                    <PenTool className="w-3.5 h-3.5 text-zinc-700" />
+                    <span>{signatureImage ? 'Ký lại chữ ký' : 'Ký tên'}</span>
+                  </button>
+                </div>
+
+                {signatureImage ? (
+                  <div className="p-3 bg-white border border-emerald-200 rounded-lg flex items-center justify-between gap-3 shadow-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="border border-dashed border-zinc-300 rounded-lg p-1.5 bg-zinc-50/50 flex items-center justify-center">
+                        <img
+                          src={signatureImage}
+                          alt="Chữ ký đã lưu"
+                          className="h-10 max-w-[140px] object-contain"
+                        />
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-bold text-emerald-800 flex items-center gap-1">
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                          <span>Đã ký tay xác nhận thành công</span>
+                        </div>
+                        <div className="text-[10px] text-zinc-500 mt-0.5">
+                          Hiển thị ở bên Đại diện mua hàng, ngay phía trên khung <b>"ĐÃ KÝ XÁC NHẬN ĐIỆN TỬ"</b>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowSignatureModal(true)}
+                      className="text-zinc-600 hover:text-zinc-950 text-[11px] font-medium underline cursor-pointer flex-shrink-0"
+                    >
+                      Ký lại
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-2.5 bg-amber-50/70 border border-dashed border-amber-300 rounded-lg flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-amber-950 font-medium">
+                      👉 Vui lòng bấm nút <b>"Ký tên"</b> để mở bảng vẽ chữ ký tay xác nhận hợp đồng.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowSignatureModal(true)}
+                      className="px-3 py-1 bg-zinc-950 hover:bg-zinc-800 text-white rounded-md text-xs font-bold transition cursor-pointer flex items-center gap-1 flex-shrink-0 shadow-xs"
+                    >
+                      <PenTool className="w-3 h-3 text-zinc-200" />
+                      <span>Ký tên ngay</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* HỘP CAM KẾT & TÍCH CHỌN */}
               <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl">
                 <label className="flex items-start gap-2.5 cursor-pointer">
@@ -1289,6 +1395,18 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL VẼ CHỮ KÝ TAY ĐIỆN TỬ */}
+      <SignatureModal
+        isOpen={showSignatureModal}
+        onClose={() => setShowSignatureModal(false)}
+        onSave={(sigDataUrl) => {
+          setSignatureImage(sigDataUrl);
+          setFormError(null);
+        }}
+        initialSignature={signatureImage}
+        signerName={fullName.trim() || 'Khách hàng'}
+      />
     </div>
   );
 };

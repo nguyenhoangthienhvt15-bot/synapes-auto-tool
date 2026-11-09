@@ -1598,7 +1598,7 @@ function sendForgotPasswordEmail(email, fullName, code, newPassword) {
 /**
  * 8. TẠO NỘI DUNG HTML HỢP ĐỒNG ĐẦY ĐỦ KÈM CON DẤU ĐỎ TRƯỞNG BAN ĐỂ XUẤT FILE PDF ĐÍNH KÈM GMAIL
  */
-function generateContractHtmlContent(fullName, dob, gender, phone, address, code, email, idCardNumber, packageName, depositAmount, totalAmount, deliveryDays, isDepositContract, isFinalHandover) {
+function generateContractHtmlContent(fullName, dob, gender, phone, address, code, email, idCardNumber, packageName, depositAmount, totalAmount, deliveryDays, isDepositContract, isFinalHandover, buyerSignature) {
   var now = new Date();
   var day = Utilities.formatDate(now, "GMT+7", "dd");
   var month = Utilities.formatDate(now, "GMT+7", "MM");
@@ -1611,6 +1611,19 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
   var pkgName = packageName || "Hợp đồng dịch vụ phần mềm SYNAPES Studio";
   var cccd = idCardNumber || "";
   var isHandover = Boolean(isFinalHandover);
+
+  if (!buyerSignature && email) {
+    try {
+      buyerSignature = PropertiesService.getScriptProperties().getProperty("SIG_" + String(email).trim().toLowerCase()) || "";
+    } catch (e) {}
+  }
+
+  var buyerSigHtml = "";
+  if (buyerSignature) {
+    buyerSigHtml = '<div style="height: 52px; margin-top: 6px; margin-bottom: 4px; text-align: center;"><img src="' + buyerSignature + '" style="max-height: 48px; max-width: 170px; object-fit: contain;" alt="Chữ ký tay Bên B" /></div>';
+  } else {
+    buyerSigHtml = '<div style="height: 18px;"></div>';
+  }
 
   var contractTitle = isHandover
     ? "HỢP ĐỒNG BÀN GIAO SẢN PHẨM HOÀN CHỈNH & XÁC NHẬN THANH TOÁN ĐỦ 100% GIÁ TRỊ"
@@ -1713,7 +1726,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
     '<div class="section">Điều 5. Hiệu lực hợp đồng</div>' +
     '<p>5.1. Hợp đồng điện tử này có giá trị pháp lý tương đương hợp đồng giấy theo Điều 13 và Điều 34 Luật Giao dịch điện tử số 20/2023/QH15.</p>' +
     '<table class="sign-table"><tr>' +
-    '  <td><b>ĐẠI DIỆN MUA HÀNG (BÊN B)</b><br/><i>(Đã ký xác nhận điện tử)</i><br/><br/><div style="border: 1px dashed #15803d; color: #15803d; display: inline-block; padding: 6px 12px; font-size: 8.5pt; font-weight: bold; margin: 10px 0;">ĐÃ KÝ XÁC NHẬN ĐIỆN TỬ<br/>Ngày: ' + dateStr + '</div><br/><b>' + fullName.toUpperCase() + '</b></td>' +
+    '  <td><b>ĐẠI DIỆN MUA HÀNG (BÊN B)</b><br/><i>(Đã ký xác nhận điện tử)</i><br/>' + buyerSigHtml + '<div style="border: 1px dashed #15803d; color: #15803d; display: inline-block; padding: 6px 12px; font-size: 8.5pt; font-weight: bold; margin: 8px 0;">ĐÃ KÝ XÁC NHẬN ĐIỆN TỬ<br/>Ngày: ' + dateStr + '</div><br/><b>' + fullName.toUpperCase() + '</b></td>' +
     '  <td><b>ĐẠI DIỆN GIAO DỊCH (BÊN A)</b><br/><b>TRƯỞNG BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO</b><br/><i>(Ký, đóng dấu xác thực điện tử)</i><br/>' + stampImgHtml + '<div style="margin-top: 4px; font-weight: bold;">KS. NGUYỄN HOÀNG THIỆN</div><div style="color: #b91c1c; font-size: 8.5pt; font-style: italic; margin-top: 2px;">✓ Đã ký &amp; đóng dấu Trưởng ban</div></td>' +
     '</tr></table>' +
     '</body></html>';
