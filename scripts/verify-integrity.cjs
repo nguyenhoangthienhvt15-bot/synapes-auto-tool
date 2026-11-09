@@ -58,6 +58,8 @@ if (fs.existsSync(gasPath)) {
     'ROUND_STAMP_BASE64 chứa dữ liệu ảnh PNG Base64 hợp lệ');
   assert(gasContent.includes('KS. NGUYỄN HOÀNG THIỆN'), 
     'Tên Trưởng ban KS. NGUYỄN HOÀNG THIỆN có trong chữ ký Bên A');
+  assert(gasContent.includes('072206002509') && gasContent.includes('Gò Vấp, TP HCM'),
+    'Code.js chứa số CCCD 072206002509 và địa chỉ Gò Vấp, TP HCM của Bên A');
 }
 
 if (fs.existsSync(contractPdfGenPath)) {
@@ -66,6 +68,8 @@ if (fs.existsSync(contractPdfGenPath)) {
     'contractPdfGenerator.ts import và nhúng STAMP_BASE64 chuẩn');
   assert(pdfGenContent.includes("stamp-img"), 
     'contractPdfGenerator.ts có CSS class stamp-img');
+  assert(pdfGenContent.includes("072206002509") && pdfGenContent.includes("Gò Vấp, TP HCM"),
+    'contractPdfGenerator.ts chứa số CCCD 072206002509 và địa chỉ Gò Vấp, TP HCM của Bên A');
 }
 
 // -----------------------------------------------------------------------------
@@ -185,6 +189,8 @@ if (fs.existsSync(registerModalPath)) {
     'Có checkbox cam kết trách nhiệm giữa cả hai bên');
   assert(regContent.includes('Gửi hợp đồng'),
     'Có nút "Gửi hợp đồng" chuyển hồ sơ sang Google Sheet');
+  assert(regContent.includes('072206002509') && regContent.includes('Gò Vấp, TP HCM'),
+    'RegisterModal.tsx hiển thị số CCCD 072206002509 và địa chỉ thường trú Gò Vấp của Bên A');
 }
 
 if (fs.existsSync(gasPath)) {

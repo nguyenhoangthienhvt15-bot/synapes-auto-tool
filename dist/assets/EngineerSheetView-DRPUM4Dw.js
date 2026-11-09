@@ -1,4 +1,4 @@
-import{r as e}from"./rolldown-runtime-XKyaHtl9.js";import{A as t,At as n,C as r,Ct as i,D as a,Dt as o,Ft as s,J as c,Mt as l,N as ee,Vt as u,gt as d,h as f,ht as p,in as m,m as h,n as g,s as _,st as v,xt as y}from"./vendor-icons-CpMIc3mA.js";import{C as b,O as x,S,T as te,g as ne,h as C,m as re,p as ie,w,x as ae}from"./index-CPqbeexS.js";import{n as oe,t as T}from"./contract-assets-DFDtOktJ.js";import{n as E,t as D}from"./vendor-pdf-Cy8OYPQZ.js";import{t as O}from"./vendor-react-DBDl3cou.js";var k=e(m(),1),A=e(E(),1);function j(e){let t=new Date,n=t.getDate().toString().padStart(2,`0`),r=(t.getMonth()+1).toString().padStart(2,`0`),i=t.getFullYear(),a=`${n}/${r}/${i}`,o=e.fullName||`Khách hàng SYNAPES`,s=e.idCardNumber||`Chưa cung cấp`,c=e.dob||`Không cung cấp`,l=e.gender||`Không cung cấp`,ee=e.phone||`Không cung cấp`,u=e.email||`Không cung cấp`,d=e.address||`Không cung cấp`,f=e.signatureImage||typeof window<`u`&&e.email&&localStorage.getItem(`synapes_user_signature_${e.email.toLowerCase()}`)||``,p=e.contractPackage||(e.contractCategory===`enterprise`?`enterprise_deposit`:`personal_deposit`),m=e.contractCategory===`enterprise`||p.startsWith(`enterprise`),h=p.includes(`deposit`)||e.depositAmount!==void 0&&e.totalAmount!==void 0&&e.depositAmount<e.totalAmount,g=e.depositAmount||(m?25e5:125e4),_=e.totalAmount||(m?549e4:255e4),v=e.originalAmount||(m?625e4:325e4),y=e.deliveryDays||(m?7:5),b=e=>e.toLocaleString(`vi-VN`)+` VNĐ`,x=!!e.isFinalDelivered;return`
+import{r as e}from"./rolldown-runtime-XKyaHtl9.js";import{A as t,At as n,C as r,Ct as i,D as a,Dt as o,Ft as s,J as c,Mt as l,N as ee,Vt as u,gt as d,h as f,ht as p,in as m,m as h,n as g,s as _,st as v,xt as y}from"./vendor-icons-CpMIc3mA.js";import{C as b,O as x,S,T as te,g as ne,h as C,m as re,p as ie,w,x as ae}from"./index-CF3O0S5v.js";import{n as oe,t as T}from"./contract-assets-1u5ntoc7.js";import{n as E,t as D}from"./vendor-pdf-Cy8OYPQZ.js";import{t as O}from"./vendor-react-DBDl3cou.js";var k=e(m(),1),A=e(E(),1);function j(e){let t=new Date,n=t.getDate().toString().padStart(2,`0`),r=(t.getMonth()+1).toString().padStart(2,`0`),i=t.getFullYear(),a=`${n}/${r}/${i}`,o=e.fullName||`Khách hàng SYNAPES`,s=e.idCardNumber||`Chưa cung cấp`,c=e.dob||`Không cung cấp`,l=e.gender||`Không cung cấp`,ee=e.phone||`Không cung cấp`,u=e.email||`Không cung cấp`,d=e.address||`Không cung cấp`,f=e.signatureImage||typeof window<`u`&&e.email&&localStorage.getItem(`synapes_user_signature_${e.email.toLowerCase()}`)||``,p=e.contractPackage||(e.contractCategory===`enterprise`?`enterprise_deposit`:`personal_deposit`),m=e.contractCategory===`enterprise`||p.startsWith(`enterprise`),h=p.includes(`deposit`)||e.depositAmount!==void 0&&e.totalAmount!==void 0&&e.depositAmount<e.totalAmount,g=e.depositAmount||(m?25e5:125e4),_=e.totalAmount||(m?549e4:255e4),v=e.originalAmount||(m?625e4:325e4),y=e.deliveryDays||(m?7:5),b=e=>e.toLocaleString(`vi-VN`)+` VNĐ`,x=!!e.isFinalDelivered;return`
     <div id="pdf-contract-wrapper" style="width: 794px; background-color: #ffffff; color: #111827; font-family: 'Times New Roman', Times, serif; margin: 0; padding: 0;">
       <style>
         #pdf-contract-wrapper * {
@@ -295,6 +295,8 @@ import{r as e}from"./rolldown-runtime-XKyaHtl9.js";import{A as t,At as n,C as r,
           <ul class="party-info">
             <li>• <b>Đơn vị phát triển:</b> Nền tảng Tự động hóa Nội dung số SYNAPES Studio</li>
             <li>• <b>Đại diện pháp lý:</b> <b>KS. NGUYỄN HOÀNG THIỆN</b></li>
+            <li>• <b>Số CCCD / CMND:</b> <b style="color: #0f172a; font-family: monospace;">072206002509</b></li>
+            <li>• <b>Địa chỉ thường trú:</b> Gò Vấp, TP HCM</li>
             <li>• <b>Chức vụ:</b> <b>Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo</b></li>
             <li>• <b>Hộp thư điện tử chính thức:</b> nguyenhoangthien.hvt.15@gmail.com</li>
             <li>• <b>Cổng dịch vụ trực tuyến:</b> https://synapes-auto-tool.onrender.com</li>
@@ -436,6 +438,7 @@ import{r as e}from"./rolldown-runtime-XKyaHtl9.js";import{A as t,At as n,C as r,
             </div>
 
             <div class="signature-name">KS. NGUYỄN HOÀNG THIỆN</div>
+            <div style="font-size: 8pt; color: #475569; font-family: monospace; margin-top: 1px;">CCCD: 072206002509</div>
             <div class="signed-badge signed-seller">✓ Đã ký & đóng dấu mộc đỏ Trưởng ban</div>
           </div>
         </div>
@@ -2218,6 +2221,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
     '  <b>BÊN A: BÊN CUNG CẤP DỊCH VỤ NỀN TẢNG (SYNAPES STUDIO)</b><br/>' +
     '  • Đơn vị phát triển: Nền tảng Tự động hóa Nội dung số SYNAPES Studio<br/>' +
     '  • Đại diện giao dịch: <b>KS. NGUYỄN HOÀNG THIỆN</b> &nbsp;|&nbsp; Chức vụ: <b>Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo</b><br/>' +
+    '  • Số CCCD: <b>072206002509</b> &nbsp;|&nbsp; Địa chỉ thường trú: <b>Gò Vấp, TP HCM</b><br/>' +
     '  • Hộp thư điện tử: nguyenhoangthien.hvt.15@gmail.com &nbsp;|&nbsp; Cổng dịch vụ: https://synapes-auto-tool-web-service.onrender.com' +
     '</div>' +
     '<div class="party-box">' +
@@ -2241,7 +2245,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
     '<p>5.1. Hợp đồng điện tử này có giá trị pháp lý tương đương hợp đồng giấy theo Điều 13 và Điều 34 Luật Giao dịch điện tử số 20/2023/QH15.</p>' +
     '<table class="sign-table"><tr>' +
     '  <td><b>ĐẠI DIỆN MUA HÀNG (BÊN B)</b><br/><i>(Đã ký xác nhận điện tử)</i><br/>' + buyerSigHtml + '<div style="border: 1px dashed #15803d; color: #15803d; display: inline-block; padding: 6px 12px; font-size: 8.5pt; font-weight: bold; margin: 8px 0;">ĐÃ KÝ XÁC NHẬN ĐIỆN TỬ<br/>Ngày: ' + dateStr + '</div><br/><b>' + fullName.toUpperCase() + '</b></td>' +
-    '  <td><b>ĐẠI DIỆN GIAO DỊCH (BÊN A)</b><br/><b>TRƯỞNG BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO</b><br/><i>(Ký, đóng dấu xác thực điện tử)</i><br/>' + stampImgHtml + '<div style="margin-top: 4px; font-weight: bold;">KS. NGUYỄN HOÀNG THIỆN</div><div style="color: #b91c1c; font-size: 8.5pt; font-style: italic; margin-top: 2px;">✓ Đã ký &amp; đóng dấu Trưởng ban</div></td>' +
+    '  <td><b>ĐẠI DIỆN GIAO DỊCH (BÊN A)</b><br/><b>TRƯỞNG BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO</b><br/><i>(Ký, đóng dấu xác thực điện tử)</i><br/>' + stampImgHtml + '<div style="margin-top: 4px; font-weight: bold;">KS. NGUYỄN HOÀNG THIỆN</div><div style="font-size: 8pt; color: #475569; font-family: monospace;">CCCD: 072206002509</div><div style="color: #b91c1c; font-size: 8.5pt; font-style: italic; margin-top: 2px;">✓ Đã ký &amp; đóng dấu Trưởng ban</div></td>' +
     '</tr></table>' +
     '</body></html>';
 }
@@ -2817,7 +2821,7 @@ function handleUserRegistrationWebhook(ss, payload) {
     var contractSummaryNote =
       "📄 BẢN LƯU HỢP ĐỒNG DỊCH VỤ ĐIỆN TỬ (PDF)\\n" +
       "------------------------------------------\\n" +
-      "• Đại diện Bên A: KS. Nguyễn Hoàng Thiện (Trưởng ban CĐS & TTNT)\\n" +
+      "• Đại diện Bên A: KS. Nguyễn Hoàng Thiện (Trưởng ban CĐS & TTNT | CCCD: 072206002509 | Đ/C: Gò Vấp, TP HCM)\\n" +
       "• Khách hàng (Bên B): " + (payload.fullName || "") + " (Đã ký điện tử)\\n" +
       (cccdStr ? ("• Số CCCD / CMND: " + cccdStr.replace(/^'+/, "") + "\\n") : "") +
       "• Ngày sinh: " + (dobParsed.formattedDob || payload.dob || "") + " | Giới tính: " + (payload.gender || "Nam") + "\\n" +

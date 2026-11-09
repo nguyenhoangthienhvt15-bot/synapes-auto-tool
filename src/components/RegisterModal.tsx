@@ -151,7 +151,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
           localStorage.removeItem('synapes_user_signature_latest');
         } catch { }
       }
-      discoverWebhookUrlFromSheet().catch(() => {});
+      discoverWebhookUrlFromSheet().catch(() => { });
     }
   }, [isOpen]);
 
@@ -463,28 +463,24 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
           {/* Thanh tiến trình các bước */}
           <div className="grid grid-cols-2 gap-2 mt-3.5 text-xs font-medium">
             <div
-              className={`p-2 rounded-lg flex items-center gap-2 border transition ${
-                step === 1
-                  ? 'bg-zinc-950 text-white border-zinc-950'
-                  : 'bg-zinc-50 text-zinc-700 border-zinc-200'
-              }`}
+              className={`p-2 rounded-lg flex items-center gap-2 border transition ${step === 1
+                ? 'bg-zinc-950 text-white border-zinc-950'
+                : 'bg-zinc-50 text-zinc-700 border-zinc-200'
+                }`}
             >
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                step === 1 ? 'bg-white text-zinc-950' : 'bg-zinc-200 text-zinc-800'
-              }`}>1</span>
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${step === 1 ? 'bg-white text-zinc-950' : 'bg-zinc-200 text-zinc-800'
+                }`}>1</span>
               <span className="truncate">1. Thông Tin Cá Nhân & CCCD</span>
             </div>
 
             <div
-              className={`p-2 rounded-lg flex items-center gap-2 border transition ${
-                step === 2 || step === 3
-                  ? 'bg-zinc-950 text-white border-zinc-950'
-                  : 'bg-zinc-50 text-zinc-400 border-zinc-200'
-              }`}
+              className={`p-2 rounded-lg flex items-center gap-2 border transition ${step === 2 || step === 3
+                ? 'bg-zinc-950 text-white border-zinc-950'
+                : 'bg-zinc-50 text-zinc-400 border-zinc-200'
+                }`}
             >
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                step === 2 || step === 3 ? 'bg-white text-zinc-950' : 'bg-zinc-200 text-zinc-400'
-              }`}>2</span>
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${step === 2 || step === 3 ? 'bg-white text-zinc-950' : 'bg-zinc-200 text-zinc-400'
+                }`}>2</span>
               <span className="truncate">2. Chọn Hợp Đồng & Ký Kết Pháp Lý</span>
             </div>
           </div>
@@ -577,11 +573,10 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                         key={g}
                         type="button"
                         onClick={() => setGender(g)}
-                        className={`py-2 px-3 rounded-lg border text-xs font-medium transition cursor-pointer text-center ${
-                          gender === g
-                            ? 'bg-zinc-900 text-white border-zinc-900'
-                            : 'bg-zinc-50 text-zinc-700 border-zinc-200 hover:bg-zinc-100'
-                        }`}
+                        className={`py-2 px-3 rounded-lg border text-xs font-medium transition cursor-pointer text-center ${gender === g
+                          ? 'bg-zinc-900 text-white border-zinc-900'
+                          : 'bg-zinc-50 text-zinc-700 border-zinc-200 hover:bg-zinc-100'
+                          }`}
                       >
                         {g}
                       </button>
@@ -645,11 +640,10 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                           handleGetLocation();
                         }
                       }}
-                      className={`px-2.5 py-1 rounded-md transition flex items-center gap-1 cursor-pointer font-medium ${
-                        addressType === 'gps'
-                          ? 'bg-white text-zinc-900 shadow-xs'
-                          : 'text-zinc-600 hover:text-zinc-900'
-                      }`}
+                      className={`px-2.5 py-1 rounded-md transition flex items-center gap-1 cursor-pointer font-medium ${addressType === 'gps'
+                        ? 'bg-white text-zinc-900 shadow-xs'
+                        : 'text-zinc-600 hover:text-zinc-900'
+                        }`}
                     >
                       <Navigation className="w-3 h-3 text-emerald-600" />
                       <span>Định vị Map (GPS)</span>
@@ -657,11 +651,10 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setAddressType('manual')}
-                      className={`px-2.5 py-1 rounded-md transition flex items-center gap-1 cursor-pointer font-medium ${
-                        addressType === 'manual'
-                          ? 'bg-white text-zinc-900 shadow-xs'
-                          : 'text-zinc-600 hover:text-zinc-900'
-                      }`}
+                      className={`px-2.5 py-1 rounded-md transition flex items-center gap-1 cursor-pointer font-medium ${addressType === 'manual'
+                        ? 'bg-white text-zinc-900 shadow-xs'
+                        : 'text-zinc-600 hover:text-zinc-900'
+                        }`}
                     >
                       <MapPin className="w-3 h-3 text-zinc-600" />
                       <span>Điền tay</span>
@@ -796,11 +789,10 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                   {/* Hợp đồng cá nhân hóa */}
                   <div
                     onClick={() => handleSelectCategory('personal')}
-                    className={`p-3 rounded-xl border-2 transition cursor-pointer relative ${
-                      contractCategory === 'personal'
-                        ? 'border-zinc-950 bg-zinc-50/80 shadow-xs'
-                        : 'border-zinc-200 bg-white hover:border-zinc-300'
-                    }`}
+                    className={`p-3 rounded-xl border-2 transition cursor-pointer relative ${contractCategory === 'personal'
+                      ? 'border-zinc-950 bg-zinc-50/80 shadow-xs'
+                      : 'border-zinc-200 bg-white hover:border-zinc-300'
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-bold text-xs text-zinc-950 flex items-center gap-1.5">
@@ -819,11 +811,10 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                   {/* Hợp đồng toàn hệ */}
                   <div
                     onClick={() => handleSelectCategory('enterprise')}
-                    className={`p-3 rounded-xl border-2 transition cursor-pointer relative ${
-                      contractCategory === 'enterprise'
-                        ? 'border-zinc-950 bg-zinc-50/80 shadow-xs'
-                        : 'border-zinc-200 bg-white hover:border-zinc-300'
-                    }`}
+                    className={`p-3 rounded-xl border-2 transition cursor-pointer relative ${contractCategory === 'enterprise'
+                      ? 'border-zinc-950 bg-zinc-50/80 shadow-xs'
+                      : 'border-zinc-200 bg-white hover:border-zinc-300'
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-bold text-xs text-zinc-950 flex items-center gap-1.5">
@@ -852,11 +843,10 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                     {/* Đặt cọc cá nhân */}
                     <div
                       onClick={() => handleSelectPackage('personal_deposit')}
-                      className={`p-3 rounded-xl border transition cursor-pointer ${
-                        contractPackage === 'personal_deposit'
-                          ? 'border-zinc-950 bg-amber-50/40 ring-1 ring-zinc-950'
-                          : 'border-zinc-200 bg-white hover:border-zinc-300'
-                      }`}
+                      className={`p-3 rounded-xl border transition cursor-pointer ${contractPackage === 'personal_deposit'
+                        ? 'border-zinc-950 bg-amber-50/40 ring-1 ring-zinc-950'
+                        : 'border-zinc-200 bg-white hover:border-zinc-300'
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="font-bold text-xs text-zinc-950">
@@ -876,11 +866,10 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                     {/* Thanh toán 100% cá nhân */}
                     <div
                       onClick={() => handleSelectPackage('personal_full')}
-                      className={`p-3 rounded-xl border transition cursor-pointer ${
-                        contractPackage === 'personal_full'
-                          ? 'border-zinc-950 bg-emerald-50/40 ring-1 ring-zinc-950'
-                          : 'border-zinc-200 bg-white hover:border-zinc-300'
-                      }`}
+                      className={`p-3 rounded-xl border transition cursor-pointer ${contractPackage === 'personal_full'
+                        ? 'border-zinc-950 bg-emerald-50/40 ring-1 ring-zinc-950'
+                        : 'border-zinc-200 bg-white hover:border-zinc-300'
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="font-bold text-xs text-zinc-950">
@@ -901,11 +890,10 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                     {/* Đặt cọc phân bổ toàn hệ */}
                     <div
                       onClick={() => handleSelectPackage('enterprise_deposit')}
-                      className={`p-3 rounded-xl border transition cursor-pointer ${
-                        contractPackage === 'enterprise_deposit'
-                          ? 'border-zinc-950 bg-amber-50/40 ring-1 ring-zinc-950'
-                          : 'border-zinc-200 bg-white hover:border-zinc-300'
-                      }`}
+                      className={`p-3 rounded-xl border transition cursor-pointer ${contractPackage === 'enterprise_deposit'
+                        ? 'border-zinc-950 bg-amber-50/40 ring-1 ring-zinc-950'
+                        : 'border-zinc-200 bg-white hover:border-zinc-300'
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="font-bold text-xs text-zinc-950">
@@ -925,11 +913,10 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                     {/* Thanh toán 100% toàn hệ */}
                     <div
                       onClick={() => handleSelectPackage('enterprise_full')}
-                      className={`p-3 rounded-xl border transition cursor-pointer ${
-                        contractPackage === 'enterprise_full'
-                          ? 'border-zinc-950 bg-emerald-50/40 ring-1 ring-zinc-950'
-                          : 'border-zinc-200 bg-white hover:border-zinc-300'
-                      }`}
+                      className={`p-3 rounded-xl border transition cursor-pointer ${contractPackage === 'enterprise_full'
+                        ? 'border-zinc-950 bg-emerald-50/40 ring-1 ring-zinc-950'
+                        : 'border-zinc-200 bg-white hover:border-zinc-300'
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="font-bold text-xs text-zinc-950">
@@ -975,6 +962,20 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                 </div>
               )}
 
+              {/* KHUNG THÔNG TIN BÊN A (ĐẠI DIỆN PHÁP LÝ BÊN CUNG CẤP) */}
+              <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs space-y-1">
+                <div className="font-bold text-zinc-950 flex items-center justify-between">
+                  <span>BÊN A: BÊN CUNG CẤP HỆ THỐNG PHẦN MỀM (SYNAPES STUDIO)</span>
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium border border-emerald-200">Đại diện pháp lý</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-zinc-600">
+                  <div>• Đại diện: <b>KS. NGUYỄN HOÀNG THIỆN</b> (Trưởng ban CĐS & TTNT)</div>
+                  <div>• Số CCCD: <b className="font-mono text-zinc-900">072206002509</b></div>
+                  <div>• Địa chỉ thường trú: <b>Gò Vấp, TP HCM</b></div>
+                  <div>• Hộp thư chính thức: <span className="font-mono">nguyenhoangthien.hvt.15@gmail.com</span></div>
+                </div>
+              </div>
+
               {/* TABS ĐIỀU KHOẢN PHÁP LÝ & QUYỀN HẠN HỆ THỐNG */}
               <div className="space-y-2">
                 <div className="flex items-center gap-1 border-b border-zinc-200 pb-2 overflow-x-auto scrollbar-none">
@@ -992,11 +993,10 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                         key={item.id}
                         type="button"
                         onClick={() => setActivePolicyTab(item.id as any)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition flex items-center gap-1.5 cursor-pointer ${
-                          isActive
-                            ? 'bg-zinc-950 text-white shadow-xs'
-                            : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
-                        }`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition flex items-center gap-1.5 cursor-pointer ${isActive
+                          ? 'bg-zinc-950 text-white shadow-xs'
+                          : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                          }`}
                       >
                         <Icon className="w-3.5 h-3.5" />
                         <span>{item.title}</span>
@@ -1077,7 +1077,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                       </h4>
                       <p><b>3.1. Thời hạn và giá trị hợp đồng:</b> Có tính <b>VĨNH VIỄN</b> kể từ thời điểm ký kết thành công.</p>
                       <p><b>3.2. Cam kết bảo hành & hỗ trợ:</b> Bên bán cam kết bảo hành và cung cấp giải pháp bảo hành toàn thời gian cho toàn bộ hệ thống phần mềm, khắc phục mọi sự cố kỹ thuật phát sinh 24/7.</p>
-                      <p><b>3.3. Tính chính thống:</b> Hệ thống phần mềm SYNAPES Studio là sản phẩm trí tuệ độc quyền được phát triển chính thống bởi Ban Chuyển đổi số & Trí tuệ nhân tạo, đứng đầu là KS. Nguyễn Hoàng Thiện.</p>
+                      <p><b>3.3. Tính chính thống:</b> Hệ thống phần mềm SYNAPES Studio là sản phẩm trí tuệ độc quyền được phát triển chính thống bởi Ban Chuyển đổi số & Trí tuệ nhân tạo, đứng đầu là KS. Nguyễn Hoàng Thiện (CCCD: <b>072206002509</b>, thường trú: <b>Gò Vấp, TP HCM</b>).</p>
                     </div>
                   )}
 
@@ -1239,11 +1239,10 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                   type="button"
                   onClick={handleCompleteRegistration}
                   disabled={!termsAccepted || isSubmitting}
-                  className={`py-2.5 px-6 rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-sm ${
-                    termsAccepted && !isSubmitting
-                      ? 'bg-zinc-950 text-white hover:bg-zinc-800'
-                      : 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
-                  }`}
+                  className={`py-2.5 px-6 rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-sm ${termsAccepted && !isSubmitting
+                    ? 'bg-zinc-950 text-white hover:bg-zinc-800'
+                    : 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
+                    }`}
                 >
                   {isSubmitting ? (
                     <>

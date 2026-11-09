@@ -1803,6 +1803,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
     '  <b>BÊN A: BÊN CUNG CẤP DỊCH VỤ NỀN TẢNG (SYNAPES STUDIO)</b><br/>' +
     '  • Đơn vị phát triển: Nền tảng Tự động hóa Nội dung số SYNAPES Studio<br/>' +
     '  • Đại diện giao dịch: <b>KS. NGUYỄN HOÀNG THIỆN</b> &nbsp;|&nbsp; Chức vụ: <b>Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo</b><br/>' +
+    '  • Số CCCD: <b>072206002509</b> &nbsp;|&nbsp; Địa chỉ thường trú: <b>Gò Vấp, TP HCM</b><br/>' +
     '  • Hộp thư điện tử: nguyenhoangthien.hvt.15@gmail.com &nbsp;|&nbsp; Cổng dịch vụ: https://synapes-auto-tool-web-service.onrender.com' +
     '</div>' +
     '<div class="party-box">' +
@@ -1826,7 +1827,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
     '<p>5.1. Hợp đồng điện tử này có giá trị pháp lý tương đương hợp đồng giấy theo Điều 13 và Điều 34 Luật Giao dịch điện tử số 20/2023/QH15.</p>' +
     '<table class="sign-table"><tr>' +
     '  <td><b>ĐẠI DIỆN MUA HÀNG (BÊN B)</b><br/><i>(Đã ký xác nhận điện tử)</i><br/>' + buyerSigHtml + '<div style="border: 1px dashed #15803d; color: #15803d; display: inline-block; padding: 6px 12px; font-size: 8.5pt; font-weight: bold; margin: 8px 0;">ĐÃ KÝ XÁC NHẬN ĐIỆN TỬ<br/>Ngày: ' + dateStr + '</div><br/><b>' + fullName.toUpperCase() + '</b></td>' +
-    '  <td><b>ĐẠI DIỆN GIAO DỊCH (BÊN A)</b><br/><b>TRƯỞNG BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO</b><br/><i>(Ký, đóng dấu xác thực điện tử)</i><br/>' + stampImgHtml + '<div style="margin-top: 4px; font-weight: bold;">KS. NGUYỄN HOÀNG THIỆN</div><div style="color: #b91c1c; font-size: 8.5pt; font-style: italic; margin-top: 2px;">✓ Đã ký &amp; đóng dấu Trưởng ban</div></td>' +
+    '  <td><b>ĐẠI DIỆN GIAO DỊCH (BÊN A)</b><br/><b>TRƯỞNG BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO</b><br/><i>(Ký, đóng dấu xác thực điện tử)</i><br/>' + stampImgHtml + '<div style="margin-top: 4px; font-weight: bold;">KS. NGUYỄN HOÀNG THIỆN</div><div style="font-size: 8pt; color: #475569; font-family: monospace;">CCCD: 072206002509</div><div style="color: #b91c1c; font-size: 8.5pt; font-style: italic; margin-top: 2px;">✓ Đã ký &amp; đóng dấu Trưởng ban</div></td>' +
     '</tr></table>' +
     '</body></html>';
 }
@@ -2402,7 +2403,7 @@ function handleUserRegistrationWebhook(ss, payload) {
     var contractSummaryNote =
       "📄 BẢN LƯU HỢP ĐỒNG DỊCH VỤ ĐIỆN TỬ (PDF)\\n" +
       "------------------------------------------\\n" +
-      "• Đại diện Bên A: KS. Nguyễn Hoàng Thiện (Trưởng ban CĐS & TTNT)\\n" +
+      "• Đại diện Bên A: KS. Nguyễn Hoàng Thiện (Trưởng ban CĐS & TTNT | CCCD: 072206002509 | Đ/C: Gò Vấp, TP HCM)\\n" +
       "• Khách hàng (Bên B): " + (payload.fullName || "") + " (Đã ký điện tử)\\n" +
       (cccdStr ? ("• Số CCCD / CMND: " + cccdStr.replace(/^'+/, "") + "\\n") : "") +
       "• Ngày sinh: " + (dobParsed.formattedDob || payload.dob || "") + " | Giới tính: " + (payload.gender || "Nam") + "\\n" +

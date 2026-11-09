@@ -84,6 +84,8 @@ Hôm nay, ngày 05 tháng 11 năm 2026, tại Hệ thống Nền tảng Đám m�
 #text(weight: "bold")[BÊN A: BÊN CUNG CẤP DỊCH VỤ NỀN TẢNG (SYNAPES STUDIO)]
 - *Đơn vị phát triển:* Nền tảng Tự động hóa Nội dung số SYNAPES Studio
 - *Đại diện giao dịch:* *KS. NGUYỄN HOÀNG THIỆN*
+- *Số CCCD:* 072206002509
+- *Địa chỉ thường trú:* Gò Vấp, TP HCM
 - *Chức vụ:* *Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo*
 - *Hộp thư điện tử chính thức:* nguyenhoangthien.hvt.15\@gmail.com
 - *Cổng dịch vụ trực tuyến:* https://synapes-auto-tool.onrender.com

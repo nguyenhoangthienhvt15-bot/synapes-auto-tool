@@ -352,6 +352,8 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
           <ul class="party-info">
             <li>• <b>Đơn vị phát triển:</b> Nền tảng Tự động hóa Nội dung số SYNAPES Studio</li>
             <li>• <b>Đại diện pháp lý:</b> <b>KS. NGUYỄN HOÀNG THIỆN</b></li>
+            <li>• <b>Số CCCD / CMND:</b> <b style="color: #0f172a; font-family: monospace;">072206002509</b></li>
+            <li>• <b>Địa chỉ thường trú:</b> Gò Vấp, TP HCM</li>
             <li>• <b>Chức vụ:</b> <b>Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo</b></li>
             <li>• <b>Hộp thư điện tử chính thức:</b> nguyenhoangthien.hvt.15@gmail.com</li>
             <li>• <b>Cổng dịch vụ trực tuyến:</b> https://synapes-auto-tool.onrender.com</li>
@@ -493,6 +495,7 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
             </div>
 
             <div class="signature-name">KS. NGUYỄN HOÀNG THIỆN</div>
+            <div style="font-size: 8pt; color: #475569; font-family: monospace; margin-top: 1px;">CCCD: 072206002509</div>
             <div class="signed-badge signed-seller">✓ Đã ký & đóng dấu mộc đỏ Trưởng ban</div>
           </div>
         </div>
