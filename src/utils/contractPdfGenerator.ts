@@ -25,10 +25,9 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
   const emailDisplay = data.email || 'Không cung cấp';
   const addressDisplay = data.address || 'Không cung cấp';
 
-  // Lấy ảnh chữ ký tay người dùng (nếu có trong dữ liệu hoặc trong bộ nhớ lưu trữ)
+  // Lấy ảnh chữ ký tay người dùng (nếu có trong dữ liệu hoặc trong bộ nhớ lưu trữ theo email người dùng)
   const signatureDisplay = data.signatureImage || (typeof window !== 'undefined'
-    ? ((data.email ? localStorage.getItem(`synapes_user_signature_${data.email.toLowerCase()}`) : null) ||
-       localStorage.getItem('synapes_user_signature_latest') || '')
+    ? (data.email ? localStorage.getItem(`synapes_user_signature_${data.email.toLowerCase()}`) || '' : '')
     : '');
 
   // Xác định gói và phương thức

@@ -572,10 +572,16 @@ function autoPublishWebhookUrlToSheet(ss, customUrl) {
     }
 
     if (url && usersSheet) {
+      if (usersSheet.getMaxColumns() < 22) {
+        usersSheet.insertColumnsAfter(usersSheet.getMaxColumns(), 22 - usersSheet.getMaxColumns());
+      }
       usersSheet.getRange("U1").setValue(url).setFontColor("#94a3b8").setFontSize(8);
+      usersSheet.getRange("A1").setNote("WEBHOOK_URL: " + url);
+      usersSheet.getRange("T1").setNote("WEBHOOK_URL: " + url);
     }
     if (url && accSheet) {
       accSheet.getRange("J4").setValue(url).setFontColor("#94a3b8").setFontSize(8);
+      accSheet.getRange("A1").setNote("WEBHOOK_URL: " + url);
     }
     return url;
   } catch (err) {

@@ -54,21 +54,9 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
 
-  // Chữ ký tay điện tử của người dùng (Bên B)
-  const [signatureImage, setSignatureImage] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('synapes_user_signature_latest') || '';
-    }
-    return '';
-  });
+  // Chữ ký tay điện tử của người dùng (Bên B) - Luôn rỗng khi mở phiên đăng ký mới
+  const [signatureImage, setSignatureImage] = useState<string>('');
   const [showSignatureModal, setShowSignatureModal] = useState(false);
-
-  useEffect(() => {
-    if (email && typeof window !== 'undefined') {
-      const saved = localStorage.getItem(`synapes_user_signature_${email.trim().toLowerCase()}`);
-      if (saved) setSignatureImage(saved);
-    }
-  }, [email]);
 
   // Helper thông tin chi tiết gói hợp đồng
   const getPackageDetails = (pkg: ContractPackage) => {
@@ -150,10 +138,19 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     }
   };
 
-  // Tự động dò kết nối hệ thống ngầm khi mở cửa sổ đăng ký
+  // Tự động làm sạch dữ liệu và dò kết nối hệ thống ngầm khi mở cửa sổ đăng ký mới
   useEffect(() => {
     if (isOpen) {
       setDraftRegId(`reg_${Date.now()}_${Math.floor(Math.random() * 10000)}`);
+      // Đảm bảo mỗi lần đăng ký mới không hiện chữ ký khách hàng trước đó ký
+      setSignatureImage('');
+      setTermsAccepted(false);
+      setFormError(null);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('synapes_user_signature_latest');
+        } catch { }
+      }
       discoverWebhookUrlFromSheet().catch(() => {});
     }
   }, [isOpen]);
@@ -411,7 +408,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     if (signatureImage && typeof window !== 'undefined') {
       try {
         localStorage.setItem(`synapes_user_signature_${email.trim().toLowerCase()}`, signatureImage);
-        localStorage.setItem('synapes_user_signature_latest', signatureImage);
+        localStorage.removeItem('synapes_user_signature_latest');
       } catch { }
     }
 
@@ -1256,7 +1253,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      <span>Gửi hợp đồng</span>
+                      <span>Ký hợp đồng & Gửi hợp đồng</span>
                     </>
                   )}
                 </button>

@@ -272,3 +272,4 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
     </div>
   );
 };
+

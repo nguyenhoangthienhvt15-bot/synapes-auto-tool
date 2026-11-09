@@ -226,6 +226,17 @@ if (fs.existsSync(regModalPath)) {
     'RegisterModal tích hợp nút Ký tên và modal vẽ chữ ký tay');
   assert(regContent.includes('signatureImage'),
     'RegisterModal lưu ảnh chữ ký tay vào hồ sơ hợp đồng');
+  assert(regContent.includes("const [signatureImage, setSignatureImage] = useState<string>('')"),
+    'RegisterModal khởi tạo chữ ký rỗng, không nạp chữ ký của người đăng ký trước');
+  assert(regContent.includes('Ký hợp đồng') && regContent.includes('Gửi hợp đồng'),
+    'Nút hoàn tất hợp đồng hiển thị nhãn Ký hợp đồng & Gửi hợp đồng');
+}
+
+const sheetServicePath = path.resolve(__dirname, '../src/services/googleSheetService.ts');
+if (fs.existsSync(sheetServicePath)) {
+  const sheetContent = fs.readFileSync(sheetServicePath, 'utf8');
+  assert(sheetContent.includes('delete jsonpPayload.signatureImage'),
+    'googleSheetService loại bỏ ảnh base64 khỏi query string GET để chống lỗi 414 URI Too Long');
 }
 
 if (fs.existsSync(contractPdfGenPath)) {

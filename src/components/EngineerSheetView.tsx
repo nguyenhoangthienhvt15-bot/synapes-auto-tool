@@ -11,6 +11,11 @@ import {
   approveStoredRegistration,
   resetToTempPassword,
   isPasswordMaskedOrHashed,
+  getAppsScriptWebhookUrl,
+  setAppsScriptWebhookUrl,
+  discoverWebhookUrlFromSheet,
+  callAppsScriptWebhook,
+  isValidWebhookUrl,
 } from '../services/googleSheetService';
 import { APPS_SCRIPT_CODE } from '../data/appsScriptCode';
 import { downloadPersonalizedContractPdf, printPersonalizedContractPdf } from '../utils/contractPdfGenerator';
@@ -47,6 +52,97 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
   const [newGmail, setNewGmail] = useState('');
   const [newInitialPass, setNewInitialPass] = useState('');
   const [newNotes, setNewNotes] = useState('');
+
+  const [webhookUrlInput, setWebhookUrlInput] = useState(() => getAppsScriptWebhookUrl());
+  const [webhookStatus, setWebhookStatus] = useState<string | null>(null);
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [isPushingRow, setIsPushingRow] = useState<string | null>(null);
+
+  const handleSaveWebhook = () => {
+    setAppsScriptWebhookUrl(webhookUrlInput);
+    setWebhookStatus('✅ Đã lưu Cầu nối Webhook thành công!');
+    setTimeout(() => setWebhookStatus(null), 4000);
+  };
+
+  const handleDiscoverWebhook = async () => {
+    setWebhookStatus('⏳ Đang dò tìm Webhook từ Google Sheet...');
+    const found = await discoverWebhookUrlFromSheet();
+    if (found) {
+      setWebhookUrlInput(found);
+      setWebhookStatus('✅ Đã tìm thấy Cầu nối từ Google Sheet: ' + found.slice(0, 45) + '...');
+    } else {
+      setWebhookStatus('⚠️ Chưa tìm thấy Webhook trên Sheet. Vui lòng Triển khai Web App hoặc dán URL thủ công.');
+    }
+    setTimeout(() => setWebhookStatus(null), 5000);
+  };
+
+  const handleTestWebhook = async () => {
+    setIsTestingWebhook(true);
+    setWebhookStatus('⏳ Đang gửi thử nghiệm hồ sơ lên Sheet...');
+    try {
+      const res = await callAppsScriptWebhook({
+        action: 'register',
+        fullName: 'Kỹ Sư Kiểm Tra Kết Nối',
+        idCardNumber: '001202699999',
+        dob: '01/01/2000',
+        gender: 'Nam',
+        email: 'test.connection@synapes.io',
+        phone: '0983396354',
+        address: 'Hệ thống SYNAPES Studio',
+        contractCategory: 'personal',
+        contractPackage: 'personal_deposit',
+        contractPackageName: 'Ký đặt cọc dự án cá nhân',
+        depositAmount: 1250000,
+        totalAmount: 2550000,
+        deliveryDays: 5,
+        termsAccepted: true,
+        notes: 'Ping kiểm tra kết nối từ Kỹ sư Dev',
+      });
+      if (res.sent) {
+        setWebhookStatus('🎉 Kết nối thành công! Đã gửi tín hiệu kiểm tra sang Google Sheet.');
+        if (onSyncSheet) onSyncSheet();
+      } else {
+        setWebhookStatus('❌ Không thể gửi tới Webhook này. Vui lòng kiểm tra lại quyền "Bất kỳ ai" (Anyone).');
+      }
+    } catch (e: any) {
+      setWebhookStatus('❌ Lỗi: ' + (e?.message || String(e)));
+    } finally {
+      setIsTestingWebhook(false);
+      setTimeout(() => setWebhookStatus(null), 6000);
+    }
+  };
+
+  const handlePushRegistrationToSheet = async (reg: UserRegistrationData) => {
+    setIsPushingRow(reg.id || reg.email);
+    try {
+      await callAppsScriptWebhook({
+        action: 'register',
+        fullName: reg.fullName,
+        idCardNumber: reg.idCardNumber || '',
+        dob: reg.dob,
+        gender: reg.gender || 'Nam',
+        email: reg.email,
+        phone: reg.phone,
+        address: reg.address,
+        contractCategory: reg.contractCategory,
+        contractPackage: reg.contractPackage,
+        contractPackageName: reg.contractPackageName,
+        depositAmount: reg.depositAmount,
+        totalAmount: reg.totalAmount,
+        originalAmount: reg.originalAmount,
+        deliveryDays: reg.deliveryDays,
+        termsAccepted: reg.termsAccepted,
+        registeredAt: reg.registeredAt,
+        notes: reg.notes || 'Đã ký hợp đồng qua WebApp',
+      });
+      showToast(`Đã chuyển hồ sơ ${reg.fullName} lên Google Sheet.`);
+      if (onSyncSheet) await onSyncSheet();
+    } catch {
+      showToast(`Lỗi khi đẩy hồ sơ ${reg.fullName} lên Sheet.`);
+    } finally {
+      setIsPushingRow(null);
+    }
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -400,8 +496,71 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
             </table>
           </div>
         ) : (
-          /* Table Registrations ("Thông tin người dùng") */
-          <div className="overflow-x-auto rounded-lg border border-black/10">
+          <div className="space-y-3">
+            {/* Thanh Cấu Hình Cầu Nối Webhook Apps Script */}
+            <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl space-y-2 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${isValidWebhookUrl(webhookUrlInput) ? 'bg-emerald-500 ring-2 ring-emerald-200' : 'bg-amber-500 ring-2 ring-amber-200'}`} />
+                  <span className="font-bold text-zinc-900">
+                    Cầu Nối Google Apps Script Webhook (Đẩy hợp đồng về Sheet):
+                  </span>
+                  <span className="text-[11px] font-mono text-zinc-500">
+                    {isValidWebhookUrl(webhookUrlInput) ? '🟢 Đã cấu hình' : '🟠 Chưa có URL Web App'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleDiscoverWebhook}
+                    className="btn-secondary py-1 px-2.5 text-[11px] font-semibold cursor-pointer"
+                    title="Tự động quét URL Webhook được lưu trên ô U1 hoặc J4 của Google Sheet"
+                  >
+                    Dò Tìm Từ Sheet
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleTestWebhook}
+                    disabled={isTestingWebhook || !isValidWebhookUrl(webhookUrlInput)}
+                    className="btn-secondary py-1 px-2.5 text-[11px] font-semibold cursor-pointer flex items-center gap-1"
+                    title="Gửi thử một hồ sơ mẫu lên Sheet để kiểm tra kết nối"
+                  >
+                    {isTestingWebhook ? (
+                      <RefreshCw className="w-3 h-3 animate-spin text-zinc-900" />
+                    ) : (
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    )}
+                    <span>Kiểm Tra Kết Nối</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={webhookUrlInput}
+                  onChange={(e) => setWebhookUrlInput(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  className="flex-1 input-base text-xs font-mono py-1.5 px-3 bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveWebhook}
+                  className="btn-primary py-1.5 px-3.5 text-xs font-bold cursor-pointer flex-shrink-0"
+                >
+                  Lưu Cầu Nối
+                </button>
+              </div>
+
+              {webhookStatus && (
+                <div className="text-[11px] font-medium text-zinc-800 bg-white p-2 rounded-lg border border-zinc-200 shadow-xs">
+                  {webhookStatus}
+                </div>
+              )}
+            </div>
+
+            {/* Table Registrations ("Thông tin người dùng") */}
+            <div className="overflow-x-auto rounded-lg border border-black/10">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-zinc-50/80 text-zinc-500 border-b border-black/5 font-mono text-[11px] uppercase tracking-wider">
@@ -544,6 +703,16 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
                               <Download className="w-3 h-3 text-emerald-600" />
                               <span>PDF</span>
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePushRegistrationToSheet(reg)}
+                              disabled={isPushingRow === (reg.id || reg.email)}
+                              className="btn-secondary py-1 px-2 text-[11px] inline-flex items-center gap-1 cursor-pointer text-blue-700 hover:text-blue-900"
+                              title="Đẩy dữ liệu hồ sơ này lên Google Sheet ngay lập tức"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${isPushingRow === (reg.id || reg.email) ? 'animate-spin' : ''}`} />
+                              <span>Lên Sheet</span>
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -553,7 +722,8 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
               </tbody>
             </table>
           </div>
-        )}
+        </div>
+      )}
       </div>
 
       {/* POPUP CẤP LẠI MẬT KHẨU TẠM */}
@@ -768,7 +938,15 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
                   <li>Mở bảng tính Google Sheets: <a href={GOOGLE_SHEET_URL} target="_blank" rel="noopener noreferrer" className="text-zinc-900 font-medium underline">Bấm vào đây để mở Sheet</a>.</li>
                   <li>Trên thanh menu trên cùng, bấm <strong>Tiện ích mở rộng</strong> (Extensions) ➔ <strong>Apps Script</strong>.</li>
                   <li>Xóa toàn bộ mã cũ trong tệp <code>Code.gs</code>, dán đoạn mã bên dưới vào và bấm <strong>💾 Lưu</strong> (Ctrl + S).</li>
-                  <li>Đảm bảo ô hàm bên cạnh nút Chạy đang chọn <strong><code>setupUserRegistrationSheet</code></strong>, bấm <strong>▶ Chạy (Run)</strong> và cấp quyền Google (hệ thống sẽ tự động thiết lập cầu nối ngầm và bật quyền gửi Gmail tự động khi tích Checkbox Cột I).</li>
+                  <li>Đảm bảo ô hàm bên cạnh nút Chạy đang chọn <strong><code>setupUserRegistrationSheet</code></strong>, bấm <strong>▶ Chạy (Run)</strong> và cấp quyền Google (hệ thống sẽ tạo 20 cột chuẩn và kích hoạt gửi Gmail tự động).</li>
+                  <li><strong>TRIỂN KHAI WEB APP (Nhận hợp đồng gửi về Sheet):</strong>
+                    <ul className="list-disc list-inside pl-3 pt-1 space-y-1 text-zinc-700">
+                      <li>Bấm nút <strong>"Triển khai"</strong> (Deploy) màu xanh góc phải ➔ <strong>"Triển khai mới"</strong> (New deployment).</li>
+                      <li>Chọn loại: <strong>Ứng dụng web</strong> (Web app).</li>
+                      <li>Ai có quyền truy cập: Chọn <strong>Bất kỳ ai</strong> (Anyone) — <em>Bắt buộc</em>.</li>
+                      <li>Bấm <strong>Triển khai</strong> ➔ Sao chép URL kết thúc bằng <code>/exec</code> và dán vào ô Cầu Nối Webhook trên WebApp.</li>
+                    </ul>
+                  </li>
                 </ol>
               </div>
 

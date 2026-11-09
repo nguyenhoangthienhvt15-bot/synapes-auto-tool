@@ -364,12 +364,22 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
     fetch(webhookUrl, {
       method: 'POST',
       mode: 'no-cors',
+      keepalive: true,
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(enrichedPayload),
     }).catch(() => { });
   } catch {
     // ignore
   }
+
+  // Đồng thời chuyển tiếp qua backend Node.js server để lưu dự phòng đa tầng
+  try {
+    fetch('/api/save-registration', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...enrichedPayload, webhookUrl }),
+    }).catch(() => { });
+  } catch { }
 
   return new Promise((resolve) => {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
@@ -405,8 +415,13 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
       resolve({ sent: true, webhookUrl });
     };
 
+    // BẢN PAYLOAD RÚT GỌN CHO JSONP GET: LOẠI BỎ CHUỖI ẢNH BASE64 LỚN ĐỂ KHÔNG BỊ LỖI 414 URI TOO LONG
+    const jsonpPayload: Record<string, any> = { ...enrichedPayload };
+    delete jsonpPayload.signatureImage;
+    delete jsonpPayload.buyerSignature;
+
     const sep = webhookUrl.includes('?') ? '&' : '?';
-    const encoded = encodeURIComponent(JSON.stringify(enrichedPayload));
+    const encoded = encodeURIComponent(JSON.stringify(jsonpPayload));
     script.src = `${webhookUrl}${sep}callback=${cbName}&payload=${encoded}&_t=${Date.now()}`;
     document.head.appendChild(script);
   });
@@ -495,9 +510,8 @@ export function getStoredRegistrations(): UserRegistrationData[] {
     const raw = localStorage.getItem(REGISTRATION_STORAGE_KEY);
     const list: UserRegistrationData[] = raw ? JSON.parse(raw) : [];
     return list.map((item) => {
-      if (!item.signatureImage) {
-        const savedSig = (item.email ? localStorage.getItem(`synapes_user_signature_${item.email.toLowerCase()}`) : null) ||
-                         localStorage.getItem('synapes_user_signature_latest') || '';
+      if (!item.signatureImage && item.email && typeof window !== 'undefined') {
+        const savedSig = localStorage.getItem(`synapes_user_signature_${item.email.toLowerCase()}`);
         if (savedSig) item.signatureImage = savedSig;
       }
       return item;
@@ -547,10 +561,10 @@ export async function saveUserRegistration(
       current.push(normalizedData);
     }
 
-    if (normalizedData.signatureImage) {
+    if (normalizedData.signatureImage && typeof window !== 'undefined') {
       try {
         localStorage.setItem(`synapes_user_signature_${normalizedData.email.toLowerCase()}`, normalizedData.signatureImage);
-        localStorage.setItem('synapes_user_signature_latest', normalizedData.signatureImage);
+        localStorage.removeItem('synapes_user_signature_latest');
       } catch { }
     }
 
