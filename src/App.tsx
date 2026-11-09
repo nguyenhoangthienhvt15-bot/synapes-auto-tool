@@ -27,9 +27,6 @@ import { ViewLoadingSkeleton } from './components/ViewLoadingSkeleton';
 import { CheckCircle2, Plus } from 'lucide-react';
 
 // Lazy-Loaded Secondary Views & Heavy Modals (Code-Split for 90% Faster Initial Load)
-const EngineerSheetView = React.lazy(() =>
-  import('./components/EngineerSheetView').then((m) => ({ default: m.EngineerSheetView }))
-);
 const RegisterModal = React.lazy(() =>
   import('./components/RegisterModal').then((m) => ({ default: m.RegisterModal }))
 );
@@ -521,18 +518,6 @@ export function App() {
                   }}
                 />
               )
-            )}
-
-            {/* VIEW: BẢNG TÍNH GOOGLE SHEET CHO DEV */}
-            {activeView === 'engineer-sheet' && (
-              <EngineerSheetView
-                sheetRows={sheetRows}
-                onUpdateSheetRow={setSheetRows}
-                onSendTempPasswordEmail={handleSendTempPasswordEmail}
-                onSyncSheet={handleSyncSheet}
-                isSyncingSheet={isSyncingSheet}
-                lastSyncTime={lastSyncTime}
-              />
             )}
 
             {/* VIEW: CẤU HÌNH API KEYS AI MODULE */}
