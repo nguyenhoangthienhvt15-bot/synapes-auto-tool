@@ -755,15 +755,17 @@ async function callGeminiDirectBrowser(
     .trim()
     .replace(/\/+$/, '');
 
-  const cleanPreferred = preferredModel.replace(/^models\//, '').trim() || 'gemini-2.5-flash';
+  const cleanPreferred = preferredModel.replace(/^models\//, '').trim() || 'gemini-3.6-flash';
   const isNonScript = /tts|imagen|-image|embedding|veo|audio|-live|aqa/i.test(cleanPreferred);
 
   const candidateModels = Array.from(
     new Set([
       ...(isNonScript ? [] : [cleanPreferred]),
+      'gemini-3.6-flash',
+      'gemini-3.5-flash',
+      'gemini-3.8-flash',
+      'gemma-4-26b-a4b-it',
       'gemini-2.5-flash',
-      'gemini-2.5-pro',
-      'gemini-2.0-flash',
     ])
   );
 
