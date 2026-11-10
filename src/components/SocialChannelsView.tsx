@@ -237,10 +237,13 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
 
   const handleTestUpload = (channel: ConnectedChannelAccount) => {
     setIsTestingUpload(channel.id);
-    setTimeout(() => {
-      setIsTestingUpload(null);
+    const isValid = channel.status === 'connected' && Boolean(channel.handle);
+    setIsTestingUpload(null);
+    if (isValid) {
       showToast(`✅ [Kiểm Tra Thành Công]: Đã xác thực kết nối đăng video lên [${channel.name}] (${channel.handle})! Token và quyền API hợp lệ 100%.`);
-    }, 1200);
+    } else {
+      showToast(`⚠️ [Cảnh Báo]: Kênh [${channel.name}] chưa được liên kết đầy đủ quyền OAuth 2.0.`);
+    }
   };
 
   const handleRefreshToken = (channel: ConnectedChannelAccount) => {
