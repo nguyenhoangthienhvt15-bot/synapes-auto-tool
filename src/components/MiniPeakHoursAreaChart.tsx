@@ -93,10 +93,8 @@ export const MiniPeakHoursAreaChart: React.FC = () => {
 
   const handleManualSync = () => {
     setIsSyncing(true);
-    setTimeout(() => {
-      setTelemetry(getRealtimeTelemetry());
-      setIsSyncing(false);
-    }, 500);
+    setTelemetry(getRealtimeTelemetry());
+    setIsSyncing(false);
   };
 
   const currentHour = now.getHours();

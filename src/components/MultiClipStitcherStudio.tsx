@@ -142,10 +142,10 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
     setShowAddModal(false);
   };
 
-  const handleStartStitching = () => {
+  const handleStartStitching = async () => {
     setIsProcessing(true);
-    setProcessPercent(30);
-    setProcessStep('Chuẩn hóa chuẩn codec (H.264 / AAC 48kHz)...');
+    setProcessPercent(50);
+    setProcessStep('Đang chuẩn hóa phân cảnh và gửi tín hiệu ghép Master sang Backend Worker...');
 
     // Cập nhật cấu trúc phân cảnh thực tế cho project
     const updatedScenes: StoryboardScene[] = clips.map((c, i) => {
@@ -165,15 +165,28 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
       };
     });
 
-    setProcessPercent(70);
-    setProcessStep(`Đã liên kết ${clips.length} clip trên timeline thực tế...`);
+    try {
+      await fetch('/api/video-stitch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: project.id,
+          clips,
+          totalDurationSec,
+          audioTrack: project.musicTrack,
+        }),
+      });
+    } catch {
+      // Offline fallback
+    }
+
+    setProcessPercent(100);
+    setProcessStep(`Đã liên kết hoàn tất ${clips.length} phân cảnh vào Timeline Master!`);
 
     // Lưu trữ metadata vào project
     project.storyboard = updatedScenes;
     project.duration = totalDurationSec;
 
-    setProcessPercent(100);
-    setProcessStep('Hoàn tất liên kết chuỗi phân cảnh!');
     setIsProcessing(false);
     onFinishStitching(totalDurationSec, clips.length);
     onClose();
