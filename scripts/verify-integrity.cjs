@@ -274,6 +274,8 @@ if (fs.existsSync(antiTamperPath)) {
     'antiTamperGuard.ts tích hợp khung mở khóa Master Pass');
   assert(!atContent.includes('placeholder="Nhập mã Master (07022006)..."'),
     'Không lộ mật khẩu Master trong placeholder client');
+  assert(!atContent.includes("pass === '07022006'"),
+    'Không còn đoạn mã so sánh plaintext mật khẩu trong antiTamperGuard.ts');
 }
 
 if (fs.existsSync(backendEnginePath)) {
