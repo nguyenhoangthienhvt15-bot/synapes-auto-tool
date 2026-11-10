@@ -87,7 +87,7 @@ export function App() {
       const next = !prev;
       try {
         localStorage.setItem('synapes_sidebar_collapsed', String(next));
-      } catch {}
+      } catch { }
       return next;
     });
   };
@@ -238,7 +238,7 @@ export function App() {
 
     try {
       localStorage.setItem(`synapes_explicit_login_${row.code}`, 'true');
-    } catch {}
+    } catch { }
 
     setCurrentUser(userAccount);
     setActiveSession(userAccount);

@@ -160,27 +160,29 @@ export async function dispatchScriptToPluginEngine(
     }
   }
 
-  onProgress?.(`Công cụ ${pluginName} đang khởi tạo footage video HD...`, 78);
-  await new Promise((r) => setTimeout(r, 650));
+  if (remoteSuccess) {
+    onProgress?.(`Đã kết nối thành công và nhận phản hồi trực tiếp từ ${pluginName}...`, 85);
+  } else {
+    onProgress?.(`Đang khởi tạo cấu trúc kịch bản phân cảnh cho ${pluginName}...`, 85);
+  }
 
-  // Chọn clip footage HD từ kho clip điện ảnh tương ứng của plugin
+  // Chọn clip footage từ nguồn API hoặc videoUrl của dự án kịch bản
   const footagePool = PLUGIN_HD_FOOTAGE[pluginBrand] || PLUGIN_HD_FOOTAGE.kling;
   const chosenVideoUrl =
     remoteVideoUrl ||
     scriptResult.videoUrl ||
-    footagePool[Math.floor(Math.random() * footagePool.length)];
+    footagePool[0];
 
   // Gán footage clip cho từng phân cảnh trong storyboard
   const updatedStoryboard: StoryboardScene[] = scriptResult.storyboard.map((sc, i) => {
-    const sceneClip = footagePool[i % footagePool.length];
+    const sceneClip = sc.clipUrl || (remoteVideoUrl ? remoteVideoUrl : footagePool[i % footagePool.length]);
     return {
       ...sc,
       clipUrl: sceneClip,
     };
   });
 
-  onProgress?.(`Đang gửi sản phẩm video hoàn chỉnh về Hàng Chờ Duyệt...`, 95);
-  await new Promise((r) => setTimeout(r, 450));
+  onProgress?.(`Đang gửi sản phẩm hoàn chỉnh về Hàng Chờ Duyệt...`, 98);
 
   const now = new Date();
   const projId = `prj-plugin-${Date.now()}`;

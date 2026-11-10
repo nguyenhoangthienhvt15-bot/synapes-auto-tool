@@ -302,7 +302,7 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
       if (discovered) {
         cachedDiscoveredWebhookUrl = discovered;
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }
 
   // Nếu chưa có cấu hình riêng, mặc định phát trực tiếp qua Cầu nối Google Form Bridge tốc độ cao
@@ -1098,7 +1098,7 @@ export function parseUsersSheetGvizResponse(response: any): {
       depositAmount = parseFloat((cellVals[11] || '').replace(/[^0-9]/g, '')) || 0;
       totalAmount = parseFloat((cellVals[12] || '').replace(/[^0-9]/g, '')) || 0;
       deliveryDays = parseInt((cellVals[13] || '').replace(/[^0-9]/g, '')) || 0;
-      
+
       const rawApproved = r.c[14]?.v;
       isApproved =
         rawApproved === true ||
@@ -1106,12 +1106,12 @@ export function parseUsersSheetGvizResponse(response: any): {
         Boolean(cellVals[15] && cellVals[15].startsWith('SNP_'));
       assignedCode = (cellVals[15] || '').toUpperCase();
       assignedPassword = cellVals[16] || '';
-      
+
       const rawFinalDelivered = r.c[17]?.v;
       isFinalDelivered =
         rawFinalDelivered === true ||
         String(rawFinalDelivered).toUpperCase() === 'TRUE';
-      
+
       emailStatus = cellVals[18] || '';
       notes = cellVals[19] || '';
     } else {
@@ -1122,7 +1122,7 @@ export function parseUsersSheetGvizResponse(response: any): {
       email = cellVals[5] || '';
       phone = cellVals[6] || '';
       address = cellVals[7] || '';
-      
+
       const rawApproved = r.c[8]?.v;
       isApproved =
         rawApproved === true ||

@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 import { fileURLToPath } from 'url';
-import { handleStudioApiRequest } from './server/studioBackendEngine.mjs';
+import { handleStudioApiRequest, IP_BLACKLIST } from './server/studioBackendEngine.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -87,6 +87,26 @@ function getCachedFile(filePath, ext) {
 const server = http.createServer(async (req, res) => {
   const rawUrl = req.url || '/';
   const cleanUrl = rawUrl.split('?')[0].split('#')[0];
+
+  // Kiểm tra danh sách đen IP (Anti-DevTools & Threat Enforcer)
+  const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
+  if (IP_BLACKLIST.has(clientIp)) {
+    const banInfo = IP_BLACKLIST.get(clientIp);
+    if (Date.now() < banInfo.bannedUntil) {
+      res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(
+        JSON.stringify({
+          error: '403 Forbidden: Địa chỉ IP của bạn đã bị khóa tạm thời do cố ý can thiệp vào mã nguồn dự án.',
+          bannedUntil: new Date(banInfo.bannedUntil).toISOString(),
+          leadEngineer: 'KS. Nguyễn Hoàng Thiện',
+          contact: 'nguyenhoangthien.hvt.15@gmail.com',
+        })
+      );
+      return;
+    } else {
+      IP_BLACKLIST.delete(clientIp);
+    }
+  }
 
   // Ultra-fast Health check & Ping response (< 1ms, zero overhead)
   if (cleanUrl === '/healthz' || cleanUrl === '/ping') {

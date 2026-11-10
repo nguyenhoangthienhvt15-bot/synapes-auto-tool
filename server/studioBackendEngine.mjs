@@ -1,6 +1,10 @@
 import http from 'http';
 import https from 'https';
 import crypto from 'crypto';
+import { dispatchCriticalIncident, CIRCUIT_BREAKERS } from './incidentReporter.mjs';
+
+// Danh sách đen IP vi phạm bảo mật (Anti-DevTools & Tampering Blacklist)
+export const IP_BLACKLIST = new Map();
 
 // ============================================================================
 // 1. CURATED MULTI-DOMAIN HIGH-RESOLUTION PHOTOGRAPHY POOLS (ZERO IPHONE POLLUTION)
@@ -911,6 +915,68 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
+  // ANTI-TAMPER SECURITY & THREAT REPORTING (/api/security/report-violation)
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/security/report-violation' && req.method === 'POST') {
+    try {
+      const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
+      const body = (await readJsonBody(req)) || {};
+      const banDurationMs = 24 * 60 * 60 * 1000; // 24 giờ
+
+      IP_BLACKLIST.set(clientIp, {
+        bannedUntil: Date.now() + banDurationMs,
+        reason: body.violationType || 'devtools_inspection_attempt',
+        userAgent: body.userAgent || req.headers['user-agent'] || '',
+        timestamp: new Date().toISOString(),
+      });
+
+      // Lập biên bản sự cố và chuẩn bị cảnh báo tự động
+      await dispatchCriticalIncident(
+        new Error(`Phát hiện hành vi can thiệp DevTools: ${body.violationType || 'F12 Tampering'}`),
+        {
+          task_name: 'AntiTamper Threat Enforcer',
+          user_code: clientIp,
+          violation: body,
+        }
+      );
+
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: true, banned: true, clientIp, duration: '24h' }));
+      return true;
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: String(err) }));
+      return true;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // SYSTEM HEALTH & WATCHDOG (/api/system/health-watchdog)
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/system/health-watchdog' && (req.method === 'GET' || req.method === 'POST')) {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(
+      JSON.stringify({
+        status: 'healthy',
+        service: 'synapes-auto-tool-v2',
+        selfHealing: 'active',
+        circuitBreakers: {
+          kling: CIRCUIT_BREAKERS.kling.state,
+          runway: CIRCUIT_BREAKERS.runway.state,
+          elevenlabs: CIRCUIT_BREAKERS.elevenlabs.state,
+          database: CIRCUIT_BREAKERS.database.state,
+        },
+        blacklistedIpsCount: IP_BLACKLIST.size,
+        uptime: process.uptime(),
+        leadEngineer: 'KS. Nguyễn Hoàng Thiện',
+        leadEmail: 'nguyenhoangthien.hvt.15@gmail.com',
+        timestamp: new Date().toISOString(),
+      })
+    );
+    return true;
+  }
+
+  // --------------------------------------------------------------------------
   // REGISTRATION & GOOGLE FORM BRIDGE RELAY (/api/save-registration)
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/save-registration' && req.method === 'POST') {
@@ -1310,309 +1376,419 @@ export async function handleStudioApiRequest(req, res) {
     return true;
   }
 
-// Helper fetch JSON qua HTTPS
-function getHttpsJson(targetUrl, timeoutMs = 8000) {
-  return new Promise((resolve) => {
-    try {
-      const parsed = new URL(targetUrl);
-      const client = parsed.protocol === 'http:' ? http : https;
-      const req = client.get(
-        targetUrl,
-        {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            Accept: 'application/json, text/html, */*',
+  // Helper fetch JSON qua HTTPS
+  function getHttpsJson(targetUrl, timeoutMs = 8000) {
+    return new Promise((resolve) => {
+      try {
+        const parsed = new URL(targetUrl);
+        const client = parsed.protocol === 'http:' ? http : https;
+        const req = client.get(
+          targetUrl,
+          {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              Accept: 'application/json, text/html, */*',
+            },
+            timeout: timeoutMs,
           },
-          timeout: timeoutMs,
-        },
-        (res) => {
-          let raw = '';
-          res.on('data', (c) => (raw += c));
-          res.on('end', () => {
-            try {
-              resolve({ status: res.statusCode, data: JSON.parse(raw) });
-            } catch {
-              resolve({ status: res.statusCode, text: raw });
-            }
-          });
-        }
-      );
-      req.on('error', (err) => resolve({ status: 500, error: String(err) }));
-      req.on('timeout', () => {
-        req.destroy();
-        resolve({ status: 504, error: 'Request timeout' });
-      });
-    } catch (e) {
-      resolve({ status: 500, error: String(e) });
-    }
-  });
-}
-
-// Trích xuất metadata thực tế chuyên sâu từ YouTube (Tiêu đề, Tác giả, Thời lượng thật, Thẻ, Thumbnail)
-async function fetchYouTubeFullMetadata(videoUrl) {
-  const match = videoUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/);
-  if (!match) return null;
-  const videoId = match[1];
-
-  try {
-    const res = await fetch('https://www.youtube.com/watch?v=' + videoId, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8'
+          (res) => {
+            let raw = '';
+            res.on('data', (c) => (raw += c));
+            res.on('end', () => {
+              try {
+                resolve({ status: res.statusCode, data: JSON.parse(raw) });
+              } catch {
+                resolve({ status: res.statusCode, text: raw });
+              }
+            });
+          }
+        );
+        req.on('error', (err) => resolve({ status: 500, error: String(err) }));
+        req.on('timeout', () => {
+          req.destroy();
+          resolve({ status: 504, error: 'Request timeout' });
+        });
+      } catch (e) {
+        resolve({ status: 500, error: String(e) });
       }
     });
-    const html = await res.text();
-    const matchJson = html.match(/ytInitialPlayerResponse\s*=\s*({.+?});(?:var|<\/script)/);
-    if (matchJson) {
-      const data = JSON.parse(matchJson[1]);
-      const details = data.videoDetails || {};
-      const lengthSeconds = parseInt(details.lengthSeconds || '0', 10) || 30;
-      
-      return {
-        videoId,
-        title: details.title || 'Video YouTube',
-        author: details.author || '',
-        lengthSeconds,
-        keywords: details.keywords || [],
-        shortDescription: details.shortDescription || '',
-        thumbnailUrl: details.thumbnail?.thumbnails?.slice(-1)[0]?.url || 'https://i.ytimg.com/vi/' + videoId + '/maxresdefault.jpg',
-        embedUrl: 'https://www.youtube-nocookie.com/embed/' + videoId + '?autoplay=0&rel=0'
-      };
-    }
-  } catch (err) {
-    console.warn('Scrape YT metadata error:', err.message);
   }
 
-  // Fallback qua oEmbed nếu scraper bị chặn
-  try {
-    const oembed = await getHttpsJson(`https://www.youtube.com/oembed?url=${encodeURIComponent(videoUrl)}&format=json`);
-    if (oembed?.status === 200 && oembed.data?.title) {
-      return {
-        videoId,
-        title: oembed.data.title,
-        author: oembed.data.author_name || '',
-        lengthSeconds: 30,
-        keywords: [],
-        shortDescription: '',
-        thumbnailUrl: oembed.data.thumbnail_url || 'https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg',
-        embedUrl: 'https://www.youtube-nocookie.com/embed/' + videoId + '?autoplay=0&rel=0'
-      };
-    }
-  } catch {}
+  // Trích xuất metadata thực tế chuyên sâu từ YouTube (Tiêu đề, Tác giả, Thời lượng thật, Thẻ, Thumbnail)
+  async function fetchYouTubeFullMetadata(videoUrl) {
+    const match = videoUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/);
+    if (!match) return null;
+    const videoId = match[1];
 
-  return null;
-}
-
-function formatTimeMmSs(sec) {
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
-}
-
-// Bộ phân tích ngữ nghĩa & giải phẫu cấu trúc Video theo chuyên môn thực tế (Zero-Mock Semantic Engine)
-function generateDomainVideoDna(meta) {
-  const {
-    title = 'Video Mẫu Triệu View',
-    author = 'Nhà Sáng Tạo Nội Dung',
-    lengthSeconds = 30,
-    keywords = [],
-    shortDescription = '',
-    thumbnailUrl = '',
-    embedUrl = '',
-    sourceUrl = ''
-  } = meta;
-
-  const totalSec = Math.max(10, Math.min(600, parseInt(lengthSeconds, 10) || 30));
-  const combined = (title + ' ' + (keywords || []).join(' ') + ' ' + shortDescription + ' ' + author).toLowerCase();
-
-  let domain = 'general';
-  if (combined.match(/onana|manchester united|man utd|\bmu\b|football|soccer|goal|save|messi|ronaldo|cr7|neymar|haaland|champions league|premier league|chelsea|arsenal|liverpool|real madrid|barca|barcelona|goalkeeper|penalty|world cup|bóng đá|thủ môn|bàn thắng|trận đấu|cứu thua|khung thành|loky10/)) {
-    domain = 'sports_football';
-  } else if (combined.match(/review|unboxing|iphone|samsung|macbook|laptop|phone|camera|gpu|nvidia|ai|chatgpt|deepseek|công nghệ|máy tính|điện thoại|xiaomi|ipad/)) {
-    domain = 'tech_review';
-  } else if (combined.match(/food|cooking|recipe|street food|ăn|nấu|món ăn|ẩm thực|nhà hàng|bếp|mukbang|nướng|lẩu|bánh/)) {
-    domain = 'food_cooking';
-  } else if (combined.match(/travel|tour|vlog|du lịch|khám phá|hành trình|phượt|vietnam|da nang|saigon|hanoi|bali|japan|thailand/)) {
-    domain = 'travel_vlog';
-  } else if (combined.match(/crypto|bitcoin|btc|invest|finance|stock|chứng khoán|tiền|làm giàu|kinh doanh|marketing/)) {
-    domain = 'finance_business';
-  } else if (combined.match(/funny|comedy|prank|meme|hài|cười|troll|giải trí/)) {
-    domain = 'comedy_entertainment';
-  }
-
-  // Chia thời lượng thành 5 phân cảnh khớp đúng totalSec
-  const s1 = Math.max(2, Math.round(totalSec * 0.15));
-  const s2 = Math.max(3, Math.round(totalSec * 0.20));
-  const s3 = Math.max(3, Math.round(totalSec * 0.25));
-  const s4 = Math.max(2, Math.round(totalSec * 0.20));
-  const s5 = Math.max(2, totalSec - (s1 + s2 + s3 + s4));
-
-  const durs = [s1, s2, s3, s4, s5];
-  let cur = 0;
-  const timeRanges = durs.map(d => {
-    const start = cur;
-    cur += d;
-    return { start: formatTimeMmSs(start), end: formatTimeMmSs(cur), dur: d };
-  });
-
-  if (domain === 'sports_football') {
-    return {
-      sourceUrl: sourceUrl || 'https://www.youtube.com/shorts/D0YJOgFpaOo',
-      sourceTitle: title,
-      authorName: author || 'LOKY10',
-      embedUrl,
-      thumbnailUrl: thumbnailUrl || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1200&q=80',
-      durationSec: totalSec,
-      totalScenes: 5,
-      averageShotDuration: +(totalSec / 5).toFixed(1),
-      wordsPerMinute: 140,
-      hookScore: 98,
-      hookAnalysis: {
-        verbalHook: 'Tiếng còi, cú sút xé gió và khoảnh khắc cả cầu trường Old Trafford nín thở trước pha cứu thua xuất thần!',
-        visualHook: 'Góc quay hành động bắt trọn pha dứt điểm hiểm hóc và cú bay người cản phá ngoạn mục của thủ thành Onana.',
-        audioHook: 'Tiếng thở gấp, âm thanh va chạm mạnh của trái bóng và tiếng còi dồn dập chuyển ngay sang tiếng gầm vang của khán đài.',
-        curiosityGapStrategy: 'Tình huống tưởng chừng 100% đã có bàn thắng nhưng phản xạ trong tích tắc của thủ thành Man United đã thay đổi toàn bộ cục diện.'
-      },
-      retentionStrategy: 'Cắt cảnh dồn dập giữa góc máy cận hành động (Close-up action) và quay chậm siêu mượt (Super Slow-Mo 120fps) tại khoảnh khắc chạm bóng.',
-      pacingStyle: 'sports-high-intensity',
-      visualStyle: {
-        colorPalette: ['#DA291C', '#000000', '#FFE500'],
-        lightingMood: 'Sân vận động ngập tràn ánh đèn pha công suất lớn (Floodlights) xuyên qua màn sương đêm',
-        aestheticTag: 'Cinematic Sports Slow-Mo & High-Speed Action Broadcast',
-        recommendedAspectRatio: '9:16'
-      },
-      audioAnalysis: {
-        bgmGenre: 'Epic Orchestral / Phonk Hype Sports Energy',
-        bpmTempo: 140,
-        voiceTone: 'Bình luận viên thể thao cuồng nhiệt, nghẹt thở, bùng nổ cảm xúc',
-        sfxFrequency: 'high'
-      },
-      promptGuide: {
-        visualFormula: '[Shot Type: Slow-Mo 120fps] + [Manchester United goalkeeper André Onana diving fingertip save] + [Ball deflected off crossbar] + [Stadium floodlights, rain mist] + [Ultra-realistic 8k sports photography, high shutter speed, Sony FX9 cinema look]',
-        scriptFormula: 'Pha phản công nguy hiểm -> Cú sút cận thành hiểm hóc -> Pha cản phá không tưởng ở tích tắc cuối -> Khán đài vỡ òa & Onana gầm vang ăn mừng',
-        audioFormula: 'Stadium crowd hush -> Booming ball impact -> Deafening crowd cheer roar + Epic brass fanfare',
-        negativePrompts: [
-          'Không chèn văn bản dài che khuất trái bóng',
-          'Không dùng nhạc nhẹ nhàng lãng mạn',
-          'Không để hình ảnh bị nhòe mất nét các pha chuyển động nhanh'
-        ],
-        cinematicKeywords: [
-          'Fingertip acrobatic dive',
-          'Stadium floodlight volumetric haze',
-          'Grass & rain particle splatter',
-          'Super slow-motion 120fps',
-          'Crowd eruption bokeh'
-        ]
-      },
-      scenes: [
-        {
-          sceneNumber: 1,
-          timeStart: timeRanges[0].start,
-          timeEnd: timeRanges[0].end,
-          durationSec: timeRanges[0].dur,
-          shotType: 'wide-angle',
-          visualCategory: 'action-sports',
-          visualDescription: 'Góc toàn cảnh tình huống tấn công nguy hiểm, tiền đạo đối phương nhận bóng trong vòng cấm chuẩn bị dứt điểm',
-          transcript: 'Tình huống phản công thần tốc! Khung thành Man United đang bị đe dọa nghiêm trọng!',
-          suggestedAiPrompt: 'Cinematic wide action shot of a soccer striker taking a powerful shot inside penalty box under bright stadium floodlights, motion blur, 8k resolution',
-          onScreenText: 'CÚ SÚT NGUY HIỂM 99% THÀNH BÀN',
-          sfxCue: 'Whistle blow + Stadium crowd gasp'
-        },
-        {
-          sceneNumber: 2,
-          timeStart: timeRanges[1].start,
-          timeEnd: timeRanges[1].end,
-          durationSec: timeRanges[1].dur,
-          shotType: 'medium-shot',
-          visualCategory: 'action-sports',
-          visualDescription: 'Cú nã đại bác xé gió đưa bóng bay căng về góc cao khung thành, thủ môn bắt đầu bung người',
-          transcript: 'Cú sút xé gió hướng thẳng về góc hiểm! Một tình huống gần như không thể cản phá!',
-          suggestedAiPrompt: 'Dynamic medium action sports photography, soccer ball flying at intense velocity towards top corner of goal post, dramatic lighting, rain mist',
-          onScreenText: 'CÚ NÃ ĐẠI BÁC XÉ GIÓ',
-          sfxCue: 'Heavy Ball Impact + Heartbeat riser'
-        },
-        {
-          sceneNumber: 3,
-          timeStart: timeRanges[2].start,
-          timeEnd: timeRanges[2].end,
-          durationSec: timeRanges[2].dur,
-          shotType: 'slow-motion',
-          visualCategory: 'action-sports',
-          visualDescription: 'Pha bay người xuất thần của thủ môn: Những đầu ngón tay găng chạm khẽ đẩy bóng liếm mép xà ngang bay ra ngoài',
-          transcript: 'KHÔNG VÀO! Một pha bay người không tưởng của André Onana! Bàn tay nhựa đã cứu thua ngoạn mục cho Quỷ Đỏ!',
-          suggestedAiPrompt: 'Ultra close-up super slow-motion 120fps, goalkeeper glove deflecting soccer ball with fingertips under stadium floodlights, grass and water droplets flying, hyper-realistic 8k',
-          onScreenText: 'BÀN TAY NHỰA CỨU THUA XUẤT THẦN!',
-          sfxCue: 'Glove Deflection impact sound + Sub-bass drop'
-        },
-        {
-          sceneNumber: 4,
-          timeStart: timeRanges[3].start,
-          timeEnd: timeRanges[3].end,
-          durationSec: timeRanges[3].dur,
-          shotType: 'close-up',
-          visualCategory: 'emotion-sports',
-          visualDescription: 'Tiền đạo đối phương ôm đầu sững sờ gục ngã trên sân cỏ, trong khi thủ môn đứng bật dậy gầm vang đập tay ăn mừng cùng đồng đội',
-          transcript: 'Không thể tin nổi! Cả cầu trường Old Trafford như muốn nổ tung trước pha cản phá thần thánh!',
-          suggestedAiPrompt: 'Close-up intense emotion, soccer goalkeeper screaming in passionate celebration with raised fists, mud and sweat on face, teammates rushing to embrace him, dramatic lighting',
-          onScreenText: 'ĐẲNG CẤP THỦ THÀNH MAN UNITED',
-          sfxCue: 'Deafening stadium roar eruption'
-        },
-        {
-          sceneNumber: 5,
-          timeStart: timeRanges[4].start,
-          timeEnd: timeRanges[4].end,
-          durationSec: timeRanges[4].dur,
-          shotType: 'wide-angle',
-          visualCategory: 'stadium-atmosphere',
-          visualDescription: 'Toàn cảnh biển người khán đài Old Trafford đứng dậy vỗ tay cuồng nhiệt, logo kênh xuất hiện cùng câu hỏi tương tác',
-          transcript: 'Pha cứu thua xứng đáng điểm 10 tuyệt đối! Bạn chấm khoảnh khắc này mấy điểm? Hãy để lại bình luận nhé!',
-          suggestedAiPrompt: 'Sweeping wide aerial shot of legendary stadium illuminated in the night, tens of thousands of fans cheering with red scarves, cinematic sports broadcast',
-          onScreenText: 'BẠN CHẤM PHA BÓNG NÀY MẤY ĐIỂM?',
-          sfxCue: 'Final outro drum beat & fan chants'
+    try {
+      const res = await fetch('https://www.youtube.com/watch?v=' + videoId, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8'
         }
-      ],
-      rawTranscript: 'Tình huống phản công thần tốc! Khung thành Man United đang bị đe dọa nghiêm trọng! Cú sút xé gió hướng thẳng về góc hiểm! Một tình huống gần như không thể cản phá! KHÔNG VÀO! Một pha bay người không tưởng của André Onana! Bàn tay nhựa đã cứu thua ngoạn mục cho Quỷ Đỏ! Không thể tin nổi! Cả cầu trường Old Trafford như muốn nổ tung trước pha cản phá thần thánh! Pha cứu thua xứng đáng điểm 10 tuyệt đối! Bạn chấm khoảnh khắc này mấy điểm? Hãy để lại bình luận nhé!'
-    };
+      });
+      const html = await res.text();
+      const matchJson = html.match(/ytInitialPlayerResponse\s*=\s*({.+?});(?:var|<\/script)/);
+      if (matchJson) {
+        const data = JSON.parse(matchJson[1]);
+        const details = data.videoDetails || {};
+        const lengthSeconds = parseInt(details.lengthSeconds || '0', 10) || 30;
+
+        return {
+          videoId,
+          title: details.title || 'Video YouTube',
+          author: details.author || '',
+          lengthSeconds,
+          keywords: details.keywords || [],
+          shortDescription: details.shortDescription || '',
+          thumbnailUrl: details.thumbnail?.thumbnails?.slice(-1)[0]?.url || 'https://i.ytimg.com/vi/' + videoId + '/maxresdefault.jpg',
+          embedUrl: 'https://www.youtube-nocookie.com/embed/' + videoId + '?autoplay=0&rel=0'
+        };
+      }
+    } catch (err) {
+      console.warn('Scrape YT metadata error:', err.message);
+    }
+
+    // Fallback qua oEmbed nếu scraper bị chặn
+    try {
+      const oembed = await getHttpsJson(`https://www.youtube.com/oembed?url=${encodeURIComponent(videoUrl)}&format=json`);
+      if (oembed?.status === 200 && oembed.data?.title) {
+        return {
+          videoId,
+          title: oembed.data.title,
+          author: oembed.data.author_name || '',
+          lengthSeconds: 30,
+          keywords: [],
+          shortDescription: '',
+          thumbnailUrl: oembed.data.thumbnail_url || 'https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg',
+          embedUrl: 'https://www.youtube-nocookie.com/embed/' + videoId + '?autoplay=0&rel=0'
+        };
+      }
+    } catch { }
+
+    return null;
   }
 
-  if (domain === 'tech_review') {
+  function formatTimeMmSs(sec) {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  // Bộ phân tích ngữ nghĩa & giải phẫu cấu trúc Video theo chuyên môn thực tế (Zero-Mock Semantic Engine)
+  function generateDomainVideoDna(meta) {
+    const {
+      title = 'Video Mẫu Triệu View',
+      author = 'Nhà Sáng Tạo Nội Dung',
+      lengthSeconds = 30,
+      keywords = [],
+      shortDescription = '',
+      thumbnailUrl = '',
+      embedUrl = '',
+      sourceUrl = ''
+    } = meta;
+
+    const totalSec = Math.max(10, Math.min(600, parseInt(lengthSeconds, 10) || 30));
+    const combined = (title + ' ' + (keywords || []).join(' ') + ' ' + shortDescription + ' ' + author).toLowerCase();
+
+    let domain = 'general';
+    if (combined.match(/onana|manchester united|man utd|\bmu\b|football|soccer|goal|save|messi|ronaldo|cr7|neymar|haaland|champions league|premier league|chelsea|arsenal|liverpool|real madrid|barca|barcelona|goalkeeper|penalty|world cup|bóng đá|thủ môn|bàn thắng|trận đấu|cứu thua|khung thành|loky10/)) {
+      domain = 'sports_football';
+    } else if (combined.match(/review|unboxing|iphone|samsung|macbook|laptop|phone|camera|gpu|nvidia|ai|chatgpt|deepseek|công nghệ|máy tính|điện thoại|xiaomi|ipad/)) {
+      domain = 'tech_review';
+    } else if (combined.match(/food|cooking|recipe|street food|ăn|nấu|món ăn|ẩm thực|nhà hàng|bếp|mukbang|nướng|lẩu|bánh/)) {
+      domain = 'food_cooking';
+    } else if (combined.match(/travel|tour|vlog|du lịch|khám phá|hành trình|phượt|vietnam|da nang|saigon|hanoi|bali|japan|thailand/)) {
+      domain = 'travel_vlog';
+    } else if (combined.match(/crypto|bitcoin|btc|invest|finance|stock|chứng khoán|tiền|làm giàu|kinh doanh|marketing/)) {
+      domain = 'finance_business';
+    } else if (combined.match(/funny|comedy|prank|meme|hài|cười|troll|giải trí/)) {
+      domain = 'comedy_entertainment';
+    }
+
+    // Chia thời lượng thành 5 phân cảnh khớp đúng totalSec
+    const s1 = Math.max(2, Math.round(totalSec * 0.15));
+    const s2 = Math.max(3, Math.round(totalSec * 0.20));
+    const s3 = Math.max(3, Math.round(totalSec * 0.25));
+    const s4 = Math.max(2, Math.round(totalSec * 0.20));
+    const s5 = Math.max(2, totalSec - (s1 + s2 + s3 + s4));
+
+    const durs = [s1, s2, s3, s4, s5];
+    let cur = 0;
+    const timeRanges = durs.map(d => {
+      const start = cur;
+      cur += d;
+      return { start: formatTimeMmSs(start), end: formatTimeMmSs(cur), dur: d };
+    });
+
+    if (domain === 'sports_football') {
+      return {
+        sourceUrl: sourceUrl || 'https://www.youtube.com/shorts/D0YJOgFpaOo',
+        sourceTitle: title,
+        authorName: author || 'LOKY10',
+        embedUrl,
+        thumbnailUrl: thumbnailUrl || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1200&q=80',
+        durationSec: totalSec,
+        totalScenes: 5,
+        averageShotDuration: +(totalSec / 5).toFixed(1),
+        wordsPerMinute: 140,
+        hookScore: 98,
+        hookAnalysis: {
+          verbalHook: 'Tiếng còi, cú sút xé gió và khoảnh khắc cả cầu trường Old Trafford nín thở trước pha cứu thua xuất thần!',
+          visualHook: 'Góc quay hành động bắt trọn pha dứt điểm hiểm hóc và cú bay người cản phá ngoạn mục của thủ thành Onana.',
+          audioHook: 'Tiếng thở gấp, âm thanh va chạm mạnh của trái bóng và tiếng còi dồn dập chuyển ngay sang tiếng gầm vang của khán đài.',
+          curiosityGapStrategy: 'Tình huống tưởng chừng 100% đã có bàn thắng nhưng phản xạ trong tích tắc của thủ thành Man United đã thay đổi toàn bộ cục diện.'
+        },
+        retentionStrategy: 'Cắt cảnh dồn dập giữa góc máy cận hành động (Close-up action) và quay chậm siêu mượt (Super Slow-Mo 120fps) tại khoảnh khắc chạm bóng.',
+        pacingStyle: 'sports-high-intensity',
+        visualStyle: {
+          colorPalette: ['#DA291C', '#000000', '#FFE500'],
+          lightingMood: 'Sân vận động ngập tràn ánh đèn pha công suất lớn (Floodlights) xuyên qua màn sương đêm',
+          aestheticTag: 'Cinematic Sports Slow-Mo & High-Speed Action Broadcast',
+          recommendedAspectRatio: '9:16'
+        },
+        audioAnalysis: {
+          bgmGenre: 'Epic Orchestral / Phonk Hype Sports Energy',
+          bpmTempo: 140,
+          voiceTone: 'Bình luận viên thể thao cuồng nhiệt, nghẹt thở, bùng nổ cảm xúc',
+          sfxFrequency: 'high'
+        },
+        promptGuide: {
+          visualFormula: '[Shot Type: Slow-Mo 120fps] + [Manchester United goalkeeper André Onana diving fingertip save] + [Ball deflected off crossbar] + [Stadium floodlights, rain mist] + [Ultra-realistic 8k sports photography, high shutter speed, Sony FX9 cinema look]',
+          scriptFormula: 'Pha phản công nguy hiểm -> Cú sút cận thành hiểm hóc -> Pha cản phá không tưởng ở tích tắc cuối -> Khán đài vỡ òa & Onana gầm vang ăn mừng',
+          audioFormula: 'Stadium crowd hush -> Booming ball impact -> Deafening crowd cheer roar + Epic brass fanfare',
+          negativePrompts: [
+            'Không chèn văn bản dài che khuất trái bóng',
+            'Không dùng nhạc nhẹ nhàng lãng mạn',
+            'Không để hình ảnh bị nhòe mất nét các pha chuyển động nhanh'
+          ],
+          cinematicKeywords: [
+            'Fingertip acrobatic dive',
+            'Stadium floodlight volumetric haze',
+            'Grass & rain particle splatter',
+            'Super slow-motion 120fps',
+            'Crowd eruption bokeh'
+          ]
+        },
+        scenes: [
+          {
+            sceneNumber: 1,
+            timeStart: timeRanges[0].start,
+            timeEnd: timeRanges[0].end,
+            durationSec: timeRanges[0].dur,
+            shotType: 'wide-angle',
+            visualCategory: 'action-sports',
+            visualDescription: 'Góc toàn cảnh tình huống tấn công nguy hiểm, tiền đạo đối phương nhận bóng trong vòng cấm chuẩn bị dứt điểm',
+            transcript: 'Tình huống phản công thần tốc! Khung thành Man United đang bị đe dọa nghiêm trọng!',
+            suggestedAiPrompt: 'Cinematic wide action shot of a soccer striker taking a powerful shot inside penalty box under bright stadium floodlights, motion blur, 8k resolution',
+            onScreenText: 'CÚ SÚT NGUY HIỂM 99% THÀNH BÀN',
+            sfxCue: 'Whistle blow + Stadium crowd gasp'
+          },
+          {
+            sceneNumber: 2,
+            timeStart: timeRanges[1].start,
+            timeEnd: timeRanges[1].end,
+            durationSec: timeRanges[1].dur,
+            shotType: 'medium-shot',
+            visualCategory: 'action-sports',
+            visualDescription: 'Cú nã đại bác xé gió đưa bóng bay căng về góc cao khung thành, thủ môn bắt đầu bung người',
+            transcript: 'Cú sút xé gió hướng thẳng về góc hiểm! Một tình huống gần như không thể cản phá!',
+            suggestedAiPrompt: 'Dynamic medium action sports photography, soccer ball flying at intense velocity towards top corner of goal post, dramatic lighting, rain mist',
+            onScreenText: 'CÚ NÃ ĐẠI BÁC XÉ GIÓ',
+            sfxCue: 'Heavy Ball Impact + Heartbeat riser'
+          },
+          {
+            sceneNumber: 3,
+            timeStart: timeRanges[2].start,
+            timeEnd: timeRanges[2].end,
+            durationSec: timeRanges[2].dur,
+            shotType: 'slow-motion',
+            visualCategory: 'action-sports',
+            visualDescription: 'Pha bay người xuất thần của thủ môn: Những đầu ngón tay găng chạm khẽ đẩy bóng liếm mép xà ngang bay ra ngoài',
+            transcript: 'KHÔNG VÀO! Một pha bay người không tưởng của André Onana! Bàn tay nhựa đã cứu thua ngoạn mục cho Quỷ Đỏ!',
+            suggestedAiPrompt: 'Ultra close-up super slow-motion 120fps, goalkeeper glove deflecting soccer ball with fingertips under stadium floodlights, grass and water droplets flying, hyper-realistic 8k',
+            onScreenText: 'BÀN TAY NHỰA CỨU THUA XUẤT THẦN!',
+            sfxCue: 'Glove Deflection impact sound + Sub-bass drop'
+          },
+          {
+            sceneNumber: 4,
+            timeStart: timeRanges[3].start,
+            timeEnd: timeRanges[3].end,
+            durationSec: timeRanges[3].dur,
+            shotType: 'close-up',
+            visualCategory: 'emotion-sports',
+            visualDescription: 'Tiền đạo đối phương ôm đầu sững sờ gục ngã trên sân cỏ, trong khi thủ môn đứng bật dậy gầm vang đập tay ăn mừng cùng đồng đội',
+            transcript: 'Không thể tin nổi! Cả cầu trường Old Trafford như muốn nổ tung trước pha cản phá thần thánh!',
+            suggestedAiPrompt: 'Close-up intense emotion, soccer goalkeeper screaming in passionate celebration with raised fists, mud and sweat on face, teammates rushing to embrace him, dramatic lighting',
+            onScreenText: 'ĐẲNG CẤP THỦ THÀNH MAN UNITED',
+            sfxCue: 'Deafening stadium roar eruption'
+          },
+          {
+            sceneNumber: 5,
+            timeStart: timeRanges[4].start,
+            timeEnd: timeRanges[4].end,
+            durationSec: timeRanges[4].dur,
+            shotType: 'wide-angle',
+            visualCategory: 'stadium-atmosphere',
+            visualDescription: 'Toàn cảnh biển người khán đài Old Trafford đứng dậy vỗ tay cuồng nhiệt, logo kênh xuất hiện cùng câu hỏi tương tác',
+            transcript: 'Pha cứu thua xứng đáng điểm 10 tuyệt đối! Bạn chấm khoảnh khắc này mấy điểm? Hãy để lại bình luận nhé!',
+            suggestedAiPrompt: 'Sweeping wide aerial shot of legendary stadium illuminated in the night, tens of thousands of fans cheering with red scarves, cinematic sports broadcast',
+            onScreenText: 'BẠN CHẤM PHA BÓNG NÀY MẤY ĐIỂM?',
+            sfxCue: 'Final outro drum beat & fan chants'
+          }
+        ],
+        rawTranscript: 'Tình huống phản công thần tốc! Khung thành Man United đang bị đe dọa nghiêm trọng! Cú sút xé gió hướng thẳng về góc hiểm! Một tình huống gần như không thể cản phá! KHÔNG VÀO! Một pha bay người không tưởng của André Onana! Bàn tay nhựa đã cứu thua ngoạn mục cho Quỷ Đỏ! Không thể tin nổi! Cả cầu trường Old Trafford như muốn nổ tung trước pha cản phá thần thánh! Pha cứu thua xứng đáng điểm 10 tuyệt đối! Bạn chấm khoảnh khắc này mấy điểm? Hãy để lại bình luận nhé!'
+      };
+    }
+
+    if (domain === 'tech_review') {
+      return {
+        sourceUrl: sourceUrl || '',
+        sourceTitle: title,
+        authorName: author || 'Tech Creator',
+        embedUrl,
+        thumbnailUrl: thumbnailUrl || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80',
+        durationSec: totalSec,
+        totalScenes: 5,
+        averageShotDuration: +(totalSec / 5).toFixed(1),
+        wordsPerMinute: 155,
+        hookScore: 95,
+        hookAnalysis: {
+          verbalHook: `Trên tay siêu phẩm công nghệ ${title} đang gây sốt cộng đồng, liệu có đáng bỏ tiền nâng cấp?`,
+          visualHook: 'Góc quay macro cận cảnh viền máy kim loại sáng bóng và màn hình sắc nét không tì vết',
+          audioHook: 'Âm thanh unboxing bóc seal sắc gọn kết hợp nhịp bass điện tử hiện đại',
+          curiosityGapStrategy: 'Đặt ra nghi vấn về điểm yếu chí mạng mà ít reviewer nhắc tới ở đầu video'
+        },
+        retentionStrategy: 'Đan xen các bài test thực tế khốc liệt và so sánh thông số trực quan',
+        pacingStyle: 'tech-review-punchy',
+        visualStyle: {
+          colorPalette: ['#0f172a', '#38bdf8', '#818cf8'],
+          lightingMood: 'Studio tối giản hiện đại với ánh sáng rim light viền xanh cyber',
+          aestheticTag: 'Clean Tech Macro & Spec HUD Overlay',
+          recommendedAspectRatio: '9:16'
+        },
+        audioAnalysis: {
+          bgmGenre: 'Modern Tech Lo-Fi & Minimal Electronic Beats',
+          bpmTempo: 128,
+          voiceTone: 'Khách quan, tự tin, rành mạch, am hiểu sâu',
+          sfxFrequency: 'high'
+        },
+        promptGuide: {
+          visualFormula: `[Shot Type: Macro/Extreme Close-up] + [Modern gadget: ${title}] + [Studio rim lighting, metallic reflection] + [Floating minimalist spec UI] + [Sony A7S3 4k sharp]`,
+          scriptFormula: 'Hook unboxing -> Thử thách hiệu năng thực tế -> Điểm trừ thực tế -> So sánh đối thủ -> Lời khuyên chốt hạ',
+          audioFormula: 'ASMR unboxing click -> Tech synthesizer rhythm -> Pop up chimes for specs',
+          negativePrompts: ['Không dùng ánh sáng vàng nhờ nhờ', 'Không để bụi bẩn bám trên màn hình máy', 'Không nói chung chung sáo rỗng'],
+          cinematicKeywords: ['Macro lens reflection', 'Floating glassmorphism spec card', 'Dark studio neon accent', 'Seamless hand rotation']
+        },
+        scenes: [
+          {
+            sceneNumber: 1,
+            timeStart: timeRanges[0].start,
+            timeEnd: timeRanges[0].end,
+            durationSec: timeRanges[0].dur,
+            shotType: 'close-up',
+            visualCategory: 'product-reveal',
+            visualDescription: `Mở hộp và cận cảnh thiết kế sang trọng của ${title} dưới ánh sáng studio`,
+            transcript: `Cầm trên tay ${title}, cảm giác đầu tiên là cực kỳ đầm tay và hoàn thiện sắc sảo!`,
+            suggestedAiPrompt: `Close-up shot of hand holding sleek high-tech smartphone, metallic edges catching rim light, clean studio desk background`,
+            onScreenText: 'TRÊN TAY SIÊU PHẨM MỚI NHẤT',
+            sfxCue: 'Crisp unboxing peel sound'
+          },
+          {
+            sceneNumber: 2,
+            timeStart: timeRanges[1].start,
+            timeEnd: timeRanges[1].end,
+            durationSec: timeRanges[1].dur,
+            shotType: 'macro',
+            visualCategory: 'display-test',
+            visualDescription: 'Test màn hình tần số quét cao, lướt vuốt mượt mà không độ trễ',
+            transcript: 'Màn hình tần số quét cao hiển thị rực rỡ, độ sáng ngoài trời vượt trội hoàn toàn.',
+            suggestedAiPrompt: 'Macro shot of glowing high refresh rate display showing vibrant colors, floating digital specs',
+            onScreenText: 'MÀN HÌNH CỰC ĐỈNH',
+            sfxCue: 'Digital swipe whoosh'
+          },
+          {
+            sceneNumber: 3,
+            timeStart: timeRanges[2].start,
+            timeEnd: timeRanges[2].end,
+            durationSec: timeRanges[2].dur,
+            shotType: 'medium-shot',
+            visualCategory: 'stress-test',
+            visualDescription: 'Bung toàn bộ sức mạnh vi xử lý trong bài test tác vụ nặng và nhiệt độ',
+            transcript: 'Tuy nhiên khi ép xung tải nặng liên tục, nhiệt độ bắt đầu tăng nhanh ở cụm camera.',
+            suggestedAiPrompt: 'High-tech thermal benchmark visualization, sleek device running intensive software, futuristic HUD overlay',
+            onScreenText: 'THỰC TẾ TEST HIỆU NĂNG',
+            sfxCue: 'Warning chime alert'
+          },
+          {
+            sceneNumber: 4,
+            timeStart: timeRanges[3].start,
+            timeEnd: timeRanges[3].end,
+            durationSec: timeRanges[3].dur,
+            shotType: 'close-up',
+            visualCategory: 'camera-samples',
+            visualDescription: 'Ảnh chụp thực tế so sánh chi tiết nước màu và chống rung quang học',
+            transcript: 'Khả năng chụp đêm và quay phim chống rung chính là vũ khí ăn tiền nhất trên chiếc máy này.',
+            suggestedAiPrompt: 'Split screen comparison of stunning low-light photography samples taken with mobile camera, professional color grading',
+            onScreenText: 'CHỐNG RUNG & CHỤP ĐÊM',
+            sfxCue: 'Camera shutter click x2'
+          },
+          {
+            sceneNumber: 5,
+            timeStart: timeRanges[4].start,
+            timeEnd: timeRanges[4].end,
+            durationSec: timeRanges[4].dur,
+            shotType: 'medium-shot',
+            visualCategory: 'verdict',
+            visualDescription: 'Người đánh giá đưa ra kết luận chốt hạ kèm mức giá và lời khuyên',
+            transcript: `Với mức giá hiện tại, ${title} rất đáng cân nhắc nếu bạn cần hiệu năng cao. Bạn thấy sao?`,
+            suggestedAiPrompt: 'Reviewer smiling holding the device, thumbs up, minimalist desk setup, soft warm background lighting',
+            onScreenText: 'ĐÁNH GIÁ: ĐÁNG TIỀN ĐỂ NÂNG CẤP?',
+            sfxCue: 'Modern bell notification sound'
+          }
+        ],
+        rawTranscript: `Cầm trên tay ${title}, cảm giác đầu tiên là cực kỳ đầm tay và hoàn thiện sắc sảo! Màn hình tần số quét cao hiển thị rực rỡ, độ sáng ngoài trời vượt trội hoàn toàn. Tuy nhiên khi ép xung tải nặng liên tục, nhiệt độ bắt đầu tăng nhanh ở cụm camera. Khả năng chụp đêm và quay phim chống rung chính là vũ khí ăn tiền nhất trên chiếc máy này. Với mức giá hiện tại, ${title} rất đáng cân nhắc nếu bạn cần hiệu năng cao. Bạn thấy sao?`
+      };
+    }
+
+    // Domain Mặc định chuẩn xác dựa theo tiêu đề thật (General Story)
     return {
       sourceUrl: sourceUrl || '',
       sourceTitle: title,
-      authorName: author || 'Tech Creator',
+      authorName: author || 'Nhà Sáng Tạo Nội Dung',
       embedUrl,
-      thumbnailUrl: thumbnailUrl || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80',
+      thumbnailUrl: thumbnailUrl || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=1200&q=80',
       durationSec: totalSec,
       totalScenes: 5,
       averageShotDuration: +(totalSec / 5).toFixed(1),
-      wordsPerMinute: 155,
-      hookScore: 95,
+      wordsPerMinute: 145,
+      hookScore: 94,
       hookAnalysis: {
-        verbalHook: `Trên tay siêu phẩm công nghệ ${title} đang gây sốt cộng đồng, liệu có đáng bỏ tiền nâng cấp?`,
-        visualHook: 'Góc quay macro cận cảnh viền máy kim loại sáng bóng và màn hình sắc nét không tì vết',
-        audioHook: 'Âm thanh unboxing bóc seal sắc gọn kết hợp nhịp bass điện tử hiện đại',
-        curiosityGapStrategy: 'Đặt ra nghi vấn về điểm yếu chí mạng mà ít reviewer nhắc tới ở đầu video'
+        verbalHook: `Bí mật đằng sau ${title} mà rất ít người để ý đến!`,
+        visualHook: 'Chuyển cảnh tốc độ cao bắt trọn khoảnh khắc then chốt gây tò mò tột độ',
+        audioHook: 'Âm thanh Riser dồn dập và hiệu ứng Sub-bass tạo sự nghẹt thở',
+        curiosityGapStrategy: `Mở ra câu hỏi lớn về ${title} ngay giây đầu tiên và giữ nút thắt đến cảnh kết`
       },
-      retentionStrategy: 'Đan xen các bài test thực tế khốc liệt và so sánh thông số trực quan',
-      pacingStyle: 'tech-review-punchy',
+      retentionStrategy: 'Thay đổi góc máy linh hoạt sau mỗi 2.5 giây, liên tục đẩy cao trào thị giác',
+      pacingStyle: 'dynamic-viral-short',
       visualStyle: {
-        colorPalette: ['#0f172a', '#38bdf8', '#818cf8'],
-        lightingMood: 'Studio tối giản hiện đại với ánh sáng rim light viền xanh cyber',
-        aestheticTag: 'Clean Tech Macro & Spec HUD Overlay',
+        colorPalette: ['#1e293b', '#e11d48', '#f59e0b'],
+        lightingMood: 'Cinematic high contrast dynamic lighting',
+        aestheticTag: 'High Energy Motion & Action Focus',
         recommendedAspectRatio: '9:16'
       },
       audioAnalysis: {
-        bgmGenre: 'Modern Tech Lo-Fi & Minimal Electronic Beats',
-        bpmTempo: 128,
-        voiceTone: 'Khách quan, tự tin, rành mạch, am hiểu sâu',
+        bgmGenre: 'Modern Electronic / Cinematic Tension',
+        bpmTempo: 132,
+        voiceTone: 'Cuốn hút, biến đổi nhịp điệu linh hoạt theo cao trào',
         sfxFrequency: 'high'
       },
       promptGuide: {
-        visualFormula: `[Shot Type: Macro/Extreme Close-up] + [Modern gadget: ${title}] + [Studio rim lighting, metallic reflection] + [Floating minimalist spec UI] + [Sony A7S3 4k sharp]`,
-        scriptFormula: 'Hook unboxing -> Thử thách hiệu năng thực tế -> Điểm trừ thực tế -> So sánh đối thủ -> Lời khuyên chốt hạ',
-        audioFormula: 'ASMR unboxing click -> Tech synthesizer rhythm -> Pop up chimes for specs',
-        negativePrompts: ['Không dùng ánh sáng vàng nhờ nhờ', 'Không để bụi bẩn bám trên màn hình máy', 'Không nói chung chung sáo rỗng'],
-        cinematicKeywords: ['Macro lens reflection', 'Floating glassmorphism spec card', 'Dark studio neon accent', 'Seamless hand rotation']
+        visualFormula: `[Shot Type] + [Chủ thể: ${title}] + [Hành động/Biểu cảm cao trào] + [Ánh sáng điện ảnh sắc nét] + [8k cinematic composition]`,
+        scriptFormula: 'Hook kích thích tò mò -> Phát triển diễn biến kịch tính -> Cao trào bất ngờ -> Lắng đọng cảm xúc -> Kêu gọi tương tác',
+        audioFormula: 'Tension riser -> Booming bass impact at peak -> Energetic rhythmic beats',
+        negativePrompts: ['Không dùng cảnh tĩnh thừa thãi', 'Không mở đầu rườm rà', 'Không để âm lượng chênh lệch'],
+        cinematicKeywords: ['Dynamic camera pan', 'High contrast rim light', 'Kinetic typography', 'Volumetric atmosphere']
       },
       scenes: [
         {
@@ -1621,51 +1797,51 @@ function generateDomainVideoDna(meta) {
           timeEnd: timeRanges[0].end,
           durationSec: timeRanges[0].dur,
           shotType: 'close-up',
-          visualCategory: 'product-reveal',
-          visualDescription: `Mở hộp và cận cảnh thiết kế sang trọng của ${title} dưới ánh sáng studio`,
-          transcript: `Cầm trên tay ${title}, cảm giác đầu tiên là cực kỳ đầm tay và hoàn thiện sắc sảo!`,
-          suggestedAiPrompt: `Close-up shot of hand holding sleek high-tech smartphone, metallic edges catching rim light, clean studio desk background`,
-          onScreenText: 'TRÊN TAY SIÊU PHẨM MỚI NHẤT',
-          sfxCue: 'Crisp unboxing peel sound'
+          visualCategory: 'hook-scene',
+          visualDescription: `Khoảnh khắc mở màn ấn tượng của ${title} làm nổi bật tình tiết then chốt`,
+          transcript: `Bạn có tin được điều này về ${title}? Hãy xem kỹ khoảnh khắc này!`,
+          suggestedAiPrompt: `Dramatic close-up opening shot focusing on ${title}, intense lighting, 8k resolution cinematic realism`,
+          onScreenText: 'KHOẢNH KHẮC BẤT NGỜ',
+          sfxCue: 'Dramatic Impact Whoosh'
         },
         {
           sceneNumber: 2,
           timeStart: timeRanges[1].start,
           timeEnd: timeRanges[1].end,
           durationSec: timeRanges[1].dur,
-          shotType: 'macro',
-          visualCategory: 'display-test',
-          visualDescription: 'Test màn hình tần số quét cao, lướt vuốt mượt mà không độ trễ',
-          transcript: 'Màn hình tần số quét cao hiển thị rực rỡ, độ sáng ngoài trời vượt trội hoàn toàn.',
-          suggestedAiPrompt: 'Macro shot of glowing high refresh rate display showing vibrant colors, floating digital specs',
-          onScreenText: 'MÀN HÌNH CỰC ĐỈNH',
-          sfxCue: 'Digital swipe whoosh'
+          shotType: 'medium-shot',
+          visualCategory: 'build-up',
+          visualDescription: 'Diễn biến câu chuyện được đẩy nhanh với các chi tiết thú vị và bất ngờ',
+          transcript: 'Mọi chuyện bắt đầu trở nên kịch tính hơn khi tình huống bất ngờ này xuất hiện.',
+          suggestedAiPrompt: `Medium action shot developing the narrative around ${title}, dynamic camera movement, cinematic color grading`,
+          onScreenText: 'DIỄN BIẾN ĐẦY BẤT NGỜ',
+          sfxCue: 'Riser tension build'
         },
         {
           sceneNumber: 3,
           timeStart: timeRanges[2].start,
           timeEnd: timeRanges[2].end,
           durationSec: timeRanges[2].dur,
-          shotType: 'medium-shot',
-          visualCategory: 'stress-test',
-          visualDescription: 'Bung toàn bộ sức mạnh vi xử lý trong bài test tác vụ nặng và nhiệt độ',
-          transcript: 'Tuy nhiên khi ép xung tải nặng liên tục, nhiệt độ bắt đầu tăng nhanh ở cụm camera.',
-          suggestedAiPrompt: 'High-tech thermal benchmark visualization, sleek device running intensive software, futuristic HUD overlay',
-          onScreenText: 'THỰC TẾ TEST HIỆU NĂNG',
-          sfxCue: 'Warning chime alert'
+          shotType: 'macro',
+          visualCategory: 'climax',
+          visualDescription: 'Điểm nút thắt cao trào nhất của video được thể hiện chi tiết',
+          transcript: 'Và đây chính là khoảnh khắc quyết định khiến hàng triệu người không thể rời mắt!',
+          suggestedAiPrompt: `Extreme focal point shot capturing the peak climax of ${title}, hyper-detailed, slow motion feeling`,
+          onScreenText: 'CAO TRÀO BÙNG NỔ',
+          sfxCue: 'Sub-bass drop impact'
         },
         {
           sceneNumber: 4,
           timeStart: timeRanges[3].start,
           timeEnd: timeRanges[3].end,
           durationSec: timeRanges[3].dur,
-          shotType: 'close-up',
-          visualCategory: 'camera-samples',
-          visualDescription: 'Ảnh chụp thực tế so sánh chi tiết nước màu và chống rung quang học',
-          transcript: 'Khả năng chụp đêm và quay phim chống rung chính là vũ khí ăn tiền nhất trên chiếc máy này.',
-          suggestedAiPrompt: 'Split screen comparison of stunning low-light photography samples taken with mobile camera, professional color grading',
-          onScreenText: 'CHỐNG RUNG & CHỤP ĐÊM',
-          sfxCue: 'Camera shutter click x2'
+          shotType: 'wide-angle',
+          visualCategory: 'resolution',
+          visualDescription: 'Cảm xúc và phản ứng của người xem cùng toàn cảnh bối cảnh câu chuyện',
+          transcript: 'Một kết quả quá đỗi ấn tượng vượt xa mọi dự đoán ban đầu!',
+          suggestedAiPrompt: `Wide cinematic view showing the grand atmosphere and emotional reaction related to ${title}`,
+          onScreenText: 'KẾT QUẢ ĐÁNG KINH NGẠC',
+          sfxCue: 'Triumphant chime'
         },
         {
           sceneNumber: 5,
@@ -1673,127 +1849,17 @@ function generateDomainVideoDna(meta) {
           timeEnd: timeRanges[4].end,
           durationSec: timeRanges[4].dur,
           shotType: 'medium-shot',
-          visualCategory: 'verdict',
-          visualDescription: 'Người đánh giá đưa ra kết luận chốt hạ kèm mức giá và lời khuyên',
-          transcript: `Với mức giá hiện tại, ${title} rất đáng cân nhắc nếu bạn cần hiệu năng cao. Bạn thấy sao?`,
-          suggestedAiPrompt: 'Reviewer smiling holding the device, thumbs up, minimalist desk setup, soft warm background lighting',
-          onScreenText: 'ĐÁNH GIÁ: ĐÁNG TIỀN ĐỂ NÂNG CẤP?',
-          sfxCue: 'Modern bell notification sound'
+          visualCategory: 'call-to-action',
+          visualDescription: 'Lời kết nối gắn liền với câu hỏi mở kích thích người xem để lại bình luận',
+          transcript: 'Bạn có cảm nhận gì về câu chuyện này? Hãy để lại ý kiến của bạn ngay bên dưới nhé!',
+          suggestedAiPrompt: `Warm engaging closing shot, inviting conversation about ${title}, clean and vibrant finish`,
+          onScreenText: 'BẠN NGHĨ SAO VỀ ĐIỀU NÀY?',
+          sfxCue: 'Notification chime bell'
         }
       ],
-      rawTranscript: `Cầm trên tay ${title}, cảm giác đầu tiên là cực kỳ đầm tay và hoàn thiện sắc sảo! Màn hình tần số quét cao hiển thị rực rỡ, độ sáng ngoài trời vượt trội hoàn toàn. Tuy nhiên khi ép xung tải nặng liên tục, nhiệt độ bắt đầu tăng nhanh ở cụm camera. Khả năng chụp đêm và quay phim chống rung chính là vũ khí ăn tiền nhất trên chiếc máy này. Với mức giá hiện tại, ${title} rất đáng cân nhắc nếu bạn cần hiệu năng cao. Bạn thấy sao?`
+      rawTranscript: `Bạn có tin được điều này về ${title}? Hãy xem kỹ khoảnh khắc này! Mọi chuyện bắt đầu trở nên kịch tính hơn khi tình huống bất ngờ này xuất hiện. Và đây chính là khoảnh khắc quyết định khiến hàng triệu người không thể rời mắt! Một kết quả quá đỗi ấn tượng vượt xa mọi dự đoán ban đầu! Bạn có cảm nhận gì về câu chuyện này? Hãy để lại ý kiến của bạn ngay bên dưới nhé!`
     };
   }
-
-  // Domain Mặc định chuẩn xác dựa theo tiêu đề thật (General Story)
-  return {
-    sourceUrl: sourceUrl || '',
-    sourceTitle: title,
-    authorName: author || 'Nhà Sáng Tạo Nội Dung',
-    embedUrl,
-    thumbnailUrl: thumbnailUrl || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=1200&q=80',
-    durationSec: totalSec,
-    totalScenes: 5,
-    averageShotDuration: +(totalSec / 5).toFixed(1),
-    wordsPerMinute: 145,
-    hookScore: 94,
-    hookAnalysis: {
-      verbalHook: `Bí mật đằng sau ${title} mà rất ít người để ý đến!`,
-      visualHook: 'Chuyển cảnh tốc độ cao bắt trọn khoảnh khắc then chốt gây tò mò tột độ',
-      audioHook: 'Âm thanh Riser dồn dập và hiệu ứng Sub-bass tạo sự nghẹt thở',
-      curiosityGapStrategy: `Mở ra câu hỏi lớn về ${title} ngay giây đầu tiên và giữ nút thắt đến cảnh kết`
-    },
-    retentionStrategy: 'Thay đổi góc máy linh hoạt sau mỗi 2.5 giây, liên tục đẩy cao trào thị giác',
-    pacingStyle: 'dynamic-viral-short',
-    visualStyle: {
-      colorPalette: ['#1e293b', '#e11d48', '#f59e0b'],
-      lightingMood: 'Cinematic high contrast dynamic lighting',
-      aestheticTag: 'High Energy Motion & Action Focus',
-      recommendedAspectRatio: '9:16'
-    },
-    audioAnalysis: {
-      bgmGenre: 'Modern Electronic / Cinematic Tension',
-      bpmTempo: 132,
-      voiceTone: 'Cuốn hút, biến đổi nhịp điệu linh hoạt theo cao trào',
-      sfxFrequency: 'high'
-    },
-    promptGuide: {
-      visualFormula: `[Shot Type] + [Chủ thể: ${title}] + [Hành động/Biểu cảm cao trào] + [Ánh sáng điện ảnh sắc nét] + [8k cinematic composition]`,
-      scriptFormula: 'Hook kích thích tò mò -> Phát triển diễn biến kịch tính -> Cao trào bất ngờ -> Lắng đọng cảm xúc -> Kêu gọi tương tác',
-      audioFormula: 'Tension riser -> Booming bass impact at peak -> Energetic rhythmic beats',
-      negativePrompts: ['Không dùng cảnh tĩnh thừa thãi', 'Không mở đầu rườm rà', 'Không để âm lượng chênh lệch'],
-      cinematicKeywords: ['Dynamic camera pan', 'High contrast rim light', 'Kinetic typography', 'Volumetric atmosphere']
-    },
-    scenes: [
-      {
-        sceneNumber: 1,
-        timeStart: timeRanges[0].start,
-        timeEnd: timeRanges[0].end,
-        durationSec: timeRanges[0].dur,
-        shotType: 'close-up',
-        visualCategory: 'hook-scene',
-        visualDescription: `Khoảnh khắc mở màn ấn tượng của ${title} làm nổi bật tình tiết then chốt`,
-        transcript: `Bạn có tin được điều này về ${title}? Hãy xem kỹ khoảnh khắc này!`,
-        suggestedAiPrompt: `Dramatic close-up opening shot focusing on ${title}, intense lighting, 8k resolution cinematic realism`,
-        onScreenText: 'KHOẢNH KHẮC BẤT NGỜ',
-        sfxCue: 'Dramatic Impact Whoosh'
-      },
-      {
-        sceneNumber: 2,
-        timeStart: timeRanges[1].start,
-        timeEnd: timeRanges[1].end,
-        durationSec: timeRanges[1].dur,
-        shotType: 'medium-shot',
-        visualCategory: 'build-up',
-        visualDescription: 'Diễn biến câu chuyện được đẩy nhanh với các chi tiết thú vị và bất ngờ',
-        transcript: 'Mọi chuyện bắt đầu trở nên kịch tính hơn khi tình huống bất ngờ này xuất hiện.',
-        suggestedAiPrompt: `Medium action shot developing the narrative around ${title}, dynamic camera movement, cinematic color grading`,
-        onScreenText: 'DIỄN BIẾN ĐẦY BẤT NGỜ',
-        sfxCue: 'Riser tension build'
-      },
-      {
-        sceneNumber: 3,
-        timeStart: timeRanges[2].start,
-        timeEnd: timeRanges[2].end,
-        durationSec: timeRanges[2].dur,
-        shotType: 'macro',
-        visualCategory: 'climax',
-        visualDescription: 'Điểm nút thắt cao trào nhất của video được thể hiện chi tiết',
-        transcript: 'Và đây chính là khoảnh khắc quyết định khiến hàng triệu người không thể rời mắt!',
-        suggestedAiPrompt: `Extreme focal point shot capturing the peak climax of ${title}, hyper-detailed, slow motion feeling`,
-        onScreenText: 'CAO TRÀO BÙNG NỔ',
-        sfxCue: 'Sub-bass drop impact'
-      },
-      {
-        sceneNumber: 4,
-        timeStart: timeRanges[3].start,
-        timeEnd: timeRanges[3].end,
-        durationSec: timeRanges[3].dur,
-        shotType: 'wide-angle',
-        visualCategory: 'resolution',
-        visualDescription: 'Cảm xúc và phản ứng của người xem cùng toàn cảnh bối cảnh câu chuyện',
-        transcript: 'Một kết quả quá đỗi ấn tượng vượt xa mọi dự đoán ban đầu!',
-        suggestedAiPrompt: `Wide cinematic view showing the grand atmosphere and emotional reaction related to ${title}`,
-        onScreenText: 'KẾT QUẢ ĐÁNG KINH NGẠC',
-        sfxCue: 'Triumphant chime'
-      },
-      {
-        sceneNumber: 5,
-        timeStart: timeRanges[4].start,
-        timeEnd: timeRanges[4].end,
-        durationSec: timeRanges[4].dur,
-        shotType: 'medium-shot',
-        visualCategory: 'call-to-action',
-        visualDescription: 'Lời kết nối gắn liền với câu hỏi mở kích thích người xem để lại bình luận',
-        transcript: 'Bạn có cảm nhận gì về câu chuyện này? Hãy để lại ý kiến của bạn ngay bên dưới nhé!',
-        suggestedAiPrompt: `Warm engaging closing shot, inviting conversation about ${title}, clean and vibrant finish`,
-        onScreenText: 'BẠN NGHĨ SAO VỀ ĐIỀU NÀY?',
-        sfxCue: 'Notification chime bell'
-      }
-    ],
-    rawTranscript: `Bạn có tin được điều này về ${title}? Hãy xem kỹ khoảnh khắc này! Mọi chuyện bắt đầu trở nên kịch tính hơn khi tình huống bất ngờ này xuất hiện. Và đây chính là khoảnh khắc quyết định khiến hàng triệu người không thể rời mắt! Một kết quả quá đỗi ấn tượng vượt xa mọi dự đoán ban đầu! Bạn có cảm nhận gì về câu chuyện này? Hãy để lại ý kiến của bạn ngay bên dưới nhé!`
-  };
-}
 
   // --------------------------------------------------------------------------
   // F. VIDEO REVERSE-ENGINEERING & DECONSTRUCTION API (/api/video-deconstruct)
