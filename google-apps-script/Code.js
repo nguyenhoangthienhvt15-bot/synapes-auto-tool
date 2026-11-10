@@ -373,7 +373,7 @@ function isUsersSheet(sheet) {
   }
   try {
     if (sheet.getSheetId() === GID_USERS) return true;
-  } catch (e) {}
+  } catch (e) { }
   return false;
 }
 
@@ -474,7 +474,7 @@ function setupGoogleFormBridge(ss) {
 
     var form = FormApp.create("SYNAPES Studio - Cầu Nối WebApp Tự Động");
     form.setTitle("SYNAPES Studio — Kênh Nhận Dữ Liệu Đăng Ký WebApp")
-        .setDescription("Form tự động tiếp nhận hồ sơ đăng ký và hợp đồng từ WebApp.");
+      .setDescription("Form tự động tiếp nhận hồ sơ đăng ký và hợp đồng từ WebApp.");
 
     form.addTextItem().setTitle("Họ và tên khách hàng").setRequired(true);
     form.addTextItem().setTitle("Số CCCD / CMND").setRequired(true);
@@ -561,7 +561,7 @@ function onSpreadsheetFormSubmit(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     if (e && e.namedValues) {
       var nv = e.namedValues;
-      var getVal = function(prefix) {
+      var getVal = function (prefix) {
         for (var k in nv) {
           if (k.toLowerCase().indexOf(prefix.toLowerCase()) !== -1) {
             var arr = nv[k];
@@ -641,13 +641,13 @@ function autoPublishWebhookUrlToSheet(ss, customUrl) {
     if (!url) {
       try {
         url = ScriptApp.getService().getUrl();
-      } catch (e) {}
+      } catch (e) { }
     }
     if (!url) {
       try {
         var fUrl = ss.getFormUrl();
         if (fUrl) url = fUrl;
-      } catch (e2) {}
+      } catch (e2) { }
     }
 
     if (url && url.indexOf("docs.google.com/forms") !== -1) {
@@ -1256,9 +1256,9 @@ function sendDepositApprovalEmail(email, fullName, idCardNumber, dob, gender, ph
     var remainingAmount = Math.max(0, totalAmount - depositAmount);
     var cccdRow = idCardNumber
       ? '      <tr>' +
-        '        <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Số CCCD / CMND:</td>' +
-        '        <td style="padding: 8px 12px; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + idCardNumber + '</td>' +
-        '      </tr>'
+      '        <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Số CCCD / CMND:</td>' +
+      '        <td style="padding: 8px 12px; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + idCardNumber + '</td>' +
+      '      </tr>'
       : '';
 
     var contentHtml =
@@ -1348,9 +1348,9 @@ function sendFullApprovalEmail(email, fullName, idCardNumber, dob, gender, phone
 
     var cccdRow = idCardNumber
       ? '      <tr>' +
-        '        <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Số CCCD / CMND:</td>' +
-        '        <td style="padding: 8px 12px; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + idCardNumber + '</td>' +
-        '      </tr>'
+      '        <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Số CCCD / CMND:</td>' +
+      '        <td style="padding: 8px 12px; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + idCardNumber + '</td>' +
+      '      </tr>'
       : '';
 
     var contentHtml =
@@ -1469,9 +1469,9 @@ function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phon
 
     var cccdRow = idCardNumber
       ? '      <tr>' +
-        '        <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Số CCCD / CMND:</td>' +
-        '        <td style="padding: 8px 12px; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + idCardNumber + '</td>' +
-        '      </tr>'
+      '        <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Số CCCD / CMND:</td>' +
+      '        <td style="padding: 8px 12px; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + idCardNumber + '</td>' +
+      '      </tr>'
       : '';
 
     var contentHtml =
@@ -1681,7 +1681,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
   if (!buyerSignature && email) {
     try {
       buyerSignature = PropertiesService.getScriptProperties().getProperty("SIG_" + String(email).trim().toLowerCase()) || "";
-    } catch (e) {}
+    } catch (e) { }
   }
 
   var buyerSigHtml = "";
@@ -2092,7 +2092,7 @@ function doGet(e) {
           params[k] = parsedPayload[k];
         }
       }
-    } catch (ePayload) {}
+    } catch (ePayload) { }
   }
   var callback = params.callback;
   var action = params.action;
@@ -2135,7 +2135,7 @@ function doPost(e) {
           payload[kp] = parsedPost[kp];
         }
       }
-    } catch (ePost) {}
+    } catch (ePost) { }
   }
 
   var result = processWebhookPayload(payload);

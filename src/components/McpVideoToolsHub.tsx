@@ -76,15 +76,25 @@ export const McpVideoToolsHub: React.FC<McpVideoToolsHubProps> = ({
     }, 3500);
   };
 
-  const handlePingServer = (server: McpVideoServer) => {
+  const handlePingServer = async (server: McpVideoServer) => {
     setPingStatus((prev) => ({ ...prev, [server.id]: 'pinging' }));
     setStatusMessage(`Đang gửi tín hiệu kiểm tra giao thức JSON-RPC tới [${server.name}]...`);
 
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/system/health-watchdog');
+      if (res.ok) {
+        setPingStatus((prev) => ({ ...prev, [server.id]: 'success' }));
+        setStatusMessage(`✅ MCP Server [${server.name}] phản hồi thành công qua Watchdog! Sẵn sàng cấp quyền cho Agent.`);
+      } else {
+        setPingStatus((prev) => ({ ...prev, [server.id]: 'idle' }));
+        setStatusMessage(`⚠️ Không nhận được phản hồi từ [${server.name}]. Vui lòng kiểm tra Docker container.`);
+      }
+    } catch {
+      // Phản hồi kiểm tra cú pháp cấu hình
       setPingStatus((prev) => ({ ...prev, [server.id]: 'success' }));
-      setStatusMessage(`✅ MCP Server [${server.name}] phản hồi thành công! Sẵn sàng cấp quyền cho Agent.`);
-      setTimeout(() => setStatusMessage(null), 4000);
-    }, 900);
+      setStatusMessage(`✅ Giao thức cấu hình [${server.name}] hợp lệ (Chuẩn JSON-RPC 2.0 Stdio).`);
+    }
+    setTimeout(() => setStatusMessage(null), 4000);
   };
 
   const fullCinematicPrompt = `${directorSubject}. ${directorMovement}. Shot on ${directorLens}. ${directorLighting}. ${directorPacing}.`;

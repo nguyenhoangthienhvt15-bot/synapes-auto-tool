@@ -1,0 +1,9 @@
+{
+  "name": "synapes-report-gen",
+  "version": "1.0.0",
+  "description": "Report generator for Synapes Auto Tool",
+  "main": "generate_docs.js",
+  "dependencies": {
+    "docx": "^9.15.3"
+  }
+}

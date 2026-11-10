@@ -11,8 +11,10 @@ import {
   Link2,
   Upload,
   Trash2,
+  Download,
   X
 } from 'lucide-react';
+import { downloadCapCutDraftFile } from '../services/capcutDraftExporter';
 
 interface LocalStitcherClip {
   id: string;
@@ -142,30 +144,39 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
 
   const handleStartStitching = () => {
     setIsProcessing(true);
-    setProcessPercent(10);
+    setProcessPercent(30);
     setProcessStep('Chuẩn hóa chuẩn codec (H.264 / AAC 48kHz)...');
 
-    setTimeout(() => {
-      setProcessPercent(35);
-      setProcessStep(`Nối ${clips.length} clip bằng FFmpeg concat demuxer...`);
-    }, 1000);
+    // Cập nhật cấu trúc phân cảnh thực tế cho project
+    const updatedScenes: StoryboardScene[] = clips.map((c, i) => {
+      const start = clips.slice(0, i).reduce((sum, item) => sum + item.durationSec, 0);
+      const end = clips.slice(0, i + 1).reduce((sum, item) => sum + item.durationSec, 0);
+      return {
+        id: i + 1,
+        sceneNumber: i + 1,
+        timeRange: `${start}s - ${end}s`,
+        headline: c.name,
+        voiceover: c.name,
+        visualPrompt: c.name,
+        startSec: start,
+        endSec: end,
+        clipUrl: c.videoUrl,
+        transition: c.transition || 'cut',
+      };
+    });
 
-    setTimeout(() => {
-      setProcessPercent(65);
-      setProcessStep('Hòa trộn âm thanh lồng tiếng & nhạc nền thương mại...');
-    }, 2000);
+    setProcessPercent(70);
+    setProcessStep(`Đã liên kết ${clips.length} clip trên timeline thực tế...`);
 
-    setTimeout(() => {
-      setProcessPercent(90);
-      setProcessStep('Xuất bản bản Master Full HD 1080p...');
-    }, 3000);
+    // Lưu trữ metadata vào project
+    project.storyboard = updatedScenes;
+    project.duration = totalDurationSec;
 
-    setTimeout(() => {
-      setProcessPercent(100);
-      setIsProcessing(false);
-      onFinishStitching(totalDurationSec, clips.length);
-      onClose();
-    }, 3800);
+    setProcessPercent(100);
+    setProcessStep('Hoàn tất liên kết chuỗi phân cảnh!');
+    setIsProcessing(false);
+    onFinishStitching(totalDurationSec, clips.length);
+    onClose();
   };
 
   return (
@@ -191,6 +202,14 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => downloadCapCutDraftFile(project)}
+            className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-medium flex items-center gap-1.5 transition cursor-pointer shadow-sm border border-zinc-800"
+            title="Xuất kịch bản & timeline phân cảnh sang CapCut PC (draft_content.json)"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Xuất CapCut PC (draft_content.json)</span>
+          </button>
           <button
             onClick={onClose}
             className="btn-secondary cursor-pointer"
