@@ -1380,6 +1380,10 @@ async function fetchGvizByGid(sheetId: string, gid: string): Promise<any | null>
   try {
     const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&gid=${gid}&_t=${timestamp}`;
     const res = await fetchWithTimeout(url, { method: 'GET', cache: 'no-store' }, 2000);
+    if (res.status === 401 || res.status === 403) {
+      // Bảng tính đã được chuyển quyền sang "Hạn chế (Chỉ mình tôi)" — an toàn tuyệt đối
+      return null;
+    }
     if (res.ok) {
       const text = await res.text();
       extractWebhookUrlFromRawText(text);

@@ -166,7 +166,29 @@ Kỹ sư phụ trách: KS. Nguyễn Hoàng Thiện
     console.error('Không thể ghi file incident log:', fsErr);
   }
 
-  console.warn(`[INCIDENT ALERT] ${incidentId} đã được lập biên bản và chuẩn bị gửi về ${ALERT_EMAIL}`);
+  console.warn(`[INCIDENT ALERT] ${incidentId} đã được lập biên bản và sẵn sàng gửi về ${ALERT_EMAIL}`);
+
+  // 3. Tự động chuyển tiếp cảnh báo khẩn cấp tới Gmail Trưởng ban KS. Nguyễn Hoàng Thiện
+  const webhookUrl = process.env.APPS_SCRIPT_WEBHOOK_URL || process.env.GOOGLE_SHEET_WEBHOOK_URL;
+  if (webhookUrl && webhookUrl.startsWith('https://script.google.com/')) {
+    try {
+      fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'emergency_report',
+          incidentType: rcaRoot.slice(0, 50),
+          severity: 'CRITICAL',
+          description: `Sự cố: ${taskName} - ${rcaRoot}`,
+          emailBody: emailBody,
+          targetEmail: ALERT_EMAIL,
+          actionTaken: rcaAction,
+        }),
+      }).catch((e) => console.warn('Lỗi gửi webhook cảnh báo sự cố:', e.message));
+    } catch {
+      // Ignored
+    }
+  }
 
   return incidentData;
 }

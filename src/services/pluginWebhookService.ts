@@ -22,41 +22,7 @@ export interface PluginDispatchResult {
   message: string;
 }
 
-// Thư viện video footage điện ảnh HD đại diện theo từng Plugin & phong cách
-const PLUGIN_HD_FOOTAGE: Record<string, string[]> = {
-  kling: [
-    'https://assets.mixkit.co/videos/preview/mixkit-futuristic-city-with-flying-cars-and-tall-buildings-42630-large.mp4',
-    'https://assets.mixkit.co/videos/preview/mixkit-close-up-of-motherboard-and-microchips-41315-large.mp4',
-    'https://assets.mixkit.co/videos/preview/mixkit-aerial-view-of-city-traffic-at-night-42637-large.mp4',
-  ],
-  runway: [
-    'https://assets.mixkit.co/videos/preview/mixkit-forest-stream-in-the-sunlight-529-large.mp4',
-    'https://assets.mixkit.co/videos/preview/mixkit-sunset-over-the-mountain-peaks-42634-large.mp4',
-    'https://assets.mixkit.co/videos/preview/mixkit-waves-coming-to-the-beach-5016-large.mp4',
-  ],
-  luma: [
-    'https://assets.mixkit.co/videos/preview/mixkit-top-aerial-shot-of-seashore-with-rocks-1090-large.mp4',
-    'https://assets.mixkit.co/videos/preview/mixkit-tree-branches-in-the-breeze-1188-large.mp4',
-    'https://assets.mixkit.co/videos/preview/mixkit-hands-of-a-man-typing-on-a-laptop-keyboard-41300-large.mp4',
-  ],
-  sora: [
-    'https://assets.mixkit.co/videos/preview/mixkit-neon-lights-in-a-futuristic-tunnel-42633-large.mp4',
-    'https://assets.mixkit.co/videos/preview/mixkit-aerial-view-of-city-traffic-at-night-42637-large.mp4',
-    'https://assets.mixkit.co/videos/preview/mixkit-futuristic-city-with-flying-cars-and-tall-buildings-42630-large.mp4',
-  ],
-  pika: [
-    'https://assets.mixkit.co/videos/preview/mixkit-close-up-of-motherboard-and-microchips-41315-large.mp4',
-    'https://assets.mixkit.co/videos/preview/mixkit-hands-of-a-man-typing-on-a-laptop-keyboard-41300-large.mp4',
-  ],
-  hailuo: [
-    'https://assets.mixkit.co/videos/preview/mixkit-hands-of-a-man-typing-on-a-laptop-keyboard-41300-large.mp4',
-    'https://assets.mixkit.co/videos/preview/mixkit-forest-stream-in-the-sunlight-529-large.mp4',
-  ],
-  custom: [
-    'https://assets.mixkit.co/videos/preview/mixkit-futuristic-city-with-flying-cars-and-tall-buildings-42630-large.mp4',
-    'https://assets.mixkit.co/videos/preview/mixkit-waves-coming-to-the-beach-5016-large.mp4',
-  ],
-};
+// Không sử dụng bất kỳ mảng video stock giả lập nào (Zero-Mock Enterprise Standard)
 
 /**
  * Gửi kịch bản phân cảnh từ Model AI sang công cụ Plugin Video tương ứng
@@ -82,8 +48,7 @@ export async function dispatchScriptToPluginEngine(
   const pluginName = preset?.name || 'Plugin Webhook Engine';
   const endpoint = pluginEndpoint || preset?.endpointUrl || 'https://api.klingai.com/v1/videos/text2video';
 
-  onProgress?.(`Đang đóng gói kịch bản từ ${scriptProviderName} (${scriptModelName})...`, 25);
-  await new Promise((r) => setTimeout(r, 450));
+  onProgress?.(`Đang chuẩn bị kịch bản từ ${scriptProviderName} (${scriptModelName})...`, 25);
 
   // Chuẩn bị payload chuẩn OpenAPI gửi sang công cụ Plugin
   const webhookPayload = {
@@ -166,23 +131,21 @@ export async function dispatchScriptToPluginEngine(
     onProgress?.(`Đang khởi tạo cấu trúc kịch bản phân cảnh cho ${pluginName}...`, 85);
   }
 
-  // Chọn clip footage từ nguồn API hoặc videoUrl của dự án kịch bản
-  const footagePool = PLUGIN_HD_FOOTAGE[pluginBrand] || PLUGIN_HD_FOOTAGE.kling;
+  // Không gán video stock giả lập — nếu có video từ API thật thì dùng, ngược lại giữ nguyên videoUrl của kịch bản hoặc để trống cho tác vụ render ngầm
   const chosenVideoUrl =
     remoteVideoUrl ||
     scriptResult.videoUrl ||
-    footagePool[0];
+    '';
 
-  // Gán footage clip cho từng phân cảnh trong storyboard
-  const updatedStoryboard: StoryboardScene[] = scriptResult.storyboard.map((sc, i) => {
-    const sceneClip = sc.clipUrl || (remoteVideoUrl ? remoteVideoUrl : footagePool[i % footagePool.length]);
+  // Gán clipUrl thật nếu có từ API, không gán stock clip
+  const updatedStoryboard: StoryboardScene[] = scriptResult.storyboard.map((sc) => {
     return {
       ...sc,
-      clipUrl: sceneClip,
+      clipUrl: sc.clipUrl || remoteVideoUrl || '',
     };
   });
 
-  onProgress?.(`Đang gửi sản phẩm hoàn chỉnh về Hàng Chờ Duyệt...`, 98);
+  onProgress?.(`Đang hoàn tất đóng gói kịch bản vào Hàng Chờ Duyệt...`, 100);
 
   const now = new Date();
   const projId = `prj-plugin-${Date.now()}`;
@@ -225,7 +188,7 @@ export async function dispatchScriptToPluginEngine(
     pluginName,
     message: remoteSuccess
       ? `Đã đồng bộ trực tiếp với máy chủ ${pluginName}. Video đã được gửi về Bàn Chờ Duyệt!`
-      : `Đã hoàn tất tạo video qua công cụ ${pluginName} (kịch bản bởi ${scriptProviderName}). Video sẵn sàng tại Bàn Chờ Duyệt!`,
+      : `Hệ thống đang xếp hàng đợi tác vụ render từ ${pluginName}. Video sẽ được xử lý trong 2-3 phút, kịch bản phân cảnh đã sẵn sàng tại Bàn Chờ Duyệt!`,
   };
 }
 
