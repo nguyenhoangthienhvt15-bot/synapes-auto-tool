@@ -1071,6 +1071,13 @@ const SYSTEM_CORE_ACCOUNTS = [
     currentTempPassword: 'Start@9911',
     accountStatus: 'never_changed',
   },
+  {
+    code: 'SNP_2611092202',
+    clientName: 'KS. Nguyễn Hoàng Thiện (Kiểm toán Thẩm định)',
+    registeredGmail: 'nguyenhoangthien.hvt.15@gmail.com',
+    currentTempPassword: 'SNP_378UPH',
+    accountStatus: 'custom_password_active',
+  },
 ];
 
 function computeServerPasswordHash(code, plainPassword) {

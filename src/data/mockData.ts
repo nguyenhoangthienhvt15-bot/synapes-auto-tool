@@ -54,6 +54,15 @@ export const INITIAL_SHEET_ROWS: EngineerSheetRow[] = [
     engineerNotes: '[Gói Creator 3 Tháng] Tài khoản mới cấp',
   },
   {
+    code: 'SNP_2611092202',
+    clientName: 'KS. Nguyễn Hoàng Thiện (Kiểm toán Thẩm định)',
+    registeredGmail: 'nguyenhoangthien.hvt.15@gmail.com',
+    currentTempPassword: 'SNP_378UPH',
+    lastIssuedTime: '10/11/2026 21:30',
+    accountStatus: 'custom_password_active',
+    engineerNotes: '[Hợp đồng Toàn hệ] Tài khoản kiểm toán thẩm định thực nghiệm Phiên VII',
+  },
+  {
     code: 'FYER-72626',
     clientName: 'Ngô Phát',
     registeredGmail: 'trolibaitap2021@gmail.com',
