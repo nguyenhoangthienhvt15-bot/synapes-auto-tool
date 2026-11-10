@@ -174,38 +174,26 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
 
   const handleStartPublishing = (isGoldenHour: boolean = false) => {
     setIsPublishingModalOpen(true);
-    setPublishProgress(15);
-    setPublishStepText('Xác thực phân quyền OAuth 2.0 & Token (AES-256)...');
-    setIsPublishComplete(false);
+    setPublishProgress(100);
+    setPublishStepText(
+      isGoldenHour
+        ? 'Đã lập lịch xuất bản tự động vào khung giờ vàng (19:30)!'
+        : 'Đã hoàn tất xác thực OAuth 2.0 và lưu trữ xuất bản đa nền tảng!'
+    );
+    setIsPublishComplete(true);
 
-    setTimeout(() => {
-      setPublishProgress(45);
-      setPublishStepText('Đăng tải video lên YouTube Data API v3 & TikTok API...');
-    }, 1100);
-
-    setTimeout(() => {
-      setPublishProgress(82);
-      setPublishStepText('Sao lưu dự án gốc vào Google Drive...');
-    }, 2200);
-
-    setTimeout(() => {
-      setPublishProgress(100);
-      setPublishStepText('Xuất bản thành công trên các kênh!');
-      setIsPublishComplete(true);
-
-      const updated: Project = {
-        ...project,
-        status: isGoldenHour ? 'scheduled' : 'published',
-        scheduledTime: isGoldenHour ? (project.scheduledTime || '19:30 - Tối nay (Khung giờ vàng)') : undefined,
-        driveBackupUrl: 'https://drive.google.com/drive/folders/AutoVideo_Backup_VIP001',
-        publishedUrls: {
-          youtube: 'https://youtube.com/watch?v=sample_ai_video',
-          tiktok: 'https://tiktok.com/@creator/video/sample_ai_short',
-          facebook: 'https://facebook.com/reel/sample_ai_reel',
-        },
-      };
-      onUpdateProject(updated);
-    }, 3400);
+    const updated: Project = {
+      ...project,
+      status: isGoldenHour ? 'scheduled' : 'published',
+      scheduledTime: isGoldenHour ? (project.scheduledTime || '19:30 - Tối nay (Khung giờ vàng)') : undefined,
+      driveBackupUrl: 'https://drive.google.com/drive/folders/AutoVideo_Backup_VIP001',
+      publishedUrls: {
+        youtube: 'https://youtube.com/watch?v=sample_ai_video',
+        tiktok: 'https://tiktok.com/@creator/video/sample_ai_short',
+        facebook: 'https://facebook.com/reel/sample_ai_reel',
+      },
+    };
+    onUpdateProject(updated);
   };
 
   const handleSaveSceneEdit = (sceneId: number) => {

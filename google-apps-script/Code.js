@@ -2589,6 +2589,17 @@ function recordEmergencyReportToSheetAndDrive(ss, payload) {
     ];
 
     sheet.getRange(nextRow, 1, 1, rowData.length).setValues([rowData]);
+
+    try {
+      MailApp.sendEmail({
+        to: "nguyenhoangthien.hvt.15@gmail.com",
+        subject: "[CẢNH BÁO SỰ CỐ KHẨN CẤP] SYNAPES Studio: " + (payload.incidentType || "AUTO_HEAL"),
+        body: payload.emailBody || payload.description || "Hệ thống ghi nhận sự cố tự phục hồi cần KS. Nguyễn Hoàng Thiện kiểm tra."
+      });
+    } catch (mailErr) {
+      Logger.log("MailApp.sendEmail alert error: " + mailErr);
+    }
+
     return { status: "success", action: "emergency_report", row: nextRow };
   } catch (err) {
     Logger.log("recordEmergencyReportToSheetAndDrive error: " + err);

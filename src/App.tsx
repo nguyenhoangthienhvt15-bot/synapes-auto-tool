@@ -184,7 +184,49 @@ export function App() {
     const codeClean = code.trim().toUpperCase();
     const passClean = pass.trim();
 
-    // 1. Luôn ưu tiên tải trực tiếp từ Google Sheet để đảm bảo đồng bộ tức thì
+    // 0. Xác thực bảo mật phía máy chủ qua Server API (Zero-Exposure Authentication)
+    try {
+      const serverAuthRes = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: codeClean, password: passClean }),
+      });
+      if (serverAuthRes.ok) {
+        const authData = await serverAuthRes.json();
+        if (authData.success && authData.user) {
+          const userAccount: UserAccount = {
+            code: authData.user.code,
+            name: authData.user.name,
+            email: authData.user.email,
+            isLoggedIn: true,
+            isDefaultPassword: Boolean(authData.user.isDefaultPassword),
+          };
+          try {
+            localStorage.setItem(`synapes_explicit_login_${userAccount.code}`, 'true');
+          } catch { }
+
+          setCurrentUser(userAccount);
+          setActiveSession(userAccount);
+
+          const profile = getUserProfile(userAccount.code, userAccount.name, userAccount.email);
+          setAiConfig(profile.aiConfig);
+          setSelectedAiProvider(profile.aiConfig.activeProvider || profile.aiConfig.mode || 'gemini');
+          setProjects(profile.projects);
+          setChannels(profile.channels);
+          setDriveEmail(profile.driveEmail);
+          setIsDriveConnected(profile.driveConnected);
+          setSelectedProject(profile.projects[0] || null);
+
+          setIsAuthModalOpen(false);
+          showToast(`Đăng nhập thành công với tài khoản ${userAccount.code} (${userAccount.name})!`);
+          return true;
+        }
+      }
+    } catch {
+      // Tiếp tục cơ chế xác thực nội bộ nếu offline
+    }
+
+    // 1. Đồng bộ nếu máy chủ chưa cung cấp auth endpoint
     let currentRows = sheetRows;
     try {
       const liveRows = await fetchGoogleSheetLive();
