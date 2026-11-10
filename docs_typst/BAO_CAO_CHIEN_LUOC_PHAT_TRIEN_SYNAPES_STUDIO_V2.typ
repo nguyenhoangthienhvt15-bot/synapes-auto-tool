@@ -101,7 +101,7 @@
         text(weight: "bold")[Chủ trì Dự án:], [KS. Nguyễn Hoàng Thiện],
         text(weight: "bold")[Email Tiếp nhận Cảnh báo:], [nguyenhoangthien.hvt.15\@gmail.com],
         text(weight: "bold")[Vị thế Tài liệu:], [Đề án Kỹ thuật & Kinh doanh Thực chiến (Production-Ready)],
-        text(weight: "bold")[Mục tiêu Trọng tâm:], [Đồng nhất Visual 60s, Tự lành lỗi nhỏ, Chống F12 cắp bản quyền, Động cơ AI Labs],
+        text(weight: "bold")[Mục tiêu Trọng tâm:], [Đồng nhất Visual 60 Giây, Tự lành lỗi nhỏ, Chống F12 cắp bản quyền, Động cơ AI Labs],
         text(weight: "bold")[Thời gian Công bố:], [10 Tháng 11, 2026]
       )
     ]
@@ -135,7 +135,7 @@ Với tư cách là người đồng sự kỹ thuật kỳ cựu đồng hành 
 
 == 1.1. Bản chất vì sao các Video 10 giây bị "mỗi cái một kiểu"
 Khi yêu cầu mô hình AI sinh 6 phân cảnh (mỗi cảnh 10 giây), nếu chỉ gửi 6 câu prompt độc lập sang Kling, Runway hay Sora:
-- Mỗi lần sinh là một hạt giống nhiễu ngẫu nhiên (*Random Noise Seed*).
+- Mỗi lần sinh là một hạt giống nhiễu ngẫu nhiên (Random Noise Seed).
 - Khuôn mặt nhân vật ở cảnh 1 là người châu Á da sáng, sang cảnh 2 biến thành người da ngăm, cảnh 3 quần áo từ áo vest đen biến thành áo thun xanh.
 - Không gian ánh sáng (Lighting) bị nhảy đột ngột: Cảnh 1 hoàng hôn vàng rực rỡ, cảnh 2 bỗng biến thành ánh sáng huỳnh quang văn phòng lạnh lẽo.
 
@@ -149,7 +149,7 @@ Khán giả chỉ cần nhìn 2 giây là nhận ra đây là video chắp vá r
   fill: (x, y) => if y == 0 { rgb("#f4f4f5") } else { none },
   [#text(weight: "bold")[Lớp kỹ thuật]], [#text(weight: "bold")[Cơ chế thực thi & Thuật toán bảo đảm sự thống nhất]],
   [Lớp 1: Anchor Character Kit (Bộ neo nhân vật & Bối cảnh)], [Tạo một hình ảnh Neo (Anchor Image) chuẩn 4K trước khi sinh video. Sử dụng IP-Adapter (Image Prompt Adapter) để khóa cố định đặc trưng khuôn mặt, tỉ lệ cơ thể và trang phục xuyên suốt mọi cảnh.],
-  [Lớp 2: Chaining Latent Frame (Móc xích khung hình cuối)], [Khung hình cuối cùng (Last Frame) của Cảnh $N$ được trích xuất làm Khung hình khởi đầu (First Frame Conditioning) cho Cảnh $N+1$. Đảm bảo chuyển động liền mạch, không giật hình.],
+  [Lớp 2: Chaining Latent Frame (Móc xích khung hình cuối)], [Khung hình cuối cùng (Last Frame) của Cảnh N được trích xuất làm Khung hình khởi đầu (First Frame Conditioning) cho Cảnh N+1. Đảm bảo chuyển động liền mạch, không giật hình.],
   [Lớp 3: Seed & Prompt Matrix Locking], [Cố định Random Noise Seed và chia sẻ Style Tokens chung (Color Palette, Film Stock, Anamorphic Lens) qua mọi phân cảnh.],
   [Lớp 4: Post-Production Color Grading (LUTs Automation)], [Tự động áp một bảng mã màu điện ảnh (3D LUT - Look-Up Table) chung bằng FFmpeg lên toàn bộ 6 clip sau khi ghép, san phẳng mọi sai lệch về tông màu.]
 )
@@ -170,10 +170,10 @@ Nhiều web app hiện nay thất bại vì họ chỉ là "giao diện bọc l�
 Để SYNAPES Studio nổi bật mạnh mẽ và chiếm lĩnh thị trường, chúng ta phải xây dựng những giá trị độc quyền (*Unfair Advantage*) mà các công cụ khác không có:
 
 == 2.1. Yếu tố khác biệt số 1: "Viral Retention Engine" (Tối ưu giữ chân người xem bằng thuật toán)
-Các công cụ trên thị trường chỉ tạo ra video "đẹp". Nhưng đối với YouTuber, TikToker và Nhà bán hàng, video đẹp mà **0 view** thì vô nghĩa. Họ cần video giữ chân người xem để cắn thuật toán đề xuất:
+Các công cụ trên thị trường chỉ tạo ra video "đẹp". Nhưng đối với YouTuber, TikToker và Nhà bán hàng, video đẹp mà 0 view thì vô nghĩa. Họ cần video giữ chân người xem để cắn thuật toán đề xuất:
 - Tự động chèn *Visual Hook 3s đầu* (Góc máy zoom đột ngột, text giật tít tương phản cao, sfx bass drop).
 - *Dynamic Kinetic Captions*: Phụ đề tự động nhảy từng chữ theo giọng đọc (kiểu MrBeast, Alex Hormozi), có hiệu ứng sáng bóng (Glow) và đổi màu theo cảm xúc từ ngữ.
-- *Audio Pacing Algorithm*: Tự động hạ nhạc nền (Audio Ducking) -6 dB khi có giọng đọc và tự động đẩy nhạc nền lên cao trào trong các khoảng lặng giữa 2 câu nói.
+- *Audio Pacing Algorithm*: Tự động hạ nhạc nền (Audio Ducking) 6 dB khi có giọng đọc và tự động đẩy nhạc nền lên cao trào trong các khoảng lặng giữa 2 câu nói.
 
 == 2.2. Yếu tố khác biệt số 2: "Brand Memory Vault" (Két ghi nhớ thương hiệu dành cho Agency)
 Khách hàng doanh nghiệp hoặc Media Agency trả tiền cho SYNAPES Studio vì tính năng này:
@@ -207,9 +207,9 @@ Anh Thiện đã nêu một điểm rất thực tế: Dev không thể ngồi t
       stroke: 0.5pt + rgb("#d4d4d8"),
       fill: (x, y) => if y == 0 { rgb("#f4f4f5") } else { none },
       [#text(weight: "bold")[Cấp độ lỗi]], [#text(weight: "bold")[Cơ chế Tự phục hồi tự động (Self-Healing)]], [#text(weight: "bold")[Hành động của Hệ thống]],
-      [Lỗi cấp 1: Lỗi API tạm thời (Network timeout, 429 Too Many Requests, 502/503)], [Sử dụng thuật toán *Exponential Backoff with Jitter* (thử lại sau 2s, 4s, 8s). Tự động hoán đổi API Key dự phòng trong nhóm keys nếu key chính bị cạn quota.], [Tự lành 100% trong RAM, người dùng không hề hay biết sự cố.],
-      [Lỗi cấp 2: Nhà cung cấp sập diện rộng (Kling AI chết, ElevenLabs down server)], [Kích hoạt *Cascading Circuit Breaker*: Ngay lập tức chuyển luồng sinh cảnh sang Provider thay thế (Ví dụ: Kling sập -> tự chuyển sang Runway Gen-3 hoặc Wan2.1; ElevenLabs sập -> chuyển sang Edge-TTS/Kokoro).], [Ghi nhận sự cố vào nhật ký, hạ cấp tính năng nhẹ nhàng (Graceful Degradation).],
-      [Lỗi cấp 3: Lỗi mã nguồn nghiêm trọng, Crash Worker, OOM Memory, Không thể tự sửa], [Đưa Job vào *Dead Letter Queue (DLQ)*. Trích xuất Traceback, Payload người dùng, và gọi LLM phân tích nguyên nhân gốc rễ (RCA) thành báo cáo cứu hộ.], [Bắn Email khẩn cấp kèm phân tích nguyên nhân về `nguyenhoangthien.hvt.15@gmail.com`.]
+      [Lỗi cấp 1: Lỗi API tạm thời (Network timeout, 429 Too Many Requests, 502/503)], [Sử dụng thuật toán Exponential Backoff with Jitter (thử lại sau 2s, 4s, 8s). Tự động hoán đổi API Key dự phòng trong nhóm keys nếu key chính bị cạn quota.], [Tự lành 100% trong RAM, người dùng không hề hay biết sự cố.],
+      [Lỗi cấp 2: Nhà cung cấp sập diện rộng (Kling AI chết, ElevenLabs down server)], [Kích hoạt Cascading Circuit Breaker: Ngay lập tức chuyển luồng sinh cảnh sang Provider thay thế (Ví dụ: Kling sập -> tự chuyển sang Runway Gen-3 hoặc Wan2.1; ElevenLabs sập -> chuyển sang Edge-TTS/Kokoro).], [Ghi nhận sự cố vào nhật ký, hạ cấp tính năng nhẹ nhàng (Graceful Degradation).],
+      [Lỗi cấp 3: Lỗi mã nguồn nghiêm trọng, Crash Worker, OOM Memory, Không thể tự sửa], [Đưa Job vào Dead Letter Queue (DLQ). Trích xuất Traceback, Payload người dùng, và gọi LLM phân tích nguyên nhân gốc rễ (RCA) thành báo cáo cứu hộ.], [Bắn Email khẩn cấp kèm phân tích nguyên nhân về `nguyenhoangthien.hvt.15@gmail.com`.]
     )
   ]
 )
@@ -274,7 +274,7 @@ async def dispatch_critical_incident(error: Exception, task_context: dict):
 
 Anh Thiện hoàn toàn có lý khi lo ngại: *"Chẳng ai muốn một gã ất ơ nào đó truy cập web rồi mở DevTools để ăn cắp ý tưởng dựng web của mình... ta cần cơ chế nghiêm khắc như khóa IP hoặc khóa tài khoản khi cố tình soi source"*.
 
-Trong ngành công nghệ, bảo vệ tài sản trí tuệ (IP Protection) là ưu tiên sống còn. Chúng ta thiết lập một hệ thống bảo vệ đa tầng gồm **Client-side Anti-Tamper Trap** kết hợp **Server-side Threat Enforcer**:
+Trong ngành công nghệ, bảo vệ tài sản trí tuệ (IP Protection) là ưu tiên sống còn. Chúng ta thiết lập một hệ thống bảo vệ đa tầng gồm *Client-side Anti-Tamper Trap* kết hợp *Server-side Threat Enforcer*:
 
 == 4.1. Lớp 1: Bẫy Chống Mở DevTools Ở Phía Client (Anti-Inspection Traps)
 
@@ -333,13 +333,13 @@ Trong ngành công nghệ, bảo vệ tài sản trí tuệ (IP Protection) là 
       // Xóa sạch DOM để kẻ gian không nhìn thấy nội dung giao diện
       document.body.innerHTML = `
         <div style="background:#09090b;color:#ef4444;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;text-align:center;padding:20px;">
-          <h1 style="font-size:24px;font-weight:bold;margin-bottom:12px;">🚫 CẢNH BÁO VI PHẠM BẢO MẬT HỆ THỐNG</h1>
+          <h1 style="font-size:24px;font-weight:bold;margin-bottom:12px;">CANH BAO VI PHAM BAO MAT HE THONG</h1>
           <p style="color:#a1a1aa;max-width:500px;font-size:14px;line-height:1.6;">
-            Hệ thống phát hiện hành vi cố ý can thiệp vào mã nguồn dự án qua Công cụ Phát triển (Developer Tools).
-            Địa chỉ IP và danh tính phiên của bạn đã được ghi nhận vào nhật ký an ninh.
+            He thong phat hien hanh vi co y can thiep vao ma nguon du an qua Cong cu Phat trien (Developer Tools).
+            Dia chi IP va danh tinh phien cua ban da duoc ghi nhan vao nhat ky an ninh.
           </p>
           <div style="margin-top:20px;padding:8px 16px;background:#27272a;color:#f4f4f5;border-radius:6px;font-family:monospace;font-size:12px;">
-            Hành động: ĐÃ KHÓA TRUY CẬP TẠM THỜI
+            Hanh dong: DA KHOA TRUY CAP TAM THOI
           </div>
         </div>
       `;
@@ -370,7 +370,7 @@ Trước khi đóng gói Docker sản phẩm:
 == 4.3. Lớp 3: Cơ chế Khóa IP & Khóa Tài khoản ở Máy Chủ (Server-Side Auto-Ban)
 Tại Gateway Nginx và API Backend:
 - Nếu endpoint `/api/security/report-violation` nhận được tín hiệu vi phạm từ một IP:
-  + Lưu IP đó vào **Redis Blacklist** với thời gian phạt 24 giờ.
+  + Lưu IP đó vào *Redis Blacklist* với thời gian phạt 24 giờ.
   + Nếu người dùng đã đăng nhập tài khoản (ví dụ tài khoản khách hàng): Cập nhật trạng thái tài khoản trong CSDL thành `accountStatus = 'suspended_security_violation'` và hủy toàn bộ phiên JWT.
   + Các request tiếp theo từ IP này sẽ bị Nginx chặn đứng ngay từ cổng vào với mã lỗi `HTTP 403 Forbidden`, không tốn 1 byte tài nguyên của server.
 
@@ -378,7 +378,7 @@ Tại Gateway Nginx và API Backend:
 
 = PHẦN 5: ĐỘNG CƠ CÁ NHÂN HÓA "SYNAPES LABS" (USER BEHAVIORAL LEARNING)
 
-Tính năng **SYNAPES Labs** là chìa khóa để biến hệ thống thành một cỗ máy thông minh biết "chiều chuộng" từng khách hàng riêng biệt.
+Tính năng *SYNAPES Labs* là chìa khóa để biến hệ thống thành một cỗ máy thông minh biết "chiều chuộng" từng khách hàng riêng biệt.
 
 == 5.1. Cơ chế Học Ngầm (Implicit Feedback Learning Loop)
 Người dùng không cần phải điền form khảo sát rườm rà. SYNAPES Labs tự động ghi nhận hành vi tự nhiên của họ:
@@ -542,10 +542,10 @@ Theo lời khuyến khích chân thành của anh Thiện: *"Tôi rất khuyến
 Anh Thiện thân mến, một sản phẩm lớn muốn đi đường dài không thể xây trên những giải pháp chắp vá hay những lời hứa hão của AI. 
 
 Với bản thiết kế kiến trúc nâng cao này, chúng ta đã có một bản đồ chiến lược hoàn chỉnh:
-1. **Chất lượng**: Video 60 giây đồng nhất, mượt mà từ đầu đến cuối nhờ thuật toán Chaining Latent Frame và Anchor Character Kit.
-2. **Kinh doanh**: Sở hữu những "vũ khí" độc quyền như Viral Retention Engine và Brand Memory Vault để bán gói dịch vụ giá trị cao.
-3. **Vận hành**: Hệ thống tự động sửa các lỗi vặt, tự chuyển đổi API khi nhà mạng sập, và tự động gửi email báo cáo có phân tích nguyên nhân về hộp thư `nguyenhoangthien.hvt.15@gmail.com`.
-4. **Bảo mật**: Bẻ gãy mọi ý đồ mở F12 DevTools soi mã nguồn, tự động khóa IP và tài khoản kẻ gian.
-5. **Cá nhân hóa**: Động cơ SYNAPES Labs biến web app thành trợ lý am hiểu từng thói quen của người dùng.
+1. *Chất lượng*: Video 60 giây đồng nhất, mượt mà từ đầu đến cuối nhờ thuật toán Chaining Latent Frame và Anchor Character Kit.
+2. *Kinh doanh*: Sở hữu những "vũ khí" độc quyền như Viral Retention Engine và Brand Memory Vault để bán gói dịch vụ giá trị cao.
+3. *Vận hành*: Hệ thống tự động sửa các lỗi vặt, tự chuyển đổi API khi nhà mạng sập, và tự động gửi email báo cáo có phân tích nguyên nhân về hộp thư `nguyenhoangthien.hvt.15@gmail.com`.
+4. *Bảo mật*: Bẻ gãy mọi ý đồ mở F12 DevTools soi mã nguồn, tự động khóa IP và tài khoản kẻ gian.
+5. *Cá nhân hóa*: Động cơ SYNAPES Labs biến web app thành trợ lý am hiểu từng thói quen của người dùng.
 
 Tất cả đã sẵn sàng. Hãy cùng tôi biến bản thiết kế này thành hiện thực từng bước một!
