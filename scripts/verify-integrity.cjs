@@ -259,6 +259,42 @@ if (fs.existsSync(contractPdfGenPath)) {
 }
 
 // -----------------------------------------------------------------------------
+// NHÓM 8: BẢO MẬT HỆ THỐNG, CỔNG MỞ KHÓA MASTER & CHỐNG SSRF / BRUTE-FORCE
+// -----------------------------------------------------------------------------
+console.log('\n--- 8. Kiểm tra Cổng Mở Khóa Master, Chống SSRF & Rate Limiter ---');
+
+const antiTamperPath = path.resolve(__dirname, '../src/utils/antiTamperGuard.ts');
+const serverJsPath = path.resolve(__dirname, '../server.js');
+
+assert(fs.existsSync(antiTamperPath), 'File src/utils/antiTamperGuard.ts tồn tại');
+if (fs.existsSync(antiTamperPath)) {
+  const atContent = fs.readFileSync(antiTamperPath, 'utf8');
+  assert(atContent.includes('/api/security/unlock'), 'antiTamperGuard.ts kết nối endpoint /api/security/unlock');
+  assert(atContent.includes('synapes-master-pass') && atContent.includes('synapes-master-unlock-btn'),
+    'antiTamperGuard.ts tích hợp khung mở khóa Master Pass');
+  assert(!atContent.includes('placeholder="Nhập mã Master (07022006)..."'),
+    'Không lộ mật khẩu Master trong placeholder client');
+}
+
+if (fs.existsSync(backendEnginePath)) {
+  const beContent = fs.readFileSync(backendEnginePath, 'utf8');
+  assert(beContent.includes('checkUnlockRateLimit') && beContent.includes('recordUnlockFailure'),
+    'Backend engine có Rate Limiter kiểm soát số lần thử mở khóa');
+  assert(beContent.includes('constantTimeVerify'),
+    'Backend engine áp dụng so sánh thời gian hằng số (Timing-Safe) chống tấn công Side-Channel');
+  assert(beContent.includes('MAX_IMAGE_BUFFER_BYTES') && beContent.includes('isSafeExternalUrl'),
+    'Backend engine có bộ lọc SSRF đa tầng và giới hạn dung lượng chống DoS OOM');
+}
+
+if (fs.existsSync(serverJsPath)) {
+  const srvContent = fs.readFileSync(serverJsPath, 'utf8');
+  assert(srvContent.includes('Content-Security-Policy'),
+    'server.js cấu hình tiêu đề bảo mật Content-Security-Policy (CSP)');
+  assert(srvContent.includes('/api/security/unlock'),
+    'server.js hỗ trợ ngoại lệ định tuyến cho cổng mở khóa /api/security/unlock');
+}
+
+// -----------------------------------------------------------------------------
 // KẾT LUẬN TOÀN BỘ BÀI TEST
 // -----------------------------------------------------------------------------
 console.log('\n============================================================');

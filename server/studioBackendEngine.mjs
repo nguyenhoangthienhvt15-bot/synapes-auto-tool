@@ -3,10 +3,61 @@ import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import net from 'net';
 import { dispatchCriticalIncident, CIRCUIT_BREAKERS } from './incidentReporter.mjs';
 
 // Danh sách đen IP vi phạm bảo mật (Anti-DevTools & Tampering Blacklist)
 export const IP_BLACKLIST = new Map();
+
+// Bảng kiểm soát tần suất thử nghiệm mở khóa & đăng nhập (Rate Limiter Shield)
+const UNLOCK_RATE_LIMITS = new Map(); // IP -> { failedAttempts: number, lockedUntil: number, firstAttemptAt: number }
+const AUTH_RATE_LIMITS = new Map();   // IP -> { count: number, resetAt: number }
+
+export function checkUnlockRateLimit(clientIp) {
+  const now = Date.now();
+  const record = UNLOCK_RATE_LIMITS.get(clientIp);
+  if (!record) return { allowed: true };
+
+  if (record.lockedUntil && now < record.lockedUntil) {
+    const remainingSec = Math.ceil((record.lockedUntil - now) / 1000);
+    return {
+      allowed: false,
+      error: `Chức năng mở khóa đang bị tạm khóa an toàn do nhập sai quá 5 lần. Thử lại sau ${remainingSec} giây.`,
+      remainingSec,
+    };
+  }
+
+  // Tự động giải phóng sau 10 phút không có vi phạm mới
+  if (now - record.firstAttemptAt > 10 * 60 * 1000) {
+    UNLOCK_RATE_LIMITS.delete(clientIp);
+    return { allowed: true };
+  }
+
+  return { allowed: true, failedAttempts: record.failedAttempts };
+}
+
+export function recordUnlockFailure(clientIp) {
+  const now = Date.now();
+  const record = UNLOCK_RATE_LIMITS.get(clientIp) || { failedAttempts: 0, lockedUntil: 0, firstAttemptAt: now };
+  record.failedAttempts++;
+  if (record.failedAttempts >= 5) {
+    record.lockedUntil = now + 15 * 60 * 1000; // Khóa 15 phút
+    console.warn(`[SECURITY ENFORCER] IP ${clientIp} đã bị khóa 15 phút do nhập sai Master Key 5 lần liên tiếp.`);
+  }
+  UNLOCK_RATE_LIMITS.set(clientIp, record);
+  return record;
+}
+
+export function recordUnlockSuccess(clientIp) {
+  UNLOCK_RATE_LIMITS.delete(clientIp);
+}
+
+export function constantTimeVerify(provided, expected) {
+  if (typeof provided !== 'string' || typeof expected !== 'string') return false;
+  const bufProvided = crypto.createHash('sha256').update(String(provided)).digest();
+  const bufExpected = crypto.createHash('sha256').update(String(expected)).digest();
+  return crypto.timingSafeEqual(bufProvided, bufExpected);
+}
 
 // ============================================================================
 // 1. CURATED MULTI-DOMAIN HIGH-RESOLUTION PHOTOGRAPHY POOLS (ZERO IPHONE POLLUTION)
@@ -415,8 +466,9 @@ export function classifyTopicDomain(query = '') {
 const IMAGE_PROXY_CACHE = new Map();
 
 /**
- * Chống lỗ hổng SSRF (Server-Side Request Forgery):
- * Chặn hoàn toàn các URL trỏ về localhost, IP loopback, IP Private nội bộ và cloud metadata services.
+ * Chống lỗ hổng SSRF (Server-Side Request Forgery) đa tầng:
+ * Chặn hoàn toàn localhost, loopback, private IPv4/IPv6, hex/octal/decimal IP formats,
+ * cloud metadata service, internal domain suffixes và các cổng dịch vụ nhạy cảm.
  */
 export function isSafeExternalUrl(rawUrl) {
   try {
@@ -424,39 +476,108 @@ export function isSafeExternalUrl(rawUrl) {
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return false;
     }
-    const hostname = parsed.hostname.toLowerCase();
+    // Chặn user/pass nhúng trong URL
+    if (parsed.username || parsed.password) {
+      return false;
+    }
+    // Chỉ cho phép cổng chuẩn web (80, 443, 8080, 8443)
+    const port = parsed.port ? parseInt(parsed.port, 10) : (parsed.protocol === 'https:' ? 443 : 80);
+    if (port !== 80 && port !== 443 && port !== 8080 && port !== 8443) {
+      return false;
+    }
+
+    let hostname = parsed.hostname.toLowerCase();
+    if (hostname.startsWith('[') && hostname.endsWith(']')) {
+      hostname = hostname.slice(1, -1);
+    }
+
+    // Blacklist danh sách host nội bộ & Cloud Metadata
+    const blockedHosts = new Set([
+      'localhost',
+      '127.0.0.1',
+      '0.0.0.0',
+      '::',
+      '::1',
+      '169.254.169.254',
+      'metadata.google.internal',
+      'instance-data',
+    ]);
+    if (blockedHosts.has(hostname)) {
+      return false;
+    }
+
+    // Chặn các domain suffix nội bộ
     if (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '0.0.0.0' ||
-      hostname === '::1' ||
-      hostname === '169.254.169.254' || // AWS / GCP / Azure Cloud Metadata Service
-      hostname === 'metadata.google.internal' ||
       hostname.endsWith('.internal') ||
-      hostname.endsWith('.local')
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.localhost') ||
+      hostname.endsWith('.lan') ||
+      hostname.endsWith('.corp')
     ) {
       return false;
     }
-    // Chặn dải IP private IPv4: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16
-    const ipMatch = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-    if (ipMatch) {
-      const b1 = parseInt(ipMatch[1], 10);
-      const b2 = parseInt(ipMatch[2], 10);
-      if (b1 === 127 || b1 === 10 || b1 === 0) return false;
-      if (b1 === 192 && b2 === 168) return false;
-      if (b1 === 172 && b2 >= 16 && b2 <= 31) return false;
-      if (b1 === 169 && b2 === 254) return false;
+
+    // Chặn định dạng số nguyên đơn thuần hoặc hex/octal IP (e.g. 2130706433, 0x7f000001)
+    if (/^(0x[0-9a-f]+|\d+)$/i.test(hostname)) {
+      return false;
     }
+
+    // Kiểm tra IP bằng module chuẩn 'net' của Node.js
+    const ipType = net.isIP(hostname);
+    if (ipType === 4) {
+      const parts = hostname.split('.').map((p) => parseInt(p, 10));
+      const [b1, b2] = parts;
+      // 0.0.0.0/8
+      if (b1 === 0) return false;
+      // 10.0.0.0/8 (Private RFC 1918)
+      if (b1 === 10) return false;
+      // 100.64.0.0/10 (Carrier NAT)
+      if (b1 === 100 && b2 >= 64 && b2 <= 127) return false;
+      // 127.0.0.0/8 (Loopback)
+      if (b1 === 127) return false;
+      // 169.254.0.0/16 (Link-local & AWS/GCP metadata)
+      if (b1 === 169 && b2 === 254) return false;
+      // 172.16.0.0/12 (Private RFC 1918)
+      if (b1 === 172 && b2 >= 16 && b2 <= 31) return false;
+      // 192.168.0.0/16 (Private RFC 1918)
+      if (b1 === 192 && b2 === 168) return false;
+      // 192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24 (TEST-NET)
+      if (b1 === 192 && b2 === 0 && parts[2] === 2) return false;
+      if (b1 === 198 && b2 === 51 && parts[2] === 100) return false;
+      if (b1 === 203 && b2 === 0 && parts[2] === 113) return false;
+      // 224.0.0.0/4 (Multicast) & 240.0.0.0/4 (Reserved)
+      if (b1 >= 224) return false;
+    } else if (ipType === 6) {
+      const h = hostname.toLowerCase();
+      // ::1 (Loopback), :: (Unspecified)
+      if (h === '::1' || h === '::') return false;
+      // fe80::/10 (Link-local)
+      if (h.startsWith('fe8') || h.startsWith('fe9') || h.startsWith('fea') || h.startsWith('feb')) return false;
+      // fc00::/7 (Unique local)
+      if (h.startsWith('fc') || h.startsWith('fd')) return false;
+      // IPv4-mapped IPv6
+      if (h.includes('::ffff:')) {
+        const v4Part = h.split('::ffff:')[1];
+        if (v4Part && net.isIP(v4Part) === 4) {
+          const parts = v4Part.split('.').map((p) => parseInt(p, 10));
+          if (parts[0] === 127 || parts[0] === 10 || (parts[0] === 192 && parts[1] === 168)) return false;
+        }
+        return false;
+      }
+    }
+
     return true;
   } catch {
     return false;
   }
 }
 
+const MAX_IMAGE_BUFFER_BYTES = 15 * 1024 * 1024; // 15MB limit chống DoS Heap Exhaustion
+
 export function fetchRemoteBuffer(targetUrl, redirectsLeft = 4, timeoutMs = 8500) {
   return new Promise((resolve, reject) => {
     if (!isSafeExternalUrl(targetUrl)) {
-      reject(new Error('SSRF Blocked: Invalid or private target URL'));
+      reject(new Error('SSRF Blocked: Invalid, dangerous or private target URL'));
       return;
     }
     if (redirectsLeft <= 0) {
@@ -487,8 +608,24 @@ export function fetchRemoteBuffer(targetUrl, redirectsLeft = 4, timeoutMs = 8500
           return;
         }
         const contentType = resp.headers['content-type'] || 'image/jpeg';
+        // Validate MIME type: chỉ cho phép ảnh, từ chối script/html độc hại
+        if (!contentType.startsWith('image/') && !contentType.startsWith('application/octet-stream')) {
+          resp.resume();
+          reject(new Error(`Invalid content-type: ${contentType}. Only images allowed.`));
+          return;
+        }
+
         const chunks = [];
-        resp.on('data', (c) => chunks.push(c));
+        let totalBytes = 0;
+        resp.on('data', (c) => {
+          totalBytes += c.length;
+          if (totalBytes > MAX_IMAGE_BUFFER_BYTES) {
+            req.destroy();
+            reject(new Error('Image Payload Too Large: Vượt quá giới hạn 15MB cho phép'));
+            return;
+          }
+          chunks.push(c);
+        });
         resp.on('end', () => resolve({ buffer: Buffer.concat(chunks), contentType }));
       }
     );
@@ -1007,8 +1144,22 @@ export async function handleStudioApiRequest(req, res) {
     return false;
   }
 
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  const origin = req.headers.origin || '';
+  const allowedOrigins = [
+    'https://synapes-auto-tool-web-service.onrender.com',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:10000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:10000',
+  ];
+  if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.onrender.com')) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', 'https://synapes-auto-tool-web-service.onrender.com');
+  }
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
 
   if (req.method === 'OPTIONS') {
@@ -1019,10 +1170,25 @@ export async function handleStudioApiRequest(req, res) {
 
   // --------------------------------------------------------------------------
   // SECURE AUTHENTICATION ENDPOINT (/api/auth/login)
-  // Xác thực bảo mật phía máy chủ — tuyệt đối không gửi danh sách mật khẩu về client
+  // Xác thực bảo mật phía máy chủ — kèm Rate Limiter chống tấn công Brute-Force
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/auth/login' && req.method === 'POST') {
     try {
+      const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
+      const now = Date.now();
+      const authRec = AUTH_RATE_LIMITS.get(clientIp) || { count: 0, resetAt: now + 60000 };
+      if (now > authRec.resetAt) {
+        authRec.count = 0;
+        authRec.resetAt = now + 60000;
+      }
+      authRec.count++;
+      AUTH_RATE_LIMITS.set(clientIp, authRec);
+      if (authRec.count > 15) {
+        res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, message: 'Quá nhiều yêu cầu đăng nhập. Vui lòng thử lại sau 1 phút.' }));
+        return true;
+      }
+
       const body = (await readJsonBody(req)) || {};
       const { code, password } = body;
       const codeClean = String(code || '').trim().toUpperCase();
@@ -1104,33 +1270,62 @@ export async function handleStudioApiRequest(req, res) {
 
   // --------------------------------------------------------------------------
   // MASTER IP UNLOCK ENDPOINT (/api/security/unlock) - MASTER KEY: 07022006
+  // Kèm Rate Limiting (5 lần/10 phút) và so sánh thời gian hằng số (Timing-Safe)
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/security/unlock' && req.method === 'POST') {
     try {
       const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
-      const body = (await readJsonBody(req)) || {};
 
-      if (body.password === '07022006') {
+      // 1. Kiểm tra giới hạn số lần thử nghiệm
+      const rateCheck = checkUnlockRateLimit(clientIp);
+      if (!rateCheck.allowed) {
+        res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, error: rateCheck.error, retryAfter: rateCheck.remainingSec }));
+        return true;
+      }
+
+      const body = (await readJsonBody(req)) || {};
+      const enteredPassword = String(body.password || '').trim();
+
+      // 2. Xác thực bằng hàm so sánh thời gian hằng số (Timing-Safe Comparison)
+      if (constantTimeVerify(enteredPassword, '07022006')) {
+        recordUnlockSuccess(clientIp);
         IP_BLACKLIST.delete(clientIp);
-        console.log(`[SECURITY AUDIT] IP ${clientIp} đã được giải phóng bởi KS. Nguyễn Hoàng Thiện.`);
+
+        // Tạo chữ ký HMAC an toàn cho phiên
+        const sessionToken = crypto
+          .createHmac('sha256', 'SYNAPES_SECURITY_HMAC_MASTER_2026')
+          .update(`${clientIp}::${Date.now()}::07022006`)
+          .digest('hex');
+
+        console.log(`[SECURITY AUDIT] IP ${clientIp} đã được giải phóng thành công bằng Master Key.`);
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(
           JSON.stringify({
             success: true,
             message: `Địa chỉ IP ${clientIp} đã được gỡ bỏ khỏi danh sách hạn chế thành công.`,
             bypassed: true,
+            token: sessionToken,
             leadEngineer: 'KS. Nguyễn Hoàng Thiện',
           })
         );
         return true;
       }
 
-      console.warn(`[SECURITY WARNING] Yêu cầu mở khóa thất bại từ IP ${clientIp}`);
+      // Ghi nhận lỗi và đếm số lần thất bại
+      const failureRecord = recordUnlockFailure(clientIp);
+      const remainingAttempts = Math.max(0, 5 - failureRecord.failedAttempts);
+
+      console.warn(`[SECURITY WARNING] Mở khóa thất bại từ IP ${clientIp}. Còn lại ${remainingAttempts} lần thử.`);
       res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(
         JSON.stringify({
           success: false,
-          error: 'Mật mã mở khóa khẩn cấp không chính xác.',
+          error:
+            remainingAttempts > 0
+              ? `Mật mã mở khóa khẩn cấp không chính xác. Bạn còn ${remainingAttempts} lần thử.`
+              : 'Đã vượt quá số lần thử cho phép. Chức năng mở khóa bị tạm ngưng 15 phút.',
+          remainingAttempts,
         })
       );
       return true;

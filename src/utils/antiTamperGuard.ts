@@ -103,7 +103,7 @@ export function initAntiTamperGuard(): void {
               <input
                 id="synapes-master-pass"
                 type="password"
-                placeholder="Nhập mã Master (07022006)..."
+                placeholder="Nhập mã Master Key..."
                 autocomplete="off"
                 style="flex:1;background:#09090b;border:1px solid #3f3f46;color:#f4f4f5;padding:8px 12px;border-radius:6px;font-size:13px;font-family:ui-monospace,monospace;outline:none;box-sizing:border-box;"
               />
@@ -133,34 +133,75 @@ export function initAntiTamperGuard(): void {
       const executeUnlock = async () => {
         if (!passInput || !feedback) return;
         const pass = passInput.value.trim();
-
-        if (pass === '07022006') {
-          feedback.style.display = 'block';
-          feedback.style.color = '#4ade80';
-          feedback.innerText = '✓ Xác thực thành công. Đang giải phóng IP và tải lại hệ thống...';
-
-          // Ghi nhận cờ bypass vĩnh viễn trên client
-          try {
-            localStorage.setItem('synapes_dev_bypass', '1');
-            sessionStorage.setItem('synapes_dev_bypass', '1');
-          } catch { }
-
-          // Gửi tín hiệu giải phóng IP về máy chủ
-          try {
-            await fetch('/api/security/unlock', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ password: pass }),
-            });
-          } catch { }
-
-          setTimeout(() => {
-            window.location.href = window.location.origin + window.location.pathname + '?bypass_anti_tamper=1';
-          }, 600);
-        } else {
+        if (!pass) {
           feedback.style.display = 'block';
           feedback.style.color = '#f87171';
-          feedback.innerText = '✕ Mật mã Master không chính xác. Yêu cầu mở khóa bị từ chối.';
+          feedback.innerText = '✕ Vui lòng nhập mã Master Key.';
+          return;
+        }
+
+        try {
+          // 1. Xác thực trực tiếp qua Backend API bảo mật
+          const resp = await fetch('/api/security/unlock', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: pass }),
+          });
+          const data = await resp.json().catch(() => ({}));
+
+          if (resp.ok && data.success) {
+            feedback.style.display = 'block';
+            feedback.style.color = '#4ade80';
+            feedback.innerText = '✓ Xác thực thành công. Đang giải phóng IP và tải lại hệ thống...';
+
+            try {
+              localStorage.setItem('synapes_dev_bypass', '1');
+              sessionStorage.setItem('synapes_dev_bypass', '1');
+              if (data.token) localStorage.setItem('synapes_bypass_token', data.token);
+            } catch { }
+
+            setTimeout(() => {
+              window.location.href = window.location.origin + window.location.pathname + '?bypass_anti_tamper=1';
+            }, 600);
+            return;
+          }
+
+          if (resp.status === 429) {
+            feedback.style.display = 'block';
+            feedback.style.color = '#f87171';
+            feedback.innerText = '✕ ' + (data.error || 'Đã vượt quá số lần thử. Vui lòng đợi.');
+            return;
+          }
+
+          feedback.style.display = 'block';
+          feedback.style.color = '#f87171';
+          feedback.innerText = '✕ ' + (data.error || 'Mật mã Master không chính xác.');
+        } catch {
+          // 2. Dự phòng ngoại tuyến (Offline Cryptographic Verification)
+          try {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(pass);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+
+            // Hash chuẩn SHA-256 của Master Key
+            if (hashHex === '0a45ddc25271095c13715e2349bfb98525839a9c7e0620036aaeb6b238f93931') {
+              feedback.style.display = 'block';
+              feedback.style.color = '#4ade80';
+              feedback.innerText = '✓ Xác thực ngoại tuyến thành công. Đang tải lại hệ thống...';
+              localStorage.setItem('synapes_dev_bypass', '1');
+              sessionStorage.setItem('synapes_dev_bypass', '1');
+              setTimeout(() => {
+                window.location.href = window.location.origin + window.location.pathname + '?bypass_anti_tamper=1';
+              }, 600);
+              return;
+            }
+          } catch { }
+
+          feedback.style.display = 'block';
+          feedback.style.color = '#f87171';
+          feedback.innerText = '✕ Mật mã Master không chính xác hoặc máy chủ không phản hồi.';
         }
       };
 

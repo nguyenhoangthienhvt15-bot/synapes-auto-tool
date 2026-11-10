@@ -247,7 +247,7 @@ function getLockoutHtml(clientIp, bannedUntilIso) {
       <input
         id="synapes-master-pass"
         type="password"
-        placeholder="Nhập mã Master (07022006)..."
+        placeholder="Nhập mã Master Key..."
         autocomplete="off"
       />
       <button id="synapes-master-unlock-btn">Mở Khóa</button>
@@ -268,31 +268,44 @@ function getLockoutHtml(clientIp, bannedUntilIso) {
 
     async function handleUnlock() {
       const code = passInput.value.trim();
-      if (code === '07022006') {
-        feedback.style.display = 'block';
-        feedback.style.color = '#4ade80';
-        feedback.innerText = '✓ Xác thực thành công! Đang giải phóng IP và tải lại hệ thống...';
-
-        try {
-          localStorage.setItem('synapes_dev_bypass', '1');
-          sessionStorage.setItem('synapes_dev_bypass', '1');
-        } catch {}
-
-        try {
-          await fetch('/api/security/unlock', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: code })
-          });
-        } catch {}
-
-        setTimeout(() => {
-          window.location.href = window.location.origin + window.location.pathname + '?bypass_anti_tamper=1';
-        }, 600);
-      } else {
+      if (!code) {
         feedback.style.display = 'block';
         feedback.style.color = '#f87171';
-        feedback.innerText = '✕ Mật mã Master không chính xác. Yêu cầu mở khóa bị từ chối.';
+        feedback.innerText = '✕ Vui lòng nhập mã Master Key.';
+        return;
+      }
+
+      try {
+        const resp = await fetch('/api/security/unlock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: code })
+        });
+        const data = await resp.json();
+
+        if (resp.ok && data.success) {
+          feedback.style.display = 'block';
+          feedback.style.color = '#4ade80';
+          feedback.innerText = '✓ Xác thực thành công! Đang giải phóng IP và tải lại hệ thống...';
+
+          try {
+            localStorage.setItem('synapes_dev_bypass', '1');
+            sessionStorage.setItem('synapes_dev_bypass', '1');
+            if (data.token) localStorage.setItem('synapes_bypass_token', data.token);
+          } catch {}
+
+          setTimeout(() => {
+            window.location.href = window.location.origin + window.location.pathname + '?bypass_anti_tamper=1';
+          }, 600);
+        } else {
+          feedback.style.display = 'block';
+          feedback.style.color = '#f87171';
+          feedback.innerText = '✕ ' + (data.error || 'Mật mã Master không chính xác.');
+        }
+      } catch (err) {
+        feedback.style.display = 'block';
+        feedback.style.color = '#f87171';
+        feedback.innerText = '✕ Không thể kết nối tới máy chủ giải phóng IP.';
       }
     }
 
@@ -379,6 +392,10 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' https: wss:; frame-ancestors 'self';"
+  );
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('Keep-Alive', 'timeout=65, max=1000');
 
