@@ -142,16 +142,19 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setDraftRegId(`reg_${Date.now()}_${Math.floor(Math.random() * 10000)}`);
-      // Đảm bảo mỗi lần đăng ký mới không hiện chữ ký khách hàng trước đó ký
+      // Đảm bảo mỗi lần đăng ký mới tuyệt đối không hiện chữ ký khách hàng trước đó ký
       setSignatureImage('');
       setTermsAccepted(false);
       setFormError(null);
       if (typeof window !== 'undefined') {
         try {
           localStorage.removeItem('synapes_user_signature_latest');
+          sessionStorage.removeItem('synapes_user_signature_latest');
         } catch { }
       }
       discoverWebhookUrlFromSheet().catch(() => { });
+    } else {
+      setSignatureImage('');
     }
   }, [isOpen]);
 
@@ -1184,13 +1187,30 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setShowSignatureModal(true)}
-                      className="text-zinc-600 hover:text-zinc-950 text-[11px] font-medium underline cursor-pointer flex-shrink-0"
-                    >
-                      Ký lại
-                    </button>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setShowSignatureModal(true)}
+                        className="text-zinc-600 hover:text-zinc-950 text-[11px] font-medium underline cursor-pointer"
+                      >
+                        Ký lại
+                      </button>
+                      <span className="text-zinc-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSignatureImage('');
+                          try {
+                            localStorage.removeItem('synapes_user_signature_latest');
+                            sessionStorage.removeItem('synapes_user_signature_latest');
+                          } catch { }
+                        }}
+                        className="text-zinc-500 hover:text-red-600 text-[11px] font-medium underline cursor-pointer"
+                        title="Xóa bỏ chữ ký hiện tại để ký lại từ đầu"
+                      >
+                        Xóa
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="p-2.5 bg-amber-50/70 border border-dashed border-amber-300 rounded-lg flex items-center justify-between gap-2">

@@ -1,17 +1,18 @@
 /**
  * synapes-anti-tamper.ts - Lớp Bảo vệ Chống Soi Mã Nguồn & DevTools Tampering
- * Thiết kế kiến trúc theo Báo cáo Đánh giá Phiên họp 1 — Hội đồng Kỹ thuật
- * Chủ trì dự án: KS. Nguyễn Hoàng Thiện
+ * Tích hợp Cổng Mở Khóa Master Khẩn Cấp (07022006) theo Nghiệm Thu Phiên V
+ * Chủ trì dự án: KS. Nguyễn Hoàng Thiện (nguyenhoangthien.hvt.15@gmail.com)
  */
 
 export function initAntiTamperGuard(): void {
   if (typeof window === 'undefined') return;
 
-  // Cho phép bỏ qua kiểm tra trong môi trường test tự động (Playwright/CI) hoặc dev bypass
+  // Cho phép bỏ qua kiểm tra trong môi trường test tự động hoặc khi đã có cờ Master Override
   if (
     (window as any).__SYNAPES_DEV_MODE__ ||
     window.location.search.includes('bypass_anti_tamper=1') ||
-    localStorage.getItem('synapes_dev_bypass') === '1'
+    localStorage.getItem('synapes_dev_bypass') === '1' ||
+    sessionStorage.getItem('synapes_dev_bypass') === '1'
   ) {
     return;
   }
@@ -70,24 +71,113 @@ export function initAntiTamperGuard(): void {
     violationCount++;
     if (violationCount >= 2 && !devtoolsDetected) {
       devtoolsDetected = true;
+      const incidentCode = `SEC-${Date.now().toString(36).toUpperCase()}`;
 
-      // Xóa sạch DOM để kẻ gian không nhìn thấy nội dung giao diện
+      // Giao diện bảo mật chuẩn Enterprise Minimalist (loại bỏ hoàn toàn AI-slop lòe loẹt)
       document.body.innerHTML = `
-        <div style="background:#09090b;color:#ef4444;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif;text-align:center;padding:24px;box-sizing:border-box;">
-          <div style="font-size:48px;margin-bottom:16px;">🚫</div>
-          <h1 style="font-size:24px;font-weight:bold;margin-bottom:12px;color:#f87171;letter-spacing:-0.02em;">CẢNH BÁO VI PHẠM BẢO MẬT HỆ THỐNG</h1>
-          <p style="color:#a1a1aa;max-width:520px;font-size:14px;line-height:1.6;margin-bottom:20px;">
-            Hệ thống SYNAPES phát hiện hành vi cố ý can thiệp vào mã nguồn dự án qua Công cụ Phát triển (Developer Tools / Source Inspection).
-            Địa chỉ IP, danh tính phiên và thiết bị của bạn đã được ghi nhận vào nhật ký an ninh.
-          </p>
-          <div style="padding:10px 18px;background:#27272a;color:#f4f4f5;border-radius:8px;font-family:monospace;font-size:13px;border:1px solid #3f3f46;">
-            Hành động: <span style="color:#ef4444;font-weight:bold;">ĐÃ KHÓA TRUY CẬP TẠM THỜI (403 BANNED)</span>
+        <div style="background:#09090b;color:#f4f4f5;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;text-align:center;padding:24px;box-sizing:border-box;">
+          <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;background:#18181b;border:1px solid #27272a;border-radius:9999px;font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:#a1a1aa;margin-bottom:20px;letter-spacing:0.04em;">
+            <span style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block;"></span>
+            AN NINH HỆ THỐNG • MÃ TRUY CẬP 403
           </div>
-          <p style="color:#71717a;font-size:12px;margin-top:24px;">Mã sự cố an ninh: SEC-${Date.now().toString(36).toUpperCase()} • Kỹ sư giám sát: KS. Nguyễn Hoàng Thiện</p>
+
+          <h1 style="font-size:20px;font-weight:600;margin:0 0 10px 0;color:#f4f4f5;letter-spacing:-0.01em;">
+            GIỚI HẠN TRUY CẬP HỆ THỐNG
+          </h1>
+          <p style="color:#a1a1aa;max-width:480px;font-size:13px;line-height:1.6;margin:0 0 24px 0;">
+            Hệ thống SYNAPES phát hiện thao tác kiểm tra mã nguồn hoặc cửa sổ Developer Tools. Phiên truy cập của bạn đã tạm thời được đưa vào danh sách kiểm soát an ninh.
+          </p>
+
+          <!-- KHUNG MỞ KHÓA MASTER DÀNH CHO KỸ SƯ TRƯỞNG -->
+          <div style="background:#121214;border:1px solid #27272a;border-radius:10px;padding:18px 20px;max-width:390px;width:100%;box-sizing:border-box;text-align:left;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <span style="font-size:11px;font-weight:600;color:#d4d4d8;text-transform:uppercase;letter-spacing:0.05em;font-family:ui-monospace,monospace;">
+                Xác Thực Kỹ Sư Trưởng
+              </span>
+              <span style="font-size:10px;color:#71717a;font-family:ui-monospace,monospace;">Master Override</span>
+            </div>
+            <p style="font-size:12px;color:#71717a;line-height:1.4;margin:0 0 12px 0;">
+              Nhập mã Master Key để giải phóng địa chỉ IP và khôi phục quyền truy cập:
+            </p>
+            <div style="display:flex;gap:8px;">
+              <input
+                id="synapes-master-pass"
+                type="password"
+                placeholder="Nhập mã Master (07022006)..."
+                autocomplete="off"
+                style="flex:1;background:#09090b;border:1px solid #3f3f46;color:#f4f4f5;padding:8px 12px;border-radius:6px;font-size:13px;font-family:ui-monospace,monospace;outline:none;box-sizing:border-box;"
+              />
+              <button
+                id="synapes-master-unlock-btn"
+                style="background:#f4f4f5;color:#09090b;border:none;padding:8px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:background 0.15s ease;"
+              >
+                Mở Khóa
+              </button>
+            </div>
+            <div id="synapes-unlock-feedback" style="display:none;font-size:12px;margin-top:10px;line-height:1.4;"></div>
+          </div>
+
+          <div style="margin-top:24px;font-size:11px;color:#71717a;font-family:ui-monospace,monospace;line-height:1.6;">
+            Mã sự cố: <span style="color:#a1a1aa;">${incidentCode}</span> • Chủ trì: <span style="color:#d4d4d8;">KS. Nguyễn Hoàng Thiện</span>
+            <br />
+            Email kỹ thuật: <a href="mailto:nguyenhoangthien.hvt.15@gmail.com" style="color:#a1a1aa;text-decoration:none;">nguyenhoangthien.hvt.15@gmail.com</a>
+          </div>
         </div>
       `;
 
-      // Báo cáo vi phạm về Server để khóa IP và tài khoản
+      // Đăng ký bộ lắng nghe sự kiện mở khóa Master
+      const passInput = document.getElementById('synapes-master-pass') as HTMLInputElement | null;
+      const unlockBtn = document.getElementById('synapes-master-unlock-btn') as HTMLButtonElement | null;
+      const feedback = document.getElementById('synapes-unlock-feedback') as HTMLDivElement | null;
+
+      const executeUnlock = async () => {
+        if (!passInput || !feedback) return;
+        const pass = passInput.value.trim();
+
+        if (pass === '07022006') {
+          feedback.style.display = 'block';
+          feedback.style.color = '#4ade80';
+          feedback.innerText = '✓ Xác thực thành công. Đang giải phóng IP và tải lại hệ thống...';
+
+          // Ghi nhận cờ bypass vĩnh viễn trên client
+          try {
+            localStorage.setItem('synapes_dev_bypass', '1');
+            sessionStorage.setItem('synapes_dev_bypass', '1');
+          } catch { }
+
+          // Gửi tín hiệu giải phóng IP về máy chủ
+          try {
+            await fetch('/api/security/unlock', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ password: pass }),
+            });
+          } catch { }
+
+          setTimeout(() => {
+            window.location.href = window.location.origin + window.location.pathname + '?bypass_anti_tamper=1';
+          }, 600);
+        } else {
+          feedback.style.display = 'block';
+          feedback.style.color = '#f87171';
+          feedback.innerText = '✕ Mật mã Master không chính xác. Yêu cầu mở khóa bị từ chối.';
+        }
+      };
+
+      if (unlockBtn) {
+        unlockBtn.addEventListener('click', executeUnlock);
+      }
+      if (passInput) {
+        passInput.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            executeUnlock();
+          }
+        });
+        passInput.focus();
+      }
+
+      // Báo cáo vi phạm về Server để đưa vào danh sách kiểm soát tạm thời
       try {
         await fetch('/api/security/report-violation', {
           method: 'POST',
@@ -104,4 +194,3 @@ export function initAntiTamperGuard(): void {
     }
   }
 }
-

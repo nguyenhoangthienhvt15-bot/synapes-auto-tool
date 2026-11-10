@@ -1103,6 +1103,45 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
+  // MASTER IP UNLOCK ENDPOINT (/api/security/unlock) - MASTER KEY: 07022006
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/security/unlock' && req.method === 'POST') {
+    try {
+      const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
+      const body = (await readJsonBody(req)) || {};
+
+      if (body.password === '07022006') {
+        IP_BLACKLIST.delete(clientIp);
+        console.log(`[SECURITY AUDIT] IP ${clientIp} đã được giải phóng bởi KS. Nguyễn Hoàng Thiện.`);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            success: true,
+            message: `Địa chỉ IP ${clientIp} đã được gỡ bỏ khỏi danh sách hạn chế thành công.`,
+            bypassed: true,
+            leadEngineer: 'KS. Nguyễn Hoàng Thiện',
+          })
+        );
+        return true;
+      }
+
+      console.warn(`[SECURITY WARNING] Yêu cầu mở khóa thất bại từ IP ${clientIp}`);
+      res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          error: 'Mật mã mở khóa khẩn cấp không chính xác.',
+        })
+      );
+      return true;
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: String(err) }));
+      return true;
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // SYSTEM HEALTH & WATCHDOG (/api/system/health-watchdog)
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/system/health-watchdog' && (req.method === 'GET' || req.method === 'POST')) {

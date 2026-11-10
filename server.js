@@ -84,20 +84,262 @@ function getCachedFile(filePath, ext) {
   }
 }
 
+function getLockoutHtml(clientIp, bannedUntilIso) {
+  const incidentCode = `SEC-SRV-${Date.now().toString(36).toUpperCase()}`;
+  return `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>403 Forbidden - Giới Hạn Truy Cập An Ninh | SYNAPES STUDIO</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #09090b;
+      color: #f4f4f5;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: #a1a1aa;
+      margin-bottom: 20px;
+      letter-spacing: 0.04em;
+    }
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #ef4444;
+      display: inline-block;
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #f4f4f5;
+      letter-spacing: -0.01em;
+    }
+    p.desc {
+      color: #a1a1aa;
+      max-width: 480px;
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: #121214;
+      border: 1px solid #27272a;
+      border-radius: 10px;
+      padding: 18px 20px;
+      max-width: 390px;
+      width: 100%;
+      text-align: left;
+    }
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #d4d4d8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-family: ui-monospace, monospace;
+    }
+    .card-tag {
+      font-size: 10px;
+      color: #71717a;
+      font-family: ui-monospace, monospace;
+    }
+    .card-desc {
+      font-size: 12px;
+      color: #71717a;
+      line-height: 1.4;
+      margin-bottom: 12px;
+    }
+    .form-row {
+      display: flex;
+      gap: 8px;
+    }
+    input[type="password"] {
+      flex: 1;
+      background: #09090b;
+      border: 1px solid #3f3f46;
+      color: #f4f4f5;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: ui-monospace, monospace;
+      outline: none;
+    }
+    button {
+      background: #f4f4f5;
+      color: #09090b;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s ease;
+    }
+    button:hover {
+      background: #e4e4e7;
+    }
+    .feedback {
+      display: none;
+      font-size: 12px;
+      margin-top: 10px;
+      line-height: 1.4;
+    }
+    .footer {
+      margin-top: 24px;
+      font-size: 11px;
+      color: #71717a;
+      font-family: ui-monospace, monospace;
+      line-height: 1.6;
+    }
+    .footer a {
+      color: #a1a1aa;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="badge">
+    <span class="dot"></span>
+    AN NINH MÁY CHỦ • TRUY CẬP BỊ HẠN CHẾ (403)
+  </div>
+
+  <h1>GIỚI HẠN TRUY CẬP HỆ THỐNG</h1>
+  <p class="desc">
+    Địa chỉ IP của bạn (<code style="color:#e4e4e7;">${clientIp}</code>) đã được ghi nhận vào danh sách kiểm soát tạm thời do có thao tác can thiệp an ninh hoặc Developer Tools.
+  </p>
+
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Xác Thực Kỹ Sư Trưởng</span>
+      <span class="card-tag">Master Override</span>
+    </div>
+    <p class="card-desc">
+      Nhập mã Master Key để giải phóng địa chỉ IP và khôi phục quyền truy cập:
+    </p>
+    <div class="form-row">
+      <input
+        id="synapes-master-pass"
+        type="password"
+        placeholder="Nhập mã Master (07022006)..."
+        autocomplete="off"
+      />
+      <button id="synapes-master-unlock-btn">Mở Khóa</button>
+    </div>
+    <div id="synapes-unlock-feedback" class="feedback"></div>
+  </div>
+
+  <div class="footer">
+    Mã sự cố: <span style="color:#a1a1aa;">${incidentCode}</span> • Bị khóa đến: <span style="color:#a1a1aa;">${bannedUntilIso}</span>
+    <br />
+    Chủ trì: <span style="color:#d4d4d8;">KS. Nguyễn Hoàng Thiện</span> • Email: <a href="mailto:nguyenhoangthien.hvt.15@gmail.com">nguyenhoangthien.hvt.15@gmail.com</a>
+  </div>
+
+  <script>
+    const passInput = document.getElementById('synapes-master-pass');
+    const unlockBtn = document.getElementById('synapes-master-unlock-btn');
+    const feedback = document.getElementById('synapes-unlock-feedback');
+
+    async function handleUnlock() {
+      const code = passInput.value.trim();
+      if (code === '07022006') {
+        feedback.style.display = 'block';
+        feedback.style.color = '#4ade80';
+        feedback.innerText = '✓ Xác thực thành công! Đang giải phóng IP và tải lại hệ thống...';
+
+        try {
+          localStorage.setItem('synapes_dev_bypass', '1');
+          sessionStorage.setItem('synapes_dev_bypass', '1');
+        } catch {}
+
+        try {
+          await fetch('/api/security/unlock', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: code })
+          });
+        } catch {}
+
+        setTimeout(() => {
+          window.location.href = window.location.origin + window.location.pathname + '?bypass_anti_tamper=1';
+        }, 600);
+      } else {
+        feedback.style.display = 'block';
+        feedback.style.color = '#f87171';
+        feedback.innerText = '✕ Mật mã Master không chính xác. Yêu cầu mở khóa bị từ chối.';
+      }
+    }
+
+    unlockBtn.addEventListener('click', handleUnlock);
+    passInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleUnlock();
+      }
+    });
+    passInput.focus();
+  </script>
+</body>
+</html>`;
+}
+
 const server = http.createServer(async (req, res) => {
   const rawUrl = req.url || '/';
   const cleanUrl = rawUrl.split('?')[0].split('#')[0];
 
   // Kiểm tra danh sách đen IP (Anti-DevTools & Threat Enforcer)
+  // Ngoại lệ: Cho phép gọi /api/security/unlock hoặc khi có cờ bypass_anti_tamper=1
   const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
-  if (IP_BLACKLIST.has(clientIp)) {
+  const isUnlockEndpoint = cleanUrl === '/api/security/unlock';
+  const hasBypassQuery = rawUrl.includes('bypass_anti_tamper=1');
+
+  if (IP_BLACKLIST.has(clientIp) && !isUnlockEndpoint && !hasBypassQuery) {
     const banInfo = IP_BLACKLIST.get(clientIp);
     if (Date.now() < banInfo.bannedUntil) {
+      const acceptsHtml = req.headers.accept?.includes('text/html') || cleanUrl === '/' || cleanUrl.endsWith('.html');
+      if (acceptsHtml) {
+        const html = getLockoutHtml(clientIp, new Date(banInfo.bannedUntil).toISOString());
+        res.writeHead(403, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        });
+        res.end(html);
+        return;
+      }
+
       res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(
         JSON.stringify({
           error: '403 Forbidden: Địa chỉ IP của bạn đã bị khóa tạm thời do cố ý can thiệp vào mã nguồn dự án.',
           bannedUntil: new Date(banInfo.bannedUntil).toISOString(),
+          unlockUrl: '/api/security/unlock',
+          masterKeySupported: true,
           leadEngineer: 'KS. Nguyễn Hoàng Thiện',
           contact: 'nguyenhoangthien.hvt.15@gmail.com',
         })
