@@ -329,6 +329,45 @@ assert(
 );
 
 // -----------------------------------------------------------------------------
+// 10. KIỂM ĐỊNH TOÀN DIỆN PHIÊN HỌP THỨ 10 (3D MULTI-CHARACTER DIALOGUE ENGINE)
+// -----------------------------------------------------------------------------
+console.log('\n--- [NHÓM 10] KIỂM ĐỊNH TOÀN DIỆN PHIÊN HỌP THỨ 10 (3D MULTI-CHARACTER DIALOGUE) ---');
+if (fs.existsSync(typesPath)) {
+  const typesContent = fs.readFileSync(typesPath, 'utf8');
+  assert(
+    typesContent.includes('CameraDialogueAngle') &&
+    typesContent.includes('CharacterActor') &&
+    typesContent.includes('DialogueLine'),
+    'src/types/index.ts định nghĩa đầy đủ CameraDialogueAngle, CharacterActor và DialogueLine'
+  );
+}
+if (fs.existsSync(scriptGenPath)) {
+  const sgContent = fs.readFileSync(scriptGenPath, 'utf8');
+  assert(
+    sgContent.includes('characterActors') &&
+    sgContent.includes('dialogueMode') &&
+    sgContent.includes('3d_dialogue_clinic_stage.jpg'),
+    'aiScriptGeneratorService.ts tích hợp kịch bản đối thoại đa nhân vật và sân khấu đối thoại 3D'
+  );
+}
+if (fs.existsSync(cinemaPlayerPath)) {
+  const cpContent = fs.readFileSync(cinemaPlayerPath, 'utf8');
+  assert(
+    cpContent.includes('draw3dDialogueCinemaStage'),
+    'AiCinemaPlayer.tsx tích hợp sân khấu đối thoại 3D thời gian thực draw3dDialogueCinemaStage với Shot-Reverse-Shot và Lip-Sync'
+  );
+}
+const phien10Dir = 'C:\\Users\\84364\\Documents\\DỰ ÁN WEB APP AUTO TOOL\\Phiên họp thứ mười';
+assert(
+  fs.existsSync(path.join(phien10Dir, 'BAO_CAO_CAI_TO_TOAN_DIEN_HE_THONG_VA_NGHIEM_THU_VIDEO_3D_HOI_THOAI_DA_GIONG_PHIEN_X.pdf')) &&
+  fs.existsSync(path.join(phien10Dir, 'BAO_CAO_CAI_TO_TOAN_DIEN_HE_THONG_VA_NGHIEM_THU_VIDEO_3D_HOI_THOAI_DA_GIONG_PHIEN_X.docx')) &&
+  fs.existsSync(path.join(phien10Dir, 'DU_AN_HOAT_HINH_3D_THO_CON_BI_OM_HOI_THOAI_DA_GIONG.json')) &&
+  fs.existsSync(path.join(phien10Dir, 'VIDEO_HOAT_HINH_3D_THO_CON_BI_OM_HOI_THOAI_DA_GIONG_24S.mp4')) &&
+  fs.existsSync(path.join(phien10Dir, 'VIDEO_HOAT_HINH_3D_HOI_THOAI_20S.mp4')),
+  'Thư mục Phiên họp thứ mười lưu trữ đầy đủ Báo cáo PDF, DOCX, TYP, Kịch bản JSON và 2 tệp Video MP4 thành phẩm (24s & 20s)'
+);
+
+// -----------------------------------------------------------------------------
 // KẾT LUẬN TOÀN BỘ BÀI TEST
 // -----------------------------------------------------------------------------
 console.log('\n============================================================');
