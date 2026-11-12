@@ -17,7 +17,8 @@ export type TopicDomain =
   | 'travel'
   | 'sports'
   | 'ai-cyber'
-  | 'hardware';
+  | 'hardware'
+  | 'animation-3d';
 
 export interface ResearchHeadlineItem {
   title: string;
@@ -261,6 +262,14 @@ export const CLIENT_DOMAIN_PHOTO_POOLS: Record<TopicDomain, string[]> = {
     'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=1400&q=85',
   ],
   hardware: REAL_IPHONE_18_INTERNET_IMAGES,
+  'animation-3d': [
+    '/3d_forest_stage_1.jpg',
+    '/3d_forest_stage_2.jpg',
+    '/3d_insect_scene_1.jpg',
+    '/3d_insect_scene_2.jpg',
+    '/3d_insect_scene_3.jpg',
+    '/3d_insect_scene_4.jpg',
+  ],
 };
 
 const SCENE_VIDEO_CLIPS = [
@@ -277,6 +286,14 @@ const SCENE_VIDEO_CLIPS = [
  */
 export function classifyTopicDomainClient(text: string): TopicDomain {
   const q = (text || '').toLowerCase();
+
+  if (
+    /hoạt hình|3d|pixar|disney|thiếu nhi|đếm số|nhảy múa|côn trùng|cào cào|châu chấu|bọ rùa|ong vàng|bướm|kiến|chú thỏ|đàn thỏ|thỏ con|bài hát thiếu nhi|nursery rhyme|counting song|cartoon|animation|insect|grasshopper|rabbit|bunny/.test(
+      q
+    )
+  ) {
+    return 'animation-3d';
+  }
 
   if (
     /chiến sự|chiến tranh|quân sự|iran|israel|ukraine|nato|tên lửa|hạt nhân|biển đông|biển đỏ|biên giới|xung đột|hạm đội|tàu sân bay|không kích|cấm vận|ngoại giao|địa chính trị|lầu năm góc|trung đông|triều tiên|đài loan|war|military|missile|conflict|pentagon|navy/.test(
@@ -360,6 +377,12 @@ export function detectVideoGenre(
 ): VideoGenre {
   const combined = `${rawPrompt} ${coreSubject} ${skill?.command || ''}`.toLowerCase();
 
+  if (
+    domain === 'animation-3d' ||
+    /hoạt hình|3d|pixar|disney|đếm số|côn trùng|cào cào|chú thỏ|thiếu nhi|nhảy múa|animation|cartoon/.test(combined)
+  ) {
+    return '3d-animation';
+  }
   if (domain === 'hardware' && !/bản tin|thời sự/.test(rawPrompt.toLowerCase())) {
     return 'apple-keynote';
   }
@@ -484,6 +507,12 @@ export function buildAiSceneImageUrl(
 
   const idx = Math.max(0, sceneIndex - 1);
 
+  // 0. Đối với Hoạt hình 3D (animation-3d): Luôn ưu tiên Sân khấu 3D Pixar nội bộ sắc nét (tuyệt đối không lấy ảnh báo chí Wikipedia)
+  if (resolvedDomain === 'animation-3d') {
+    const animPool = CLIENT_DOMAIN_PHOTO_POOLS['animation-3d'];
+    return animPool[idx % animPool.length];
+  }
+
   // 1. Ưu tiên ảnh thực tế từ Wikipedia / Wikimedia Commons nếu có từ bước nghiên cứu chủ đề
   if (researchVisuals && researchVisuals.length > 0 && idx < researchVisuals.length) {
     const picked = researchVisuals[idx % researchVisuals.length];
@@ -571,10 +600,13 @@ function buildDirectorSystemPrompt(
   targetDurationMin: number
 ): string {
   const isShort = aspectRatio === '9:16';
-  const sceneCount = isShort ? 6 : 6;
+  const isCountingSong = /đếm\s*số|1\s*đến\s*10|một\s*đến\s*mười|counting/i.test(`${rawPrompt} ${coreSubject}`);
+  const sceneCount = videoGenre === '3d-animation' && isCountingSong ? 10 : isShort ? 6 : 6;
 
   const roleInstruction =
-    videoGenre === 'news-broadcast'
+    videoGenre === '3d-animation'
+      ? `Bạn là Tổng Đạo Diễn Phim Hoạt Hình 3D Ca Nhạc Thiếu Nhi (chuẩn Pixar / Disney / CoComelon 3D Animation). Phong cách: Tươi sáng, vần điệu vui nhộn, đồng bộ nhịp nhạc 130 BPM, mô tả chuyển động hình thể nhân vật 3D rõ ràng (vỗ cánh, bật nhảy Squash & Stretch, nhép miệng hát, vẫy tay) và giữ tính nhất quán tạo hình nhân vật 100% xuyên suốt mọi khung hình.`
+      : videoGenre === 'news-broadcast'
       ? `Bạn là Tổng Biên Tập & Đạo Diễn Bản Tin Thời Sự Quốc Tế 24h (chuẩn VTV1, Reuters, BBC World News). Phong cách: Chính xác, khách quan, sắc bén, dẫn dắt dữ kiện thực tế có chiều sâu địa chính trị - xã hội. TUYỆT ĐỐI CẤM dùng văn mẫu quảng cáo sản phẩm công nghệ (như "siêu phẩm", "tuyệt tác công nghệ", "thay đổi cuộc chơi") cho bản tin thời sự!`
       : videoGenre === 'finance-analysis'
         ? `Bạn là Giám Đốc Phân Tích Kinh Tế Vĩ Mô & Tài Chính (chuẩn Bloomberg / CafeF). Phong cách: Rành mạch, có số liệu, phân tích nguyên nhân - hệ quả và xu hướng dòng vốn.`
@@ -852,6 +884,44 @@ function generateBespokeMultiGenreScript(
     .split(/(?<=[.!?])\s+/)
     .filter((s) => s.length > 35 && s.length < 220);
   const wikiFact1 = wikiClean[0] || '';
+
+  // 0. CHẾ ĐỘ HOẠT HÌNH 3D CA NHẠC & ĐẾM SỐ THIẾU NHI (3D PIXAR ANIMATION)
+  if (videoGenre === '3d-animation' || domain === 'animation-3d') {
+    const title = `Vũ Hội Côn Trùng 3D Nhảy Múa Hát Đếm Số Từ 1 Đến 10 — ${coreSubject}`;
+    const countingVerses = [
+      { n: 1, name: 'MỘT CHÚ CÀO CÀO XANH', lyric: 'Số Một! Một chú cào cào xanh lá bật nhảy thật cao, vỗ đôi cánh mỏng hát vang lời chào ngày mới!' },
+      { n: 2, name: 'HAI CHÚ ONG VÀNG CHĂM CHỈ', lyric: 'Số Hai! Một, hai! Hai chú ong vàng rực rỡ đập cánh xoay vòng, cùng nhau nhảy múa dưới nắng mai!' },
+      { n: 3, name: 'BA BẠN BỌ RÙA ĐỐM ĐỎ', lyric: 'Số Ba! Một, hai, ba! Ba bạn bọ rùa áo đỏ chấm bi lắc lư theo nhịp trống rộn ràng!' },
+      { n: 4, name: 'BỐN CÁNH BƯỚM NGỌC BÍCH', lyric: 'Số Bốn! Một, hai, ba, bốn! Bốn bạn bướm ngọc bích vẫy đôi cánh lấp lánh bay lượn quanh đài hoa!' },
+      { n: 5, name: 'NĂM BẠN KIẾN NHỎ ĐỒNG CA', lyric: 'Số Năm! Một, hai, ba, bốn, năm! Năm bạn kiến nhỏ vui tươi vỗ tay nhịp nhàng hát vang bài ca đếm số!' },
+      { n: 6, name: 'SÁU BẠN CÔN TRÙNG HÒA NHỊP', lyric: 'Số Sáu! Một, hai, ba, bốn, năm, sáu! Sáu người bạn côn trùng cùng bật nhảy khỏe khoắn trên sân khấu rừng xanh!' },
+      { n: 7, name: 'BẢY VŨ CÔNG RỪNG CỔ TÍCH', lyric: 'Số Bảy! Một, hai, ba, bốn, năm, sáu, bảy! Bảy vũ công tí hon xoay vòng dưới cầu vồng bảy sắc lung linh!' },
+      { n: 8, name: 'TÁM NHẠC CÔNG VỖ CÁNH', lyric: 'Số Tám! Một, hai, ba, bốn, năm, sáu, bảy, tám! Tám chú côn trùng đáng yêu đập cánh rộn rã theo điệu nhạc vui!' },
+      { n: 9, name: 'CHÍN NGƯỜI BẠN TỎA SÁNG', lyric: 'Số Chín! Một, hai, ba, bốn, năm, sáu, bảy, tám, chín! Chín bạn nhỏ nắm tay nhau nhảy điệu vũ hội mùa xuân!' },
+      { n: 10, name: 'MƯỜI BẠN CÔN TRÙNG ĐẠI HỢP XƯỚNG', lyric: 'Số Mười! Một, hai, ba, bốn, năm, sáu, bảy, tám, chín, mười! Đủ mười bạn côn trùng 3D cùng nhảy múa hát vang chào các bé!' },
+    ];
+    const animPool = CLIENT_DOMAIN_PHOTO_POOLS['animation-3d'];
+    const scenes = countingVerses.map((v, i) => ({
+      sceneNumber: v.n,
+      headline: `${String(v.n).padStart(2, '0')}. SỐ ${v.n} — ${v.name}`,
+      durationSec: 4,
+      voiceover: v.lyric,
+      visualPrompt: `Pixar 3D animation wide shot of exactly ${v.n} cute 3D articulated cartoon insects dancing and singing number ${v.n} on an enchanted mossy forest stump stage, subsurface scattering, 60fps skeletal motion, 8k`,
+      imageUrl: animPool[i % animPool.length],
+      cameraMotion: i % 2 === 0 ? 'dolly-in' : 'orbit',
+      lightingStyle: 'golden-hour',
+      sfx: 'Cheerful 130BPM Marimba & Cartoon Boing + Wing Buzz',
+      transition: 'dissolve',
+    }));
+
+    return {
+      title,
+      newsTicker: 'VŨ HỘI HOẠT HÌNH 3D PIXAR • CÙNG CÁC BẠN CÔN TRÙNG NHẢY MÚA HÁT ĐẾM SỐ TỪ 1 ĐẾN 10',
+      musicGenre: 'Upbeat Kids 3D Animation Marimba & Xylophone 130BPM',
+      tags: ['HoatHinh3D', 'ConTrungNhayMua', 'HatDemSo1Den10', 'NhacThieuNhi3D', 'Synapes3DStudio'],
+      scenes,
+    };
+  }
 
   // 1. CHẾ ĐỘ BẢN TIN THỜI SỰ / ĐỊA CHÍNH TRỊ / CHIẾN SỰ 24H
   if (videoGenre === 'news-broadcast') {
@@ -1267,6 +1337,14 @@ function pickDefaultVoiceForGenre(
   videoGenre: VideoGenre,
   domain: TopicDomain
 ): { id: string; label: string; speed: number; pitch: number } {
+  if (videoGenre === '3d-animation' || domain === 'animation-3d') {
+    return {
+      id: 'vi-sg-female-1',
+      label: 'Chị Diệu Thảo (Giọng Ca Hoạt Hình Thiếu Nhi 3D — Trong trẻo, Vui tươi)',
+      speed: 1.08,
+      pitch: 1.15,
+    };
+  }
   if (videoGenre === 'news-broadcast' || videoGenre === 'finance-analysis') {
     return {
       id: 'vi-dn-male-1',
@@ -1449,9 +1527,10 @@ export async function generateAiVideoScript(
   const defaultVoice = pickDefaultVoiceForGenre(videoGenre, domain);
   const isHardwareKeynote = videoGenre === 'apple-keynote' && domain === 'hardware';
 
+  const minSceneDur = videoGenre === '3d-animation' ? 3 : 5;
   let accumulatedSec = 0;
   const storyboard: StoryboardScene[] = (rawJson.scenes || []).map((sc: any, idx: number) => {
-    const dur = Math.max(5, Math.min(15, Number(sc.durationSec) || 8));
+    const dur = Math.max(minSceneDur, Math.min(15, Number(sc.durationSec) || (videoGenre === '3d-animation' ? 4 : 8)));
     const startSec = accumulatedSec;
     const endSec = startSec + dur;
     accumulatedSec = endSec;

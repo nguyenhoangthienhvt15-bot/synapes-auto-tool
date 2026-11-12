@@ -42,7 +42,7 @@ export type ColorGradeLut = 'teal-orange' | 'cyberpunk' | 'studio-clean' | 'vint
 export type VfxOverlayType = 'film-grain' | 'light-leak' | 'vignette' | 'anamorphic' | 'apple-lens-flare' | 'none';
 export type SubtitleStyle = 'hormozi' | 'capcut' | 'netflix' | 'cyberpunk' | 'apple-minimal' | 'off';
 export type SubtitlePosition = 'bottom' | 'center' | 'top';
-export type VideoGenre = 'news-broadcast' | 'documentary' | 'apple-keynote' | 'finance-analysis' | 'viral-social';
+export type VideoGenre = 'news-broadcast' | 'documentary' | 'apple-keynote' | 'finance-analysis' | 'viral-social' | '3d-animation';
 
 export interface StoryboardScene {
   id: number;

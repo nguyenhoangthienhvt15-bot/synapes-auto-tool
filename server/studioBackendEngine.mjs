@@ -373,6 +373,28 @@ export const DOMAIN_PHOTO_POOLS = {
       source: 'Keynote Finale Studio',
     },
   ],
+  'animation-3d': [
+    {
+      title: 'Pixar 3D Enchanted Forest Stage Plate',
+      url: '/3d_forest_stage_1.jpg',
+      source: 'SYNAPES 3D Animation Studio',
+    },
+    {
+      title: 'Pixar 3D Rainbow Festival Clearing Stage',
+      url: '/3d_forest_stage_2.jpg',
+      source: 'SYNAPES 3D Animation Studio',
+    },
+    {
+      title: '3D Insects Morning Exercise in Meadow',
+      url: '/3d_insect_scene_1.jpg',
+      source: 'SYNAPES 3D Animation Studio',
+    },
+    {
+      title: '3D Insects Flying & Dancing in Sunlight',
+      url: '/3d_insect_scene_2.jpg',
+      source: 'SYNAPES 3D Animation Studio',
+    },
+  ],
 };
 
 /**
@@ -380,6 +402,14 @@ export const DOMAIN_PHOTO_POOLS = {
  */
 export function classifyTopicDomain(query = '') {
   const q = String(query || '').toLowerCase();
+
+  if (
+    /hoạt hình|3d|pixar|disney|thiếu nhi|đếm số|nhảy múa|côn trùng|cào cào|châu chấu|bọ rùa|ong vàng|bướm|kiến|chú thỏ|đàn thỏ|thỏ con|bài hát thiếu nhi|nursery rhyme|counting song|cartoon|animation|insect|grasshopper|rabbit|bunny/.test(
+      q
+    )
+  ) {
+    return 'animation-3d';
+  }
 
   if (
     /chiến sự|chiến tranh|quân sự|iran|israel|ukraine|nato|tên lửa|hạt nhân|biển đông|biển đỏ|biên giới|xung đột|hạm đội|tàu sân bay|không kích|cấm vận|ngoại giao|địa chính trị|lầu năm góc|trung đông|triều tiên|đài loan|war|military|missile|conflict|pentagon|navy/.test(
@@ -1096,12 +1126,12 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
   const passClean = String(plainPassword || '').trim();
   if (!codeClean || !passClean) return null;
 
-  // 1. Kiểm tra tài khoản trong danh sách hệ thống
+  // 1. Kiểm tra tài khoản trong danh sách hệ thống (dùng constantTimeVerify chống Timing Attack)
   const found = SYSTEM_CORE_ACCOUNTS.find((a) => a.code.toUpperCase() === codeClean);
   if (found) {
     if (
-      passClean === found.currentTempPassword ||
-      passClean.toUpperCase() === found.currentTempPassword.toUpperCase()
+      constantTimeVerify(passClean, found.currentTempPassword) ||
+      constantTimeVerify(passClean.toUpperCase(), found.currentTempPassword.toUpperCase())
     ) {
       return {
         code: found.code,
@@ -2361,28 +2391,47 @@ sourceUrl, sourceTitle, authorName, embedUrl, thumbnailUrl, durationSec, totalSc
           contents = [{ parts: [{ text: promptText }] }];
         }
 
-        const resp = await postJsonHttps(
-          gUrl,
-          {},
-          {
-            contents,
-            generationConfig: {
-              temperature: 0.2,
-              responseMimeType: 'application/json',
-            },
-          }
+        const candidateDeconstructModels = Array.from(
+          new Set([cleanModel, 'gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'])
         );
+        for (const tryMod of candidateDeconstructModels) {
+          const tryUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+            tryMod
+          )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+          const resp = await postJsonHttps(
+            tryUrl,
+            {},
+            {
+              contents,
+              generationConfig: {
+                temperature: 0.2,
+                responseMimeType: 'application/json',
+              },
+            }
+          ).catch(() => ({ status: 500, text: '' }));
 
-        if (resp.status === 200 && resp.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-          try {
-            dna = JSON.parse(resp.data.candidates[0].content.parts[0].text);
-            if (!dna.sourceTitle) dna.sourceTitle = meta.title;
-            if (!dna.authorName) dna.authorName = meta.author;
-            if (!dna.embedUrl) dna.embedUrl = meta.embedUrl;
-            if (!dna.thumbnailUrl) dna.thumbnailUrl = meta.thumbnailUrl;
-            if (!dna.durationSec) dna.durationSec = meta.lengthSeconds;
-          } catch (e) {
-            console.warn('Parse Gemini DNA JSON error:', e);
+          if (resp.status === 200 && resp.text) {
+            try {
+              const parsedResp = JSON.parse(resp.text);
+              const candidateText = extractGeminiTextFromParts(parsedResp);
+              if (candidateText) {
+                const cleanedJson = candidateText
+                  .replace(/^```json\s*/i, '')
+                  .replace(/^```\s*/i, '')
+                  .replace(/\s*```$/i, '')
+                  .trim();
+                dna = JSON.parse(cleanedJson);
+                if (!dna.sourceTitle) dna.sourceTitle = meta.title;
+                if (!dna.authorName) dna.authorName = meta.author;
+                if (!dna.embedUrl) dna.embedUrl = meta.embedUrl;
+                if (!dna.thumbnailUrl) dna.thumbnailUrl = meta.thumbnailUrl;
+                if (!dna.durationSec) dna.durationSec = meta.lengthSeconds;
+                dna.modelUsed = tryMod;
+                break;
+              }
+            } catch (e) {
+              console.warn('Parse Gemini DNA JSON error:', e);
+            }
           }
         }
       }
@@ -2419,15 +2468,31 @@ sourceUrl, sourceTitle, authorName, embedUrl, thumbnailUrl, durationSec, totalSc
         return true;
       }
 
-      const isSports = dna.pacingStyle === 'sports-high-intensity' || (dna.visualStyle?.aestheticTag || '').toLowerCase().includes('sports');
-      const isTech = dna.pacingStyle === 'tech-review-punchy' || (dna.visualStyle?.aestheticTag || '').toLowerCase().includes('tech');
+      const is3dAnim =
+        dna.pacingStyle === 'kids-3d-musical-rhythm' ||
+        /hoạt hình|3d|pixar|côn trùng|đếm số|cào cào|thiếu nhi|nhảy múa/i.test(
+          `${newTopic} ${dna.sourceTitle || ''} ${dna.visualStyle?.aestheticTag || ''}`
+        );
+      const isSports =
+        !is3dAnim &&
+        (dna.pacingStyle === 'sports-high-intensity' ||
+          (dna.visualStyle?.aestheticTag || '').toLowerCase().includes('sports'));
+      const isTech =
+        !is3dAnim &&
+        (dna.pacingStyle === 'tech-review-punchy' ||
+          (dna.visualStyle?.aestheticTag || '').toLowerCase().includes('tech'));
 
       const scenes = (dna.scenes || []).map((s, idx) => {
         let spokenText = '';
         let visualPrompt = '';
         let onScreen = '';
 
-        if (isSports) {
+        if (is3dAnim) {
+          const n = idx + 1;
+          spokenText = `Nhịp đếm số ${n}! Cùng ${n} bạn nhỏ 3D trong "${newTopic}" bật nhảy khỏe khoắn, vỗ cánh lấp lánh và hát vang theo nhịp điệu 130 BPM!`;
+          visualPrompt = `Pixar 3D animation wide shot of exactly ${n} cute articulated 3D cartoon characters from ${newTopic} dancing and singing number ${n} on an enchanted forest stage, subsurface scattering, 60fps skeletal animation, 8k`;
+          onScreen = `SỐ ${n} • VŨ Điệu 3D`;
+        } else if (isSports) {
           if (idx === 0) {
             spokenText = `Tình huống cực kỳ kịch tính liên quan đến ${newTopic}! Khung thành đang rung chuyển!`;
             visualPrompt = `High energy sports action shot, intense play regarding ${newTopic}, dramatic stadium floodlights, motion blur, 8k`;

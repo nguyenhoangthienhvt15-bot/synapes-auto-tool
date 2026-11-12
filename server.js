@@ -84,7 +84,18 @@ function getCachedFile(filePath, ext) {
   }
 }
 
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function getLockoutHtml(clientIp, bannedUntilIso) {
+  const safeIp = escapeHtml(clientIp);
+  const safeUntil = escapeHtml(bannedUntilIso);
   const incidentCode = `SEC-SRV-${Date.now().toString(36).toUpperCase()}`;
   return `<!DOCTYPE html>
 <html lang="vi">
@@ -232,7 +243,7 @@ function getLockoutHtml(clientIp, bannedUntilIso) {
 
   <h1>GIỚI HẠN TRUY CẬP HỆ THỐNG</h1>
   <p class="desc">
-    Địa chỉ IP của bạn (<code style="color:#e4e4e7;">${clientIp}</code>) đã được ghi nhận vào danh sách kiểm soát tạm thời do có thao tác can thiệp an ninh hoặc Developer Tools.
+    Địa chỉ IP của bạn (<code style="color:#e4e4e7;">${safeIp}</code>) đã được ghi nhận vào danh sách kiểm soát tạm thời do có thao tác can thiệp an ninh hoặc Developer Tools.
   </p>
 
   <div class="card">
@@ -256,7 +267,7 @@ function getLockoutHtml(clientIp, bannedUntilIso) {
   </div>
 
   <div class="footer">
-    Mã sự cố: <span style="color:#a1a1aa;">${incidentCode}</span> • Bị khóa đến: <span style="color:#a1a1aa;">${bannedUntilIso}</span>
+    Mã sự cố: <span style="color:#a1a1aa;">${incidentCode}</span> • Bị khóa đến: <span style="color:#a1a1aa;">${safeUntil}</span>
     <br />
     Chủ trì: <span style="color:#d4d4d8;">KS. Nguyễn Hoàng Thiện</span> • Email: <a href="mailto:nguyenhoangthien.hvt.15@gmail.com">nguyenhoangthien.hvt.15@gmail.com</a>
   </div>
@@ -327,12 +338,11 @@ const server = http.createServer(async (req, res) => {
   const cleanUrl = rawUrl.split('?')[0].split('#')[0];
 
   // Kiểm tra danh sách đen IP (Anti-DevTools & Threat Enforcer)
-  // Ngoại lệ: Cho phép gọi /api/security/unlock hoặc khi có cờ bypass_anti_tamper=1
+  // Ngoại lệ duy nhất: Cho phép gọi /api/security/unlock để xác thực Master Key (07022006) giải phóng IP
   const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
   const isUnlockEndpoint = cleanUrl === '/api/security/unlock';
-  const hasBypassQuery = rawUrl.includes('bypass_anti_tamper=1');
 
-  if (IP_BLACKLIST.has(clientIp) && !isUnlockEndpoint && !hasBypassQuery) {
+  if (IP_BLACKLIST.has(clientIp) && !isUnlockEndpoint) {
     const banInfo = IP_BLACKLIST.get(clientIp);
     if (Date.now() < banInfo.bannedUntil) {
       const acceptsHtml = req.headers.accept?.includes('text/html') || cleanUrl === '/' || cleanUrl.endsWith('.html');
@@ -484,7 +494,25 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Stream fallback for large media files (> 5MB)
+  // Stream fallback for large media files (> 5MB) or HTTP Range requests (206 Partial Content for MP4/WAV/WebM)
+  const rangeHeader = req.headers.range;
+  if (rangeHeader && (ext === '.mp4' || ext === '.webm' || ext === '.wav' || ext === '.mp3')) {
+    const parts = rangeHeader.replace(/bytes=/, '').split('-');
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+    if (!isNaN(start) && !isNaN(end) && start >= 0 && end < stat.size && start <= end) {
+      const chunkSize = end - start + 1;
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunkSize,
+        'Content-Type': contentType,
+      });
+      fs.createReadStream(filePath, { start, end }).pipe(res);
+      return;
+    }
+  }
+
   if (canGzip) {
     res.setHeader('Content-Encoding', 'gzip');
     res.writeHead(200);
@@ -492,6 +520,7 @@ const server = http.createServer(async (req, res) => {
     const gzip = zlib.createGzip({ level: 4 });
     rawStream.pipe(gzip).pipe(res);
   } else {
+    res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Content-Length', stat.size);
     res.writeHead(200);
     fs.createReadStream(filePath).pipe(res);
