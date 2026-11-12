@@ -844,6 +844,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         travel: { label: 'HÀNH TRÌNH KHÁM PHÁ', color: '#10b981' },
         sports: { label: 'TIÊU ĐIỂM THỂ THAO', color: '#22c55e' },
         'ai-cyber': { label: 'CÔNG NGHỆ & BÁN DẪN AI', color: '#06b6d4' },
+        'animation-3d': { label: 'HOẠT HÌNH 3D PIXAR • ĐẾM SỐ', color: '#22c55e' },
       };
       const meta = domainLabels[effectiveDomain] || domainLabels.news;
       badge = meta.label;
@@ -1157,6 +1158,200 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     ctx.restore();
   };
 
+  // SÂN KHẤU NHÂN VẬT HOẠT HÌNH 3D XƯƠNG KHỚP (Skeletal 3D Insect Rigging + Counting Badge 60fps)
+  const draw3dAnimationInsectStage = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    clockSec: number,
+    sceneIdx: number,
+    progress: number
+  ) => {
+    const countN = Math.max(1, Math.min(10, sceneIdx + 1));
+    const palettes = [
+      { body: '#22c55e', hi: '#86efac', belly: '#fef08a', wing: 'rgba(186,230,253,0.62)' },
+      { body: '#eab308', hi: '#fef08a', belly: '#78350f', wing: 'rgba(224,242,254,0.65)' },
+      { body: '#ef4444', hi: '#fca5a5', belly: '#1e293b', wing: 'rgba(254,226,226,0.58)' },
+      { body: '#06b6d4', hi: '#a5f3fc', belly: '#fef9c3', wing: 'rgba(207,250,254,0.65)' },
+      { body: '#a855f7', hi: '#e9d5ff', belly: '#fde047', wing: 'rgba(243,232,255,0.62)' },
+    ];
+
+    ctx.save();
+    const cols = countN <= 5 ? countN : Math.ceil(countN / 2);
+    const rows = countN <= 5 ? 1 : 2;
+    const baseScale = countN <= 2 ? 1.0 : countN <= 5 ? 0.78 : 0.62;
+
+    for (let i = 0; i < countN; i++) {
+      const row = rows === 1 ? 0 : Math.floor(i / cols);
+      const col = rows === 1 ? i : i % cols;
+      const itemsInRow = rows === 1 ? countN : row === 0 ? cols : countN - cols;
+      const spanW = W * 0.72;
+      const startX = (W - spanW) / 2;
+      const cx =
+        itemsInRow === 1
+          ? W * 0.5
+          : startX + (col / Math.max(1, itemsInRow - 1)) * spanW;
+      const baseGroundY = rows === 1 ? H * 0.72 : row === 0 ? H * 0.63 : H * 0.77;
+
+      const phase = clockSec * 6.8 + i * 0.85;
+      const jump = Math.max(0, Math.sin(phase));
+      const jumpY = -jump * H * 0.075 * baseScale;
+      const squashX = 1 + (1 - jump) * 0.08 - jump * 0.06;
+      const squashY = 1 - (1 - jump) * 0.08 + jump * 0.08;
+      const pal = palettes[i % palettes.length];
+      const r = Math.min(W, H) * 0.048 * baseScale;
+
+      // Ground contact shadow
+      ctx.save();
+      ctx.fillStyle = `rgba(0,0,0,${0.38 * (1 - jump * 0.55)})`;
+      ctx.beginPath();
+      ctx.ellipse(cx, baseGroundY + r * 0.95, r * 1.15 * (1 - jump * 0.35), r * 0.28, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(cx, baseGroundY + jumpY);
+      ctx.scale(squashX, squashY);
+
+      // Flapping 3D wings (20Hz)
+      const wingAngle = Math.sin(clockSec * 38 + i) * 0.48;
+      for (const dir of [-1, 1]) {
+        ctx.save();
+        ctx.translate(dir * r * 0.35, -r * 0.35);
+        ctx.rotate(dir * (0.55 + wingAngle));
+        ctx.fillStyle = pal.wing;
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.ellipse(dir * r * 0.7, -r * 0.2, r * 0.85, r * 0.38, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Articulated legs
+      const legKick = Math.sin(phase) * 0.35;
+      ctx.strokeStyle = pal.body;
+      ctx.lineWidth = Math.max(3, r * 0.22);
+      ctx.lineCap = 'round';
+      for (const dir of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(dir * r * 0.35, r * 0.35);
+        ctx.lineTo(dir * r * (0.75 + legKick * 0.3), r * (0.65 - jump * 0.2));
+        ctx.lineTo(dir * r * 0.52, r * 0.95);
+        ctx.stroke();
+      }
+
+      // 3D Shaded Thorax/Abdomen
+      const bodyGrad = ctx.createRadialGradient(-r * 0.25, -r * 0.2, r * 0.1, 0, 0, r * 1.05);
+      bodyGrad.addColorStop(0, pal.hi);
+      bodyGrad.addColorStop(0.55, pal.body);
+      bodyGrad.addColorStop(1, '#0f172a');
+      ctx.fillStyle = bodyGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, r * 0.1, r * 0.72, r * 0.82, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Waving Arms
+      const armWave = Math.sin(clockSec * 9.5 + i * 1.3) * 0.55;
+      for (const dir of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(dir * r * 0.55, -r * 0.1);
+        ctx.lineTo(dir * r * 1.15, -r * (0.45 + dir * armWave * 0.45));
+        ctx.stroke();
+      }
+
+      // 3D Head with Specular Highlight
+      const headY = -r * 0.85;
+      const headGrad = ctx.createRadialGradient(-r * 0.25, headY - r * 0.25, r * 0.08, 0, headY, r * 0.78);
+      headGrad.addColorStop(0, pal.hi);
+      headGrad.addColorStop(0.65, pal.body);
+      headGrad.addColorStop(1, '#14532d');
+      ctx.fillStyle = headGrad;
+      ctx.beginPath();
+      ctx.arc(0, headY, r * 0.72, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Spring Antennae
+      const antSway = Math.sin(clockSec * 8 + i) * r * 0.22;
+      ctx.lineWidth = Math.max(2, r * 0.12);
+      for (const dir of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(dir * r * 0.28, headY - r * 0.62);
+        ctx.quadraticCurveTo(
+          dir * r * 0.55 + antSway,
+          headY - r * 1.25,
+          dir * r * 0.75 + antSway,
+          headY - r * 1.35
+        );
+        ctx.stroke();
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath();
+        ctx.arc(dir * r * 0.75 + antSway, headY - r * 1.35, r * 0.14, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Big Glossy Pixar Eyes + Blink
+      const isBlinking = Math.sin(clockSec * 3.1 + i * 1.7) > 0.94;
+      for (const dir of [-1, 1]) {
+        const ex = dir * r * 0.28;
+        const ey = headY - r * 0.06;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.ellipse(ex, ey, r * 0.22, isBlinking ? r * 0.03 : r * 0.25, 0, 0, Math.PI * 2);
+        ctx.fill();
+        if (!isBlinking) {
+          ctx.fillStyle = '#0f172a';
+          ctx.beginPath();
+          ctx.arc(ex + dir * r * 0.03, ey, r * 0.12, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(ex - r * 0.04, ey - r * 0.07, r * 0.05, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Lip-synced Singing Mouth
+      const mouthOpen = 0.25 + 0.75 * Math.abs(Math.sin(clockSec * 11.5 + i * 0.5));
+      ctx.fillStyle = '#7f1d1d';
+      ctx.beginPath();
+      ctx.ellipse(0, headY + r * 0.32, r * 0.22, r * (0.06 + mouthOpen * 0.16), 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // 3D Extruded Counting Number Badge (Top-Left)
+    const badgeX = W * 0.08;
+    const badgeY = H * 0.18;
+    const badgeR = Math.min(W, H) * 0.075;
+    const popScale = 1 + Math.sin(clockSec * 6.8) * 0.06 * Math.min(1, progress * 4);
+    ctx.save();
+    ctx.translate(badgeX, badgeY);
+    ctx.scale(popScale, popScale);
+    const numGrad = ctx.createRadialGradient(-badgeR * 0.3, -badgeR * 0.3, badgeR * 0.1, 0, 0, badgeR);
+    numGrad.addColorStop(0, '#fef08a');
+    numGrad.addColorStop(0.6, '#f59e0b');
+    numGrad.addColorStop(1, '#b45309');
+    ctx.fillStyle = numGrad;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(0, 0, badgeR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `900 ${Math.round(badgeR * 1.15)}px Inter, system-ui, sans-serif`;
+    ctx.fillText(String(countN), 0, 2);
+    ctx.restore();
+
+    ctx.restore();
+  };
+
   // DRAW CANVAS COMPOSITOR (60FPS REAL INTERNET PHOTOGRAPHY + BROADCAST HUD)
   const drawCinemaCanvas = (clockSec: number, overrideTimeSec?: number) => {
     const canvas = canvasRef.current;
@@ -1232,10 +1427,14 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     const prevScene = activeIdx > 0 ? scenes[activeIdx - 1] : null;
     const prevImg = prevScene ? loadedImagesRef.current[prevScene.id] : null;
 
+    const is3dAnimationProject =
+      effectiveGenre === '3d-animation' || effectiveDomain === 'animation-3d';
+
     const isNewsOverlayActive =
-      visualRenderMode === 'news-24h' ||
-      (visualRenderMode === 'auto-genre' &&
-        (effectiveGenre === 'news-broadcast' || effectiveGenre === 'finance-analysis'));
+      !is3dAnimationProject &&
+      (visualRenderMode === 'news-24h' ||
+        (visualRenderMode === 'auto-genre' &&
+          (effectiveGenre === 'news-broadcast' || effectiveGenre === 'finance-analysis')));
 
     const allowHardware3dOverlays =
       isHardwareKeynoteProject &&
@@ -1277,10 +1476,14 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         } else if (scene.appleMotion3d && scene.appleMotion3d !== 'none') {
           drawAppleKeynoteSubtleMotionOverlay(ctx, W, H, clockSec, progress, activeIdx);
         }
+      } else if (is3dAnimationProject) {
+        draw3dAnimationInsectStage(ctx, W, H, clockSec, activeIdx, progress);
       } else if (visualRenderMode === 'hybrid-3d' && !isHardwareKeynoteProject) {
         // Hiệu ứng quét ánh sáng điện ảnh trung tính cho các chủ đề không phải điện thoại
         drawAppleKeynoteSubtleMotionOverlay(ctx, W, H, clockSec, progress, activeIdx);
       }
+    } else if (is3dAnimationProject) {
+      draw3dAnimationInsectStage(ctx, W, H, clockSec, activeIdx, progress);
     } else if (isHardwareKeynoteProject) {
       drawCinematicSceneStage(ctx, W, H, clockSec, activeIdx, progress, scene);
     } else {

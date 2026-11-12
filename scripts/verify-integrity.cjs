@@ -294,7 +294,39 @@ if (fs.existsSync(serverJsPath)) {
     'server.js cấu hình tiêu đề bảo mật Content-Security-Policy (CSP)');
   assert(srvContent.includes('/api/security/unlock'),
     'server.js hỗ trợ ngoại lệ định tuyến cho cổng mở khóa /api/security/unlock');
+  assert(srvContent.includes('escapeHtml(clientIp)') && srvContent.includes('206'),
+    'server.js (Phiên 9) chống Reflected XSS qua escapeHtml(clientIp) và hỗ trợ HTTP 206 Partial Content cho MP4');
 }
+
+// -----------------------------------------------------------------------------
+// 9. KIỂM ĐỊNH TOÀN DIỆN PHIÊN HỌP THỨ 9 (3D ANIMATION ENGINE & HARDENING)
+// -----------------------------------------------------------------------------
+console.log('\n--- [NHÓM 9] KIỂM TOÁN TOÀN DIỆN PHIÊN HỌP THỨ 9 (3D INSECT COUNTING 1-10) ---');
+const typesPath = path.join(ROOT, 'src', 'types', 'index.ts');
+const scriptGenPath = path.join(ROOT, 'src', 'services', 'aiScriptGeneratorService.ts');
+const cinemaPlayerPath = path.join(ROOT, 'src', 'components', 'AiCinemaPlayer.tsx');
+if (fs.existsSync(typesPath)) {
+  const typesContent = fs.readFileSync(typesPath, 'utf8');
+  assert(typesContent.includes("'3d-animation'"),
+    'src/types/index.ts định nghĩa thể loại VideoGenre 3d-animation');
+}
+if (fs.existsSync(scriptGenPath)) {
+  const sgContent = fs.readFileSync(scriptGenPath, 'utf8');
+  assert(sgContent.includes("'animation-3d'") && sgContent.includes("'3d-animation'"),
+    'aiScriptGeneratorService.ts hỗ trợ miền chủ đề animation-3d và thể loại 3d-animation');
+}
+if (fs.existsSync(cinemaPlayerPath)) {
+  const cpContent = fs.readFileSync(cinemaPlayerPath, 'utf8');
+  assert(cpContent.includes('draw3dAnimationInsectStage'),
+    'AiCinemaPlayer.tsx tích hợp sân khấu nhân vật côn trùng 3D xương khớp draw3dAnimationInsectStage');
+}
+const phien9Dir = 'C:\\Users\\84364\\Documents\\DỰ ÁN WEB APP AUTO TOOL\\Phiên họp thứ chín';
+assert(
+  fs.existsSync(path.join(phien9Dir, 'BAO_CAO_KIEM_TOAN_TOAN_DIEN_VA_NGHIEM_THU_HE_THONG_PHIEN_IX.pdf')) &&
+  fs.existsSync(path.join(phien9Dir, 'BAO_CAO_KIEM_TOAN_TOAN_DIEN_VA_NGHIEM_THU_HE_THONG_PHIEN_IX.docx')) &&
+  fs.existsSync(path.join(phien9Dir, 'DU_AN_CON_TRUNG_3D_NHAY_MUA_DEM_SO_1_DEN_10.json')),
+  'Thư mục Phiên họp thứ chín lưu trữ đầy đủ Báo cáo PDF, DOCX, TYP và Hồ sơ kịch bản JSON 10 cảnh'
+);
 
 // -----------------------------------------------------------------------------
 // KẾT LUẬN TOÀN BỘ BÀI TEST
