@@ -43,6 +43,34 @@ export type VfxOverlayType = 'film-grain' | 'light-leak' | 'vignette' | 'anamorp
 export type SubtitleStyle = 'hormozi' | 'capcut' | 'netflix' | 'cyberpunk' | 'apple-minimal' | 'off';
 export type SubtitlePosition = 'bottom' | 'center' | 'top';
 export type VideoGenre = 'news-broadcast' | 'documentary' | 'apple-keynote' | 'finance-analysis' | 'viral-social' | '3d-animation';
+export type CameraDialogueAngle = 'master-shot' | 'shot-reverse-shot' | 'over-the-shoulder' | 'close-up-speaker' | 'two-shot';
+
+export interface CharacterActor {
+  id: string;
+  name: string;
+  roleDescription: string;
+  avatarUrl?: string;
+  voiceId: string;
+  voiceName: string;
+  voiceSpeed: number;
+  voicePitch: number;
+  themeColor: string;
+  defaultEmotion?: 'crying' | 'worried' | 'happy' | 'caring' | 'playful';
+}
+
+export interface DialogueLine {
+  id: string;
+  speakerId: string;
+  speakerName: string;
+  text: string;
+  voiceId?: string;
+  voiceSpeed?: number;
+  voicePitch?: number;
+  emotion?: string;
+  startSec: number;
+  endSec: number;
+  audioUrl?: string;
+}
 
 export interface StoryboardScene {
   id: number;
@@ -75,6 +103,11 @@ export interface StoryboardScene {
   explodedView?: boolean;
   apertureBlades?: boolean;
   appleMotion3d?: 'exploded-chip' | 'aperture-zoom' | 'titanium-orbit' | 'none';
+  speakerId?: string;
+  speakerName?: string;
+  speakerAvatarUrl?: string;
+  cameraAngle?: CameraDialogueAngle;
+  dialogueLines?: DialogueLine[];
 }
 
 export interface ProjectMetadata {
@@ -106,6 +139,8 @@ export interface Project {
     voiceName: string;
     audioUrl?: string;
   };
+  characterActors?: CharacterActor[];
+  dialogueMode?: boolean;
   storyboard: StoryboardScene[];
   metadata: ProjectMetadata;
   aiSource: {

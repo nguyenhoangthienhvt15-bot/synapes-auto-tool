@@ -1352,6 +1352,604 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     ctx.restore();
   };
 
+  // SÂN KHẤU HOẠT HÌNH 3D ĐỐI THOẠI ĐA NHÂN VẬT & NHIỀU KIỂU GIỌNG (3D Dialogue Stage + Shot-Reverse-Shot + Lip-Sync)
+  const draw3dDialogueCinemaStage = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    clockSec: number,
+    sceneIdx: number,
+    progress: number,
+    scene: StoryboardScene
+  ) => {
+    ctx.save();
+
+    const speakerId = scene.speakerId || 'tho-con';
+    const cameraAngle = scene.cameraAngle || 'shot-reverse-shot';
+    const isGardenScene = scene.sceneNumber === 6 || (scene.imageUrl && scene.imageUrl.includes('garden'));
+
+    // Determine camera shot transformation
+    let camZoom = 1.0;
+    let camPanX = 0;
+    let camPanY = 0;
+
+    if (cameraAngle === 'close-up-speaker') {
+      camZoom = 1.28;
+      if (speakerId === 'tho-con') camPanX = W * 0.08;
+      else if (speakerId === 'cuu-bong') camPanX = -W * 0.08;
+      else if (speakerId === 'meo-con') camPanX = -W * 0.12;
+      else if (speakerId === 'bac-si') camPanX = W * 0.12;
+    } else if (cameraAngle === 'shot-reverse-shot') {
+      camZoom = 1.15;
+      camPanX = speakerId === 'tho-con' ? W * 0.06 : -W * 0.06;
+    } else if (cameraAngle === 'over-the-shoulder') {
+      camZoom = 1.18;
+      camPanX = speakerId === 'meo-con' ? -W * 0.08 : W * 0.08;
+    } else if (cameraAngle === 'two-shot') {
+      camZoom = 1.08;
+    } else {
+      // master-shot
+      camZoom = 1.0;
+    }
+
+    // Apply camera motion easing
+    const subtleBreath = Math.sin(clockSec * 1.5) * 0.015;
+    ctx.translate(W / 2 + camPanX, H / 2 + camPanY);
+    ctx.scale(camZoom + subtleBreath, camZoom + subtleBreath);
+    ctx.translate(-W / 2, -H / 2);
+
+    const groundY = H * 0.74;
+
+    // 1. Pink Bunny (Thỏ Con)
+    const drawBunny = (x: number, y: number, scale: number, isSpeaking: boolean, emotion: string) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+
+      const hop = isSpeaking ? Math.abs(Math.sin(clockSec * 8)) * 14 : Math.sin(clockSec * 2) * 4;
+      ctx.translate(0, -hop);
+
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.32)';
+      ctx.beginPath();
+      ctx.ellipse(0, 105, 55, 16, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Body
+      const bodyGrad = ctx.createRadialGradient(-15, 30, 10, 0, 45, 65);
+      bodyGrad.addColorStop(0, '#fbcfe8');
+      bodyGrad.addColorStop(0.6, '#f472b6');
+      bodyGrad.addColorStop(1, '#db2777');
+      ctx.fillStyle = bodyGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, 45, 48, 56, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // White belly
+      ctx.fillStyle = '#fff1f2';
+      ctx.beginPath();
+      ctx.ellipse(0, 52, 28, 36, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Head
+      const headGrad = ctx.createRadialGradient(-12, -35, 10, 0, -25, 52);
+      headGrad.addColorStop(0, '#fce7f3');
+      headGrad.addColorStop(0.7, '#f472b6');
+      headGrad.addColorStop(1, '#db2777');
+      ctx.fillStyle = headGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, -25, 45, 42, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Ears
+      const earWiggleL = Math.sin(clockSec * 5) * 0.08;
+      const earWiggleR = Math.sin(clockSec * 5 + 1) * 0.08;
+
+      ctx.save();
+      ctx.translate(-22, -60);
+      ctx.rotate(-0.18 + earWiggleL);
+      ctx.fillStyle = headGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, -38, 16, 46, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fdf2f8';
+      ctx.beginPath();
+      ctx.ellipse(0, -36, 9, 34, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(22, -60);
+      ctx.rotate(0.18 + earWiggleR);
+      ctx.fillStyle = headGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, -38, 16, 46, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fdf2f8';
+      ctx.beginPath();
+      ctx.ellipse(0, -36, 9, 34, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Eyes
+      const blink = Math.sin(clockSec * 1.8) > 0.96;
+      for (const side of [-1, 1]) {
+        ctx.save();
+        ctx.translate(side * 18, -32);
+        if (blink) {
+          ctx.strokeStyle = '#374151';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(0, 0, 8, 0, Math.PI);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 11, 14, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#1e1b4b';
+          ctx.beginPath();
+          ctx.arc(side * 1.5, 1, 7.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(side * 1.5 - 2.5, -2.5, 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(side * 1.5 + 2, 3, 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      // Cheeks
+      ctx.fillStyle = 'rgba(244, 63, 94, 0.45)';
+      ctx.beginPath();
+      ctx.arc(-26, -18, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(26, -18, 9, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Nose
+      ctx.fillStyle = '#e11d48';
+      ctx.beginPath();
+      ctx.ellipse(0, -18, 5, 3.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Mouth
+      const mouthOpen = isSpeaking ? (Math.sin(clockSec * 16) * 0.5 + 0.5) * 8 : 1.5;
+      ctx.fillStyle = '#be123c';
+      ctx.strokeStyle = '#881337';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      if (emotion === 'crying') {
+        ctx.arc(0, -9 + mouthOpen * 0.5, 7 + mouthOpen * 0.4, Math.PI * 1.15, Math.PI * 1.85);
+        ctx.stroke();
+      } else {
+        ctx.ellipse(0, -10 + mouthOpen * 0.3, 6, 2.5 + mouthOpen, 0, 0, Math.PI);
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      // Tears
+      if (emotion === 'crying') {
+        const tearOff = (clockSec * 45) % 30;
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(-22, -18 + tearOff * 0.6, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(22, -18 + tearOff * 0.6, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Hands
+      if (!isGardenScene && sceneIdx < 4) {
+        ctx.fillStyle = '#10b981';
+        ctx.beginPath();
+        ctx.roundRect(-10, 20, 20, 32, 6);
+        ctx.fill();
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(-6, 14, 12, 6);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(-8, 28, 16, 14);
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(-6, 34, 12, 2.5);
+      } else {
+        const clap = Math.sin(clockSec * 12) * 8;
+        ctx.fillStyle = '#fbcfe8';
+        ctx.beginPath();
+        ctx.ellipse(-28 + clap, 22, 11, 9, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(28 - clap, 22, 11, 9, 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    };
+
+    // 2. Fluffy Sheep (Cừu Bông)
+    const drawSheep = (x: number, y: number, scale: number, isSpeaking: boolean) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+
+      const hop = isSpeaking ? Math.abs(Math.sin(clockSec * 8.5)) * 10 : Math.sin(clockSec * 2.2 + 0.5) * 3;
+      ctx.translate(0, -hop);
+
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(0, 100, 56, 16, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      const woolGrad = ctx.createRadialGradient(-10, 30, 15, 0, 40, 68);
+      woolGrad.addColorStop(0, '#ffffff');
+      woolGrad.addColorStop(0.7, '#f1f5f9');
+      woolGrad.addColorStop(1, '#cbd5e1');
+
+      ctx.fillStyle = woolGrad;
+      const woolPuffs = [
+        [-30, 35, 26], [30, 35, 26], [0, 48, 30],
+        [-20, 65, 24], [20, 65, 24], [0, 20, 28],
+        [-35, 15, 22], [35, 15, 22]
+      ];
+      for (const [px, py, pr] of woolPuffs) {
+        ctx.beginPath();
+        ctx.arc(px, py, pr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const headGrad = ctx.createRadialGradient(-10, -25, 10, 0, -18, 40);
+      headGrad.addColorStop(0, '#fef3c7');
+      headGrad.addColorStop(0.8, '#fde68a');
+      headGrad.addColorStop(1, '#f59e0b');
+      ctx.fillStyle = headGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, -18, 34, 32, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = woolGrad;
+      ctx.beginPath();
+      ctx.arc(-14, -46, 15, 0, Math.PI * 2);
+      ctx.arc(14, -46, 15, 0, Math.PI * 2);
+      ctx.arc(0, -52, 17, 0, Math.PI * 2);
+      ctx.fill();
+
+      const earSwing = Math.sin(clockSec * 6) * 0.06;
+      ctx.fillStyle = '#fde68a';
+      ctx.save();
+      ctx.translate(-30, -28);
+      ctx.rotate(0.35 + earSwing);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 16, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(30, -28);
+      ctx.rotate(-0.35 - earSwing);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 16, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      for (const side of [-1, 1]) {
+        ctx.save();
+        ctx.translate(side * 14, -22);
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.arc(0, 0, 6.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(-2, -2, 2.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      ctx.fillStyle = '#b45309';
+      ctx.beginPath();
+      ctx.ellipse(0, -10, 4, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      const mouthOpen = isSpeaking ? (Math.sin(clockSec * 15) * 0.5 + 0.5) * 7 : 1;
+      ctx.fillStyle = '#e11d48';
+      ctx.beginPath();
+      ctx.ellipse(0, -3 + mouthOpen * 0.3, 5, 2 + mouthOpen, 0, 0, Math.PI);
+      ctx.fill();
+
+      const armWave = isSpeaking ? Math.sin(clockSec * 10) * 0.25 : 0;
+      ctx.save();
+      ctx.translate(28, 28);
+      ctx.rotate(armWave);
+      ctx.fillStyle = '#fde68a';
+      ctx.beginPath();
+      ctx.ellipse(14, 0, 14, 8, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.restore();
+    };
+
+    // 3. Cute Kitten (Mèo Con Nơ Hồng)
+    const drawKitten = (x: number, y: number, scale: number, isSpeaking: boolean) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+
+      const hop = isSpeaking ? Math.abs(Math.sin(clockSec * 8)) * 9 : Math.sin(clockSec * 2.3 + 1) * 3;
+      ctx.translate(0, -hop);
+
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(0, 95, 48, 14, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      const kittenGrad = ctx.createRadialGradient(-10, 30, 10, 0, 40, 56);
+      kittenGrad.addColorStop(0, '#fed7aa');
+      kittenGrad.addColorStop(0.7, '#fb923c');
+      kittenGrad.addColorStop(1, '#ea580c');
+      ctx.fillStyle = kittenGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, 42, 38, 48, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = kittenGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, -22, 38, 34, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = kittenGrad;
+      ctx.beginPath();
+      ctx.moveTo(-32, -32);
+      ctx.lineTo(-24, -58);
+      ctx.lineTo(-6, -42);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(32, -32);
+      ctx.lineTo(24, -58);
+      ctx.lineTo(6, -42);
+      ctx.closePath();
+      ctx.fill();
+
+      // Pink Ribbon Bow
+      ctx.save();
+      ctx.translate(-24, -46);
+      ctx.fillStyle = '#ec4899';
+      ctx.beginPath();
+      ctx.ellipse(-7, -4, 9, 6, -0.4, 0, Math.PI * 2);
+      ctx.ellipse(7, -4, 9, 6, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f43f5e';
+      ctx.beginPath();
+      ctx.arc(0, -4, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      for (const side of [-1, 1]) {
+        ctx.save();
+        ctx.translate(side * 14, -24);
+        ctx.fillStyle = '#065f46';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 7.5, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(-2.5, -2.5, 2.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      ctx.strokeStyle = '#fdba74';
+      ctx.lineWidth = 1.5;
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(side * 18, -12);
+        ctx.lineTo(side * 42, -16);
+        ctx.moveTo(side * 18, -8);
+        ctx.lineTo(side * 42, -6);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = '#f43f5e';
+      ctx.beginPath();
+      ctx.ellipse(0, -14, 4, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      const mouthOpen = isSpeaking ? (Math.sin(clockSec * 16) * 0.5 + 0.5) * 6 : 1;
+      ctx.fillStyle = '#e11d48';
+      ctx.beginPath();
+      ctx.ellipse(0, -7 + mouthOpen * 0.3, 5, 2 + mouthOpen, 0, 0, Math.PI);
+      ctx.fill();
+
+      ctx.restore();
+    };
+
+    // 4. Doctor Bear (Bác Sĩ Gấu)
+    const drawDoctorBear = (x: number, y: number, scale: number, isSpeaking: boolean) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+
+      const breath = isSpeaking ? Math.sin(clockSec * 8) * 4 : Math.sin(clockSec * 2) * 2;
+      ctx.translate(0, -breath);
+
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(0, 120, 68, 20, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      const bearGrad = ctx.createRadialGradient(-15, 30, 20, 0, 50, 80);
+      bearGrad.addColorStop(0, '#b45309');
+      bearGrad.addColorStop(0.7, '#78350f');
+      bearGrad.addColorStop(1, '#451a03');
+      ctx.fillStyle = bearGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, 50, 56, 70, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(-32, 10);
+      ctx.lineTo(32, 10);
+      ctx.lineTo(44, 110);
+      ctx.lineTo(-44, 110);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.arc(0, 35, 22, 0, Math.PI);
+      ctx.stroke();
+      ctx.fillStyle = '#94a3b8';
+      ctx.beginPath();
+      ctx.arc(0, 58, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = bearGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, -32, 48, 44, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = bearGrad;
+      ctx.beginPath();
+      ctx.arc(-36, -64, 16, 0, Math.PI * 2);
+      ctx.arc(36, -64, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fde68a';
+      ctx.beginPath();
+      ctx.arc(-36, -64, 8, 0, Math.PI * 2);
+      ctx.arc(36, -64, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#fde68a';
+      ctx.beginPath();
+      ctx.ellipse(0, -22, 22, 16, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#1e1b4b';
+      ctx.beginPath();
+      ctx.ellipse(0, -26, 7, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(-18, -38, 12, 0, Math.PI * 2);
+      ctx.arc(18, -38, 12, 0, Math.PI * 2);
+      ctx.moveTo(-6, -38);
+      ctx.lineTo(6, -38);
+      ctx.stroke();
+
+      ctx.fillStyle = '#1e1b4b';
+      ctx.beginPath();
+      ctx.arc(-18, -38, 4, 0, Math.PI * 2);
+      ctx.arc(18, -38, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      const mouthOpen = isSpeaking ? (Math.sin(clockSec * 14) * 0.5 + 0.5) * 6 : 1;
+      ctx.fillStyle = '#be123c';
+      ctx.beginPath();
+      ctx.ellipse(0, -14 + mouthOpen * 0.3, 6, 2.5 + mouthOpen, 0, 0, Math.PI);
+      ctx.fill();
+
+      ctx.restore();
+    };
+
+    const isRabbitSpeaking = speakerId === 'tho-con';
+    const isSheepSpeaking = speakerId === 'cuu-bong';
+    const isKittenSpeaking = speakerId === 'meo-con';
+    const isDoctorSpeaking = speakerId === 'bac-si';
+
+    if (sceneIdx === 0) {
+      drawBunny(W * 0.5, groundY, 1.25, isRabbitSpeaking, 'crying');
+      drawSheep(W * 0.2, groundY + 10, 0.95, false);
+      drawKitten(W * 0.8, groundY + 10, 0.95, false);
+    } else if (sceneIdx === 1) {
+      drawSheep(W * 0.38, groundY, 1.25, isSheepSpeaking);
+      drawBunny(W * 0.72, groundY + 15, 1.05, false, 'worried');
+    } else if (sceneIdx === 2) {
+      drawKitten(W * 0.38, groundY, 1.25, isKittenSpeaking);
+      drawBunny(W * 0.72, groundY + 15, 1.05, false, 'happy');
+    } else if (sceneIdx === 3) {
+      drawDoctorBear(W * 0.36, groundY - 20, 1.15, isDoctorSpeaking);
+      drawBunny(W * 0.72, groundY + 15, 1.05, false, 'happy');
+    } else if (sceneIdx === 4) {
+      drawBunny(W * 0.5, groundY, 1.3, isRabbitSpeaking, 'happy');
+      drawSheep(W * 0.22, groundY + 12, 0.95, false);
+      drawKitten(W * 0.78, groundY + 12, 0.95, false);
+    } else {
+      drawSheep(W * 0.25, groundY, 1.05, true);
+      drawBunny(W * 0.5, groundY - 10, 1.15, true, 'happy');
+      drawKitten(W * 0.75, groundY, 1.05, true);
+    }
+
+    // DIALOGUE HUD: 3D Speaker Identity Badge & Voice Pitch Meter
+    const currentActor = project.characterActors?.find((a) => a.id === speakerId) || {
+      name: scene.speakerName || 'Nhân vật 3D',
+      voiceName: scene.voiceId || 'vi-child-female',
+      voicePitch: scene.voicePitch || 1.35,
+      voiceSpeed: scene.voiceSpeed || 1.05,
+      themeColor: isRabbitSpeaking ? '#ec4899' : isSheepSpeaking ? '#0ea5e9' : isKittenSpeaking ? '#f59e0b' : '#10b981',
+    };
+
+    const hudX = W * 0.05;
+    const hudY = H * 0.08;
+    const hudW = Math.min(W * 0.46, 420);
+    const hudH = 58;
+
+    ctx.save();
+    ctx.translate(hudX, hudY);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.strokeStyle = currentActor.themeColor || '#ec4899';
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = currentActor.themeColor || '#ec4899';
+    ctx.shadowBlur = 16;
+    ctx.beginPath();
+    ctx.roundRect(0, 0, hudW, hudH, 16);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = currentActor.themeColor || '#ec4899';
+    ctx.beginPath();
+    ctx.roundRect(0, 0, 8, hudH, [16, 0, 0, 16]);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 16px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`🎙️ ${currentActor.name.toUpperCase()}`, 20, 10);
+
+    const pitchPercent = Math.round(((currentActor.voicePitch || 1) - 1) * 100);
+    const pitchStr = pitchPercent >= 0 ? `+${pitchPercent}%` : `${pitchPercent}%`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '500 12px Inter, system-ui, sans-serif';
+    ctx.fillText(
+      `PITCH: ${pitchStr} • TỐC ĐỘ: ${Math.round((currentActor.voiceSpeed || 1) * 100)}% • ${scene.cameraAngle?.toUpperCase() || 'SHOT-REVERSE-SHOT'}`,
+      20,
+      32
+    );
+
+    const waveX = hudW - 55;
+    for (let b = 0; b < 4; b++) {
+      const bh = (Math.sin(clockSec * 16 + b * 1.5) * 0.5 + 0.5) * 22 + 6;
+      ctx.fillStyle = currentActor.themeColor || '#ec4899';
+      ctx.beginPath();
+      ctx.roundRect(waveX + b * 9, hudH - 14 - bh, 5, bh, 2.5);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    ctx.restore();
+  };
+
   // DRAW CANVAS COMPOSITOR (60FPS REAL INTERNET PHOTOGRAPHY + BROADCAST HUD)
   const drawCinemaCanvas = (clockSec: number, overrideTimeSec?: number) => {
     const canvas = canvasRef.current;
@@ -1477,13 +2075,21 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           drawAppleKeynoteSubtleMotionOverlay(ctx, W, H, clockSec, progress, activeIdx);
         }
       } else if (is3dAnimationProject) {
-        draw3dAnimationInsectStage(ctx, W, H, clockSec, activeIdx, progress);
+        if (project.dialogueMode || scene.speakerId || scene.cameraAngle) {
+          draw3dDialogueCinemaStage(ctx, W, H, clockSec, activeIdx, progress, scene);
+        } else {
+          draw3dAnimationInsectStage(ctx, W, H, clockSec, activeIdx, progress);
+        }
       } else if (visualRenderMode === 'hybrid-3d' && !isHardwareKeynoteProject) {
         // Hiệu ứng quét ánh sáng điện ảnh trung tính cho các chủ đề không phải điện thoại
         drawAppleKeynoteSubtleMotionOverlay(ctx, W, H, clockSec, progress, activeIdx);
       }
     } else if (is3dAnimationProject) {
-      draw3dAnimationInsectStage(ctx, W, H, clockSec, activeIdx, progress);
+      if (project.dialogueMode || scene.speakerId || scene.cameraAngle) {
+        draw3dDialogueCinemaStage(ctx, W, H, clockSec, activeIdx, progress, scene);
+      } else {
+        draw3dAnimationInsectStage(ctx, W, H, clockSec, activeIdx, progress);
+      }
     } else if (isHardwareKeynoteProject) {
       drawCinematicSceneStage(ctx, W, H, clockSec, activeIdx, progress, scene);
     } else {

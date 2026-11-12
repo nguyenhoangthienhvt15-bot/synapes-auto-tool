@@ -375,6 +375,16 @@ export const DOMAIN_PHOTO_POOLS = {
   ],
   'animation-3d': [
     {
+      title: 'Pixar 3D Cozy Nursery Clinic Stage',
+      url: '/3d_dialogue_clinic_stage.jpg',
+      source: 'SYNAPES 3D Dialogue Stage Plate',
+    },
+    {
+      title: 'Pixar 3D Sunny Flower Garden Stage',
+      url: '/3d_dialogue_garden_stage.jpg',
+      source: 'SYNAPES 3D Dialogue Stage Plate',
+    },
+    {
       title: 'Pixar 3D Enchanted Forest Stage Plate',
       url: '/3d_forest_stage_1.jpg',
       source: 'SYNAPES 3D Animation Studio',
@@ -404,7 +414,7 @@ export function classifyTopicDomain(query = '') {
   const q = String(query || '').toLowerCase();
 
   if (
-    /hoạt hình|3d|pixar|disney|thiếu nhi|đếm số|nhảy múa|côn trùng|cào cào|châu chấu|bọ rùa|ong vàng|bướm|kiến|chú thỏ|đàn thỏ|thỏ con|bài hát thiếu nhi|nursery rhyme|counting song|cartoon|animation|insect|grasshopper|rabbit|bunny/.test(
+    /hoạt hình|3d|pixar|disney|thiếu nhi|đếm số|nhảy múa|côn trùng|cào cào|châu chấu|bọ rùa|ong vàng|bướm|kiến|chú thỏ|đàn thỏ|thỏ con|thỏ bông|bị ốm|bác sĩ|nói chuyện|đối thoại|hội thoại|dialogue|nhiều giọng|nhiều kiểu giọng|bài hát thiếu nhi|nursery rhyme|counting song|cartoon|animation|insect|grasshopper|rabbit|bunny/.test(
       q
     )
   ) {

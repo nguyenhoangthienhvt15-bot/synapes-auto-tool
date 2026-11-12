@@ -34,3 +34,4 @@ dist-ssr
 *.png
 !public/*.png
 !src/assets/*.png
+scratch/

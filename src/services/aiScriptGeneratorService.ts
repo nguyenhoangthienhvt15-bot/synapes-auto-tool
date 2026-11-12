@@ -4,6 +4,8 @@ import type {
   Skill,
   AspectRatio,
   VideoGenre,
+  CharacterActor,
+  CameraDialogueAngle,
 } from '../types';
 import { PROVIDERS } from './aiModelDiscoveryService';
 
@@ -77,6 +79,8 @@ export interface GeneratedScriptResult {
     voiceName: string;
   };
   duration: number;
+  characterActors?: CharacterActor[];
+  dialogueMode?: boolean;
   storyboard: StoryboardScene[];
   videoUrl: string;
   thumbnailUrl: string;
@@ -263,12 +267,12 @@ export const CLIENT_DOMAIN_PHOTO_POOLS: Record<TopicDomain, string[]> = {
   ],
   hardware: REAL_IPHONE_18_INTERNET_IMAGES,
   'animation-3d': [
+    '/3d_dialogue_clinic_stage.jpg',
+    '/3d_dialogue_garden_stage.jpg',
     '/3d_forest_stage_1.jpg',
     '/3d_forest_stage_2.jpg',
     '/3d_insect_scene_1.jpg',
     '/3d_insect_scene_2.jpg',
-    '/3d_insect_scene_3.jpg',
-    '/3d_insect_scene_4.jpg',
   ],
 };
 
@@ -288,7 +292,7 @@ export function classifyTopicDomainClient(text: string): TopicDomain {
   const q = (text || '').toLowerCase();
 
   if (
-    /hoạt hình|3d|pixar|disney|thiếu nhi|đếm số|nhảy múa|côn trùng|cào cào|châu chấu|bọ rùa|ong vàng|bướm|kiến|chú thỏ|đàn thỏ|thỏ con|bài hát thiếu nhi|nursery rhyme|counting song|cartoon|animation|insect|grasshopper|rabbit|bunny/.test(
+    /hoạt hình|3d|pixar|disney|thiếu nhi|đếm số|nhảy múa|côn trùng|cào cào|châu chấu|bọ rùa|ong vàng|bướm|kiến|chú thỏ|đàn thỏ|thỏ con|thỏ bông|bị ốm|bác sĩ|nói chuyện|đối thoại|hội thoại|dialogue|nhiều giọng|nhiều kiểu giọng|nursery rhyme|counting song|cartoon|animation|insect|grasshopper|rabbit|bunny/.test(
       q
     )
   ) {
@@ -885,8 +889,187 @@ function generateBespokeMultiGenreScript(
     .filter((s) => s.length > 35 && s.length < 220);
   const wikiFact1 = wikiClean[0] || '';
 
-  // 0. CHẾ ĐỘ HOẠT HÌNH 3D CA NHẠC & ĐẾM SỐ THIẾU NHI (3D PIXAR ANIMATION)
+  // 0. CHẾ ĐỘ HOẠT HÌNH 3D ĐỐI THOẠI ĐA NHÂN VẬT & NHIỀU KIỂU GIỌNG (3D DIALOGUE DRAMA)
   if (videoGenre === '3d-animation' || domain === 'animation-3d') {
+    const isDialogue = /nói\s*chuyện|đối\s*thoại|hội\s*thoại|thỏ\s*con\s*bị\s*ốm|nhiều\s*kiểu\s*giọng|nhiều\s*giọng/i.test(
+      `${coreSubject}`
+    );
+
+    if (isDialogue) {
+      const title = `Phim Hoạt Hình 3D Đối Thoại: Thỏ Con Bị Ốm & Các Bạn Nhỏ (Đa Giọng Thoại)`;
+      const characterActors: CharacterActor[] = [
+        {
+          id: 'tho-con',
+          name: 'Thỏ Con (Pink Bunny)',
+          roleDescription: 'Bé thỏ hồng đáng yêu, bị đau bụng ôm lọ thuốc mếu máo',
+          avatarUrl: '/3d_dialogue_clinic_stage.jpg',
+          voiceId: 'vi-child-female',
+          voiceName: 'Giọng Bé Gái Mếu Máo (Pitch +35%)',
+          voiceSpeed: 1.05,
+          voicePitch: 1.35,
+          themeColor: '#ec4899',
+          defaultEmotion: 'crying',
+        },
+        {
+          id: 'cuu-bong',
+          name: 'Cừu Bông (Fluffy Sheep)',
+          roleDescription: 'Bạn cừu lông xoăn trắng lanh lợi, lo lắng khuyên bạn',
+          avatarUrl: '/3d_dialogue_clinic_stage.jpg',
+          voiceId: 'vi-child-male',
+          voiceName: 'Giọng Bé Trai Lanh Lợi (Pitch +18%)',
+          voiceSpeed: 1.1,
+          voicePitch: 1.18,
+          themeColor: '#0ea5e9',
+          defaultEmotion: 'worried',
+        },
+        {
+          id: 'meo-con',
+          name: 'Mèo Con Nơ Hồng (Cute Kitten)',
+          roleDescription: 'Bạn mèo con cài nơ ngọt ngào, động viên Thỏ uống thuốc',
+          avatarUrl: '/3d_dialogue_clinic_stage.jpg',
+          voiceId: 'vi-gentle-female',
+          voiceName: 'Giọng Bé Gái Dịu Dàng (Pitch +25%)',
+          voiceSpeed: 1.02,
+          voicePitch: 1.25,
+          themeColor: '#f59e0b',
+          defaultEmotion: 'caring',
+        },
+        {
+          id: 'bac-si',
+          name: 'Bác Sĩ Gấu (Doctor Bear)',
+          roleDescription: 'Bác sĩ thú y hiền từ, ân cần dặn dò ăn chín uống sôi',
+          avatarUrl: '/3d_dialogue_clinic_stage.jpg',
+          voiceId: 'vi-mature-male',
+          voiceName: 'Giọng Trầm Ấm Ân Cần (Pitch -10%)',
+          voiceSpeed: 0.96,
+          voicePitch: 0.9,
+          themeColor: '#10b981',
+          defaultEmotion: 'caring',
+        },
+      ];
+
+      const dialogueScenes = [
+        {
+          sceneNumber: 1,
+          speakerId: 'tho-con',
+          speakerName: 'Thỏ Con',
+          cameraAngle: 'two-shot' as CameraDialogueAngle,
+          headline: '01. THỎ CON ÔM BỤNG ĐAU — MẾU MÁO',
+          durationSec: 4,
+          voiceover: 'Oa oa... Mẹ ơi con đau bụng quá, thuốc đắng lắm con không muốn uống đâu!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.35,
+          voiceSpeed: 1.05,
+          visualPrompt: 'Pixar 3D animation cute pink rabbit sitting on nursery floor crying holding medicine bottle, soft yellow room lighting, 8k',
+          imageUrl: '/3d_dialogue_clinic_stage.jpg',
+          cameraMotion: 'dolly-in',
+          lightingStyle: 'studio-clean',
+          sfx: 'Soft sad xylophone + crying snuffle',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 2,
+          speakerId: 'cuu-bong',
+          speakerName: 'Cừu Bông',
+          cameraAngle: 'shot-reverse-shot' as CameraDialogueAngle,
+          headline: '02. CỪU BÔNG LO LẮNG HỎI THĂM',
+          durationSec: 4,
+          voiceover: 'Bạn Thỏ ơi đừng khóc nữa mà! Bạn ăn quả xanh uống nước lã nên mới bị đau bụng đấy!',
+          voiceId: 'vi-child-male',
+          voicePitch: 1.18,
+          voiceSpeed: 1.1,
+          visualPrompt: 'Pixar 3D animation fluffy white sheep with big expressive eyes gesturing with concern in cozy clinic room, 8k',
+          imageUrl: '/3d_dialogue_clinic_stage.jpg',
+          cameraMotion: 'pan-right',
+          lightingStyle: 'studio-clean',
+          sfx: 'Gentle harp chime + step rustle',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 3,
+          speakerId: 'meo-con',
+          speakerName: 'Mèo Con Nơ Hồng',
+          cameraAngle: 'over-the-shoulder' as CameraDialogueAngle,
+          headline: '03. MÈO CON DỊU DÀNG KHUYÊN BẠN',
+          durationSec: 4,
+          voiceover: 'Đúng rồi đó Thỏ con ơi! Ngoan ngoãn uống một thìa si-rô ngọt này là hết đau ngay thôi!',
+          voiceId: 'vi-gentle-female',
+          voicePitch: 1.25,
+          voiceSpeed: 1.02,
+          visualPrompt: 'Pixar 3D animation cute peach kitten wearing pink ribbon bow smiling warmly encouraging friend, 8k',
+          imageUrl: '/3d_dialogue_clinic_stage.jpg',
+          cameraMotion: 'orbit',
+          lightingStyle: 'golden-hour',
+          sfx: 'Sparkle bell sound + soft purr',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 4,
+          speakerId: 'bac-si',
+          speakerName: 'Bác Sĩ Gấu',
+          cameraAngle: 'close-up-speaker' as CameraDialogueAngle,
+          headline: '04. BÁC SĨ ÂN CẦN DẶN DÒ',
+          durationSec: 4,
+          voiceover: 'Bác sĩ dặn nhé: Từ nay Thỏ con phải nhớ ăn chín, uống sôi, rửa sạch tay trước khi ăn nhé!',
+          voiceId: 'vi-mature-male',
+          voicePitch: 0.9,
+          voiceSpeed: 0.96,
+          visualPrompt: 'Pixar 3D animation gentle doctor holding small spoon and medicine, warm clinic atmosphere, 8k',
+          imageUrl: '/3d_dialogue_clinic_stage.jpg',
+          cameraMotion: 'pan-left',
+          lightingStyle: 'rembrandt',
+          sfx: 'Warm acoustic cello + clock tick',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 5,
+          speakerId: 'tho-con',
+          speakerName: 'Thỏ Con',
+          cameraAngle: 'close-up-speaker' as CameraDialogueAngle,
+          headline: '05. THỎ CON UỐNG THUỐC — CƯỜI TƯƠI',
+          durationSec: 4,
+          voiceover: 'Dạ vâng ạ! Thuốc ngọt như kẹo dâu ấy! Con hết đau bụng rồi, khỏe re rồi nè!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.3,
+          voiceSpeed: 1.08,
+          visualPrompt: 'Pixar 3D animation cute pink rabbit happily clapping paws smiling wide, bright sparkling eyes, 8k',
+          imageUrl: '/3d_dialogue_clinic_stage.jpg',
+          cameraMotion: 'dolly-out',
+          lightingStyle: 'golden-hour',
+          sfx: 'Cheerful chime + cartoon pop',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 6,
+          speakerId: 'tho-con',
+          speakerName: 'Cả Ba Bạn Nhỏ',
+          cameraAngle: 'master-shot' as CameraDialogueAngle,
+          headline: '06. CÙNG NHAU RA VƯỜN HOA NHẢY MÚA',
+          durationSec: 4,
+          voiceover: 'Hoan hô! Thỏ con khỏi ốm rồi! Chúng mình cùng ra vườn hoa bắt bướm nhảy múa thôi nào!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.25,
+          voiceSpeed: 1.1,
+          visualPrompt: 'Pixar 3D animation wide shot of pink bunny, white sheep and peach kitten dancing joyfully together in a sunny flower meadow, 8k',
+          imageUrl: '/3d_dialogue_garden_stage.jpg',
+          cameraMotion: 'crane-up',
+          lightingStyle: 'golden-hour',
+          sfx: 'Celebration trumpet fanfare + lively acoustic rhythm',
+          transition: 'fade',
+        },
+      ];
+
+      return {
+        title,
+        newsTicker: 'PHIM HOẠT HÌNH 3D THIẾU NHI • THỎ CON BỊ ỐM & BÀI HỌC ĂN CHÍN UỐNG SÔI • ĐA GIỌNG THOẠI ĐỐI ỨNG',
+        musicGenre: 'Gentle Acoustic Storytelling to Upbeat Kids Marimba',
+        tags: ['HoatHinh3D', 'ThoConBiOm', 'DoiThoai3D', 'DaGiongThoai', 'ChunChin3D', 'SynapesStudioX'],
+        characterActors,
+        dialogueMode: true,
+        scenes: dialogueScenes,
+      };
+    }
+
     const title = `Vũ Hội Côn Trùng 3D Nhảy Múa Hát Đếm Số Từ 1 Đến 10 — ${coreSubject}`;
     const countingVerses = [
       { n: 1, name: 'MỘT CHÚ CÀO CÀO XANH', lyric: 'Số Một! Một chú cào cào xanh lá bật nhảy thật cao, vỗ đôi cánh mỏng hát vang lời chào ngày mới!' },
@@ -1590,10 +1773,15 @@ export async function generateAiVideoScript(
       lightingStyle,
       sfx: sc.sfx || 'Broadcast Transition Pulse',
       transition: sc.transition === 'fade' || sc.transition === 'dissolve' ? sc.transition : 'cut',
-      voiceId: defaultVoice.id,
+      voiceId: sc.voiceId || defaultVoice.id,
       voiceLanguage: 'vi',
-      voiceSpeed: defaultVoice.speed,
-      voicePitch: defaultVoice.pitch,
+      voiceSpeed: typeof sc.voiceSpeed === 'number' ? sc.voiceSpeed : defaultVoice.speed,
+      voicePitch: typeof sc.voicePitch === 'number' ? sc.voicePitch : defaultVoice.pitch,
+      speakerId: sc.speakerId,
+      speakerName: sc.speakerName,
+      speakerAvatarUrl: sc.speakerAvatarUrl,
+      cameraAngle: sc.cameraAngle,
+      dialogueLines: sc.dialogueLines,
       explodedView: isChipScene,
       apertureBlades: isOpticsScene,
       appleMotion3d: isHardwareKeynote
@@ -1667,6 +1855,8 @@ export async function generateAiVideoScript(
       voiceName: defaultVoice.id,
     },
     duration: totalDuration,
+    characterActors: rawJson.characterActors,
+    dialogueMode: Boolean(rawJson.dialogueMode),
     storyboard,
     videoUrl: SCENE_VIDEO_CLIPS[0],
     thumbnailUrl: heroThumbnail,
