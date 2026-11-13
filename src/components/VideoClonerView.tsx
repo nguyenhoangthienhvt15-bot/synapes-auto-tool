@@ -46,34 +46,74 @@ interface VideoClonerViewProps {
   onNavigateToReview?: () => void;
 }
 
+const CLONER_STATE_STORAGE_KEY = 'synapes_byok_cloner_state_v1';
+
+function loadSavedClonerState(): {
+  inputMode?: 'url' | 'upload';
+  videoUrl?: string;
+  manualTranscript?: string;
+  showTranscriptBox?: boolean;
+  dnaBlueprint?: VideoDnaBlueprint | null;
+  newTopic?: string;
+  targetAudience?: string;
+  clonedProject?: ClonedVideoProject | null;
+} {
+  try {
+    const raw = sessionStorage.getItem(CLONER_STATE_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
 export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
   config,
   onOpenSettings,
   onProjectCreated,
   onNavigateToReview,
 }) => {
-  const [inputMode, setInputMode] = useState<'url' | 'upload'>('url');
-  const [videoUrl, setVideoUrl] = useState<string>('https://www.youtube.com/shorts/sample-hook-viral');
+  const savedInit = useRef(loadSavedClonerState()).current;
+  const [inputMode, setInputMode] = useState<'url' | 'upload'>(savedInit.inputMode || 'url');
+  const [videoUrl, setVideoUrl] = useState<string>(savedInit.videoUrl || 'https://www.youtube.com/shorts/sample-hook-viral');
   const [detectedVideo, setDetectedVideo] = useState<ExtractedVideoInfo | null>(() =>
-    extractVideoInfo('https://www.youtube.com/shorts/sample-hook-viral')
+    extractVideoInfo(savedInit.videoUrl || 'https://www.youtube.com/shorts/sample-hook-viral')
   );
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileBase64, setFileBase64] = useState<string>('');
   const [filePreviewUrl, setFilePreviewUrl] = useState<string>('');
-  const [manualTranscript, setManualTranscript] = useState<string>('');
-  const [showTranscriptBox, setShowTranscriptBox] = useState<boolean>(false);
+  const [manualTranscript, setManualTranscript] = useState<string>(savedInit.manualTranscript || '');
+  const [showTranscriptBox, setShowTranscriptBox] = useState<boolean>(Boolean(savedInit.showTranscriptBox));
 
   // Trạng thái bóc tách
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [analysisProgress, setAnalysisProgress] = useState<number>(0);
   const [statusMessage, setStatusMessage] = useState<string>('');
-  const [dnaBlueprint, setDnaBlueprint] = useState<VideoDnaBlueprint | null>(null);
+  const [dnaBlueprint, setDnaBlueprint] = useState<VideoDnaBlueprint | null>(savedInit.dnaBlueprint || null);
 
   // Trạng thái nhân bản
-  const [newTopic, setNewTopic] = useState<string>('');
-  const [targetAudience, setTargetAudience] = useState<string>('Khán giả trẻ mạng xã hội (18 - 35 tuổi)');
+  const [newTopic, setNewTopic] = useState<string>(savedInit.newTopic || '');
+  const [targetAudience, setTargetAudience] = useState<string>(savedInit.targetAudience || 'Khán giả trẻ mạng xã hội (18 - 35 tuổi)');
   const [isSynthesizing, setIsSynthesizing] = useState<boolean>(false);
-  const [clonedProject, setClonedProject] = useState<ClonedVideoProject | null>(null);
+  const [clonedProject, setClonedProject] = useState<ClonedVideoProject | null>(savedInit.clonedProject || null);
+
+  // Tự động lưu ngữ cảnh BYOK vào sessionStorage để không mất dữ liệu khi chuyển tab / reload
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        CLONER_STATE_STORAGE_KEY,
+        JSON.stringify({
+          inputMode,
+          videoUrl,
+          manualTranscript,
+          showTranscriptBox,
+          dnaBlueprint,
+          newTopic,
+          targetAudience,
+          clonedProject,
+        })
+      );
+    } catch { }
+  }, [inputMode, videoUrl, manualTranscript, showTranscriptBox, dnaBlueprint, newTopic, targetAudience, clonedProject]);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 

@@ -111,8 +111,31 @@ export function App() {
   const [driveEmail, setDriveEmail] = useState<string>('');
   const [isDriveConnected, setIsDriveConnected] = useState<boolean>(false);
 
-  // Navigation & Workspace Views
-  const [activeView, setActiveView] = useState<string>('pending-approval');
+  // Navigation & Workspace Views (Persist across browser refresh / tab discard)
+  const [activeView, setActiveView] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem('synapes_active_view') || 'pending-approval';
+    } catch {
+      return 'pending-approval';
+    }
+  });
+  const [hasMountedCloner, setHasMountedCloner] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('synapes_active_view') === 'video-cloner';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('synapes_active_view', activeView);
+    } catch { }
+    if (activeView === 'video-cloner') {
+      setHasMountedCloner(true);
+    }
+  }, [activeView]);
+
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
   // Cửa sổ 2: Stitcher Studio
@@ -615,18 +638,20 @@ export function App() {
               />
             )}
 
-            {/* VIEW: BÓC TÁCH & NHÂN BẢN VIDEO AI (BYOK POWERED) */}
-            {activeView === 'video-cloner' && (
-              <VideoClonerView
-                config={aiConfig}
-                onOpenSettings={() => setActiveView('ai-engine')}
-                onProjectCreated={(newProj) => {
-                  setProjects([newProj, ...projects]);
-                  setSelectedProject(newProj);
-                  showToast(`Đã thêm dự án nhân bản [${newProj.title}] vào hàng đợi!`);
-                }}
-                onNavigateToReview={() => setActiveView('pending-approval')}
-              />
+            {/* VIEW: BÓC TÁCH & NHÂN BẢN VIDEO AI (BYOK POWERED - KEEP-ALIVE ACROSS TAB SWITCH) */}
+            {(activeView === 'video-cloner' || hasMountedCloner) && (
+              <div className={activeView === 'video-cloner' ? 'block' : 'hidden'}>
+                <VideoClonerView
+                  config={aiConfig}
+                  onOpenSettings={() => setActiveView('ai-engine')}
+                  onProjectCreated={(newProj) => {
+                    setProjects([newProj, ...projects]);
+                    setSelectedProject(newProj);
+                    showToast(`Đã thêm dự án nhân bản [${newProj.title}] vào hàng đợi!`);
+                  }}
+                  onNavigateToReview={() => setActiveView('pending-approval')}
+                />
+              </div>
             )}
 
             {/* VIEW: LỊCH ĐĂNG & GIỜ VÀNG */}
