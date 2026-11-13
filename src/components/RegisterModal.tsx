@@ -4,7 +4,7 @@ import {
   FileText, ShieldCheck, CheckCircle2, AlertCircle,
   ArrowRight, ArrowLeft, RefreshCw, Check, Sparkles,
   CreditCard, Layers, Clock, DollarSign, Award, Info, QrCode,
-  Building, PenTool, CheckCircle, Download
+  Building, PenTool, CheckCircle
 } from 'lucide-react';
 import { UserRegistrationData, ContractCategory, ContractPackage } from '../types';
 import {
@@ -14,7 +14,6 @@ import {
 } from '../services/googleSheetService';
 import { QR_CODE_BASE64 } from '../data/qrCodeBase64';
 import { STAMP_BASE64 } from '../data/stampBase64';
-import { downloadPersonalizedContractPdf } from '../utils/contractPdfGenerator';
 import { SignatureModal } from './SignatureModal';
 
 interface RegisterModalProps {
@@ -1410,39 +1409,8 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                 )}
               </div>
 
-              {/* Nút thoát & tải bản sao hợp đồng đã ký */}
+              {/* Nút thoát */}
               <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const pkg = currentPkgInfo;
-                    downloadPersonalizedContractPdf({
-                      fullName: fullName.trim(),
-                      idCardNumber: idCardNumber.trim() || undefined,
-                      dob: formatDobToDDMMYYYY(dob.trim()),
-                      gender,
-                      email: email.trim(),
-                      phone: phone.trim(),
-                      addressType,
-                      address: address.trim(),
-                      contractCategory,
-                      contractPackage,
-                      contractPackageName: pkg.name,
-                      depositAmount: pkg.depositAmount,
-                      totalAmount: pkg.totalAmount,
-                      originalAmount: pkg.originalAmount,
-                      deliveryDays: pkg.isDeposit ? deliveryDays : 0,
-                      signatureImage: signatureImage || undefined,
-                      termsAccepted: true,
-                      registeredAt: new Date().toLocaleString('vi-VN'),
-                    });
-                  }}
-                  className="py-2.5 px-5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Tải / In Hợp Đồng PDF Đã Ký</span>
-                </button>
-
                 <button
                   type="button"
                   onClick={onClose}
