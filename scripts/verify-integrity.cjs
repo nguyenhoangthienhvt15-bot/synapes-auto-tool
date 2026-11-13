@@ -174,7 +174,7 @@ if (fs.existsSync(backendEnginePath)) {
   assert(backendContent.includes('/api/video-deconstruct'), 'Có endpoint /api/video-deconstruct trên server backend');
   assert(backendContent.includes('/api/video-clone-synthesize'), 'Có endpoint /api/video-clone-synthesize trên server backend');
   assert(backendContent.includes('buildHypitBlueprint') && backendContent.includes('finance_business'), 'Backend hỗ trợ Hypit SVML Blueprint & domain finance_business');
-  assert(backendContent.includes('function extractGeminiTextFromParts'), 'Backend có hàm extractGeminiTextFromParts cho Gemini 3.x');
+  assert(backendContent.includes('function extractGeminiTextFromParts') && backendContent.includes('fileData: { fileUri:'), 'Backend hỗ trợ extractGeminiTextFromParts và đọc trực tiếp video YouTube qua fileData');
   assert(!backendContent.includes('cleanModel'), 'Không còn lỗi ReferenceError cleanModel trong /api/video-deconstruct');
 }
 

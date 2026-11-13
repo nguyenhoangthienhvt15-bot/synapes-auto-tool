@@ -2027,8 +2027,9 @@ export async function handleStudioApiRequest(req, res) {
       }
     }
 
-    // 3. Fallback oEmbed nếu vẫn thiếu Title / Author
-    if (!title || !author) {
+    // 3. Fallback oEmbed nếu vẫn thiếu Title / Author (và lấy luôn aspectRatio thật từ width/height)
+    let aspectRatioHint = String(videoUrl || '').includes('/shorts/') ? '9:16' : '';
+    if (!title || !author || !aspectRatioHint) {
       try {
         const oembed = await getHttpsJson(`https://www.youtube.com/oembed?url=${encodeURIComponent(videoUrl)}&format=json`);
         if (oembed?.status === 200 && oembed.data?.title) {
@@ -2036,6 +2037,11 @@ export async function handleStudioApiRequest(req, res) {
           if (!author) author = oembed.data.author_name || '';
           if (oembed.data.thumbnail_url && thumbnailUrl.endsWith('/hqdefault.jpg')) {
             thumbnailUrl = oembed.data.thumbnail_url;
+          }
+          const w = Number(oembed.data.width || 0);
+          const h = Number(oembed.data.height || 0);
+          if (w > 0 && h > 0 && !aspectRatioHint) {
+            aspectRatioHint = h > w ? '9:16' : '16:9';
           }
         }
       } catch { }
@@ -2056,6 +2062,7 @@ export async function handleStudioApiRequest(req, res) {
         title: title || 'Video YouTube',
         author: author || '',
         lengthSeconds: finalLength,
+        aspectRatio: aspectRatioHint || (finalLength >= 90 && !String(videoUrl || '').includes('/shorts/') ? '16:9' : '9:16'),
         keywords,
         shortDescription,
         chapters,
@@ -2080,6 +2087,7 @@ export async function handleStudioApiRequest(req, res) {
       title = 'Video Mẫu Triệu View',
       author = 'Nhà Sáng Tạo Nội Dung',
       lengthSeconds = 30,
+      aspectRatio = '',
       keywords = [],
       shortDescription = '',
       chapters = [],
@@ -2090,7 +2098,7 @@ export async function handleStudioApiRequest(req, res) {
 
     const totalSec = Math.max(10, Math.min(3600, parseInt(lengthSeconds, 10) || 30));
     const isLongForm = totalSec >= 90 && !String(sourceUrl || '').includes('/shorts/');
-    const defaultAspect = isLongForm ? '16:9' : '9:16';
+    const defaultAspect = aspectRatio || (isLongForm ? '16:9' : '9:16');
     const combined = (title + ' ' + (keywords || []).join(' ') + ' ' + shortDescription + ' ' + author).toLowerCase();
 
     let domain = 'general';
@@ -2736,8 +2744,8 @@ sourceUrl, sourceTitle, authorName, embedUrl, thumbnailUrl, durationSec, totalSc
             parsedObj.visualStyle = {};
           }
           if (!parsedObj.visualStyle.recommendedAspectRatio) {
-            const isLong = meta.lengthSeconds >= 90 && !String(meta.sourceUrl || '').includes('/shorts/');
-            parsedObj.visualStyle.recommendedAspectRatio = isLong ? '16:9' : '9:16';
+            const isLong = (Number(parsedObj.durationSec || meta.lengthSeconds) >= 90) && !String(meta.sourceUrl || '').includes('/shorts/');
+            parsedObj.visualStyle.recommendedAspectRatio = meta.aspectRatio || (isLong ? '16:9' : '9:16');
           }
           parsedObj.modelUsed = usedModelName;
           parsedObj.engineMeta = {
@@ -2749,9 +2757,11 @@ sourceUrl, sourceTitle, authorName, embedUrl, thumbnailUrl, durationSec, totalSc
         };
 
         if (cleanProv === 'gemini') {
-          let contents = [];
+          let baseContents = [];
+          let ytVideoContents = null;
+
           if (videoData) {
-            contents = [
+            baseContents = [
               {
                 parts: [
                   {
@@ -2765,11 +2775,11 @@ sourceUrl, sourceTitle, authorName, embedUrl, thumbnailUrl, durationSec, totalSc
               },
             ];
           } else {
-            const parts = [];
+            const baseParts = [];
             if (meta.thumbnailUrl) {
               const thumbImg = await fetchThumbnailAsBase64(meta.thumbnailUrl);
               if (thumbImg?.base64) {
-                parts.push({
+                baseParts.push({
                   inlineData: {
                     mimeType: thumbImg.mimeType,
                     data: thumbImg.base64,
@@ -2777,8 +2787,23 @@ sourceUrl, sourceTitle, authorName, embedUrl, thumbnailUrl, durationSec, totalSc
                 });
               }
             }
-            parts.push({ text: promptText });
-            contents = [{ parts }];
+            baseParts.push({ text: promptText });
+            baseContents = [{ parts: baseParts }];
+
+            if (meta.videoId) {
+              const ytCanonicalUrl = `https://www.youtube.com/watch?v=${meta.videoId}`;
+              ytVideoContents = [
+                {
+                  parts: [
+                    { fileData: { fileUri: ytCanonicalUrl } },
+                    ...baseParts.slice(0, -1),
+                    {
+                      text: `${promptText}\n\n[CHẾ ĐỘ MULTIMODAL YOUTUBE TRỰC TIẾP]: Bạn đang xem và nghe trực tiếp video YouTube đính kèm. Hãy xác định ĐÚNG thời lượng thật (durationSec), ghi chép lời thoại thực tế (rawTranscript) từ audio trong video, chia phân cảnh và SVML anchored phrases theo đúng nội dung thật trong video!`
+                    }
+                  ]
+                }
+              ];
+            }
           }
 
           const candidateDeconstructModels = Array.from(
@@ -2797,43 +2822,53 @@ sourceUrl, sourceTitle, authorName, embedUrl, thumbnailUrl, durationSec, totalSc
             const tryUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
               tryMod
             )}:generateContent?key=${encodeURIComponent(cleanKey)}`;
-            const resp = await postJsonHttps(
-              tryUrl,
-              {},
-              {
-                contents,
-                generationConfig: {
-                  temperature: 0.2,
-                  responseMimeType: 'application/json',
-                },
-              }
-            ).catch((e) => ({ status: 500, text: String(e?.message || e) }));
 
-            if (resp.status === 200 && resp.text) {
-              try {
-                const parsedResp = JSON.parse(resp.text);
-                const candidateText = extractGeminiTextFromParts(parsedResp);
-                if (candidateText) {
-                  const cleanedJson = candidateText
-                    .replace(/^```json\s*/i, '')
-                    .replace(/^```\s*/i, '')
-                    .replace(/\s*```$/i, '')
-                    .trim();
-                  dna = applyParsedDna(JSON.parse(cleanedJson), tryMod);
-                  if (dna) break;
+            const payloadsToTry = ytVideoContents ? [ytVideoContents, baseContents] : [baseContents];
+            for (const payloadContents of payloadsToTry) {
+              const resp = await postJsonHttps(
+                tryUrl,
+                {},
+                {
+                  contents: payloadContents,
+                  generationConfig: {
+                    temperature: 0.2,
+                    responseMimeType: 'application/json',
+                  },
+                },
+                55000
+              ).catch((e) => ({ status: 500, text: String(e?.message || e) }));
+
+              if (resp.status === 200 && resp.text) {
+                try {
+                  const parsedResp = JSON.parse(resp.text);
+                  const candidateText = extractGeminiTextFromParts(parsedResp);
+                  if (candidateText) {
+                    const cleanedJson = candidateText
+                      .replace(/^```json\s*/i, '')
+                      .replace(/^```\s*/i, '')
+                      .replace(/\s*```$/i, '')
+                      .trim();
+                    dna = applyParsedDna(JSON.parse(cleanedJson), tryMod);
+                    if (dna) break;
+                  }
+                } catch (e) {
+                  console.warn('Parse Gemini DNA JSON error:', e);
+                  byokWarning = `Parse JSON từ ${tryMod} thất bại: ${e.message}`;
                 }
-              } catch (e) {
-                console.warn('Parse Gemini DNA JSON error:', e);
-                byokWarning = `Parse JSON từ ${tryMod} thất bại: ${e.message}`;
-              }
-            } else {
-              try {
-                const errJson = JSON.parse(resp.text || '{}');
-                byokWarning = `${tryMod} -> HTTP ${resp.status}: ${errJson?.error?.message || 'Lỗi kết nối Gemini'}`.slice(0, 220);
-              } catch {
-                byokWarning = `${tryMod} -> HTTP ${resp.status}`;
+              } else {
+                try {
+                  const errJson = JSON.parse(resp.text || '{}');
+                  byokWarning = `${tryMod} -> HTTP ${resp.status}: ${errJson?.error?.message || 'Lỗi kết nối Gemini'}`.slice(0, 220);
+                } catch {
+                  byokWarning = `${tryMod} -> HTTP ${resp.status}`;
+                }
+                // Nếu model này bị 404 (ngừng phục vụ) hoặc 503 (quá tải), nhảy luôn sang model kế tiếp thay vì thử lại với payload thứ 2
+                if (resp.status === 404 || resp.status === 503 || resp.status === 401 || resp.status === 403) {
+                  break;
+                }
               }
             }
+            if (dna) break;
           }
         } else if (cleanProv === 'openai' || cleanProv === 'deepseek') {
           const apiUrl = cleanProv === 'deepseek'
