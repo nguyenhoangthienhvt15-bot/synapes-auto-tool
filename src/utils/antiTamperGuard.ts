@@ -43,28 +43,23 @@ export function initAntiTamperGuard(): void {
     return false;
   }, true);
 
-  // 3. Bẫy kích thước cửa sổ (Window Dimension & OuterWidth Delta Trap)
-  const threshold = 160;
+  // 3. Giám sát docked DevTools nhẹ nhàng (không gây khựng CPU hay khóa nhầm khi thu phóng / chuyển tab)
+  const guardStartedAt = Date.now();
+  const dockedThreshold = 340;
   setInterval(() => {
     if (devtoolsDetected) return;
-    const widthThreshold = window.outerWidth - window.innerWidth > threshold;
-    const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+    if (Date.now() - guardStartedAt < 6000) return;
+    if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
+    if (window.outerWidth < 900 || window.outerHeight < 600) return;
+
+    const widthThreshold = window.outerWidth - window.innerWidth > dockedThreshold;
+    const heightThreshold = window.outerHeight - window.innerHeight > dockedThreshold;
     if (widthThreshold || heightThreshold) {
       triggerViolation('devtools_dock_detected');
+    } else if (violationCount > 0) {
+      violationCount = 0;
     }
-  }, 1200);
-
-  // 4. Bẫy Debugger Vô Hạn (Infinite Debugger Loop)
-  setInterval(() => {
-    if (devtoolsDetected) return;
-    const startTime = performance.now();
-    // eslint-disable-next-line no-debugger
-    debugger;
-    const endTime = performance.now();
-    if (endTime - startTime > 100) {
-      triggerViolation('debugger_paused_inspection');
-    }
-  }, 2000);
+  }, 5000);
 
   // Hàm xử lý khi phát hiện hành vi vi phạm
   async function triggerViolation(reason: string): Promise<void> {

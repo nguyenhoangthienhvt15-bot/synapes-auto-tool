@@ -1386,6 +1386,10 @@ async function fetchGvizByGid(sheetId: string, gid: string): Promise<any | null>
     }
     if (res.ok) {
       const text = await res.text();
+      if (text.trimStart().startsWith('<')) {
+        // Google trả về trang HTML đăng nhập/hạn chế quyền — bỏ qua JSONP fallback để không kẹt mạng
+        return null;
+      }
       extractWebhookUrlFromRawText(text);
       const json = extractGvizJson(text);
       if (json) return json;

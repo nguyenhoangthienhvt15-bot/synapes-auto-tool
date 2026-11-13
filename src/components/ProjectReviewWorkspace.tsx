@@ -1,9 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { Project, StoryboardScene, VoiceLanguage } from '../types';
 import { AiCinemaPlayer } from './AiCinemaPlayer';
-import { VoiceStudioModal } from './VoiceStudioModal';
-import { LiveDubbingStudioModal } from './LiveDubbingStudioModal';
-import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
+
+const VoiceStudioModal = lazyWithRetry(() =>
+  import('./VoiceStudioModal').then((m) => ({ default: m.VoiceStudioModal }))
+);
+const LiveDubbingStudioModal = lazyWithRetry(() =>
+  import('./LiveDubbingStudioModal').then((m) => ({ default: m.LiveDubbingStudioModal }))
+);
+const KeyboardShortcutsModal = lazyWithRetry(() =>
+  import('./KeyboardShortcutsModal').then((m) => ({ default: m.KeyboardShortcutsModal }))
+);
 import {
   buildAiSceneImageUrl,
   classifyTopicDomainClient,
@@ -1293,53 +1301,63 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
         </div>
       )}
 
-      {/* PHÒNG THU LỒNG TIẾNG AI MODAL */}
-      <VoiceStudioModal
-        isOpen={isVoiceStudioOpen}
-        onClose={() => setIsVoiceStudioOpen(false)}
-        activeVoiceId={
-          project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voiceId ||
-          project.voiceoverTrack?.voiceName
-        }
-        activeLanguage={
-          project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voiceLanguage || 'vi'
-        }
-        currentVoiceSpeed={
-          project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voiceSpeed || 1.05
-        }
-        currentVoicePitch={
-          project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voicePitch || 1.0
-        }
-        currentSceneNumber={
-          project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.sceneNumber || 1
-        }
-        currentSceneVoiceover={
-          project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voiceover || ''
-        }
-        onOpenLiveDubbingModal={() => setIsLiveDubbingOpen(true)}
-        onApplyVoice={handleApplyVoiceSettings}
-      />
-
-      {/* CỬA SỔ THỨ 3: PHÒNG THU ÂM TRỰC TIẾP LIVE DUBBING STUDIO */}
-      {isLiveDubbingOpen && (
-        <LiveDubbingStudioModal
-          isOpen={isLiveDubbingOpen}
-          onClose={() => setIsLiveDubbingOpen(false)}
-          project={project}
-          scene={
-            project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId)) ||
-            project.storyboard[0]
-          }
-          aspectRatio={aspectRatio}
-          onSaveRecordedVoice={handleSaveLiveRecordedVoice}
-        />
+      {/* PHÒNG THU LỒNG TIẾNG AI MODAL (Lazy Suspended) */}
+      {isVoiceStudioOpen && (
+        <Suspense fallback={null}>
+          <VoiceStudioModal
+            isOpen={isVoiceStudioOpen}
+            onClose={() => setIsVoiceStudioOpen(false)}
+            activeVoiceId={
+              project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voiceId ||
+              project.voiceoverTrack?.voiceName
+            }
+            activeLanguage={
+              project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voiceLanguage || 'vi'
+            }
+            currentVoiceSpeed={
+              project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voiceSpeed || 1.05
+            }
+            currentVoicePitch={
+              project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voicePitch || 1.0
+            }
+            currentSceneNumber={
+              project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.sceneNumber || 1
+            }
+            currentSceneVoiceover={
+              project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voiceover || ''
+            }
+            onOpenLiveDubbingModal={() => setIsLiveDubbingOpen(true)}
+            onApplyVoice={handleApplyVoiceSettings}
+          />
+        </Suspense>
       )}
 
-      {/* BẢNG TRA CỨU PHÍM TẮT NLE */}
-      <KeyboardShortcutsModal
-        isOpen={isShortcutsModalOpen}
-        onClose={() => setIsShortcutsModalOpen(false)}
-      />
+      {/* CỬA SỔ THỨ 3: PHÒNG THU ÂM TRỰC TIẾP LIVE DUBBING STUDIO (Lazy Suspended) */}
+      {isLiveDubbingOpen && (
+        <Suspense fallback={null}>
+          <LiveDubbingStudioModal
+            isOpen={isLiveDubbingOpen}
+            onClose={() => setIsLiveDubbingOpen(false)}
+            project={project}
+            scene={
+              project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId)) ||
+              project.storyboard[0]
+            }
+            aspectRatio={aspectRatio}
+            onSaveRecordedVoice={handleSaveLiveRecordedVoice}
+          />
+        </Suspense>
+      )}
+
+      {/* BẢNG TRA CỨU PHÍM TẮT NLE (Lazy Suspended) */}
+      {isShortcutsModalOpen && (
+        <Suspense fallback={null}>
+          <KeyboardShortcutsModal
+            isOpen={isShortcutsModalOpen}
+            onClose={() => setIsShortcutsModalOpen(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

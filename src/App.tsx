@@ -19,51 +19,57 @@ import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { Footer } from './components/Footer';
 import { UnauthenticatedWorkspace } from './components/UnauthenticatedWorkspace';
-import { ProjectsListView } from './components/ProjectsListView';
-import { ProjectReviewWorkspace } from './components/ProjectReviewWorkspace';
 import { ViewLoadingSkeleton } from './components/ViewLoadingSkeleton';
+import { StudioErrorBoundary } from './components/StudioErrorBoundary';
+import { lazyWithRetry } from './utils/lazyWithRetry';
 
 // Icons
 import { CheckCircle2, Plus } from 'lucide-react';
 
-// Lazy-Loaded Secondary Views & Heavy Modals (Code-Split for 90% Faster Initial Load)
-const RegisterModal = React.lazy(() =>
+// Lazy-Loaded Workspaces, Secondary Views & Heavy Modals (Code-Split + Auto-Retry)
+const ProjectsListView = lazyWithRetry(() =>
+  import('./components/ProjectsListView').then((m) => ({ default: m.ProjectsListView }))
+);
+const ProjectReviewWorkspace = lazyWithRetry(() =>
+  import('./components/ProjectReviewWorkspace').then((m) => ({ default: m.ProjectReviewWorkspace }))
+);
+const RegisterModal = lazyWithRetry(() =>
   import('./components/RegisterModal').then((m) => ({ default: m.RegisterModal }))
 );
-const AuthModal = React.lazy(() =>
+const AuthModal = lazyWithRetry(() =>
   import('./components/AuthModal').then((m) => ({ default: m.AuthModal }))
 );
-const CreateProjectModal = React.lazy(() =>
+const CreateProjectModal = lazyWithRetry(() =>
   import('./components/CreateProjectModal').then((m) => ({ default: m.CreateProjectModal }))
 );
-const VideoClonerView = React.lazy(() =>
+const VideoClonerView = lazyWithRetry(() =>
   import('./components/VideoClonerView').then((m) => ({ default: m.VideoClonerView }))
 );
-const CalendarView = React.lazy(() =>
+const CalendarView = lazyWithRetry(() =>
   import('./components/CalendarView').then((m) => ({ default: m.CalendarView }))
 );
-const SkillsManagerView = React.lazy(() =>
+const SkillsManagerView = lazyWithRetry(() =>
   import('./components/SkillsManagerView').then((m) => ({ default: m.SkillsManagerView }))
 );
-const SocialChannelsView = React.lazy(() =>
+const SocialChannelsView = lazyWithRetry(() =>
   import('./components/SocialChannelsView').then((m) => ({ default: m.SocialChannelsView }))
 );
-const DriveBackupView = React.lazy(() =>
+const DriveBackupView = lazyWithRetry(() =>
   import('./components/DriveBackupView').then((m) => ({ default: m.DriveBackupView }))
 );
-const UserGuideView = React.lazy(() =>
+const UserGuideView = lazyWithRetry(() =>
   import('./components/UserGuideView').then((m) => ({ default: m.UserGuideView }))
 );
-const McpVideoToolsHub = React.lazy(() =>
+const McpVideoToolsHub = lazyWithRetry(() =>
   import('./components/McpVideoToolsHub').then((m) => ({ default: m.McpVideoToolsHub }))
 );
-const AiEngineSettingsView = React.lazy(() =>
+const AiEngineSettingsView = lazyWithRetry(() =>
   import('./components/AiEngineSettingsView').then((m) => ({ default: m.AiEngineSettingsView }))
 );
-const PolicyModal = React.lazy(() =>
+const PolicyModal = lazyWithRetry(() =>
   import('./components/PolicyModal').then((m) => ({ default: m.PolicyModal }))
 );
-const MultiClipStitcherStudio = React.lazy(() =>
+const MultiClipStitcherStudio = lazyWithRetry(() =>
   import('./components/MultiClipStitcherStudio').then((m) => ({ default: m.MultiClipStitcherStudio }))
 );
 
@@ -196,9 +202,18 @@ export function App() {
     }
   };
 
-  // Tự động đồng bộ ngay khi người dùng mở WebApp
+  // Tự động đồng bộ sau khi giao diện chính đã hoàn tất khung hình đầu tiên (Non-Blocking First Paint)
   useEffect(() => {
-    handleSyncSheet(true);
+    const win = window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (typeof win.requestIdleCallback === 'function') {
+      const idleId = win.requestIdleCallback(() => handleSyncSheet(true), { timeout: 1200 });
+      return () => win.cancelIdleCallback?.(idleId);
+    }
+    const timer = window.setTimeout(() => handleSyncSheet(true), 600);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const pendingCount = projects.filter((p) => p.status === 'pending_approval').length;
@@ -524,9 +539,10 @@ export function App() {
           }}
         />
 
-        {/* Main Work Area with Suspense Lazy Loading */}
+        {/* Main Work Area with Suspense Lazy Loading & Error Boundary */}
         <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
-          <Suspense fallback={<ViewLoadingSkeleton />}>
+          <StudioErrorBoundary resetKey={activeView}>
+            <Suspense fallback={<ViewLoadingSkeleton />}>
             {/* VIEW: CHỜ PHÊ DUYỆT (REVIEW WORKSPACE - CỬA SỔ 1) */}
             {(activeView === 'pending-approval' || activeView === 'review') && (
               !currentUser || !currentUser.isLoggedIn ? (
@@ -719,7 +735,8 @@ export function App() {
                 onOpenPolicyModal={(type) => setPolicyModalType(type)}
               />
             )}
-          </Suspense>
+            </Suspense>
+          </StudioErrorBoundary>
         </main>
       </div>
 
