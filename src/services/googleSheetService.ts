@@ -326,8 +326,14 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
       const formActionUrl = webhookUrl.split('?')[0].replace(/\/viewform$/, '/formResponse').replace(/\/edit$/, '/formResponse');
       const formParams = new URLSearchParams();
 
-      // Với hành động đăng ký mới: ánh xạ đầy đủ 13 trường Form; với action hệ thống (forgot_password, change_password, approve_*): đóng gói [ACTION:...] vào Ghi chú
+      // Với hành động đăng ký mới: ánh xạ đầy đủ 13 trường Form và nhúng chữ ký tay rút gọn vào Ghi chú (nếu <= 24KB)
+      // để Google Form Bridge mang thẳng chữ ký vào Apps Script mà không phụ thuộc máy chủ trung gian
       if (!enrichedPayload.action || enrichedPayload.action === 'register') {
+        const rawSig = String(enrichedPayload.signatureImage || enrichedPayload.buyerSignature || '').trim();
+        let notesWithSig = enrichedPayload.notes || '📄 Hợp đồng đã ký điện tử qua WebApp — Chờ Kỹ sư duyệt';
+        if (rawSig.startsWith('data:image/') && rawSig.length <= 24000) {
+          notesWithSig = `${notesWithSig} [SIG_DATA:${rawSig}]`;
+        }
         formParams.append('entry.1151079902', enrichedPayload.fullName || '');
         formParams.append('entry.1501072816', enrichedPayload.idCardNumber || '');
         formParams.append('entry.1306932060', enrichedPayload.dob || '');
@@ -340,7 +346,7 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
         formParams.append('entry.1122926950', enrichedPayload.depositAmount ? `${Number(enrichedPayload.depositAmount).toLocaleString('vi-VN')} VNĐ` : '0 VNĐ');
         formParams.append('entry.1728904839', enrichedPayload.totalAmount ? `${Number(enrichedPayload.totalAmount).toLocaleString('vi-VN')} VNĐ` : '0 VNĐ');
         formParams.append('entry.102692895', enrichedPayload.deliveryDays ? `${enrichedPayload.deliveryDays} ngày` : (enrichedPayload.depositAmount > 0 ? '5 ngày' : 'Bàn giao ngay'));
-        formParams.append('entry.770343613', enrichedPayload.notes || '📄 Hợp đồng đã ký điện tử qua WebApp — Chờ Kỹ sư duyệt');
+        formParams.append('entry.770343613', notesWithSig);
       } else {
         const actionPayloadForForm: Record<string, any> = { ...enrichedPayload };
         delete actionPayloadForForm.signatureImage;
@@ -1176,6 +1182,10 @@ export function parseUsersSheetGvizResponse(response: any): {
       notes = cellVals[12] || '';
     }
 
+    const localSavedSig = (email && typeof window !== 'undefined')
+      ? (localStorage.getItem(`synapes_user_signature_${email.toLowerCase()}`) || '')
+      : '';
+
     const regItem: UserRegistrationData = {
       id: `sheet_row_${idx + 2}`,
       fullName,
@@ -1191,6 +1201,7 @@ export function parseUsersSheetGvizResponse(response: any): {
       depositAmount: depositAmount || undefined,
       totalAmount: totalAmount || undefined,
       deliveryDays: deliveryDays || undefined,
+      signatureImage: localSavedSig || undefined,
       termsAccepted: notes.toLowerCase().includes('đã ký'),
       registeredAt,
       isApproved,
