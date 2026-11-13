@@ -166,12 +166,15 @@ if (fs.existsSync(clonerViewPath)) {
   assert(clonerViewContent.includes('Bước 1: Nạp Video Mẫu') || clonerViewContent.includes('Bóc Tách'), 'Giao diện có cổng nạp video mẫu');
   assert(clonerViewContent.includes('Nhân Bản') || clonerViewContent.includes('Bước 2'), 'Giao diện có cổng nhân bản chủ đề mới');
   assert(clonerViewContent.includes('BYOK') || clonerViewContent.includes('Khóa API'), 'Hiển thị trạng thái khóa API BYOK');
+  assert(clonerViewContent.includes('hypitSvmlBlueprint') && clonerViewContent.includes('HYPIT SVML ARCHITECTURE'), 'Giao diện hiển thị Hypit SVML Blueprint & Phân tích 3 trụ cột');
 }
 
 if (fs.existsSync(backendEnginePath)) {
   const backendContent = fs.readFileSync(backendEnginePath, 'utf8');
   assert(backendContent.includes('/api/video-deconstruct'), 'Có endpoint /api/video-deconstruct trên server backend');
   assert(backendContent.includes('/api/video-clone-synthesize'), 'Có endpoint /api/video-clone-synthesize trên server backend');
+  assert(backendContent.includes('buildHypitBlueprint') && backendContent.includes('finance_business'), 'Backend hỗ trợ Hypit SVML Blueprint & domain finance_business');
+  assert(!backendContent.includes('cleanModel'), 'Không còn lỗi ReferenceError cleanModel trong /api/video-deconstruct');
 }
 
 // -----------------------------------------------------------------------------

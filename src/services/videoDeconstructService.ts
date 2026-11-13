@@ -71,21 +71,52 @@ export async function deconstructVideoDna(options: {
   videoUrl?: string;
   videoData?: string; // base64 data
   mimeType?: string;
+  manualTranscript?: string;
   config: AIProviderConfig;
   onProgress?: (status: string, percent: number) => void;
 }): Promise<VideoDnaBlueprint> {
-  const { videoUrl, videoData, mimeType = 'video/mp4', config, onProgress } = options;
+  const { videoUrl, videoData, mimeType = 'video/mp4', manualTranscript, config, onProgress } = options;
 
-  onProgress?.('Đang kết nối hệ thống AI Engine giải mã cấu trúc Video...', 15);
+  onProgress?.('Đang kết nối hệ thống AI Engine giải mã cấu trúc & Hypit SVML...', 15);
 
   const videoMeta = extractVideoInfo(videoUrl);
   let realTitle = '';
   let realAuthor = '';
 
-  // 1. Thử lấy Metadata thật qua oEmbed Client-side nếu là YouTube
+  const geminiKey = config.gemini?.apiKey || '';
+  const geminiEndpoint = 'https://generativelanguage.googleapis.com/v1beta';
+  const geminiModel = config.gemini?.model || 'gemini-2.0-flash';
+
+  // 1. Ưu tiên gọi Backend Engine (/api/video-deconstruct) để trích xuất Chapters thật, Thời lượng thật, Thumbnail Vision & Hypit SVML
+  onProgress?.('Đang trích xuất Metadata, Chapters, Thumbnail Vision & bóc tách Hypit SVML...', 40);
+  try {
+    const res = await fetch('/api/video-deconstruct', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        videoUrl,
+        videoData,
+        manualTranscript,
+        apiKey: geminiKey,
+        model: geminiModel,
+      }),
+    });
+
+    if (res.ok) {
+      const parsed = await res.json();
+      if (parsed.success && parsed.dna) {
+        onProgress?.('Hoàn tất bóc tách Cấu trúc & Hypit SVML Blueprint!', 100);
+        return parsed.dna;
+      }
+    }
+  } catch (err) {
+    console.warn('Backend proxy deconstruct error, trying client fallback:', err);
+  }
+
+  // 2. Fallback Client-side oEmbed nếu Backend không khả dụng
   if (videoMeta?.platform === 'youtube' && videoMeta.id) {
     try {
-      onProgress?.('Đang trích xuất thông tin và tiêu đề gốc từ YouTube...', 25);
+      onProgress?.('Đang trích xuất thông tin và tiêu đề gốc từ YouTube...', 55);
       const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(videoUrl || '')}&format=json`);
       if (res.ok) {
         const oembed = await res.json();
@@ -93,13 +124,9 @@ export async function deconstructVideoDna(options: {
         realAuthor = oembed.author_name || '';
       }
     } catch {
-      // Ignored if blocked by CORS on client, will fallback to backend proxy
+      // Ignored if blocked by CORS on client
     }
   }
-
-  const geminiKey = config.gemini?.apiKey || '';
-  const geminiEndpoint = 'https://generativelanguage.googleapis.com/v1beta';
-  const geminiModel = config.gemini?.model || 'gemini-2.0-flash';
 
   const displayTitle = realTitle || (videoUrl ? 'Video Mẫu Triệu View Đã Nạp Từ Link' : 'Video Mẫu Tải Lên');
   const displayAuthor = realAuthor || 'Nhà Sáng Tạo Nội Dung';
@@ -109,8 +136,9 @@ Nhiệm vụ của bạn là bóc tách 100% cấu trúc DNA của video:
 - Tiêu đề thật: "${displayTitle}"
 - Kênh / Tác giả: "${displayAuthor}"
 - Đường dẫn: "${videoUrl || 'Video file'}"
+${manualTranscript ? `- Transcript: "${manualTranscript.slice(0, 4000)}"` : ''}
 
-Hãy bóc tách chuẩn xác nội dung thật, kịch bản, lời thoại từng phân cảnh, bí quyết hook 3 giây đầu, nhịp cắt cảnh, phân tích âm nhạc và định hướng công thức prompt chi tiết để nhân bản video tương tự.
+Hãy bóc tách chuẩn xác nội dung thật, kịch bản, lời thoại từng phân cảnh, bí quyết hook 3 giây đầu, nhịp cắt cảnh, phân tích âm nhạc và định hướng công thức prompt chi tiết.
 
 BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON (KHÔNG KÈM TEXT GIẢI THÍCH):
 {
@@ -136,7 +164,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON (KHÔNG KÈM TEXT GIẢI
     "colorPalette": ["#111827", "#E11D48", "#F59E0B"],
     "lightingMood": "Cinematic dramatic high contrast",
     "aestheticTag": "Docu-vlog High Energy",
-    "recommendedAspectRatio": "9:16"
+    "recommendedAspectRatio": "16:9"
   },
   "audioAnalysis": {
     "bgmGenre": "Phonk / Electronic energetic build-up",
@@ -169,9 +197,9 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON (KHÔNG KÈM TEXT GIẢI
   "rawTranscript": "Toàn bộ nội dung lời thoại đầy đủ của video..."
 }`;
 
-  // 1. Nếu có Gemini API Key của người dùng, gọi trực tiếp Gemini 2.0 Flash
+  // 3. Nếu có Gemini API Key của người dùng, thử gọi trực tiếp client-side khi backend proxy không phản hồi
   if (geminiKey && geminiKey.length > 5) {
-    onProgress?.('Đang gửi dữ liệu video tới Gemini qua Khóa API cá nhân của bạn...', 40);
+    onProgress?.('Đang gửi dữ liệu video tới Gemini qua Khóa API cá nhân của bạn...', 75);
 
     try {
       let contentsPayload: any[] = [];
@@ -234,32 +262,6 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON (KHÔNG KÈM TEXT GIẢI
     } catch (err) {
       console.warn('Lỗi gọi Gemini trực tiếp, chuyển sang backend proxy:', err);
     }
-  }
-
-  // 2. Chuyển sang gọi Server Proxy (/api/video-deconstruct)
-  onProgress?.('Đang xử lý phân tích và bóc tách cấu trúc qua Web Studio Backend Engine...', 65);
-
-  try {
-    const res = await fetch('/api/video-deconstruct', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        videoUrl,
-        videoData,
-        apiKey: geminiKey,
-        model: geminiModel,
-      }),
-    });
-
-    if (res.ok) {
-      const parsed = await res.json();
-      if (parsed.success && parsed.dna) {
-        onProgress?.('Hoàn tất bóc tách Video DNA thành công!', 100);
-        return parsed.dna;
-      }
-    }
-  } catch (err) {
-    console.warn('Backend proxy deconstruct error:', err);
   }
 
   // 3. Fallback: Bản mẫu DNA Video triệu view theo tiêu đề thật
@@ -339,6 +341,31 @@ TRẢ VỀ ĐỐI TƯỢNG JSON DUY NHẤT:
 
   onProgress?.(`Đang tạo kịch bản phân cảnh chi tiết qua mô hình ${modelName}...`, 60);
 
+  try {
+    const backendRes = await fetch('/api/video-clone-synthesize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dna,
+        newTopic,
+        targetAudience,
+        provider: activeProvider,
+        model: modelName,
+        apiKey: apiKey || '',
+      }),
+    });
+    if (backendRes.ok) {
+      const backendData = await backendRes.json();
+      const proj = backendData.clonedProject || backendData.project;
+      if (backendData.success && proj) {
+        onProgress?.('Hoàn tất nhân bản kịch bản theo Hypit SVML!', 100);
+        return proj;
+      }
+    }
+  } catch (backendErr) {
+    console.warn('Backend clone-synthesize unavailable, trying direct Gemini:', backendErr);
+  }
+
   if (apiKey && apiKey.length > 5) {
     try {
       if (activeProvider === 'gemini') {
@@ -407,14 +434,14 @@ function generateCuratedVideoDna(
   let domain = 'general';
   if (combined.match(/onana|manchester united|man utd|\bmu\b|football|soccer|goal|save|messi|ronaldo|cr7|neymar|haaland|champions league|premier league|chelsea|arsenal|liverpool|real madrid|barca|barcelona|goalkeeper|penalty|world cup|bóng đá|thủ môn|bàn thắng|trận đấu|cứu thua|khung thành|loky10/)) {
     domain = 'sports_football';
-  } else if (combined.match(/review|unboxing|iphone|samsung|macbook|laptop|phone|camera|gpu|nvidia|ai|chatgpt|deepseek|công nghệ|máy tính|điện thoại|xiaomi|ipad/)) {
+  } else if (combined.match(/chứng khoán|kinh tế|tài chính|lợi nhuận|xuất khẩu|gdp|lạm phát|ngân hàng|đầu tư|thị trường|bất động sản|cổ phiếu|trái phiếu|doanh nghiệp|vĩ mô|nghịch lý|phân tích|crypto|bitcoin|btc|invest|finance|stock|economy|macro|marketing|steve le|tin nhanh/)) {
+    domain = 'finance_business';
+  } else if (combined.match(/review|unboxing|iphone|samsung|macbook|laptop|smartphone|camera|gpu|nvidia|\bai\b|chatgpt|deepseek|công nghệ|máy tính|điện thoại|xiaomi|ipad/)) {
     domain = 'tech_review';
   } else if (combined.match(/food|cooking|recipe|street food|ăn|nấu|món ăn|ẩm thực|nhà hàng|bếp|mukbang|nướng|lẩu|bánh/)) {
     domain = 'food_cooking';
   } else if (combined.match(/travel|tour|vlog|du lịch|khám phá|hành trình|phượt|vietnam|da nang|saigon|hanoi|bali|japan|thailand/)) {
     domain = 'travel_vlog';
-  } else if (combined.match(/crypto|bitcoin|btc|invest|finance|stock|chứng khoán|tiền|làm giàu|kinh doanh|marketing/)) {
-    domain = 'finance_business';
   } else if (combined.match(/funny|comedy|prank|meme|hài|cười|troll|giải trí/)) {
     domain = 'comedy_entertainment';
   }
