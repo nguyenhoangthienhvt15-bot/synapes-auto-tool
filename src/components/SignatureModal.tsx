@@ -151,9 +151,25 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Xuất ảnh PNG trong suốt chất lượng cao
-    const dataUrl = canvas.toDataURL('image/png');
-    onSave(dataUrl);
+    // Chuẩn hóa kích thước ảnh chữ ký (maxWidth <= 400px) để PNG nhẹ (~2-6 KB),
+    // tương thích tốt với giới hạn lưu trữ ScriptProperties (9 KB) của Google Apps Script
+    const maxWidth = 400;
+    const scale = canvas.width > maxWidth ? maxWidth / canvas.width : 1;
+    const targetWidth = Math.max(1, Math.round(canvas.width * scale));
+    const targetHeight = Math.max(1, Math.round(canvas.height * scale));
+
+    const compactCanvas = document.createElement('canvas');
+    compactCanvas.width = targetWidth;
+    compactCanvas.height = targetHeight;
+    const compactCtx = compactCanvas.getContext('2d');
+    if (compactCtx) {
+      compactCtx.imageSmoothingEnabled = true;
+      compactCtx.imageSmoothingQuality = 'high';
+      compactCtx.drawImage(canvas, 0, 0, targetWidth, targetHeight);
+      onSave(compactCanvas.toDataURL('image/png'));
+    } else {
+      onSave(canvas.toDataURL('image/png'));
+    }
     onClose();
   };
 

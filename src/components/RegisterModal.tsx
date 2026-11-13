@@ -332,7 +332,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     const formattedDob = formatDobToDDMMYYYY(dob.trim());
     const pkgDetails = getPackageDetails(contractPackage);
 
-    // Đồng bộ ngay hồ sơ nháp lên Google Sheet
+    // Lưu nháp hồ sơ tại localStorage (chưa gửi Webhook tránh spam Form trước khi khách hàng ký hợp đồng ở Bước 2)
     const initialRegData: UserRegistrationData = {
       id: draftRegId,
       fullName: cleanedFullName,
@@ -355,7 +355,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       registeredAt: new Date().toLocaleString('vi-VN'),
       notes: 'Chờ duyệt hợp đồng'
     };
-    saveUserRegistration(initialRegData);
+    saveUserRegistration(initialRegData, { localOnly: true });
 
     setStep(2);
   };

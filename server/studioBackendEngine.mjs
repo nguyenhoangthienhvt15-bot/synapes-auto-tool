@@ -13,6 +13,62 @@ export const IP_BLACKLIST = new Map();
 const UNLOCK_RATE_LIMITS = new Map(); // IP -> { failedAttempts: number, lockedUntil: number, firstAttemptAt: number }
 const AUTH_RATE_LIMITS = new Map();   // IP -> { count: number, resetAt: number }
 
+// Kho lưu trữ tạm chữ ký tay hợp đồng (bounded Map tối đa 500 bản ghi, phục vụ Apps Script fetch khi Form Bridge không mang base64)
+const SIGNATURE_STORE = new Map(); // lowerEmail -> { signatureImage: string, updatedAt: number }
+const SIGNATURE_MAX_ENTRIES = 500;
+const SIGNATURE_DATA_URI_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]{16,250000}$/;
+
+function normalizeSignatureEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+function saveSignatureRecord(email, sig) {
+  const key = normalizeSignatureEmail(email);
+  const cleanSig = typeof sig === 'string' ? sig.trim() : '';
+  if (!key || !SIGNATURE_DATA_URI_RE.test(cleanSig)) return false;
+
+  if (SIGNATURE_STORE.has(key)) {
+    SIGNATURE_STORE.delete(key);
+  }
+  SIGNATURE_STORE.set(key, { signatureImage: cleanSig, updatedAt: Date.now() });
+  while (SIGNATURE_STORE.size > SIGNATURE_MAX_ENTRIES) {
+    const oldestKey = SIGNATURE_STORE.keys().next().value;
+    if (oldestKey !== undefined) SIGNATURE_STORE.delete(oldestKey);
+    else break;
+  }
+  return true;
+}
+
+function getSignatureRecord(email) {
+  const key = normalizeSignatureEmail(email);
+  if (!key) return '';
+  const memHit = SIGNATURE_STORE.get(key);
+  if (memHit && SIGNATURE_DATA_URI_RE.test(memHit.signatureImage)) {
+    return memHit.signatureImage;
+  }
+  try {
+    const regFile = path.join(path.resolve(process.cwd(), 'data'), 'registrations.json');
+    if (fs.existsSync(regFile)) {
+      const regList = JSON.parse(fs.readFileSync(regFile, 'utf8'));
+      if (Array.isArray(regList)) {
+        for (let i = regList.length - 1; i >= 0; i--) {
+          const item = regList[i];
+          if (normalizeSignatureEmail(item?.email) === key) {
+            const candidate = String(item?.signatureImage || item?.buyerSignature || '').trim();
+            if (SIGNATURE_DATA_URI_RE.test(candidate)) {
+              saveSignatureRecord(key, candidate);
+              return candidate;
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore disk fallback errors
+  }
+  return '';
+}
+
 export function checkUnlockRateLimit(clientIp) {
   const now = Date.now();
   const record = UNLOCK_RATE_LIMITS.get(clientIp);
@@ -1410,38 +1466,65 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
+  // REGISTRATION SIGNATURE LOOKUP (/api/registration-signature?email=...)
+  // Chỉ trả duy nhất ảnh chữ ký base64 đã validate (tuyệt đối không lộ PII khác)
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/registration-signature' && req.method === 'GET') {
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const queryEmail = urlObj.searchParams.get('email') || '';
+    const sig = getSignatureRecord(queryEmail);
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+    });
+    res.end(JSON.stringify({ found: Boolean(sig), signatureImage: sig }));
+    return true;
+  }
+
+  // --------------------------------------------------------------------------
   // REGISTRATION & GOOGLE FORM BRIDGE RELAY (/api/save-registration)
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/save-registration' && req.method === 'POST') {
     try {
       const payload = (await readJsonBody(req)) || {};
-      const formParams = new URLSearchParams();
+      const submittedSig = payload.signatureImage || payload.buyerSignature || '';
+      if (payload.email && submittedSig) {
+        saveSignatureRecord(payload.email, submittedSig);
+      }
 
-      formParams.append('entry.1151079902', payload.fullName || '');
-      formParams.append('entry.1501072816', payload.idCardNumber || payload.cccd || '');
-      formParams.append('entry.1306932060', payload.dob || '');
-      formParams.append('entry.795301612', payload.gender || 'Nam');
-      formParams.append('entry.368593840', payload.email || '');
-      formParams.append('entry.1772830631', payload.phone || '');
-      formParams.append('entry.338397966', payload.address || '');
-      formParams.append('entry.1008863253', payload.contractCategory === 'enterprise' ? 'Hợp đồng toàn hệ' : 'Hợp đồng cá nhân hóa');
-      formParams.append('entry.117592632', payload.contractPackageName || '');
-      formParams.append('entry.1122926950', payload.depositAmount ? `${Number(payload.depositAmount).toLocaleString('vi-VN')} VNĐ` : '0 VNĐ');
-      formParams.append('entry.1728904839', payload.totalAmount ? `${Number(payload.totalAmount).toLocaleString('vi-VN')} VNĐ` : '0 VNĐ');
-      formParams.append('entry.102692895', payload.deliveryDays ? `${payload.deliveryDays} ngày` : (payload.depositAmount > 0 ? '5 ngày' : 'Bàn giao ngay'));
-      formParams.append('entry.770343613', payload.notes || '📄 Hợp đồng đã ký điện tử qua WebApp — Chờ Kỹ sư duyệt');
+      // Chỉ gửi tiếp sang Google Form Bridge khi caller chưa gửi trực tiếp (tránh trùng dòng) và là hành động đăng ký mới
+      const isRegisterAction = !payload.action || payload.action === 'register';
+      let formStatus = 0;
+      if (!payload.skipFormRelay && isRegisterAction) {
+        const formParams = new URLSearchParams();
 
-      // Gửi trực tiếp từ backend Render sang Google Form Bridge
-      const formRes = await fetch('https://docs.google.com/forms/d/1XzfZQN4hBgTRpwxyk_PTh6H_0IlIQoC3FCEfCZ3xoQ8/formResponse', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        },
-        body: formParams.toString(),
-      });
+        formParams.append('entry.1151079902', payload.fullName || '');
+        formParams.append('entry.1501072816', payload.idCardNumber || payload.cccd || '');
+        formParams.append('entry.1306932060', payload.dob || '');
+        formParams.append('entry.795301612', payload.gender || 'Nam');
+        formParams.append('entry.368593840', payload.email || '');
+        formParams.append('entry.1772830631', payload.phone || '');
+        formParams.append('entry.338397966', payload.address || '');
+        formParams.append('entry.1008863253', payload.contractCategory === 'enterprise' ? 'Hợp đồng toàn hệ' : 'Hợp đồng cá nhân hóa');
+        formParams.append('entry.117592632', payload.contractPackageName || '');
+        formParams.append('entry.1122926950', payload.depositAmount ? `${Number(payload.depositAmount).toLocaleString('vi-VN')} VNĐ` : '0 VNĐ');
+        formParams.append('entry.1728904839', payload.totalAmount ? `${Number(payload.totalAmount).toLocaleString('vi-VN')} VNĐ` : '0 VNĐ');
+        formParams.append('entry.102692895', payload.deliveryDays ? `${payload.deliveryDays} ngày` : (payload.depositAmount > 0 ? '5 ngày' : 'Bàn giao ngay'));
+        formParams.append('entry.770343613', payload.notes || '📄 Hợp đồng đã ký điện tử qua WebApp — Chờ Kỹ sư duyệt');
 
-      // Lưu trữ an toàn cục bộ trên máy chủ backend để phục vụ xác thực nội bộ
+        // Gửi trực tiếp từ backend Render sang Google Form Bridge
+        const formRes = await fetch('https://docs.google.com/forms/d/1XzfZQN4hBgTRpwxyk_PTh6H_0IlIQoC3FCEfCZ3xoQ8/formResponse', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
+          body: formParams.toString(),
+        });
+        formStatus = formRes.status;
+      }
+
+      // Lưu trữ an toàn cục bộ trên máy chủ backend (giới hạn 500 bản ghi gần nhất để tránh phình file)
       try {
         const regDir = path.resolve(process.cwd(), 'data');
         if (!fs.existsSync(regDir)) fs.mkdirSync(regDir, { recursive: true });
@@ -1449,18 +1532,24 @@ export async function handleStudioApiRequest(req, res) {
         let regList = [];
         if (fs.existsSync(regFile)) {
           regList = JSON.parse(fs.readFileSync(regFile, 'utf8'));
+          if (!Array.isArray(regList)) regList = [];
         }
+        const safePayload = { ...payload };
+        delete safePayload.skipFormRelay;
         regList.push({
-          ...payload,
+          ...safePayload,
           savedAt: new Date().toISOString(),
         });
+        if (regList.length > 500) {
+          regList = regList.slice(-500);
+        }
         fs.writeFileSync(regFile, JSON.stringify(regList, null, 2), 'utf8');
       } catch (errReg) {
         console.warn('Lỗi lưu registrations.json:', errReg.message);
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ success: true, formStatus: formRes.status, message: 'Đã lưu và chuyển tiếp hồ sơ sang Google Sheet thành công' }));
+      res.end(JSON.stringify({ success: true, formStatus, message: 'Đã lưu hồ sơ và chữ ký trên máy chủ thành công' }));
       return true;
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
