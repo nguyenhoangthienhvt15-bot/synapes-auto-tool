@@ -2081,6 +2081,49 @@ export async function handleStudioApiRequest(req, res) {
     return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
   }
 
+  // Trích xuất Topic Profile động từ Title, Author, Mô tả sạch, Chapters & Transcript (không bó buộc template cứng)
+  function extractDynamicTopicProfile({ title, author, shortDescription, keywords, chapters, manualTranscript }) {
+    const rawLines = String(shortDescription || '')
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 15 && !/^https?:\/\//i.test(l) && !/đăng ký kênh|subscribe|theo dõi|liên hệ quảng cáo|fanpage|tiktok|youtube\.com/i.test(l) && !/^#\S+(\s+#\S+)*$/.test(l));
+    const cleanSentences = rawLines
+      .join(' ')
+      .split(/(?<=[.!?])\s+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 18);
+
+    const chaptersText = Array.isArray(chapters) ? chapters.map((c) => c.title).join(' ') : '';
+    const primaryText = `${title} ${author} ${chaptersText}`.toLowerCase();
+    const cleanDescText = cleanSentences.join(' ').toLowerCase();
+    const detectDomain = (txt) => {
+      if (txt.match(/onana|manchester united|man utd|\bmu\b|football|soccer|goal|save|messi|ronaldo|cr7|neymar|haaland|champions league|premier league|chelsea|arsenal|liverpool|real madrid|barca|barcelona|goalkeeper|penalty|world cup|bóng đá|thủ môn|bàn thắng|trận đấu|cứu thua|khung thành|loky10/)) return 'sports_football';
+      if (txt.match(/báo tuổi trẻ|vnexpress|thanh niên|nhân dân|vtv|thời sự|phóng sự|bộ trưởng|tổng thống|thủ tướng|quốc hội|quân sự|huân chương|binh sĩ|ngoại giao|chính sách|quốc phòng|tin nóng|tin tức|breaking news|journalis/)) return 'news_journalism';
+      if (txt.match(/chứng khoán|cổ phiếu|kinh tế|vĩ mô|gdp|lãi suất|lạm phát|xuất khẩu|lợi nhuận|tài chính|đầu tư|thị trường|trái phiếu|crypto|bitcoin|\bbtc\b|options|trader|trading|stock|finance|invest|macro|steve le/)) return 'finance_business';
+      if (txt.match(/\breview\b|\bunboxing\b|iphone|samsung|macbook|laptop|smartphone|camera|gpu|nvidia|chatgpt|deepseek|công nghệ|máy tính|điện thoại|xiaomi|ipad/)) return 'tech_review';
+      if (txt.match(/food|cooking|recipe|street food|ẩm thực|nhà hàng|mukbang|món ăn|nấu ăn/)) return 'food_cooking';
+      if (txt.match(/travel|tour|vlog|du lịch|khám phá|hành trình|phượt|vietnam|da nang|saigon|hanoi|bali|japan|thailand/)) return 'travel_vlog';
+      if (txt.match(/funny|comedy|prank|meme|hài|cười|troll|giải trí/)) return 'comedy_entertainment';
+      return '';
+    };
+
+    const domain = detectDomain(primaryText) || detectDomain(cleanDescText) || 'general';
+    const entityMatches = String(title || '').match(/(?:[A-ZÀ-Ỹ][\p{L}\d-]+(?:\s+[A-ZÀ-Ỹ][\p{L}\d-]+)*)/gu) || [];
+    const keyEntities = Array.from(new Set(entityMatches.filter((e) => e.length > 2))).slice(0, 6);
+    const topicKeywords = (keywords && keywords.length > 0 ? keywords : String(title || '').split(/\s+/).filter((w) => w.length > 3)).slice(0, 8);
+    const isQuestion = /\?|nói gì|tại sao|vì sao|như thế nào|gì\b/i.test(title);
+    const narrativeAngle = domain === 'news_journalism'
+      ? (isQuestion ? 'Phóng sự Tâm điểm & Giải mã Phát ngôn' : 'Tường thuật Sự kiện & Bối cảnh Thời sự')
+      : domain === 'finance_business'
+        ? 'Nghịch lý Vĩ mô & Đối chiếu Dữ liệu'
+        : isQuestion
+          ? 'Đặt Câu hỏi Mở & Giải mã Chủ đề'
+          : 'Phân tích Chủ đề & Câu chuyện Trọng tâm';
+
+    const transcriptWords = String(manualTranscript || '').trim().split(/\s+/).filter(Boolean);
+    return { domain, cleanSentences, keyEntities, topicKeywords, narrativeAngle, transcriptWords };
+  }
+
   // Bộ phân tích ngữ nghĩa & giải phẫu cấu trúc Video theo chuẩn Hypit SVML (Zero-Mock Semantic Engine)
   function generateDomainVideoDna(meta) {
     const {
@@ -2091,6 +2134,7 @@ export async function handleStudioApiRequest(req, res) {
       keywords = [],
       shortDescription = '',
       chapters = [],
+      manualTranscript = '',
       thumbnailUrl = '',
       embedUrl = '',
       sourceUrl = ''
@@ -2099,22 +2143,8 @@ export async function handleStudioApiRequest(req, res) {
     const totalSec = Math.max(10, Math.min(3600, parseInt(lengthSeconds, 10) || 30));
     const isLongForm = totalSec >= 90 && !String(sourceUrl || '').includes('/shorts/');
     const defaultAspect = aspectRatio || (isLongForm ? '16:9' : '9:16');
-    const combined = (title + ' ' + (keywords || []).join(' ') + ' ' + shortDescription + ' ' + author).toLowerCase();
-
-    let domain = 'general';
-    if (combined.match(/onana|manchester united|man utd|\bmu\b|football|soccer|goal|save|messi|ronaldo|cr7|neymar|haaland|champions league|premier league|chelsea|arsenal|liverpool|real madrid|barca|barcelona|goalkeeper|penalty|world cup|bóng đá|thủ môn|bàn thắng|trận đấu|cứu thua|khung thành|loky10/)) {
-      domain = 'sports_football';
-    } else if (combined.match(/chứng khoán|cổ phiếu|kinh tế|vĩ mô|gdp|lãi suất|lạm phát|xuất khẩu|lợi nhuận|tài chính|đầu tư|thị trường|trái phiếu|crypto|bitcoin|\bbtc\b|options|trader|trading|stock|finance|invest|macro|steve le/)) {
-      domain = 'finance_business';
-    } else if (combined.match(/\breview\b|\bunboxing\b|iphone|samsung|macbook|laptop|smartphone|camera|gpu|nvidia|chatgpt|deepseek|công nghệ|máy tính|điện thoại|xiaomi|ipad/)) {
-      domain = 'tech_review';
-    } else if (combined.match(/food|cooking|recipe|street food|ẩm thực|nhà hàng|mukbang|món ăn|nấu ăn/)) {
-      domain = 'food_cooking';
-    } else if (combined.match(/travel|tour|vlog|du lịch|khám phá|hành trình|phượt|vietnam|da nang|saigon|hanoi|bali|japan|thailand/)) {
-      domain = 'travel_vlog';
-    } else if (combined.match(/funny|comedy|prank|meme|hài|cười|troll|giải trí/)) {
-      domain = 'comedy_entertainment';
-    }
+    const topicProfile = extractDynamicTopicProfile({ title, author, shortDescription, keywords, chapters, manualTranscript });
+    const { domain, cleanSentences, keyEntities, narrativeAngle, transcriptWords } = topicProfile;
 
     // Nếu video có Chapters thật (như YouTube Deep-Dive), chia phân cảnh chuẩn xác theo từng Chapter
     let timeRanges = [];
@@ -2143,8 +2173,10 @@ export async function handleStudioApiRequest(req, res) {
       const firstScene = dnaObj.scenes[0] || {};
       const lastScene = dnaObj.scenes[dnaObj.scenes.length - 1] || {};
       const isFinance = dDomain === 'finance_business';
+      const isNews = dDomain === 'news_journalism';
 
       dnaObj.chapters = Array.isArray(chapters) ? chapters : [];
+      dnaObj.analysisMode = dnaObj.analysisMode || 'dynamic-topic-engine';
       if (!dnaObj.rhetoricalStructure) {
         dnaObj.rhetoricalStructure = isFinance
           ? {
@@ -2156,15 +2188,25 @@ export async function handleStudioApiRequest(req, res) {
                 transitionPhrase: i === 0 ? 'Vấn đề nghịch lý nằm ở chỗ...' : i === dnaObj.scenes.length - 1 ? 'Nhìn sang bức tranh tổng thể...' : 'Đi sâu vào số liệu thực tế...',
               })),
             }
-          : {
-              frameworkName: 'Hook 3s -> Escalation -> Climax -> Retention Payoff -> CTA',
-              stages: dnaObj.scenes.map((sc, i) => ({
-                stageName: timeRanges[i]?.chapterTitle || `Chặng ${i + 1}: ${sc.visualCategory}`,
-                timeRange: `${sc.timeStart} - ${sc.timeEnd}`,
-                purpose: sc.visualDescription,
-                transitionPhrase: i === 0 ? 'Điều bất ngờ ngay sau đây...' : 'Và bước ngoặt xuất hiện khi...',
-              })),
-            };
+          : isNews
+            ? {
+                frameworkName: `${narrativeAngle} (Tiêu điểm Sự kiện -> Diễn biến Chính -> Phát ngôn/Bối cảnh -> Góc nhìn Tổng kết)`,
+                stages: dnaObj.scenes.map((sc, i) => ({
+                  stageName: timeRanges[i]?.chapterTitle || `Chặng ${i + 1}: ${sc.visualCategory}`,
+                  timeRange: `${sc.timeStart} - ${sc.timeEnd}`,
+                  purpose: sc.visualDescription,
+                  transitionPhrase: i === 0 ? 'Tâm điểm sự chú ý đổ dồn vào...' : i === dnaObj.scenes.length - 1 ? 'Sự kiện này đặt ra góc nhìn...' : 'Theo diễn biến được ghi nhận...',
+                })),
+              }
+            : {
+                frameworkName: `${narrativeAngle} (Hook Chủ Đề -> Triển Khai Luận Điểm -> Điểm Nhấn -> Kết Luận)`,
+                stages: dnaObj.scenes.map((sc, i) => ({
+                  stageName: timeRanges[i]?.chapterTitle || `Chặng ${i + 1}: ${sc.visualCategory}`,
+                  timeRange: `${sc.timeStart} - ${sc.timeEnd}`,
+                  purpose: sc.visualDescription,
+                  transitionPhrase: i === 0 ? `Xoay quanh chủ đề "${title}"...` : 'Điểm đáng chú ý tiếp theo...',
+                })),
+              };
       }
       if (!dnaObj.deliveryStyle) {
         dnaObj.deliveryStyle = isFinance
@@ -2175,13 +2217,21 @@ export async function handleStudioApiRequest(req, res) {
               terminologyDensity: 'Trung bình-Cao (xen kẽ thuật ngữ Anh-Việt: Real/Nominal GDP, K-Shaped, Margin, Cashflow)',
               sentenceLengthAvg: '14-18 từ/câu, ngắt nhịp rõ ở các con số %',
             }
-          : {
-              voicePersona: dnaObj.audioAnalysis?.voiceTone || 'Tự tin, giàu năng lượng, nhấn nhá theo cao trào',
-              cadencePattern: 'Câu ngắn 8-12 từ, ngắt nhịp nhanh ở các từ khóa gây tò mò',
-              signaturePhrases: ['Hãy nhìn kỹ khoảnh khắc này...', 'Điều không ai ngờ tới là...'],
-              terminologyDensity: 'Thấp-Trung bình (dễ tiếp cận số đông)',
-              sentenceLengthAvg: '10-14 từ/câu',
-            };
+          : isNews
+            ? {
+                voicePersona: `Phát thanh viên / Biên tập viên thời sự (${author || 'Báo chí chính thống'}): chuẩn mực, khách quan, rõ ràng và giàu tính thời sự`,
+                cadencePattern: 'Câu mở đầu nêu thẳng nhân vật & sự kiện (5W1H) -> Dẫn trích đoạn phát ngôn/hành động thực tế -> Tóm tắt bối cảnh ngắn gọn',
+                signaturePhrases: keyEntities.length > 0 ? [`Tâm điểm xoay quanh ${keyEntities[0]}`, 'Theo thông tin ghi nhận...', 'Đáng chú ý trong phát biểu...'] : ['Theo thông tin ghi nhận...', 'Đáng chú ý tại sự kiện...'],
+                terminologyDensity: 'Trung bình (thuật ngữ báo chí, chính sách & đối ngoại chuẩn xác)',
+                sentenceLengthAvg: '14-20 từ/câu, ngắt nghỉ rõ ràng tại trích dẫn',
+              }
+            : {
+                voicePersona: dnaObj.audioAnalysis?.voiceTone || 'Tự tin, rành mạch, dẫn dắt theo đúng chủ đề trọng tâm',
+                cadencePattern: 'Câu mở đầu nêu trực diện chủ đề -> Triển khai luận điểm/minh họa -> Chốt thông điệp',
+                signaturePhrases: keyEntities.length > 0 ? [`Chủ đề: ${keyEntities[0]}`, 'Điểm mấu chốt cần lưu ý...'] : ['Điểm mấu chốt cần lưu ý...'],
+                terminologyDensity: 'Thấp-Trung bình (dễ tiếp cận số đông)',
+                sentenceLengthAvg: '12-16 từ/câu',
+              };
       }
       if (!dnaObj.presentationStyle) {
         dnaObj.presentationStyle = isFinance
@@ -2192,13 +2242,21 @@ export async function handleStudioApiRequest(req, res) {
               bRollAndChartRatio: '70% Biểu đồ/Tư liệu báo chí & Slide số liệu — 30% Talking-Head/Chân dung nhân vật',
               thumbnailFormula: 'Chân dung nhân vật neo cảm xúc 2 bên + Đường biểu đồ gãy khúc đỏ xuyên khung + Nhãn đóng dấu số liệu + Tiêu đề nghịch lý 4-6 từ',
             }
-          : {
-              formatType: `${dnaObj.visualStyle?.recommendedAspectRatio || defaultAspect} ${dnaObj.visualStyle?.aestheticTag || 'Dynamic Visual'}`,
-              slideLayoutPattern: 'Cắt cảnh liên tục theo nhịp động, chèn chữ động Kinetic ở giữa hoặc 1/3 dưới khung hình',
-              typographyRules: 'Sans-serif đậm, viền tối/bóng đổ nổi bật trên nền chuyển động',
-              bRollAndChartRatio: '80% B-Roll hành động / minh họa — 20% Overlay Text',
-              thumbnailFormula: 'Chủ thể cận cảnh biểu cảm mạnh + Từ khóa ngắn kích thích tò mò',
-            };
+          : isNews
+            ? {
+                formatType: `${defaultAspect} Broadcast News & Editorial Documentary`,
+                slideLayoutPattern: 'Cảnh hiện trường / Phát biểu trực tiếp (A-Roll) xen kẽ tư liệu lưu trữ (B-Roll), lower-third tên nhân vật & chức danh, thanh chạy chữ tóm tắt sự kiện',
+                typographyRules: 'Font chữ báo chí sắc nét (Sans-serif đậm), thanh lower-third xanh/đỏ đặc trưng tòa soạn, trích dẫn phát ngôn đặt trong ngoặc kép nổi bật',
+                bRollAndChartRatio: '60% Tư liệu hiện trường & Nhân vật phát biểu — 40% B-Roll bối cảnh & Phụ đề trích dẫn',
+                thumbnailFormula: 'Ảnh cận cảnh nhân vật chính đang phát biểu + Tiêu đề báo chí súc tích đặt câu hỏi hoặc nhấn mạnh sự kiện + Logo tòa soạn',
+              }
+            : {
+                formatType: `${dnaObj.visualStyle?.recommendedAspectRatio || defaultAspect} ${dnaObj.visualStyle?.aestheticTag || 'Topic-Driven Visual'}`,
+                slideLayoutPattern: 'Cắt cảnh linh hoạt theo mạch nội dung chủ đề, chèn chữ động nổi bật từ khóa chính',
+                typographyRules: 'Sans-serif đậm, viền tối/bóng đổ nổi bật trên nền chuyển động',
+                bRollAndChartRatio: '75% B-Roll minh họa đúng chủ đề — 25% Overlay Text & Tiêu đề mục',
+                thumbnailFormula: 'Chủ thể chính rõ nét + Từ khóa chủ đề ngắn gọn kích thích tò mò',
+              };
       }
       if (!dnaObj.hypitSvmlBlueprint) {
         dnaObj.hypitSvmlBlueprint = {
@@ -2532,7 +2590,126 @@ export async function handleStudioApiRequest(req, res) {
       }, 'tech_review');
     }
 
-    // Domain Mặc định chuẩn xác dựa theo tiêu đề thật (General Story)
+    // Hàm chia Transcript hoặc Mô tả sạch theo số lượng phân cảnh
+    const getDynamicSceneSpokenText = (idx, total, defaultFallback) => {
+      if (transcriptWords.length >= total * 4) {
+        const chunkSize = Math.ceil(transcriptWords.length / total);
+        const slice = transcriptWords.slice(idx * chunkSize, (idx + 1) * chunkSize).join(' ');
+        if (slice) return slice;
+      }
+      if (cleanSentences[idx]) return cleanSentences[idx];
+      return defaultFallback;
+    };
+
+    if (domain === 'news_journalism') {
+      const mainSubject = keyEntities[0] || title;
+      const newsScenes = timeRanges.map((tr, idx) => {
+        const labels = [
+          'Tiêu điểm sự kiện & Nhân vật chính',
+          'Bối cảnh & Diễn biến ghi nhận',
+          'Phát biểu trọng tâm / Khoảnh khắc đáng chú ý',
+          'Phản ứng & Ý nghĩa sự kiện',
+          'Tổng kết bản tin & Góc nhìn tiếp theo'
+        ];
+        const label = tr.chapterTitle || labels[idx] || `Phần ${idx + 1}`;
+        const defaults = [
+          `Tâm điểm chú ý xoay quanh "${title}" được ${author || 'kênh tin tức'} ghi nhận và đưa tin.`,
+          `Theo diễn biến sự kiện liên quan đến ${mainSubject}, các chi tiết bối cảnh bắt đầu được làm rõ.`,
+          `Khoảnh khắc đáng chú ý nhất là phát ngôn và hành động trực tiếp của ${mainSubject} trước ống kính.`,
+          `Thông tin này ngay lập tức thu hút sự quan tâm lớn từ dư luận và giới quan sát.`,
+          `Đó là toàn cảnh diễn biến về "${title}". Bạn có nhận định gì về sự kiện này?`
+        ];
+        return {
+          sceneNumber: idx + 1,
+          timeStart: tr.start,
+          timeEnd: tr.end,
+          durationSec: tr.dur,
+          shotType: idx === 0 ? 'medium-shot' : idx === 2 ? 'close-up' : 'wide-angle',
+          visualCategory: idx === 0 ? 'news-lead' : idx === timeRanges.length - 1 ? 'news-outro' : 'field-footage',
+          visualDescription: `[${label}] Tư liệu hiện trường và khung hình nhân vật liên quan tới "${title}" kèm thanh lower-third báo chí`,
+          transcript: getDynamicSceneSpokenText(idx, timeRanges.length, defaults[idx] || defaults[1]),
+          suggestedAiPrompt: `Broadcast news documentary shot (${defaultAspect}) depicting ${mainSubject}, press conference / official ceremony lighting, crisp journalistic color grade, lower-third banner space, 4k`,
+          onScreenText: (tr.chapterTitle || (idx === 0 ? mainSubject : label)).toUpperCase().slice(0, 42),
+          sfxCue: idx === 0 ? 'News broadcast sting' : 'Subtle documentary whoosh'
+        };
+      });
+
+      return buildHypitBlueprint({
+        sourceUrl: sourceUrl || '',
+        sourceTitle: title,
+        authorName: author || 'Tòa soạn Tin tức',
+        embedUrl,
+        thumbnailUrl: thumbnailUrl || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80',
+        durationSec: totalSec,
+        totalScenes: newsScenes.length,
+        averageShotDuration: +(totalSec / newsScenes.length).toFixed(1),
+        wordsPerMinute: 150,
+        hookScore: 93,
+        hookAnalysis: {
+          verbalHook: `Mở đầu trực diện vào sự kiện "${title}" theo chuẩn tin tức 5W1H.`,
+          visualHook: `Cảnh hiện trường / cận cảnh ${mainSubject} kết hợp tiêu đề báo chí nổi bật.`,
+          audioHook: 'Âm thanh mở màn bản tin sắc gọn chuyển vào giọng đọc phát thanh viên rõ ràng.',
+          curiosityGapStrategy: 'Đặt câu hỏi trọng tâm ngay ở tiêu đề để giữ người xem theo dõi trọn vẹn phát biểu.'
+        },
+        retentionStrategy: 'Đan xen cảnh nhân vật phát biểu trực tiếp, tư liệu bối cảnh và phụ đề trích dẫn nguyên văn.',
+        pacingStyle: isLongForm ? 'broadcast-news-report' : 'news-short-briefing',
+        visualStyle: {
+          colorPalette: ['#0f172a', '#b91c1c', '#f8fafc'],
+          lightingMood: 'Journalistic Natural & Press Room Broadcast Lighting',
+          aestheticTag: 'Broadcast News & Editorial Report',
+          recommendedAspectRatio: defaultAspect
+        },
+        audioAnalysis: {
+          bgmGenre: 'Subtle Newsroom Underscore / Documentary Ambient',
+          bpmTempo: 105,
+          voiceTone: 'Chuẩn mực, khách quan, rõ ràng, nhấn mạnh vào trích dẫn phát biểu',
+          sfxFrequency: 'low'
+        },
+        promptGuide: {
+          visualFormula: `[Broadcast Shot ${defaultAspect}] + [Subject: ${mainSubject}] + [Press/Event context from ${title}] + [Lower-third news banner] + [Photorealistic 4k]`,
+          scriptFormula: 'Tiêu điểm 5W1H -> Bối cảnh sự kiện -> Trích dẫn phát ngôn -> Tác động & Dư luận -> Tổng kết',
+          audioFormula: 'Clean broadcast voiceover + Subtle news bed (no overpowering BGM)',
+          negativePrompts: ['Không dùng hiệu ứng giải trí lòe loẹt', 'Không bịa đặt số liệu ngoài bản tin', 'Không để nhạc nền lấn át lời phát biểu'],
+          cinematicKeywords: ['Press conference lighting', 'Documentary B-roll', 'News lower-third overlay', 'Editorial realism']
+        },
+        scenes: newsScenes,
+        rawTranscript: newsScenes.map((s) => s.transcript).join(' ')
+      }, 'news_journalism');
+    }
+
+    // Domain Mặc định động: Đọc trực tiếp Chủ đề (Title + Clean Sentences + Key Entities + Manual Transcript) thay vì template cứng
+    const dynamicSubject = keyEntities[0] || title;
+    const dynamicScenes = timeRanges.map((tr, idx) => {
+      const stageLabels = [
+        `Mở đầu chủ đề: ${dynamicSubject}`,
+        'Bối cảnh & Chi tiết nền tảng',
+        'Điểm nhấn cốt lõi của nội dung',
+        'Phân tích / Mở rộng góc nhìn',
+        'Tổng kết & Câu hỏi tương tác'
+      ];
+      const label = tr.chapterTitle || stageLabels[idx] || `Phân đoạn ${idx + 1}`;
+      const defaults = [
+        `Giới thiệu trực diện chủ đề "${title}"${author ? ` từ kênh ${author}` : ''}.`,
+        `Làm rõ bối cảnh và các yếu tố chính xoay quanh ${dynamicSubject}.`,
+        `Tập trung vào nội dung trọng tâm và thông điệp chính của "${title}".`,
+        `Đúc kết ý nghĩa thực tế và những điểm đáng chú ý cho người xem.`,
+        `Tổng kết lại chủ đề "${title}". Bạn có góc nhìn hoặc câu hỏi nào thêm không?`
+      ];
+      return {
+        sceneNumber: idx + 1,
+        timeStart: tr.start,
+        timeEnd: tr.end,
+        durationSec: tr.dur,
+        shotType: idx === 0 ? 'close-up' : idx === timeRanges.length - 1 ? 'wide-angle' : 'medium-shot',
+        visualCategory: idx === 0 ? 'topic-hook' : idx === timeRanges.length - 1 ? 'topic-outro' : 'topic-body',
+        visualDescription: `[${label}] Khung hình minh họa sát chủ đề "${title}" (${narrativeAngle})`,
+        transcript: getDynamicSceneSpokenText(idx, timeRanges.length, defaults[idx] || defaults[2]),
+        suggestedAiPrompt: `Cinematic ${defaultAspect} scene illustrating "${title}", focus on ${dynamicSubject}, clear visual storytelling, sharp lighting, 4k`,
+        onScreenText: (tr.chapterTitle || dynamicSubject).toUpperCase().slice(0, 42),
+        sfxCue: idx === 0 ? 'Clean intro whoosh' : 'Smooth transition chime'
+      };
+    });
+
     return buildHypitBlueprint({
       sourceUrl: sourceUrl || '',
       sourceTitle: title,
@@ -2540,106 +2717,40 @@ export async function handleStudioApiRequest(req, res) {
       embedUrl,
       thumbnailUrl: thumbnailUrl || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=1200&q=80',
       durationSec: totalSec,
-      totalScenes: 5,
-      averageShotDuration: +(totalSec / 5).toFixed(1),
+      totalScenes: dynamicScenes.length,
+      averageShotDuration: +(totalSec / dynamicScenes.length).toFixed(1),
       wordsPerMinute: 145,
-      hookScore: 94,
+      hookScore: 92,
       hookAnalysis: {
-        verbalHook: `Bí mật đằng sau ${title} mà rất ít người để ý đến!`,
-        visualHook: 'Chuyển cảnh tốc độ cao bắt trọn khoảnh khắc then chốt gây tò mò tột độ',
-        audioHook: 'Âm thanh Riser dồn dập và hiệu ứng Sub-bass tạo sự nghẹt thở',
-        curiosityGapStrategy: `Mở ra câu hỏi lớn về ${title} ngay giây đầu tiên và giữ nút thắt đến cảnh kết`
+        verbalHook: `Dẫn thẳng vào chủ đề "${title}" theo hướng ${narrativeAngle.toLowerCase()}.`,
+        visualHook: `Hình ảnh trọng tâm giới thiệu ${dynamicSubject} kết hợp tiêu đề rõ ràng.`,
+        audioHook: 'Âm thanh chuyển tiếp gọn kết hợp nhịp giọng rõ ràng ngay giây đầu.',
+        curiosityGapStrategy: `Giữ mạch khám phá xoay quanh "${title}" xuyên suốt ${dynamicScenes.length} phân đoạn.`
       },
-      retentionStrategy: 'Thay đổi góc máy linh hoạt sau mỗi 2.5 giây, liên tục đẩy cao trào thị giác',
-      pacingStyle: 'dynamic-viral-short',
+      retentionStrategy: `Triển khai mạch lạc theo ${dynamicScenes.length} chặng bám sát chủ đề "${title}".`,
+      pacingStyle: isLongForm ? 'topic-explainer-16x9' : 'dynamic-viral-short',
       visualStyle: {
-        colorPalette: ['#1e293b', '#e11d48', '#f59e0b'],
-        lightingMood: 'Cinematic high contrast dynamic lighting',
-        aestheticTag: 'High Energy Motion & Action Focus',
-        recommendedAspectRatio: '9:16'
+        colorPalette: ['#1e293b', '#3b82f6', '#f59e0b'],
+        lightingMood: 'Clean Cinematic Storytelling Lighting',
+        aestheticTag: `Dynamic Topic: ${narrativeAngle}`,
+        recommendedAspectRatio: defaultAspect
       },
       audioAnalysis: {
-        bgmGenre: 'Modern Electronic / Cinematic Tension',
-        bpmTempo: 132,
-        voiceTone: 'Cuốn hút, biến đổi nhịp điệu linh hoạt theo cao trào',
-        sfxFrequency: 'high'
+        bgmGenre: 'Adaptive Background Instrumental',
+        bpmTempo: isLongForm ? 112 : 128,
+        voiceTone: 'Rõ ràng, truyền cảm, bám sát ngữ cảnh chủ đề',
+        sfxFrequency: 'medium'
       },
       promptGuide: {
-        visualFormula: `[Shot Type] + [Chủ thể: ${title}] + [Hành động/Biểu cảm cao trào] + [Ánh sáng điện ảnh sắc nét] + [8k cinematic composition]`,
-        scriptFormula: 'Hook kích thích tò mò -> Phát triển diễn biến kịch tính -> Cao trào bất ngờ -> Lắng đọng cảm xúc -> Kêu gọi tương tác',
-        audioFormula: 'Tension riser -> Booming bass impact at peak -> Energetic rhythmic beats',
-        negativePrompts: ['Không dùng cảnh tĩnh thừa thãi', 'Không mở đầu rườm rà', 'Không để âm lượng chênh lệch'],
-        cinematicKeywords: ['Dynamic camera pan', 'High contrast rim light', 'Kinetic typography', 'Volumetric atmosphere']
+        visualFormula: `[Shot Type ${defaultAspect}] + [Topic: ${title}] + [Subject: ${dynamicSubject}] + [Clean lighting] + [4k]`,
+        scriptFormula: `${narrativeAngle}: Mở đầu chủ đề -> Bối cảnh -> Trọng tâm -> Tổng kết -> CTA`,
+        audioFormula: 'Clear voiceover + Adaptive BGM + Subtle transition SFX',
+        negativePrompts: ['Không dùng nội dung lạc đề', 'Không nhồi chữ quá dày', 'Không để nhạc lấn giọng nói'],
+        cinematicKeywords: [dynamicSubject, 'Topic-driven framing', 'Clean typography', 'Smooth pacing']
       },
-      scenes: [
-        {
-          sceneNumber: 1,
-          timeStart: timeRanges[0].start,
-          timeEnd: timeRanges[0].end,
-          durationSec: timeRanges[0].dur,
-          shotType: 'close-up',
-          visualCategory: 'hook-scene',
-          visualDescription: `Khoảnh khắc mở màn ấn tượng của ${title} làm nổi bật tình tiết then chốt`,
-          transcript: `Bạn có tin được điều này về ${title}? Hãy xem kỹ khoảnh khắc này!`,
-          suggestedAiPrompt: `Dramatic close-up opening shot focusing on ${title}, intense lighting, 8k resolution cinematic realism`,
-          onScreenText: 'KHOẢNH KHẮC BẤT NGỜ',
-          sfxCue: 'Dramatic Impact Whoosh'
-        },
-        {
-          sceneNumber: 2,
-          timeStart: timeRanges[1].start,
-          timeEnd: timeRanges[1].end,
-          durationSec: timeRanges[1].dur,
-          shotType: 'medium-shot',
-          visualCategory: 'build-up',
-          visualDescription: 'Diễn biến câu chuyện được đẩy nhanh với các chi tiết thú vị và bất ngờ',
-          transcript: 'Mọi chuyện bắt đầu trở nên kịch tính hơn khi tình huống bất ngờ này xuất hiện.',
-          suggestedAiPrompt: `Medium action shot developing the narrative around ${title}, dynamic camera movement, cinematic color grading`,
-          onScreenText: 'DIỄN BIẾN ĐẦY BẤT NGỜ',
-          sfxCue: 'Riser tension build'
-        },
-        {
-          sceneNumber: 3,
-          timeStart: timeRanges[2].start,
-          timeEnd: timeRanges[2].end,
-          durationSec: timeRanges[2].dur,
-          shotType: 'macro',
-          visualCategory: 'climax',
-          visualDescription: 'Điểm nút thắt cao trào nhất của video được thể hiện chi tiết',
-          transcript: 'Và đây chính là khoảnh khắc quyết định khiến hàng triệu người không thể rời mắt!',
-          suggestedAiPrompt: `Extreme focal point shot capturing the peak climax of ${title}, hyper-detailed, slow motion feeling`,
-          onScreenText: 'CAO TRÀO BÙNG NỔ',
-          sfxCue: 'Sub-bass drop impact'
-        },
-        {
-          sceneNumber: 4,
-          timeStart: timeRanges[3].start,
-          timeEnd: timeRanges[3].end,
-          durationSec: timeRanges[3].dur,
-          shotType: 'wide-angle',
-          visualCategory: 'resolution',
-          visualDescription: 'Cảm xúc và phản ứng của người xem cùng toàn cảnh bối cảnh câu chuyện',
-          transcript: 'Một kết quả quá đỗi ấn tượng vượt xa mọi dự đoán ban đầu!',
-          suggestedAiPrompt: `Wide cinematic view showing the grand atmosphere and emotional reaction related to ${title}`,
-          onScreenText: 'KẾT QUẢ ĐÁNG KINH NGẠC',
-          sfxCue: 'Triumphant chime'
-        },
-        {
-          sceneNumber: 5,
-          timeStart: timeRanges[4].start,
-          timeEnd: timeRanges[4].end,
-          durationSec: timeRanges[4].dur,
-          shotType: 'medium-shot',
-          visualCategory: 'call-to-action',
-          visualDescription: 'Lời kết nối gắn liền với câu hỏi mở kích thích người xem để lại bình luận',
-          transcript: 'Bạn có cảm nhận gì về câu chuyện này? Hãy để lại ý kiến của bạn ngay bên dưới nhé!',
-          suggestedAiPrompt: `Warm engaging closing shot, inviting conversation about ${title}, clean and vibrant finish`,
-          onScreenText: 'BẠN NGHĨ SAO VỀ ĐIỀU NÀY?',
-          sfxCue: 'Notification chime bell'
-        }
-      ],
-      rawTranscript: `Bạn có tin được điều này về ${title}? Hãy xem kỹ khoảnh khắc này! Mọi chuyện bắt đầu trở nên kịch tính hơn khi tình huống bất ngờ này xuất hiện. Và đây chính là khoảnh khắc quyết định khiến hàng triệu người không thể rời mắt! Một kết quả quá đỗi ấn tượng vượt xa mọi dự đoán ban đầu! Bạn có cảm nhận gì về câu chuyện này? Hãy để lại ý kiến của bạn ngay bên dưới nhé!`
-    }, 'general');
+      scenes: dynamicScenes,
+      rawTranscript: dynamicScenes.map((s) => s.transcript).join(' ')
+    }, domain);
   }
 
   // --------------------------------------------------------------------------
@@ -2689,6 +2800,9 @@ export async function handleStudioApiRequest(req, res) {
       const displayAuthor = meta.author || 'Nhà Sáng Tạo Nội Dung';
       meta.title = displayTitle;
       meta.author = displayAuthor;
+      if (typeof manualTranscript === 'string' && manualTranscript.trim()) {
+        meta.manualTranscript = manualTranscript.trim();
+      }
 
       let dna = null;
       let byokWarning = '';

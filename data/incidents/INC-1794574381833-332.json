@@ -1,0 +1,23 @@
+{
+  "incidentId": "INC-1794574381833-332",
+  "timestamp": "2026-11-13T12:53:01.680Z",
+  "timeFormatted": "19:53:01 13/11/2026",
+  "taskName": "AntiTamper Threat Enforcer",
+  "userCode": "127.0.0.1",
+  "rca": {
+    "rcaRoot": "Phát hiện hành vi can thiệp trái phép qua Developer Tools / F12.",
+    "rcaImpact": "Địa chỉ IP vi phạm đã bị đưa vào danh sách đen (Blacklist 24h).",
+    "rcaAction": "Đối soát nhật ký an ninh và xác minh tài khoản nếu là khách hàng."
+  },
+  "stack": "Error: Phát hiện hành vi can thiệp DevTools: devtools_dock_detected\n    at handleStudioApiRequest (file:///C:/Users/84364/autovideo-webapp/server/studioBackendEngine.mjs:1300:9)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async Server.<anonymous> (file:///C:/Users/84364/autovideo-webapp/server.js:413:7)",
+  "context": {
+    "task_name": "AntiTamper Threat Enforcer",
+    "user_code": "127.0.0.1",
+    "violation": {
+      "violationType": "devtools_dock_detected",
+      "timestamp": "2026-11-13T12:53:01.441Z",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+    }
+  },
+  "emailBody": "[CẢNH BÁO KHẨN CẤP SYNAPES STUDIO] — MÃ SỰ CỐ: INC-1794574381833-332\n\nKính gửi Kỹ sư Nguyễn Hoàng Thiện,\nHệ thống vừa ghi nhận một sự cố vượt ngưỡng tự phục hồi hoặc cảnh báo an ninh quan trọng:\n\n• Thời gian phát hiện: 19:53:01 13/11/2026\n• Mã người dùng / Phiên: 127.0.0.1\n• Module gặp sự cố: AntiTamper Threat Enforcer\n\n==================================================\nPHÂN TÍCH NHANH TỪ AI VỆ SĨ (ROOT CAUSE ANALYSIS):\n1. Bản chất nguyên nhân (Root Cause):\n   Phát hiện hành vi can thiệp trái phép qua Developer Tools / F12.\n\n2. Phạm vi ảnh hưởng (Impact Scope):\n   Địa chỉ IP vi phạm đã bị đưa vào danh sách đen (Blacklist 24h).\n\n3. Hành động đề xuất khắc phục (Recommended Action):\n   Đối soát nhật ký an ninh và xác minh tài khoản nếu là khách hàng.\n==================================================\n\nCHI TIẾT LOG KỸ THUẬT (TRACEBACK / CONTEXT):\nError: Phát hiện hành vi can thiệp DevTools: devtools_dock_detected\n    at handleStudioApiRequest (file:///C:/Users/84364/autovideo-webapp/server/studioBackendEngine.mjs:1300:9)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async Server.<anonymous> (file:///C:/Users/84364/autovideo-webapp/server.js:413:7)\n\nThông tin bổ sung:\n{\n  \"task_name\": \"AntiTamper Threat Enforcer\",\n  \"user_code\": \"127.0.0.1\",\n  \"violation\": {\n    \"violationType\": \"devtools_dock_detected\",\n    \"timestamp\": \"2026-11-13T12:53:01.441Z\",\n    \"userAgent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36\"\n  }\n}\n\nTrân trọng,\nSYNAPES Self-Healing Watchdog Daemon\nKỹ sư phụ trách: KS. Nguyễn Hoàng Thiện"
+}

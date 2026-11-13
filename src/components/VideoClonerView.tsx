@@ -680,12 +680,15 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
                   </span>
                 ) : (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-zinc-100 text-zinc-600 border border-zinc-200">
-                    ⚡ Engine: {dnaBlueprint.engineMeta?.modelUsed || 'Zero-Mock Semantic Engine'}
+                    ⚡ Engine: {dnaBlueprint.engineMeta?.modelUsed || 'Dynamic Topic Engine'}
                   </span>
                 )}
               </div>
               <h2 className="font-bold text-zinc-900 text-lg mt-0.5">Phân Tích Chi Tiết Toàn Bộ Cấu Trúc Video</h2>
-              <p className="text-xs text-zinc-500 mt-0.5">Tiêu đề: {dnaBlueprint.sourceTitle || 'Video viral mẫu'}</p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Tiêu đề: {dnaBlueprint.sourceTitle || 'Video viral mẫu'}
+                {dnaBlueprint.authorName ? <span className="ml-2 text-zinc-700 font-medium">• Kênh: {dnaBlueprint.authorName}</span> : null}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">

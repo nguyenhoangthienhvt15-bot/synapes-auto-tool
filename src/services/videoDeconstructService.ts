@@ -453,7 +453,9 @@ function generateCuratedVideoDna(
   let domain = 'general';
   if (combined.match(/onana|manchester united|man utd|\bmu\b|football|soccer|goal|save|messi|ronaldo|cr7|neymar|haaland|champions league|premier league|chelsea|arsenal|liverpool|real madrid|barca|barcelona|goalkeeper|penalty|world cup|bóng đá|thủ môn|bàn thắng|trận đấu|cứu thua|khung thành|loky10/)) {
     domain = 'sports_football';
-  } else if (combined.match(/chứng khoán|kinh tế|tài chính|lợi nhuận|xuất khẩu|gdp|lạm phát|ngân hàng|đầu tư|thị trường|bất động sản|cổ phiếu|trái phiếu|doanh nghiệp|vĩ mô|nghịch lý|phân tích|crypto|bitcoin|btc|invest|finance|stock|economy|macro|marketing|steve le|tin nhanh/)) {
+  } else if (combined.match(/báo tuổi trẻ|vnexpress|thanh niên|nhân dân|vtv|thời sự|phóng sự|bộ trưởng|tổng thống|thủ tướng|quốc hội|quân sự|huân chương|binh sĩ|ngoại giao|chính sách|quốc phòng|tin nóng|tin tức|breaking news|journalis/)) {
+    domain = 'news_journalism';
+  } else if (combined.match(/chứng khoán|kinh tế|tài chính|lợi nhuận|xuất khẩu|gdp|lạm phát|ngân hàng|đầu tư|bất động sản|cổ phiếu|trái phiếu|doanh nghiệp|vĩ mô|nghịch lý|crypto|bitcoin|btc|invest|finance|stock|economy|macro|steve le/)) {
     domain = 'finance_business';
   } else if (combined.match(/review|unboxing|iphone|samsung|macbook|laptop|smartphone|camera|gpu|nvidia|\bai\b|chatgpt|deepseek|công nghệ|máy tính|điện thoại|xiaomi|ipad/)) {
     domain = 'tech_review';
