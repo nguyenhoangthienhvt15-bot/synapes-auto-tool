@@ -476,6 +476,11 @@ function installAutoEditTrigger(ss, forceRecreate) {
         Logger.log("Notice: onSpreadsheetFormSubmit trigger: " + eTrig);
       }
     }
+
+    try {
+      PropertiesService.getScriptProperties().setProperty("SYNAPES_HAS_INSTALLABLE_EDIT", "1");
+      CacheService.getScriptCache().put("SYNAPES_HAS_INSTALLABLE_EDIT", "1", 21600);
+    } catch (eFlag) { }
     return true;
   } catch (err) {
     Logger.log("Không thể tự tạo Trigger: " + err);
@@ -602,6 +607,7 @@ function onFormBridgeSubmit(e) {
       if (payload && payload.fullName && payload.email) {
         handleUserRegistrationWebhook(ss, payload);
         SpreadsheetApp.flush();
+        try { getBuyerSignature(payload.email); } catch (ePrefetch1) { }
         return;
       }
     }
@@ -653,6 +659,7 @@ function onSpreadsheetFormSubmit(e) {
       if (payload.fullName && payload.email) {
         handleUserRegistrationWebhook(ss, payload);
         SpreadsheetApp.flush();
+        try { getBuyerSignature(payload.email); } catch (ePrefetch2) { }
         return;
       }
     }
@@ -788,16 +795,33 @@ function handleSheetCheckboxEdit(e, canSendMail) {
     return;
   }
 
+  var cache = CacheService.getScriptCache();
+  if (canSendMail) {
+    try {
+      cache.put("SYNAPES_INST_VERIFIED", "1", 21600);
+    } catch (eCache) { }
+  } else {
+    // Nếu Installable Trigger (onInstallableEdit) đã được kích hoạt, Simple Trigger (onEdit) nhường luồng ngay (<1ms) để không tranh LockService
+    var hasInstallable = cache.get("SYNAPES_INST_VERIFIED") === "1";
+    if (!hasInstallable) {
+      try {
+        hasInstallable = PropertiesService.getScriptProperties().getProperty("SYNAPES_HAS_INSTALLABLE_EDIT") === "1";
+      } catch (eProp) { }
+    }
+    if (hasInstallable) {
+      return;
+    }
+  }
+
   var lock = LockService.getScriptLock();
   var hasLock = false;
   try {
-    hasLock = lock.tryLock(10000);
+    hasLock = lock.tryLock(5000);
   } catch (lockErr) {
     hasLock = false;
   }
 
   try {
-    var cache = CacheService.getScriptCache();
     var guardKey = "CHK_DONE_" + sheet.getSheetId() + "_" + row + "_" + col;
 
     // Nếu Simple Trigger (onEdit) chạy sau Installable Trigger (onInstallableEdit) vừa hoàn tất gửi mail, bỏ qua để không ghi đè trạng thái
@@ -893,62 +917,81 @@ function parseDobToDDMM(dobRaw, nowDate) {
 }
 
 /**
- * Đảm bảo mỗi khách hàng có một Mã Code duy nhất, không trùng lặp
+ * Đọc nhanh bản đồ Mã Code đã cấp để kiểm tra trùng O(1) (chỉ đọc cột Code thay vì toàn bộ 20 cột)
  */
-function ensureUniqueUserCode(ss, baseCode, currentUserSheetRow, currentFullName) {
-  var candidate = String(baseCode || "").trim().toUpperCase();
-  if (!candidate) return candidate;
-
-  var usedCodes = {};
-  var nameClean = String(currentFullName || "").trim().toLowerCase();
-
+function loadUsedCodesSetGas(ss) {
+  var used = { byUserRow: {}, byAccName: {} };
   var uSheet = getUsersSheet(ss, false);
   if (uSheet && uSheet.getLastRow() >= 2) {
     var is20 = isNew20ColsSheet(uSheet);
-    var codeColIdx = is20 ? 15 : 9; // 0-based index: 15 for col 16, 9 for col 10
-    var uData = uSheet.getRange(2, 1, uSheet.getLastRow() - 1, Math.max(uSheet.getLastColumn(), 20)).getDisplayValues();
-    for (var i = 0; i < uData.length; i++) {
-      var rIdx = i + 2;
-      if (rIdx === currentUserSheetRow) continue;
-      var cCode = String(uData[i][codeColIdx] || "").trim().toUpperCase();
-      if (cCode) {
-        usedCodes[cCode] = true;
+    var codeColNum = is20 ? 16 : 10;
+    var uCodes = uSheet.getRange(2, codeColNum, uSheet.getLastRow() - 1, 1).getDisplayValues();
+    for (var i = 0; i < uCodes.length; i++) {
+      var cCode = String(uCodes[i][0] || "").trim().toUpperCase();
+      if (cCode && cCode !== "(CHỜ BÀN GIAO)") {
+        used.byUserRow[cCode] = i + 2;
       }
     }
   }
 
   var accSheet = getAccountsSheet(ss);
   if (accSheet && accSheet.getLastRow() >= 5) {
-    var accData = accSheet.getRange(1, 1, accSheet.getLastRow(), 4).getDisplayValues();
-    for (var j = 4; j < accData.length; j++) {
-      var aCode = String(accData[j][1] || "").trim().toUpperCase();
-      var aName = String(accData[j][2] || "").trim().toLowerCase();
-      if (aCode && aName && aName !== nameClean) {
-        usedCodes[aCode] = true;
+    var accData = accSheet.getRange(5, 2, accSheet.getLastRow() - 4, 2).getDisplayValues();
+    for (var j = 0; j < accData.length; j++) {
+      var aCode = String(accData[j][0] || "").trim().toUpperCase();
+      var aName = String(accData[j][1] || "").trim().toLowerCase();
+      if (aCode) {
+        used.byAccName[aCode] = aName;
       }
     }
   }
+  return used;
+}
 
-  if (!usedCodes[candidate]) {
-    return candidate;
+/**
+ * Đảm bảo mỗi khách hàng có một Mã Code duy nhất, không trùng lặp
+ */
+function ensureUniqueUserCode(ss, baseCode, currentUserSheetRow, currentFullName, batchCtx) {
+  var candidate = String(baseCode || "").trim().toUpperCase();
+  if (!candidate) return candidate;
+
+  var nameClean = String(currentFullName || "").trim().toLowerCase();
+  var used = (batchCtx && batchCtx.usedCodes) ? batchCtx.usedCodes : loadUsedCodesSetGas(ss);
+  if (batchCtx && !batchCtx.usedCodes) {
+    batchCtx.usedCodes = used;
   }
 
-  var suffix = 2;
-  while (usedCodes[candidate + "_" + suffix]) {
-    suffix++;
+  var isTaken = function (codeVal) {
+    var ownerRow = used.byUserRow[codeVal];
+    if (ownerRow && ownerRow !== currentUserSheetRow) return true;
+    var ownerAccName = used.byAccName[codeVal];
+    if (ownerAccName !== undefined && ownerAccName && ownerAccName !== nameClean) return true;
+    return false;
+  };
+
+  var finalCode = candidate;
+  if (isTaken(finalCode)) {
+    var suffix = 2;
+    while (isTaken(candidate + "_" + suffix)) {
+      suffix++;
+    }
+    finalCode = candidate + "_" + suffix;
   }
-  return candidate + "_" + suffix;
+
+  if (currentUserSheetRow) used.byUserRow[finalCode] = currentUserSheetRow;
+  if (nameClean) used.byAccName[finalCode] = nameClean;
+  return finalCode;
 }
 
 /**
  * Sinh Mã Code và Mật khẩu mới an toàn
  */
-function generateCodeAndPassword(ss, fullName, dobRaw, row) {
+function generateCodeAndPassword(ss, fullName, dobRaw, row, batchCtx) {
   var now = new Date();
   var dobParsed = parseDobToDDMM(dobRaw, now);
   var yymmdd = Utilities.formatDate(now, "GMT+7", "yyMMdd");
   var baseCode = "SNP_" + yymmdd + dobParsed.ddmm;
-  var code = ensureUniqueUserCode(ss, baseCode, row, fullName);
+  var code = ensureUniqueUserCode(ss, baseCode, row, fullName, batchCtx);
 
   var randomDigits = Math.floor(100 + Math.random() * 900);
   var chars = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -970,8 +1013,8 @@ function generateCodeAndPassword(ss, fullName, dobRaw, row) {
  *   + Cập nhật Cột 19: "✅ ĐÃ GỬI MAIL ĐẶT CỌC (Hẹn giao: DD/MM/YYYY)"
  * - Nếu là Hợp đồng Thanh toán 100%:
  *   + Cấp ngay Mã Code (Cột 16) + Mật khẩu (Cột 17)
+ *   + Gửi Gmail NGAY LẬP TỨC trước khi đồng bộ phụ -> Giảm độ trễ xuống mức tối đa
  *   + Đồng bộ sang trang "Quản Lý Mật Khẩu"
- *   + Gửi Gmail cấp tài khoản + Hướng dẫn chi tiết + Bản mềm HĐ chính thức PDF có mộc đỏ + QR Code
  *   + Cập nhật Cột 19: "✅ ĐÃ GỬI GMAIL CẤP TK (DD/MM/YYYY HH:mm:ss)"
  */
 function isHashedOrCustomPasswordGas(passStr) {
@@ -1002,18 +1045,16 @@ function toAsciiUpperGas(str) {
     .toUpperCase();
 }
 
-function processFirstApproval(sheet, row, canSendMail) {
+function processFirstApproval(sheet, row, canSendMail, batchCtx) {
   if (canSendMail === undefined) canSendMail = true;
+  var ctx = batchCtx || {};
+  var ss = ctx.ss || SpreadsheetApp.getActiveSpreadsheet();
 
-  var displayVals = sheet.getRange(row, 1, 1, 20).getDisplayValues()[0];
-  var rawVals = sheet.getRange(row, 1, 1, 20).getValues()[0];
+  var displayVals = ctx.prefetchedRow || sheet.getRange(row, 1, 1, 20).getDisplayValues()[0];
 
   var fullName = String(displayVals[2] || "").trim();
   var idCardNumber = String(displayVals[3] || "").replace(/^'+/, "").trim();
-  var dobRaw = displayVals[4] || "";
-  if (rawVals[4] instanceof Date) {
-    dobRaw = Utilities.formatDate(rawVals[4], "GMT+7", "dd/MM/yyyy");
-  }
+  var dobRaw = String(displayVals[4] || "").trim();
   var gender = String(displayVals[5] || "Nam").trim();
   var email = String(displayVals[6] || "").replace(/\s+/g, "").trim();
   var phone = String(displayVals[7] || "").replace(/^'+/, "").trim();
@@ -1026,25 +1067,27 @@ function processFirstApproval(sheet, row, canSendMail) {
 
   var existingCode = String(displayVals[15] || "").trim();
   var existingPass = String(displayVals[16] || "").trim();
-  var isFinalDelivered = rawVals[17] === true || String(rawVals[17]).toUpperCase() === "TRUE";
+  var isFinalDelivered = String(displayVals[17] || "").toUpperCase() === "TRUE";
   var existingStatus19 = String(displayVals[18] || "").trim();
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-
   if (!fullName || !email || email.indexOf("@") === -1) {
-    ss.toast("⚠️ Dòng " + row + " chưa có đầy đủ Họ tên hoặc Gmail hợp lệ!", "SYNAPES Studio", 6);
+    if (!ctx.quietToast) {
+      ss.toast("⚠️ Dòng " + row + " chưa có đầy đủ Họ tên hoặc Gmail hợp lệ!", "SYNAPES Studio", 6);
+    }
     return false;
   }
 
   // Bảo vệ hợp đồng đã bàn giao hoàn tất Lần 2: tránh Duyệt Lần 1 ghi đè ngược trạng thái hoặc gửi nhầm mail cọc
   if (isFinalDelivered || existingStatus19.indexOf("ĐÃ BÀN GIAO") !== -1) {
-    ss.toast("ℹ️ Dòng " + row + " đã bàn giao hoàn tất (Cột 18). Để gửi lại mail bàn giao, hãy dùng Mục 4 (Duyệt Bàn Giao Lần 2).", "SYNAPES Studio", 6);
+    if (!ctx.quietToast) {
+      ss.toast("ℹ️ Dòng " + row + " đã bàn giao hoàn tất (Cột 18). Để gửi lại mail bàn giao, hãy dùng Mục 4 (Duyệt Bàn Giao Lần 2).", "SYNAPES Studio", 6);
+    }
     return true;
   }
 
   var depositAmount = parseFloat(depositStr.replace(/[^0-9]/g, "")) || 0;
   var totalAmount = parseFloat(totalStr.replace(/[^0-9]/g, "")) || 0;
-  var deliveryDays = parseInt(deliveryStr.replace(/[^0-9]/g, "")) || 0;
+  var deliveryDays = parseInt(deliveryStr.replace(/[^0-9]/g, ""), 10) || 0;
   var isDeposit = depositAmount > 0 ||
     contractPackageName.toLowerCase().indexOf("đặt cọc") !== -1 ||
     contractPackageName.toLowerCase().indexOf("deposit") !== -1;
@@ -1052,32 +1095,30 @@ function processFirstApproval(sheet, row, canSendMail) {
   var now = new Date();
   var nowStr = Utilities.formatDate(now, "GMT+7", "dd/MM/yyyy HH:mm:ss");
 
-  // Xử lý HỢP ĐỒNG ĐẶT CỌC
+  // Xử lý HỢP ĐỒNG ĐẶT CỌC (Send-First)
   if (isDeposit) {
     if (deliveryDays <= 0) {
       deliveryDays = contractCategory.toLowerCase().indexOf("toàn hệ") !== -1 ? 7 : 5;
     }
     var deliveryDate = new Date(now.getTime() + deliveryDays * 24 * 60 * 60 * 1000);
     var deliveryDateStr = Utilities.formatDate(deliveryDate, "GMT+7", "dd/MM/yyyy");
-
-    // Đảm bảo không cấp mật khẩu ngay
-    if (!existingCode) {
-      sheet.getRange(row, 16).setValue("(Chờ bàn giao)").setHorizontalAlignment("center").setFontColor("#64748b");
-    }
-    if (!existingPass) {
-      sheet.getRange(row, 17).setValue("(Chờ bàn giao)").setHorizontalAlignment("center").setFontColor("#64748b");
-    }
+    var waitCode = existingCode || "(Chờ bàn giao)";
+    var waitPass = existingPass || "(Chờ bàn giao)";
 
     if (!canSendMail) {
-      sheet.getRange(row, 19).setValue("⏳ Đã duyệt ký (Bấm menu SYNAPES Studio ➔ Mục 1 để bật gửi Gmail tự động)");
-      SpreadsheetApp.flush();
+      sheet.getRange(row, 15, 1, 5).setValues([[
+        true,
+        waitCode,
+        waitPass,
+        false,
+        "⏳ Đã duyệt ký (Bấm menu SYNAPES Studio ➔ Mục 1 để bật gửi Gmail tự động)"
+      ]]);
       return true;
     }
 
     if (!hasGmailQuotaRemainingGas()) {
       sheet.getRange(row, 19).setValue("⚠️ Hết hạn ngạch Gmail trong ngày (Quota = 0) — Vui lòng thử lại sau 24h").setFontColor("#b91c1c");
-      ss.toast("⚠️ Đã hết hạn ngạch gửi Gmail trong ngày (Quota = 0).", "SYNAPES Studio", 8);
-      SpreadsheetApp.flush();
+      if (!ctx.quietToast) ss.toast("⚠️ Đã hết hạn ngạch gửi Gmail trong ngày (Quota = 0).", "SYNAPES Studio", 8);
       return false;
     }
 
@@ -1098,41 +1139,60 @@ function processFirstApproval(sheet, row, canSendMail) {
     );
 
     if (mailResult.success) {
-      sheet.getRange(row, 19).setValue("✅ ĐÃ GỬI MAIL ĐẶT CỌC (Hẹn giao: " + deliveryDateStr + ")").setFontColor("#15803d").setFontWeight("bold");
-      sheet.getRange(row, 20).setValue("📄 HĐ Đặt Cọc đã ký (Hẹn giao: " + deliveryDateStr + " — Chờ duyệt Cột 18)");
-      ss.toast("✅ Đã gửi Gmail xác nhận đặt cọc (Hẹn bàn giao: " + deliveryDateStr + ") tới " + email, "🚀 SYNAPES Studio", 6);
-      SpreadsheetApp.flush();
+      sheet.getRange(row, 15, 1, 6).setValues([[
+        true,
+        waitCode,
+        waitPass,
+        false,
+        "✅ ĐÃ GỬI MAIL ĐẶT CỌC (Hẹn giao: " + deliveryDateStr + ")",
+        "📄 HĐ Đặt Cọc đã ký (Hẹn giao: " + deliveryDateStr + " — Chờ duyệt Cột 18)"
+      ]]);
+      if (!existingCode || !existingPass) {
+        sheet.getRange(row, 16, 1, 2).setHorizontalAlignment("center").setFontColor("#64748b");
+      }
+      sheet.getRange(row, 19).setFontColor("#15803d").setFontWeight("bold");
+      if (!ctx.quietToast) {
+        ss.toast("✅ Đã gửi Gmail xác nhận đặt cọc (Hẹn bàn giao: " + deliveryDateStr + ") tới " + email, "🚀 SYNAPES Studio", 6);
+      }
       return true;
     } else {
-      sheet.getRange(row, 19).setValue("⚠️ Lỗi gửi mail: " + mailResult.error).setFontColor("#b91c1c");
-      ss.toast("⚠️ Lỗi gửi Gmail: " + mailResult.error, "SYNAPES Studio", 8);
-      SpreadsheetApp.flush();
+      sheet.getRange(row, 16, 1, 4).setValues([[waitCode, waitPass, false, "⚠️ Lỗi gửi mail: " + mailResult.error]]);
+      sheet.getRange(row, 19).setFontColor("#b91c1c");
+      if (!ctx.quietToast) ss.toast("⚠️ Lỗi gửi Gmail: " + mailResult.error, "SYNAPES Studio", 8);
       return false;
     }
   }
 
-  // Xử lý HỢP ĐỒNG THANH TOÁN 100%
-  var creds = generateCodeAndPassword(ss, fullName, dobRaw, row);
+  // Xử lý HỢP ĐỒNG THANH TOÁN 100% (Send-First)
+  var creds = generateCodeAndPassword(ss, fullName, dobRaw, row, ctx);
   var code = existingCode && existingCode.indexOf("SNP_") === 0 ? existingCode : creds.code;
   var isCustomPass = isHashedOrCustomPasswordGas(existingPass);
   var password = (isCustomPass || (existingPass && existingPass.indexOf("SNP_") === 0)) ? existingPass : creds.password;
 
-  sheet.getRange(row, 16).setValue(code).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#0f172a");
-  sheet.getRange(row, 17).setValue(password).setFontWeight("bold").setHorizontalAlignment("center").setFontColor(isCustomPass ? "#15803d" : "#b91c1c");
-
-  syncAccountToMainSheet(code, fullName, email, password, phone, address, false);
-  reconcileAllApprovedUsersToAccountsSheet(ss);
-
   if (!canSendMail) {
-    sheet.getRange(row, 19).setValue("⏳ Đã tạo Mã (Bấm menu SYNAPES Studio ➔ Mục 1 để bật gửi Gmail tự động)");
-    SpreadsheetApp.flush();
+    sheet.getRange(row, 15, 1, 5).setValues([[
+      true,
+      code,
+      password,
+      displayVals[17] === "TRUE",
+      "⏳ Đã tạo Mã (Bấm menu SYNAPES Studio ➔ Mục 1 để bật gửi Gmail tự động)"
+    ]]);
+    sheet.getRange(row, 16).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#0f172a");
+    sheet.getRange(row, 17).setFontWeight("bold").setHorizontalAlignment("center").setFontColor(isCustomPass ? "#15803d" : "#b91c1c");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
     return true;
   }
 
   if (!hasGmailQuotaRemainingGas()) {
-    sheet.getRange(row, 19).setValue("⚠️ Đã cấp mã " + code + " nhưng hết hạn ngạch Gmail (Quota = 0)").setFontColor("#b91c1c");
-    ss.toast("⚠️ Đã cấp mã " + code + " nhưng hết hạn ngạch Gmail trong ngày (Quota = 0).", "SYNAPES Studio", 8);
-    SpreadsheetApp.flush();
+    sheet.getRange(row, 16, 1, 4).setValues([[
+      code,
+      password,
+      displayVals[17] === "TRUE",
+      "⚠️ Đã cấp mã " + code + " nhưng hết hạn ngạch Gmail (Quota = 0)"
+    ]]);
+    sheet.getRange(row, 19).setFontColor("#b91c1c");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
+    if (!ctx.quietToast) ss.toast("⚠️ Đã cấp mã " + code + " nhưng hết hạn ngạch Gmail trong ngày (Quota = 0).", "SYNAPES Studio", 8);
     return false;
   }
 
@@ -1140,6 +1200,7 @@ function processFirstApproval(sheet, row, canSendMail) {
     ? "(Mật khẩu cá nhân Quý khách đã tự thiết lập — giữ nguyên bảo mật)"
     : password;
 
+  // GỬI GMAIL NGAY LẬP TỨC trước khi ghi bảng tính & đồng bộ tab phụ
   var fullMailResult = sendFullApprovalEmail(
     email,
     fullName,
@@ -1156,15 +1217,32 @@ function processFirstApproval(sheet, row, canSendMail) {
   );
 
   if (fullMailResult.success) {
-    sheet.getRange(row, 19).setValue("✅ ĐÃ GỬI GMAIL CẤP TK (" + nowStr + ")").setFontColor("#15803d").setFontWeight("bold");
-    sheet.getRange(row, 20).setValue("📄 HOP_DONG_SYNAPES_" + code + ".pdf (Đã cấp TK & HĐ 100%)");
-    ss.toast("✅ Đã cấp mã " + code + " và gửi Gmail kích hoạt tới " + email, "🚀 SYNAPES Studio", 6);
-    SpreadsheetApp.flush();
+    sheet.getRange(row, 15, 1, 6).setValues([[
+      true,
+      code,
+      password,
+      displayVals[17] === "TRUE",
+      "✅ ĐÃ GỬI GMAIL CẤP TK (" + nowStr + ")",
+      "📄 HOP_DONG_SYNAPES_" + code + ".pdf (Đã cấp TK & HĐ 100%)"
+    ]]);
+    sheet.getRange(row, 16).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#0f172a");
+    sheet.getRange(row, 17).setFontWeight("bold").setHorizontalAlignment("center").setFontColor(isCustomPass ? "#15803d" : "#b91c1c");
+    sheet.getRange(row, 19).setFontColor("#15803d").setFontWeight("bold");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
+    if (!ctx.quietToast) {
+      ss.toast("✅ Đã cấp mã " + code + " và gửi Gmail kích hoạt tới " + email, "🚀 SYNAPES Studio", 6);
+    }
     return true;
   } else {
-    sheet.getRange(row, 19).setValue("⚠️ Lỗi gửi mail: " + fullMailResult.error).setFontColor("#b91c1c");
-    ss.toast("⚠️ Lỗi gửi Gmail: " + fullMailResult.error, "SYNAPES Studio", 8);
-    SpreadsheetApp.flush();
+    sheet.getRange(row, 16, 1, 4).setValues([[
+      code,
+      password,
+      displayVals[17] === "TRUE",
+      "⚠️ Lỗi gửi mail: " + fullMailResult.error
+    ]]);
+    sheet.getRange(row, 19).setFontColor("#b91c1c");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
+    if (!ctx.quietToast) ss.toast("⚠️ Lỗi gửi Gmail: " + fullMailResult.error, "SYNAPES Studio", 8);
     return false;
   }
 }
@@ -1172,24 +1250,19 @@ function processFirstApproval(sheet, row, canSendMail) {
 /**
  * 5. XỬ LÝ PHÊ DUYỆT BÀN GIAO LẦN 2 (CỘT 18 - DUYỆT BÀN GIAO LẦN 2 TRÊN SHEET 20 CỘT)
  * - Dành cho các hợp đồng đặt cọc khi đến hạn bàn giao sản phẩm:
- *   Kỹ sư/Dev kiểm tra thanh toán đợt cuối thành công, sau đó tích chọn Cột 18 để:
- *   + Tự động sinh Mã Code và Mật khẩu (nếu chưa có)
- *   + Ghi vào Cột 16 & Cột 17 và lưu sang trang "Quản Lý Mật Khẩu"
- *   + Gửi Gmail thông báo bàn giao chính thức, cấp thông tin tài khoản đăng nhập và đính kèm bản HĐ bàn giao chính thức PDF có mộc đỏ
- *   + Cập nhật Cột 19: "✅ ĐÃ BÀN GIAO & GỬI GMAIL (DD/MM/YYYY HH:mm:ss)"
+ *   + Gửi Gmail NGAY LẬP TỨC kèm tài khoản & PDF HĐ bàn giao có mộc đỏ
+ *   + Sau đó batch-write Cột 15..20 và đồng bộ 1 dòng sang "Quản Lý Mật Khẩu"
  */
-function processFinalHandoverApproval(sheet, row, canSendMail) {
+function processFinalHandoverApproval(sheet, row, canSendMail, batchCtx) {
   if (canSendMail === undefined) canSendMail = true;
+  var ctx = batchCtx || {};
+  var ss = ctx.ss || SpreadsheetApp.getActiveSpreadsheet();
 
-  var displayVals = sheet.getRange(row, 1, 1, 20).getDisplayValues()[0];
-  var rawVals = sheet.getRange(row, 1, 1, 20).getValues()[0];
+  var displayVals = ctx.prefetchedRow || sheet.getRange(row, 1, 1, 20).getDisplayValues()[0];
 
   var fullName = String(displayVals[2] || "").trim();
   var idCardNumber = String(displayVals[3] || "").replace(/^'+/, "").trim();
-  var dobRaw = displayVals[4] || "";
-  if (rawVals[4] instanceof Date) {
-    dobRaw = Utilities.formatDate(rawVals[4], "GMT+7", "dd/MM/yyyy");
-  }
+  var dobRaw = String(displayVals[4] || "").trim();
   var gender = String(displayVals[5] || "Nam").trim();
   var email = String(displayVals[6] || "").replace(/\s+/g, "").trim();
   var phone = String(displayVals[7] || "").replace(/^'+/, "").trim();
@@ -1205,43 +1278,47 @@ function processFinalHandoverApproval(sheet, row, canSendMail) {
   var existingCode = String(displayVals[15] || "").trim();
   var existingPass = String(displayVals[16] || "").trim();
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-
   if (!fullName || !email || email.indexOf("@") === -1) {
-    ss.toast("⚠️ Dòng " + row + " chưa có đầy đủ Họ tên hoặc Gmail hợp lệ!", "SYNAPES Studio", 6);
+    if (!ctx.quietToast) ss.toast("⚠️ Dòng " + row + " chưa có đầy đủ Họ tên hoặc Gmail hợp lệ!", "SYNAPES Studio", 6);
     return false;
   }
 
-  var creds = generateCodeAndPassword(ss, fullName, dobRaw, row);
+  var creds = generateCodeAndPassword(ss, fullName, dobRaw, row, ctx);
   var code = (existingCode && existingCode.indexOf("SNP_") === 0) ? existingCode : creds.code;
   var isCustomPass = isHashedOrCustomPasswordGas(existingPass);
   var password = (isCustomPass || (existingPass && existingPass.indexOf("SNP_") === 0)) ? existingPass : creds.password;
-
-  sheet.getRange(row, 16).setValue(code).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#0f172a");
-  sheet.getRange(row, 17).setValue(password).setFontWeight("bold").setHorizontalAlignment("center").setFontColor(isCustomPass ? "#15803d" : "#b91c1c");
-
-  // Đảm bảo cả Cột 15 (Duyệt Ký Lần 1) và Cột 18 (Duyệt Bàn Giao Lần 2) đều được tích chọn
-  sheet.getRange(row, 15).setValue(true);
-  sheet.getRange(row, 18).setValue(true);
-
-  syncAccountToMainSheet(code, fullName, email, password, phone, address, false);
-  reconcileAllApprovedUsersToAccountsSheet(ss);
-  SpreadsheetApp.flush();
 
   var now = new Date();
   var nowStr = Utilities.formatDate(now, "GMT+7", "dd/MM/yyyy HH:mm:ss");
 
   if (!canSendMail) {
-    sheet.getRange(row, 19).setValue("⏳ Đã duyệt Bàn giao Lần 2 (Bấm menu SYNAPES Studio ➔ Mục 4 hoặc Mục 1 để gửi Gmail tức thì)");
-    ss.toast("🚀 Đã duyệt Bàn Giao Lần 2! Cần cấp quyền gửi mail: Bấm menu SYNAPES Studio ➔ Mục 4 để gửi ngay Gmail kèm HĐ hoàn chỉnh!", "SYNAPES Studio", 8);
-    SpreadsheetApp.flush();
+    sheet.getRange(row, 15, 1, 5).setValues([[
+      true,
+      code,
+      password,
+      true,
+      "⏳ Đã duyệt Bàn giao Lần 2 (Bấm menu SYNAPES Studio ➔ Mục 4 hoặc Mục 1 để gửi Gmail tức thì)"
+    ]]);
+    sheet.getRange(row, 16).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#0f172a");
+    sheet.getRange(row, 17).setFontWeight("bold").setHorizontalAlignment("center").setFontColor(isCustomPass ? "#15803d" : "#b91c1c");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
+    if (!ctx.quietToast) {
+      ss.toast("🚀 Đã duyệt Bàn Giao Lần 2! Cần cấp quyền gửi mail: Bấm menu SYNAPES Studio ➔ Mục 4 để gửi ngay Gmail kèm HĐ hoàn chỉnh!", "SYNAPES Studio", 8);
+    }
     return true;
   }
 
   if (!hasGmailQuotaRemainingGas()) {
-    sheet.getRange(row, 19).setValue("⚠️ Đã cấp mã " + code + " nhưng hết hạn ngạch Gmail (Quota = 0)").setFontColor("#b91c1c");
-    ss.toast("⚠️ Đã cấp mã " + code + " nhưng hết hạn ngạch gửi Gmail trong ngày (Quota = 0).", "SYNAPES Studio", 8);
-    SpreadsheetApp.flush();
+    sheet.getRange(row, 15, 1, 5).setValues([[
+      true,
+      code,
+      password,
+      true,
+      "⚠️ Đã cấp mã " + code + " nhưng hết hạn ngạch Gmail (Quota = 0)"
+    ]]);
+    sheet.getRange(row, 19).setFontColor("#b91c1c");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
+    if (!ctx.quietToast) ss.toast("⚠️ Đã cấp mã " + code + " nhưng hết hạn ngạch gửi Gmail trong ngày (Quota = 0).", "SYNAPES Studio", 8);
     return false;
   }
 
@@ -1249,6 +1326,7 @@ function processFinalHandoverApproval(sheet, row, canSendMail) {
     ? "(Mật khẩu cá nhân Quý khách đã tự thiết lập — giữ nguyên bảo mật)"
     : password;
 
+  // GỬI GMAIL BÀN GIAO NGAY LẬP TỨC trước khi ghi Sheet
   var handoverMailResult = sendFinalHandoverEmail(
     email,
     fullName,
@@ -1267,15 +1345,33 @@ function processFinalHandoverApproval(sheet, row, canSendMail) {
   );
 
   if (handoverMailResult.success) {
-    sheet.getRange(row, 19).setValue("✅ ĐÃ BÀN GIAO & GỬI GMAIL (" + nowStr + ")").setFontColor("#15803d").setFontWeight("bold");
-    sheet.getRange(row, 20).setValue("🎉 BÀN GIAO HOÀN TẤT & TRẢ ĐỦ 100% — CẤP MÃ " + code);
-    ss.toast("✅ Đã bàn giao hệ thống và gửi tài khoản mã " + code + " kèm HĐ hoàn chỉnh tới " + email, "🚀 SYNAPES Studio", 6);
-    SpreadsheetApp.flush();
+    sheet.getRange(row, 15, 1, 6).setValues([[
+      true,
+      code,
+      password,
+      true,
+      "✅ ĐÃ BÀN GIAO & GỬI GMAIL (" + nowStr + ")",
+      "🎉 BÀN GIAO HOÀN TẤT & TRẢ ĐỦ 100% — CẤP MÃ " + code
+    ]]);
+    sheet.getRange(row, 16).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#0f172a");
+    sheet.getRange(row, 17).setFontWeight("bold").setHorizontalAlignment("center").setFontColor(isCustomPass ? "#15803d" : "#b91c1c");
+    sheet.getRange(row, 19).setFontColor("#15803d").setFontWeight("bold");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
+    if (!ctx.quietToast) {
+      ss.toast("✅ Đã bàn giao hệ thống và gửi tài khoản mã " + code + " kèm HĐ hoàn chỉnh tới " + email, "🚀 SYNAPES Studio", 6);
+    }
     return true;
   } else {
-    sheet.getRange(row, 19).setValue("⚠️ Lỗi gửi mail bàn giao: " + handoverMailResult.error).setFontColor("#b91c1c");
-    ss.toast("⚠️ Lỗi gửi Gmail: " + handoverMailResult.error, "SYNAPES Studio", 8);
-    SpreadsheetApp.flush();
+    sheet.getRange(row, 15, 1, 5).setValues([[
+      true,
+      code,
+      password,
+      true,
+      "⚠️ Lỗi gửi mail bàn giao: " + handoverMailResult.error
+    ]]);
+    sheet.getRange(row, 19).setFontColor("#b91c1c");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
+    if (!ctx.quietToast) ss.toast("⚠️ Lỗi gửi Gmail: " + handoverMailResult.error, "SYNAPES Studio", 8);
     return false;
   }
 }
@@ -1305,12 +1401,18 @@ function processUserApproval(sheet, row, canSendMail) {
  * - Chuẩn hóa khung chứa 600px, Typography -apple-system, Bảng kê chi tiết và Trích dẫn trang trọng của Trưởng ban
  */
 
+var __CACHED_TIMO_QR_BLOB = null;
+
 function getTimoQrBlob() {
+  if (__CACHED_TIMO_QR_BLOB) {
+    return __CACHED_TIMO_QR_BLOB;
+  }
   try {
     var commaIdx = TIMO_QR_CODE_BASE64.indexOf(",");
     var raw = commaIdx !== -1 ? TIMO_QR_CODE_BASE64.substring(commaIdx + 1) : TIMO_QR_CODE_BASE64;
     var decoded = Utilities.base64Decode(raw);
-    return Utilities.newBlob(decoded, "image/jpeg", "vietqr_timo_bvbank.jpg");
+    __CACHED_TIMO_QR_BLOB = Utilities.newBlob(decoded, "image/jpeg", "vietqr_timo_bvbank.jpg");
+    return __CACHED_TIMO_QR_BLOB;
   } catch (e) {
     Logger.log("getTimoQrBlob error: " + e);
     return null;
@@ -1893,11 +1995,22 @@ function sanitizeSignatureDataUri(sig) {
   return "";
 }
 
+var __EXEC_SIG_CACHE = {};
+
 function saveBuyerSignature(email, sigDataUri) {
   try {
     var cleanEmail = String(email || "").trim().toLowerCase();
     var cleanSig = sanitizeSignatureDataUri(sigDataUri);
     if (!cleanEmail || !cleanSig) return false;
+
+    __EXEC_SIG_CACHE[cleanEmail] = cleanSig;
+    try {
+      var cache = CacheService.getScriptCache();
+      cache.remove("SIG_MISS_" + cleanEmail);
+      if (cleanSig.length < 95000) {
+        cache.put("SIG_VAL_" + cleanEmail, cleanSig, 3600);
+      }
+    } catch (cErr) { }
 
     var props = PropertiesService.getScriptProperties();
     var baseKey = "SIG_" + cleanEmail;
@@ -1926,23 +2039,63 @@ function getBuyerSignature(email) {
   try {
     var cleanEmail = String(email || "").trim().toLowerCase();
     if (!cleanEmail) return "";
+
+    if (__EXEC_SIG_CACHE[cleanEmail] !== undefined) {
+      return __EXEC_SIG_CACHE[cleanEmail];
+    }
+
+    var cache = null;
+    try {
+      cache = CacheService.getScriptCache();
+      var cachedSig = cache.get("SIG_VAL_" + cleanEmail);
+      if (cachedSig) {
+        var verifiedCached = sanitizeSignatureDataUri(cachedSig);
+        if (verifiedCached) {
+          __EXEC_SIG_CACHE[cleanEmail] = verifiedCached;
+          return verifiedCached;
+        }
+      }
+    } catch (cErr1) { }
+
     var props = PropertiesService.getScriptProperties();
     var baseKey = "SIG_" + cleanEmail;
     var raw = props.getProperty(baseKey) || "";
 
     if (raw.indexOf("data:image/") === 0) {
-      return sanitizeSignatureDataUri(raw);
+      var verifiedRaw = sanitizeSignatureDataUri(raw);
+      __EXEC_SIG_CACHE[cleanEmail] = verifiedRaw;
+      if (cache && verifiedRaw && verifiedRaw.length < 95000) {
+        try { cache.put("SIG_VAL_" + cleanEmail, verifiedRaw, 3600); } catch (ePut1) { }
+      }
+      return verifiedRaw;
     }
 
     var chunkMatch = raw.match(/^__CHUNKED_(\d+)__$/);
     if (chunkMatch) {
       var n = parseInt(chunkMatch[1], 10) || 0;
-      var combined = "";
+      var keys = [];
       for (var i = 0; i < n; i++) {
-        combined += (props.getProperty(baseKey + "_" + i) || "");
+        keys.push(baseKey + "_" + i);
+      }
+      var allProps = props.getProperties();
+      var combined = "";
+      for (var k = 0; k < keys.length; k++) {
+        combined += (allProps[keys[k]] || "");
       }
       var verified = sanitizeSignatureDataUri(combined);
-      if (verified) return verified;
+      if (verified) {
+        __EXEC_SIG_CACHE[cleanEmail] = verified;
+        if (cache && verified.length < 95000) {
+          try { cache.put("SIG_VAL_" + cleanEmail, verified, 3600); } catch (ePut2) { }
+        }
+        return verified;
+      }
+    }
+
+    // Nếu gần đây vừa kiểm tra Backend Server và không có chữ ký -> bỏ qua fetch ngay (<1ms) để không làm chậm gửi Gmail
+    if (cache && cache.get("SIG_MISS_" + cleanEmail) === "1") {
+      __EXEC_SIG_CACHE[cleanEmail] = "";
+      return "";
     }
 
     // Fallback: Lấy chữ ký từ Backend Server khi hồ sơ đăng ký gửi qua Google Form Bridge
@@ -1957,9 +2110,16 @@ function getBuyerSignature(email) {
           return fetchedSig;
         }
       }
+      if (cache) {
+        try { cache.put("SIG_MISS_" + cleanEmail, "1", 120); } catch (eMiss) { }
+      }
     } catch (fetchErr) {
       Logger.log("getBuyerSignature fallback fetch error: " + fetchErr);
+      if (cache) {
+        try { cache.put("SIG_MISS_" + cleanEmail, "1", 60); } catch (eMiss2) { }
+      }
     }
+    __EXEC_SIG_CACHE[cleanEmail] = "";
   } catch (e) { }
   return "";
 }
@@ -2114,13 +2274,26 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
 /**
  * 9. ĐỒNG BỘ TÀI KHOẢN SANG TRANG TÍNH "Quản Lý Mật Khẩu" (GID = 0)
  */
-function syncAccountToMainSheet(code, name, email, password, phone, address, isReset) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = getAccountsSheet(ss);
+function syncAccountToMainSheet(code, name, email, password, phone, address, isReset, batchCtx) {
+  var ss = (batchCtx && batchCtx.ss) || SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = (batchCtx && batchCtx.accountsSheet) || getAccountsSheet(ss);
   if (!sheet) return;
 
-  var maxRow = Math.max(sheet.getLastRow(), 5);
-  var data = sheet.getRange(1, 1, maxRow, 9).getDisplayValues();
+  var data;
+  var lastCols;
+  if (batchCtx && batchCtx.accountsData) {
+    data = batchCtx.accountsData;
+    lastCols = batchCtx.accountsLastCol || Math.max(sheet.getLastColumn(), 9);
+  } else {
+    var maxRow = Math.max(sheet.getLastRow(), 5);
+    lastCols = Math.max(sheet.getLastColumn(), 9);
+    data = sheet.getRange(1, 1, maxRow, 9).getDisplayValues();
+    if (batchCtx) {
+      batchCtx.accountsSheet = sheet;
+      batchCtx.accountsData = data;
+      batchCtx.accountsLastCol = lastCols;
+    }
+  }
 
   var codeClean = String(code || "").trim().toUpperCase();
   var emailClean = String(email || "").trim().toLowerCase();
@@ -2158,7 +2331,7 @@ function syncAccountToMainSheet(code, name, email, password, phone, address, isR
       }
     }
     if (targetRow === -1) {
-      targetRow = maxRow + 1;
+      targetRow = data.length + 1;
     }
   }
 
@@ -2204,40 +2377,35 @@ function syncAccountToMainSheet(code, name, email, password, phone, address, isR
     : (address || "Đăng ký từ WebApp");
 
   var existingRowData = foundRow !== -1 ? data[foundRow - 1] : null;
-  if (!existingRowData || String(existingRowData[0] || "").trim() !== String(stt)) {
-    sheet.getRange(targetRow, 1).setValue(stt).setHorizontalAlignment("center");
-  }
-  if (!existingRowData || String(existingRowData[1] || "").trim().toUpperCase() !== codeClean) {
-    sheet.getRange(targetRow, 2).setValue(codeClean).setFontWeight("bold").setHorizontalAlignment("center");
-  }
-  if (!existingRowData || String(existingRowData[2] || "").trim() !== String(name || "").trim()) {
-    sheet.getRange(targetRow, 3).setValue(name);
-  }
-  if (!existingRowData || String(existingRowData[3] || "").trim().toLowerCase() !== emailClean) {
-    sheet.getRange(targetRow, 4).setValue(email);
-  }
-  if (!existingRowData || existingRowPass !== String(finalPassword || "").trim()) {
-    sheet.getRange(targetRow, 5).setValue(finalPassword).setFontWeight("bold");
-  }
-  if (!existingRowData || existingRowDate !== finalDate) {
-    sheet.getRange(targetRow, 6).setValue(finalDate).setHorizontalAlignment("center");
+  var colCount = lastCols >= 9 ? 9 : (lastCols >= 8 ? 8 : 7);
+  var newRowArr = colCount === 9
+    ? [stt, codeClean, name, email, finalPassword, finalDate, finalStatus, "Pro Studio", noteText]
+    : (colCount === 8
+      ? [stt, codeClean, name, email, finalPassword, finalDate, finalStatus, noteText]
+      : [stt, codeClean, name, email, finalPassword, finalDate, finalStatus]);
+
+  var hasChange = !existingRowData;
+  if (existingRowData) {
+    for (var c = 0; c < colCount; c++) {
+      if (String(existingRowData[c] || "").trim() !== String(newRowArr[c] || "").trim()) {
+        hasChange = true;
+        break;
+      }
+    }
   }
 
-  if (sheet.getLastColumn() >= 7 && (!existingRowData || existingRowStatus !== finalStatus)) {
-    sheet.getRange(targetRow, 7).setValue(finalStatus);
-  }
-
-  if (sheet.getLastColumn() >= 9) {
-    if (!existingRowData || String(existingRowData[7] || "").trim() !== "Pro Studio") {
-      sheet.getRange(targetRow, 8).setValue("Pro Studio");
+  if (hasChange) {
+    sheet.getRange(targetRow, 1, 1, colCount).setValues([newRowArr]);
+    if (isNew || isReset) {
+      sheet.getRange(targetRow, 1).setHorizontalAlignment("center");
+      sheet.getRange(targetRow, 2).setFontWeight("bold").setHorizontalAlignment("center");
+      sheet.getRange(targetRow, 5).setFontWeight("bold");
+      sheet.getRange(targetRow, 6).setHorizontalAlignment("center");
     }
-    if (!existingRowData || String(existingRowData[8] || "").trim() !== noteText) {
-      sheet.getRange(targetRow, 9).setValue(noteText);
-    }
-  } else if (sheet.getLastColumn() >= 8) {
-    if (!existingRowData || String(existingRowData[7] || "").trim() !== noteText) {
-      sheet.getRange(targetRow, 8).setValue(noteText);
-    }
+    // Cập nhật ngay vào cache RAM để lần duyệt tiếp theo trong batch không bị trùng dòng
+    var padded = newRowArr.slice();
+    while (padded.length < 9) padded.push("");
+    data[targetRow - 1] = padded;
   }
 }
 
@@ -2369,7 +2537,6 @@ function approveSelectedUserRow() {
   if (!is20) {
     upgradeLegacySheetTo20Cols(sheet);
   }
-  sheet.getRange(row, 15).setValue(true);
   processFirstApproval(sheet, row, true);
 }
 
@@ -2398,7 +2565,6 @@ function approveSelectedFinalHandoverRow() {
   if (!is20) {
     upgradeLegacySheetTo20Cols(sheet);
   }
-  sheet.getRange(row, 18).setValue(true);
   processFinalHandoverApproval(sheet, row, true);
 }
 
@@ -2422,22 +2588,36 @@ function approveAllPendingUsers() {
 
   var maxCols = Math.max(sheet.getLastColumn(), 20);
   var data = sheet.getRange(2, 1, lastRow - 1, maxCols).getDisplayValues();
-  var count = 0;
 
+  // Pre-warm QR Blob và đọc cache dùng chung 1 lần duy nhất cho toàn bộ lô gửi Gmail
+  getTimoQrBlob();
+  var batchCtx = {
+    ss: ss,
+    usedCodes: loadUsedCodesSetGas(ss),
+    quietToast: true
+  };
+
+  var count = 0;
   for (var i = 0; i < data.length; i++) {
     var fullName = String(data[i][2] || "").trim();
-    var email = String(data[i][6] || "").trim();
+    var email = String(data[i][6] || "").replace(/\s+/g, "").trim();
     if (!fullName || !email || email.indexOf("@") === -1) continue;
 
     var mailStatus = String(data[i][18] || "").trim();
 
     if (mailStatus.indexOf("ĐÃ GỬI") === -1 && mailStatus.indexOf("ĐÃ BÀN GIAO") === -1) {
       var targetRow = i + 2;
-      sheet.getRange(targetRow, 15).setValue(true);
-      if (processFirstApproval(sheet, targetRow, true)) count++;
+      batchCtx.prefetchedRow = data[i];
+      if (processFirstApproval(sheet, targetRow, true, batchCtx)) {
+        count++;
+      }
+      if (!hasGmailQuotaRemainingGas()) {
+        break;
+      }
     }
   }
 
+  SpreadsheetApp.flush();
   SpreadsheetApp.getUi().alert("⚡ ĐÃ DUYỆT & GỬI GMAIL TỰ ĐỘNG CHO " + count + " HỒ SƠ KHÁCH HÀNG!");
 }
 
@@ -2566,7 +2746,6 @@ function processWebhookPayload(payload) {
               var regRes = handleUserRegistrationWebhook(ss, payload);
               if (regRes && regRes.row) target.row = regRes.row;
             }
-            uSheet.getRange(target.row, 15).setValue(true);
             processFirstApproval(uSheet, target.row, true);
             return { status: "success", action: action, row: target.row };
           }
@@ -2585,7 +2764,6 @@ function processWebhookPayload(payload) {
               var regRes2 = handleUserRegistrationWebhook(ss, payload);
               if (regRes2 && regRes2.row) target2.row = regRes2.row;
             }
-            uSheet2.getRange(target2.row, 18).setValue(true);
             processFinalHandoverApproval(uSheet2, target2.row, true);
             return { status: "success", action: "approve_final_handover", row: target2.row };
           }
