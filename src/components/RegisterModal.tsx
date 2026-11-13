@@ -4,7 +4,7 @@ import {
   FileText, ShieldCheck, CheckCircle2, AlertCircle,
   ArrowRight, ArrowLeft, RefreshCw, Check, Sparkles,
   CreditCard, Layers, Clock, DollarSign, Award, Info, QrCode,
-  Building, PenTool, CheckCircle
+  Building, PenTool, CheckCircle, Download
 } from 'lucide-react';
 import { UserRegistrationData, ContractCategory, ContractPackage } from '../types';
 import {
@@ -13,6 +13,8 @@ import {
   discoverWebhookUrlFromSheet,
 } from '../services/googleSheetService';
 import { QR_CODE_BASE64 } from '../data/qrCodeBase64';
+import { STAMP_BASE64 } from '../data/stampBase64';
+import { downloadPersonalizedContractPdf } from '../utils/contractPdfGenerator';
 import { SignatureModal } from './SignatureModal';
 
 interface RegisterModalProps {
@@ -1229,6 +1231,76 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                 )}
               </div>
 
+              {/* XEM TRƯỚC PHẦN CHỮ KÝ XÁC NHẬN TRÊN HỢP ĐỒNG (BÊN B — BÊN A) */}
+              <div className="p-4 bg-white border border-zinc-200 rounded-xl shadow-xs space-y-2.5">
+                <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider text-center border-b border-zinc-100 pb-2">
+                  XÁC NHẬN CHỮ KÝ TRÊN HỢP ĐỒNG ĐIỆN TỬ
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 items-start text-center">
+                  {/* Cột Bên B */}
+                  <div className="flex flex-col items-center justify-between min-h-[170px] p-2.5 rounded-lg bg-zinc-50/60 border border-zinc-100">
+                    <div className="space-y-0.5">
+                      <div className="text-[11px] font-bold text-zinc-950 uppercase">ĐẠI DIỆN MUA HÀNG (BÊN B)</div>
+                      <div className="text-[10px] text-zinc-500 italic">(Chữ ký tay &amp; xác nhận điện tử)</div>
+                    </div>
+
+                    {/* Ảnh chữ ký tay của người dùng đặt NGAY PHÍA TRÊN ô chữ ký điện tử màu xanh */}
+                    <div className="w-full flex flex-col items-center justify-end my-2">
+                      <div className="h-14 flex items-center justify-center mb-1.5">
+                        {signatureImage ? (
+                          <img
+                            src={signatureImage}
+                            alt="Chữ ký tay Bên B trên hợp đồng"
+                            className="max-h-12 max-w-[175px] object-contain"
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setShowSignatureModal(true)}
+                            className="px-2.5 py-1 text-[10px] font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-dashed border-amber-400 rounded cursor-pointer transition"
+                          >
+                            ✍️ Nhấn Ký tên để hiện chữ ký ở đây
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="inline-block border-2 border-dashed border-emerald-600 bg-emerald-50/70 text-emerald-700 rounded-md px-3.5 py-1.5 text-[10px] leading-snug font-bold">
+                        ĐÃ KÝ XÁC NHẬN ĐIỆN TỬ
+                        <div className="font-normal text-[9.5px] text-emerald-800">
+                          Ngày: {new Date().toLocaleDateString('vi-VN')}
+                        </div>
+                        <div className="font-mono font-normal text-[9px] text-emerald-800">
+                          CCCD: {idCardNumber.trim() || 'Chưa cung cấp'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-xs font-bold text-zinc-950 uppercase">
+                      {fullName.trim() || 'KHÁCH HÀNG SYNAPES'}
+                    </div>
+                  </div>
+
+                  {/* Cột Bên A */}
+                  <div className="flex flex-col items-center justify-between min-h-[170px] p-2.5 rounded-lg bg-zinc-50/60 border border-zinc-100">
+                    <div className="space-y-0.5">
+                      <div className="text-[11px] font-bold text-zinc-950 uppercase">ĐẠI DIỆN GIAO DỊCH (BÊN A)</div>
+                      <div className="text-[10px] text-zinc-500 italic">(Trưởng ban CĐS &amp; TTNT)</div>
+                    </div>
+                    <div className="my-1 flex items-center justify-center">
+                      <img
+                        src={STAMP_BASE64}
+                        alt="Con dấu Trưởng ban"
+                        className="w-24 h-24 object-contain"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-zinc-950">KS. NGUYỄN HOÀNG THIỆN</div>
+                      <div className="text-[10px] font-mono text-zinc-500">CCCD: 072206002509</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* HỘP CAM KẾT & TÍCH CHỌN */}
               <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl">
                 <label className="flex items-start gap-2.5 cursor-pointer">
@@ -1338,8 +1410,39 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                 )}
               </div>
 
-              {/* Nút thoát */}
+              {/* Nút thoát & tải bản sao hợp đồng đã ký */}
               <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const pkg = currentPkgInfo;
+                    downloadPersonalizedContractPdf({
+                      fullName: fullName.trim(),
+                      idCardNumber: idCardNumber.trim() || undefined,
+                      dob: formatDobToDDMMYYYY(dob.trim()),
+                      gender,
+                      email: email.trim(),
+                      phone: phone.trim(),
+                      addressType,
+                      address: address.trim(),
+                      contractCategory,
+                      contractPackage,
+                      contractPackageName: pkg.name,
+                      depositAmount: pkg.depositAmount,
+                      totalAmount: pkg.totalAmount,
+                      originalAmount: pkg.originalAmount,
+                      deliveryDays: pkg.isDeposit ? deliveryDays : 0,
+                      signatureImage: signatureImage || undefined,
+                      termsAccepted: true,
+                      registeredAt: new Date().toLocaleString('vi-VN'),
+                    });
+                  }}
+                  className="py-2.5 px-5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Tải / In Hợp Đồng PDF Đã Ký</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={onClose}

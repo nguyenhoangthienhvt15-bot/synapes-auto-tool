@@ -586,6 +586,29 @@ function extractEmbeddedActionPayload(notesVal, fallbackPayload) {
 }
 
 /**
+ * Tách dữ liệu chữ ký nhúng [SIG_DATA:data:image/...] gửi qua Google Form Bridge
+ * và làm sạch chuỗi Ghi chú trước khi lưu lên bảng tính
+ */
+function extractEmbeddedSignatureAndCleanNotesGas(payload) {
+  if (!payload || typeof payload !== "object") return "";
+  var notesStr = String(payload.notes || "");
+  var sigMatch = notesStr.match(/\[SIG_DATA:(data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+)\]/i);
+  if (sigMatch && sigMatch[1]) {
+    var extractedSig = sanitizeSignatureDataUri(sigMatch[1]);
+    if (extractedSig) {
+      if (!payload.signatureImage) payload.signatureImage = extractedSig;
+      if (!payload.buyerSignature) payload.buyerSignature = extractedSig;
+      if (payload.email) {
+        saveBuyerSignature(payload.email, extractedSig);
+      }
+    }
+    payload.notes = notesStr.replace(/\s*\[SIG_DATA:data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+\]/ig, "").trim();
+    return extractedSig;
+  }
+  return "";
+}
+
+/**
  * Trigger chạy ngay lập tức khi Form có phản hồi mới từ FormApp
  */
 function onFormBridgeSubmit(e) {
@@ -2092,12 +2115,6 @@ function getBuyerSignature(email) {
       }
     }
 
-    // Nếu gần đây vừa kiểm tra Backend Server và không có chữ ký -> bỏ qua fetch ngay (<1ms) để không làm chậm gửi Gmail
-    if (cache && cache.get("SIG_MISS_" + cleanEmail) === "1") {
-      __EXEC_SIG_CACHE[cleanEmail] = "";
-      return "";
-    }
-
     // Fallback: Lấy chữ ký từ Backend Server khi hồ sơ đăng ký gửi qua Google Form Bridge
     try {
       var url = "https://synapes-auto-tool-web-service.onrender.com/api/registration-signature?email=" + encodeURIComponent(cleanEmail);
@@ -2110,14 +2127,8 @@ function getBuyerSignature(email) {
           return fetchedSig;
         }
       }
-      if (cache) {
-        try { cache.put("SIG_MISS_" + cleanEmail, "1", 120); } catch (eMiss) { }
-      }
     } catch (fetchErr) {
       Logger.log("getBuyerSignature fallback fetch error: " + fetchErr);
-      if (cache) {
-        try { cache.put("SIG_MISS_" + cleanEmail, "1", 60); } catch (eMiss2) { }
-      }
     }
     __EXEC_SIG_CACHE[cleanEmail] = "";
   } catch (e) { }
@@ -2158,7 +2169,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
 
   var buyerSigHtml = "";
   if (resolvedSignature) {
-    buyerSigHtml = '<div style="height: 52px; margin-top: 6px; margin-bottom: 4px; text-align: center;"><img src="' + resolvedSignature + '" style="max-height: 48px; max-width: 170px; object-fit: contain;" alt="Chữ ký tay Bên B" /></div>';
+    buyerSigHtml = '<div style="height: 56px; margin: 6px auto 2px auto; text-align: center;"><img src="' + resolvedSignature + '" height="50" style="height: 50px; width: auto; max-width: 175px; display: block; margin: 0 auto;" alt="Chữ ký tay Bên B" /></div>';
   } else {
     buyerSigHtml = '<div style="height: 18px;"></div>';
   }
@@ -2834,6 +2845,9 @@ function handleUserRegistrationWebhook(ss, payload) {
   if (embedded.isAction) {
     return processWebhookPayload(embedded.data);
   }
+
+  // Tách chữ ký tay nhúng [SIG_DATA:...] từ Form Bridge (nếu có) trước khi ghi cột Ghi chú lên Sheet
+  extractEmbeddedSignatureAndCleanNotesGas(payload);
 
   // Lưu trữ chữ ký tay khách hàng (nếu có) theo địa chỉ email
   var sigCandidate = (payload && (payload.signatureImage || payload.buyerSignature)) || "";

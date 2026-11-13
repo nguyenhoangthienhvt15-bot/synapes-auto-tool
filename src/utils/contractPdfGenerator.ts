@@ -478,8 +478,8 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
 
             <div class="buyer-sign-box">
               ${signatureDisplay ? `
-                <div style="height: 52px; margin-bottom: 5px; display: flex; align-items: center; justify-content: center;">
-                  <img src="${signatureDisplay}" style="max-height: 48px; max-width: 170px; object-fit: contain;" alt="Chữ ký tay Bên B" />
+                <div style="height: 54px; margin-bottom: 5px; display: flex; align-items: center; justify-content: center;">
+                  <img src="${signatureDisplay}" height="48" style="max-height: 48px; max-width: 175px; width: auto; height: auto; object-fit: contain; display: block; margin: 0 auto;" alt="Chữ ký tay Bên B" />
                 </div>
               ` : `
                 <div style="height: 18px;"></div>
