@@ -1895,14 +1895,68 @@ export async function handleStudioApiRequest(req, res) {
     return chapters.length >= 2 ? chapters : [];
   }
 
+  function extractGeminiTextFromParts(parsedResp) {
+    const parts = parsedResp?.candidates?.[0]?.content?.parts;
+    if (!Array.isArray(parts) || parts.length === 0) return '';
+    // Bỏ qua các part suy nghĩ (thought: true) của dòng Gemini 3.x / Thinking models
+    const nonThought = parts.filter((p) => p && typeof p.text === 'string' && !p.thought).map((p) => p.text);
+    if (nonThought.length > 0) return nonThought.join('\n').trim();
+    const anyText = parts.filter((p) => p && typeof p.text === 'string').map((p) => p.text);
+    return anyText.join('\n').trim();
+  }
+
+  function parseIsoDurationToSec(iso = '') {
+    const m = String(iso).match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/i);
+    if (!m) return 0;
+    return (parseInt(m[1] || '0', 10) * 3600) + (parseInt(m[2] || '0', 10) * 60) + parseInt(m[3] || '0', 10);
+  }
+
   async function fetchThumbnailAsBase64(thumbUrl) {
-    if (!thumbUrl || !thumbUrl.startsWith('https://i.ytimg.com/')) return null;
+    if (!thumbUrl || (!thumbUrl.startsWith('https://i.ytimg.com/') && !thumbUrl.startsWith('https://img.youtube.com/'))) {
+      return null;
+    }
     try {
       const resp = await fetch(thumbUrl);
       if (!resp.ok) return null;
       const buf = Buffer.from(await resp.arrayBuffer());
-      if (buf.length > 1.5 * 1024 * 1024 || buf.length < 1000) return null;
-      return buf.toString('base64');
+      if (buf.length > 1.8 * 1024 * 1024 || buf.length < 1000) return null;
+      return {
+        base64: buf.toString('base64'),
+        mimeType: resp.headers.get('content-type') || 'image/jpeg',
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async function fetchYouTubeNextMetadata(videoId) {
+    try {
+      const res = await fetch('https://www.youtube.com/youtubei/v1/next?prettyPrint=false', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+          'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8'
+        },
+        body: JSON.stringify({
+          context: { client: { clientName: 'WEB', clientVersion: '2.20241126.01.00', hl: 'vi', gl: 'VN' } },
+          videoId
+        })
+      });
+      if (!res.ok) return null;
+      const rawText = await res.text();
+      const descMatch = rawText.match(/"attributedDescription":\{"content":"((?:[^"\\]|\\.)*)"/);
+      const titleMatch = rawText.match(/"videoPrimaryInfoRenderer":\{"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"/);
+      const ownerMatch = rawText.match(/"videoOwnerRenderer":\{.*?"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"/);
+      const decodeStr = (s) => {
+        if (!s) return '';
+        try { return JSON.parse('"' + s + '"'); } catch { return s; }
+      };
+      return {
+        title: decodeStr(titleMatch?.[1] || ''),
+        author: decodeStr(ownerMatch?.[1] || ''),
+        shortDescription: decodeStr(descMatch?.[1] || ''),
+      };
     } catch {
       return null;
     }
@@ -1914,11 +1968,21 @@ export async function handleStudioApiRequest(req, res) {
     if (!match) return null;
     const videoId = match[1];
 
+    let title = '';
+    let author = '';
+    let lengthSeconds = 0;
+    let keywords = [];
+    let shortDescription = '';
+    let captionTracks = [];
+    let thumbnailUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+
+    // 1. Thử Watch Page HTML (kèm cookie CONSENT để tránh tường GDPR/consent trên server cloud)
     try {
-      const res = await fetch('https://www.youtube.com/watch?v=' + videoId, {
+      const res = await fetch(`https://www.youtube.com/watch?v=${videoId}&bpctr=9999999999&has_verified=1`, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+          'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
+          'Cookie': 'CONSENT=YES+cb.20210328-17-p0.en+FX+999; SOCS=CAISHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmVuIAEaBgiA_LyaBg'
         }
       });
       const html = await res.text();
@@ -1926,47 +1990,80 @@ export async function handleStudioApiRequest(req, res) {
       if (matchJson) {
         const data = JSON.parse(matchJson[1]);
         const details = data.videoDetails || {};
-        const lengthSeconds = parseInt(details.lengthSeconds || '0', 10) || 30;
-        const shortDescription = details.shortDescription || '';
-        const chapters = extractChaptersFromDescription(shortDescription, lengthSeconds);
-        const captionTracks = (data.captions?.playerCaptionsTracklistRenderer?.captionTracks || []).map((c) => ({
+        title = details.title || title;
+        author = details.author || author;
+        lengthSeconds = parseInt(details.lengthSeconds || '0', 10) || lengthSeconds;
+        keywords = Array.isArray(details.keywords) ? details.keywords : keywords;
+        shortDescription = details.shortDescription || shortDescription;
+        captionTracks = (data.captions?.playerCaptionsTracklistRenderer?.captionTracks || []).map((c) => ({
           lang: c.languageCode,
           name: c.name?.simpleText || c.languageCode,
         }));
+        const bestThumb = details.thumbnail?.thumbnails?.slice(-1)[0]?.url;
+        if (bestThumb) thumbnailUrl = bestThumb;
+      }
 
-        return {
-          videoId,
-          title: details.title || 'Video YouTube',
-          author: details.author || '',
-          lengthSeconds,
-          keywords: details.keywords || [],
-          shortDescription,
-          chapters,
-          captionTracks,
-          thumbnailUrl: details.thumbnail?.thumbnails?.slice(-1)[0]?.url || 'https://i.ytimg.com/vi/' + videoId + '/maxresdefault.jpg',
-          embedUrl: 'https://www.youtube-nocookie.com/embed/' + videoId + '?autoplay=0&rel=0'
-        };
+      if (!lengthSeconds) {
+        const metaDur = html.match(/itemprop="duration"\s+content="(PT[^"]+)"/i);
+        if (metaDur) {
+          lengthSeconds = parseIsoDurationToSec(metaDur[1]);
+        }
+      }
+      if (!title) {
+        const ogTitle = html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/i);
+        if (ogTitle) title = ogTitle[1];
       }
     } catch (err) {
-      console.warn('Scrape YT metadata error:', err.message);
+      console.warn('Scrape YT watch metadata error:', err.message);
     }
 
-    // Fallback qua oEmbed nếu scraper bị chặn
-    try {
-      const oembed = await getHttpsJson(`https://www.youtube.com/oembed?url=${encodeURIComponent(videoUrl)}&format=json`);
-      if (oembed?.status === 200 && oembed.data?.title) {
-        return {
-          videoId,
-          title: oembed.data.title,
-          author: oembed.data.author_name || '',
-          lengthSeconds: 30,
-          keywords: [],
-          shortDescription: '',
-          thumbnailUrl: oembed.data.thumbnail_url || 'https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg',
-          embedUrl: 'https://www.youtube-nocookie.com/embed/' + videoId + '?autoplay=0&rel=0'
-        };
+    // 2. Bổ sung từ /youtubei/v1/next (chống bot wall trên server Render để luôn lấy được Description + Chapters!)
+    if (!shortDescription || !title || !author) {
+      const nextMeta = await fetchYouTubeNextMetadata(videoId);
+      if (nextMeta) {
+        if (!title && nextMeta.title) title = nextMeta.title;
+        if (!author && nextMeta.author) author = nextMeta.author;
+        if (!shortDescription && nextMeta.shortDescription) shortDescription = nextMeta.shortDescription;
       }
-    } catch { }
+    }
+
+    // 3. Fallback oEmbed nếu vẫn thiếu Title / Author
+    if (!title || !author) {
+      try {
+        const oembed = await getHttpsJson(`https://www.youtube.com/oembed?url=${encodeURIComponent(videoUrl)}&format=json`);
+        if (oembed?.status === 200 && oembed.data?.title) {
+          if (!title) title = oembed.data.title;
+          if (!author) author = oembed.data.author_name || '';
+          if (oembed.data.thumbnail_url && thumbnailUrl.endsWith('/hqdefault.jpg')) {
+            thumbnailUrl = oembed.data.thumbnail_url;
+          }
+        }
+      } catch { }
+    }
+
+    // Nếu không lấy được duration thật nhưng có chapters -> suy ra duration tối thiểu từ chapter cuối + 45s
+    const preliminaryChapters = extractChaptersFromDescription(shortDescription, lengthSeconds || 3600);
+    if (!lengthSeconds && preliminaryChapters.length >= 2) {
+      const lastStart = preliminaryChapters[preliminaryChapters.length - 1].startSec;
+      lengthSeconds = Math.max(120, lastStart + 45);
+    }
+    const finalLength = lengthSeconds || 30;
+    const chapters = extractChaptersFromDescription(shortDescription, finalLength);
+
+    if (title || author || chapters.length > 0) {
+      return {
+        videoId,
+        title: title || 'Video YouTube',
+        author: author || '',
+        lengthSeconds: finalLength,
+        keywords,
+        shortDescription,
+        chapters,
+        captionTracks,
+        thumbnailUrl,
+        embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=0&rel=0`
+      };
+    }
 
     return null;
   }
@@ -2543,7 +2640,7 @@ export async function handleStudioApiRequest(req, res) {
   if (cleanUrl === '/api/video-deconstruct' && req.method === 'POST') {
     try {
       const body = await readJsonBody(req);
-      const { videoUrl, videoData, manualTranscript, apiKey, model } = body || {};
+      const { videoUrl, videoData, manualTranscript, provider, apiKey, model } = body || {};
 
       let meta = {
         title: '',
@@ -2586,14 +2683,16 @@ export async function handleStudioApiRequest(req, res) {
       meta.author = displayAuthor;
 
       let dna = null;
+      let byokWarning = '';
+      const cleanProv = String(provider || 'gemini').toLowerCase().trim();
 
       // Nếu có Khóa API LLM (BYOK), gọi mô hình phân tích chi tiết dựa trên dữ liệu thật + Multimodal Thumbnail Vision + Hypit SVML
       if (apiKey && String(apiKey).trim().length > 5) {
         const cleanKey = String(apiKey).trim();
-        const cleanMod = String(model || 'gemini-2.0-flash').replace(/^models\//, '').trim();
+        const cleanMod = String(model || (cleanProv === 'openai' ? 'gpt-4o-mini' : cleanProv === 'deepseek' ? 'deepseek-chat' : cleanProv === 'claude' ? 'claude-3-5-sonnet-20241022' : 'gemini-3.6-flash')).replace(/^models\//, '').trim();
 
         const chaptersText = Array.isArray(meta.chapters) && meta.chapters.length > 0
-          ? meta.chapters.map((c, i) => `  ${i + 1}. [${c.timeLabel} | ${c.startSec}s-${c.endSec}s] ${c.title}`).join('\n')
+          ? meta.chapters.map((c, i) => `  ${i + 1}. [${c.timestamp || formatTimeMmSs(c.startSec || 0)}] ${c.title}`).join('\n')
           : '  (Không có chapters trong mô tả)';
         const cleanManualTranscript = typeof manualTranscript === 'string' ? manualTranscript.trim() : '';
 
@@ -2605,7 +2704,7 @@ DỮ LIỆU VIDEO THỰC TẾ TRÍCH XUẤT ĐƯỢC:
 - Thời lượng thực tế: ${meta.lengthSeconds} giây
 - Chapters / Dòng thời gian thực tế:
 ${chaptersText}
-- Mô tả / Từ khóa: "${meta.shortDescription || (meta.keywords || []).join(', ')}"
+- Mô tả / Từ khóa: "${(meta.shortDescription || '').slice(0, 1800) || (meta.keywords || []).join(', ')}"
 - Lời thoại / Transcript người dùng cung cấp: ${cleanManualTranscript ? `"${cleanManualTranscript.slice(0, 6000)}"` : '(Chưa cung cấp — hãy phân tích dựa trên tiêu đề, chapters, mô tả và hình ảnh thumbnail đính kèm)'}
 - Nền tảng: "${videoUrl || 'Video'}"
 
@@ -2622,83 +2721,169 @@ YÊU CẦU ĐẶC BIỆT BẮT BUỘC:
 BẮT BUỘC TRẢ VỀ DUY NHẤT ĐỐI TƯỢNG JSON với các trường:
 sourceUrl, sourceTitle, authorName, embedUrl, thumbnailUrl, durationSec, totalScenes, averageShotDuration, wordsPerMinute, hookScore, hookAnalysis, retentionStrategy, pacingStyle, visualStyle, audioAnalysis, promptGuide, chapters, rhetoricalStructure, deliveryStyle, presentationStyle, hypitSvmlBlueprint, scenes, rawTranscript.`;
 
-        let contents = [];
-        if (videoData) {
-          contents = [
-            {
-              parts: [
-                {
-                  inlineData: {
-                    mimeType: 'video/mp4',
-                    data: String(videoData).replace(/^data:[^;]+;base64,/, ''),
+        const applyParsedDna = (parsedObj, usedModelName) => {
+          if (!parsedObj || typeof parsedObj !== 'object') return null;
+          if (!parsedObj.sourceUrl) parsedObj.sourceUrl = meta.sourceUrl;
+          if (!parsedObj.sourceTitle) parsedObj.sourceTitle = meta.title;
+          if (!parsedObj.authorName) parsedObj.authorName = meta.author;
+          if (!parsedObj.embedUrl) parsedObj.embedUrl = meta.embedUrl;
+          if (!parsedObj.thumbnailUrl) parsedObj.thumbnailUrl = meta.thumbnailUrl;
+          if (!parsedObj.durationSec) parsedObj.durationSec = meta.lengthSeconds;
+          if (!Array.isArray(parsedObj.chapters) || parsedObj.chapters.length === 0) {
+            parsedObj.chapters = meta.chapters || [];
+          }
+          if (!parsedObj.visualStyle || typeof parsedObj.visualStyle !== 'object') {
+            parsedObj.visualStyle = {};
+          }
+          if (!parsedObj.visualStyle.recommendedAspectRatio) {
+            const isLong = meta.lengthSeconds >= 90 && !String(meta.sourceUrl || '').includes('/shorts/');
+            parsedObj.visualStyle.recommendedAspectRatio = isLong ? '16:9' : '9:16';
+          }
+          parsedObj.modelUsed = usedModelName;
+          parsedObj.engineMeta = {
+            mode: 'byok-llm',
+            provider: cleanProv,
+            modelUsed: usedModelName,
+          };
+          return parsedObj;
+        };
+
+        if (cleanProv === 'gemini') {
+          let contents = [];
+          if (videoData) {
+            contents = [
+              {
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: 'video/mp4',
+                      data: String(videoData).replace(/^data:[^;]+;base64,/, ''),
+                    },
                   },
+                  { text: promptText },
+                ],
+              },
+            ];
+          } else {
+            const parts = [];
+            if (meta.thumbnailUrl) {
+              const thumbImg = await fetchThumbnailAsBase64(meta.thumbnailUrl);
+              if (thumbImg?.base64) {
+                parts.push({
+                  inlineData: {
+                    mimeType: thumbImg.mimeType,
+                    data: thumbImg.base64,
+                  },
+                });
+              }
+            }
+            parts.push({ text: promptText });
+            contents = [{ parts }];
+          }
+
+          const candidateDeconstructModels = Array.from(
+            new Set([
+              cleanMod,
+              'gemini-3.6-flash',
+              'gemini-3.5-flash',
+              'gemini-3-flash-preview',
+              'gemini-3.8-flash',
+              'gemini-flash-latest',
+              'gemini-2.5-flash',
+              'gemini-2.0-flash',
+            ])
+          );
+          for (const tryMod of candidateDeconstructModels) {
+            const tryUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+              tryMod
+            )}:generateContent?key=${encodeURIComponent(cleanKey)}`;
+            const resp = await postJsonHttps(
+              tryUrl,
+              {},
+              {
+                contents,
+                generationConfig: {
+                  temperature: 0.2,
+                  responseMimeType: 'application/json',
                 },
-                { text: promptText },
-              ],
-            },
-          ];
-        } else {
-          const parts = [];
-          if (meta.thumbnailUrl) {
-            const thumbImg = await fetchThumbnailAsBase64(meta.thumbnailUrl);
-            if (thumbImg?.base64) {
-              parts.push({
-                inlineData: {
-                  mimeType: thumbImg.mimeType,
-                  data: thumbImg.base64,
-                },
-              });
+              }
+            ).catch((e) => ({ status: 500, text: String(e?.message || e) }));
+
+            if (resp.status === 200 && resp.text) {
+              try {
+                const parsedResp = JSON.parse(resp.text);
+                const candidateText = extractGeminiTextFromParts(parsedResp);
+                if (candidateText) {
+                  const cleanedJson = candidateText
+                    .replace(/^```json\s*/i, '')
+                    .replace(/^```\s*/i, '')
+                    .replace(/\s*```$/i, '')
+                    .trim();
+                  dna = applyParsedDna(JSON.parse(cleanedJson), tryMod);
+                  if (dna) break;
+                }
+              } catch (e) {
+                console.warn('Parse Gemini DNA JSON error:', e);
+                byokWarning = `Parse JSON từ ${tryMod} thất bại: ${e.message}`;
+              }
+            } else {
+              try {
+                const errJson = JSON.parse(resp.text || '{}');
+                byokWarning = `${tryMod} -> HTTP ${resp.status}: ${errJson?.error?.message || 'Lỗi kết nối Gemini'}`.slice(0, 220);
+              } catch {
+                byokWarning = `${tryMod} -> HTTP ${resp.status}`;
+              }
             }
           }
-          parts.push({ text: promptText });
-          contents = [{ parts }];
-        }
-
-        const candidateDeconstructModels = Array.from(
-          new Set([cleanMod, 'gemini-2.5-flash', 'gemini-2.0-flash'])
-        );
-        for (const tryMod of candidateDeconstructModels) {
-          const tryUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-            tryMod
-          )}:generateContent?key=${encodeURIComponent(cleanKey)}`;
+        } else if (cleanProv === 'openai' || cleanProv === 'deepseek') {
+          const apiUrl = cleanProv === 'deepseek'
+            ? 'https://api.deepseek.com/chat/completions'
+            : 'https://api.openai.com/v1/chat/completions';
           const resp = await postJsonHttps(
-            tryUrl,
-            {},
+            apiUrl,
+            { Authorization: `Bearer ${cleanKey}` },
             {
-              contents,
-              generationConfig: {
-                temperature: 0.2,
-                responseMimeType: 'application/json',
-              },
+              model: cleanMod,
+              messages: [
+                { role: 'system', content: 'Return only valid JSON matching the requested schema.' },
+                { role: 'user', content: promptText }
+              ],
+              temperature: 0.2
             }
-          ).catch(() => ({ status: 500, text: '' }));
-
+          ).catch((e) => ({ status: 500, text: String(e?.message || e) }));
           if (resp.status === 200 && resp.text) {
             try {
-              const parsedResp = JSON.parse(resp.text);
-              const candidateText = extractGeminiTextFromParts(parsedResp);
-              if (candidateText) {
-                const cleanedJson = candidateText
-                  .replace(/^```json\s*/i, '')
-                  .replace(/^```\s*/i, '')
-                  .replace(/\s*```$/i, '')
-                  .trim();
-                dna = JSON.parse(cleanedJson);
-                if (!dna.sourceUrl) dna.sourceUrl = meta.sourceUrl;
-                if (!dna.sourceTitle) dna.sourceTitle = meta.title;
-                if (!dna.authorName) dna.authorName = meta.author;
-                if (!dna.embedUrl) dna.embedUrl = meta.embedUrl;
-                if (!dna.thumbnailUrl) dna.thumbnailUrl = meta.thumbnailUrl;
-                if (!dna.durationSec) dna.durationSec = meta.lengthSeconds;
-                if (!Array.isArray(dna.chapters) || dna.chapters.length === 0) {
-                  dna.chapters = meta.chapters || [];
-                }
-                dna.modelUsed = tryMod;
-                break;
-              }
+              const parsed = JSON.parse(resp.text);
+              const rawText = parsed?.choices?.[0]?.message?.content || '';
+              const cleanedJson = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+              if (cleanedJson) dna = applyParsedDna(JSON.parse(cleanedJson), cleanMod);
             } catch (e) {
-              console.warn('Parse Gemini DNA JSON error:', e);
+              byokWarning = `Parse JSON từ ${cleanProv} thất bại: ${e.message}`;
             }
+          } else {
+            byokWarning = `${cleanProv} (${cleanMod}) -> HTTP ${resp.status}`;
+          }
+        } else if (cleanProv === 'claude') {
+          const resp = await postJsonHttps(
+            'https://api.anthropic.com/v1/messages',
+            { 'x-api-key': cleanKey, 'anthropic-version': '2023-06-01' },
+            {
+              model: cleanMod,
+              max_tokens: 4000,
+              messages: [{ role: 'user', content: promptText }]
+            }
+          ).catch((e) => ({ status: 500, text: String(e?.message || e) }));
+          if (resp.status === 200 && resp.text) {
+            try {
+              const parsed = JSON.parse(resp.text);
+              const rawText = parsed?.content?.[0]?.text || '';
+              const cleanedJson = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+              if (cleanedJson) dna = applyParsedDna(JSON.parse(cleanedJson), cleanMod);
+            } catch (e) {
+              byokWarning = `Parse JSON từ Claude thất bại: ${e.message}`;
+            }
+          } else {
+            byokWarning = `Claude (${cleanMod}) -> HTTP ${resp.status}`;
           }
         }
       }
@@ -2706,6 +2891,12 @@ sourceUrl, sourceTitle, authorName, embedUrl, thumbnailUrl, durationSec, totalSc
       // Nếu không có API Key hoặc phân tích LLM gặp lỗi: Sử dụng Smart Domain Engine bóc tách chuyên sâu theo nội dung thật
       if (!dna) {
         dna = generateDomainVideoDna(meta);
+        dna.engineMeta = {
+          mode: 'semantic-fallback',
+          provider: cleanProv,
+          modelUsed: 'Zero-Mock Semantic Engine',
+          warning: byokWarning || undefined,
+        };
       } else if (!dna.hypitSvmlBlueprint || !dna.rhetoricalStructure || !dna.deliveryStyle || !dna.presentationStyle) {
         const fallbackDna = generateDomainVideoDna(meta);
         dna.rhetoricalStructure = dna.rhetoricalStructure || fallbackDna.rhetoricalStructure;
@@ -2786,14 +2977,24 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
 
         try {
           let rawText = '';
+          let usedSynthMod = cleanMod;
           if (cleanProv === 'gemini') {
-            const gUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cleanMod)}:generateContent?key=${encodeURIComponent(cleanKey)}`;
-            const resp = await postJsonHttps(gUrl, {}, {
-              contents: [{ parts: [{ text: synthPrompt }] }],
-              generationConfig: { temperature: 0.4, responseMimeType: 'application/json' }
-            });
-            if (resp.status === 200 && resp.text) {
-              rawText = extractGeminiTextFromParts(JSON.parse(resp.text));
+            const candidateSynthModels = Array.from(
+              new Set([cleanMod, 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-3.8-flash', 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'])
+            );
+            for (const tryMod of candidateSynthModels) {
+              const gUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(tryMod)}:generateContent?key=${encodeURIComponent(cleanKey)}`;
+              const resp = await postJsonHttps(gUrl, {}, {
+                contents: [{ parts: [{ text: synthPrompt }] }],
+                generationConfig: { temperature: 0.4, responseMimeType: 'application/json' }
+              }).catch(() => ({ status: 500, text: '' }));
+              if (resp.status === 200 && resp.text) {
+                rawText = extractGeminiTextFromParts(JSON.parse(resp.text));
+                if (rawText) {
+                  usedSynthMod = tryMod;
+                  break;
+                }
+              }
             }
           } else if (cleanProv === 'openai' || cleanProv === 'deepseek') {
             const apiUrl = cleanProv === 'deepseek'
@@ -2839,7 +3040,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
               .trim();
             const parsedSynth = JSON.parse(cleanedJson);
             if (parsedSynth?.newScript && Array.isArray(parsedSynth?.newStoryboard) && parsedSynth.newStoryboard.length > 0) {
-              llmResult = parsedSynth;
+              llmResult = { ...parsedSynth, usedModel: usedSynthMod };
             }
           }
         } catch (llmErr) {
@@ -2854,7 +3055,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
           newTopic,
           targetAudience: targetAudience || 'Khán giả mạng xã hội',
           selectedProvider: provider || 'gemini',
-          selectedModel: cleanMod,
+          selectedModel: llmResult.usedModel || cleanMod,
           newScript: llmResult.newScript,
           newStoryboard: llmResult.newStoryboard,
           createdAt: new Date().toISOString(),
