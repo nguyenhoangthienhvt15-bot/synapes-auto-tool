@@ -44,32 +44,70 @@ export async function sendSmtpDaemonEmail(subject, textBody, recipient = ALERT_E
   // 2. Nếu có thông tin đăng nhập SMTP, thực hiện kết nối TLS gửi thư trực tiếp
   if (user && pass) {
     return new Promise((resolve) => {
-      const socket = tls.connect({ host, port, rejectUnauthorized: false }, () => {
-        let step = 0;
-        socket.on('data', (data) => {
-          const resp = data.toString();
-          if (step === 0 && resp.startsWith('220')) {
+      let settled = false;
+      let step = 0;
+      let buffer = '';
+      let socket = null;
+
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        try {
+          if (socket) socket.end();
+        } catch {}
+        resolve(result);
+      };
+
+      const timeoutId = setTimeout(() => {
+        try {
+          if (socket) socket.destroy();
+        } catch {}
+        finish({ success: false, error: 'SMTP Timeout' });
+      }, 8000);
+
+      socket = tls.connect({ host, port, rejectUnauthorized: false }, () => {
+        socket.setEncoding('utf8');
+      });
+
+      socket.on('data', (chunk) => {
+        buffer += chunk;
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line) continue;
+          // Bỏ qua dòng trung gian của phản hồi SMTP nhiều dòng (vd: "250-PIPELINING")
+          if (/^\d{3}-/.test(line)) continue;
+
+          if (/^[45]\d{2}\s/.test(line)) {
+            finish({ success: false, error: `SMTP ${line.slice(0, 120)}` });
+            return;
+          }
+
+          if (step === 0 && line.startsWith('220 ')) {
             socket.write(`EHLO synapes.studio\r\n`);
-            step++;
-          } else if (step === 1 && resp.startsWith('250')) {
+            step = 1;
+          } else if (step === 1 && line.startsWith('250 ')) {
             socket.write(`AUTH LOGIN\r\n`);
-            step++;
-          } else if (step === 2 && resp.startsWith('334')) {
+            step = 2;
+          } else if (step === 2 && line.startsWith('334 ')) {
             socket.write(`${Buffer.from(user).toString('base64')}\r\n`);
-            step++;
-          } else if (step === 3 && resp.startsWith('334')) {
+            step = 3;
+          } else if (step === 3 && line.startsWith('334 ')) {
             socket.write(`${Buffer.from(pass).toString('base64')}\r\n`);
-            step++;
-          } else if (step === 4 && resp.startsWith('235')) {
+            step = 4;
+          } else if (step === 4 && line.startsWith('235 ')) {
             socket.write(`MAIL FROM:<${user}>\r\n`);
-            step++;
-          } else if (step === 5 && resp.startsWith('250')) {
+            step = 5;
+          } else if (step === 5 && line.startsWith('250 ')) {
             socket.write(`RCPT TO:<${recipient}>\r\n`);
-            step++;
-          } else if (step === 6 && resp.startsWith('250')) {
+            step = 6;
+          } else if (step === 6 && line.startsWith('250 ')) {
             socket.write(`DATA\r\n`);
-            step++;
-          } else if (step === 7 && resp.startsWith('354')) {
+            step = 7;
+          } else if (step === 7 && line.startsWith('354 ')) {
+            const safeBody = String(textBody || '').replace(/\r?\n/g, '\r\n').replace(/^\./gm, '..');
             const raw = [
               `From: "SYNAPES Watchdog" <${user}>`,
               `To: <${recipient}>`,
@@ -78,28 +116,24 @@ export async function sendSmtpDaemonEmail(subject, textBody, recipient = ALERT_E
               `MIME-Version: 1.0`,
               `Content-Type: text/plain; charset=UTF-8`,
               ``,
-              textBody,
+              safeBody,
               `.`,
               ``,
             ].join('\r\n');
             socket.write(raw);
-            step++;
-          } else if (step === 8 && resp.startsWith('250')) {
-            socket.write(`QUIT\r\n`);
-            resolve({ success: true, method: 'smtp_tls' });
+            step = 8;
+          } else if (step === 8 && line.startsWith('250 ')) {
+            try { socket.write(`QUIT\r\n`); } catch {}
+            finish({ success: true, method: 'smtp_tls' });
+            return;
           }
-        });
+        }
       });
 
       socket.on('error', (err) => {
         console.warn('Lỗi kết nối SMTP Daemon:', err.message);
-        resolve({ success: false, error: err.message });
+        finish({ success: false, error: err.message });
       });
-
-      setTimeout(() => {
-        try { socket.destroy(); } catch {}
-        resolve({ success: false, error: 'SMTP Timeout' });
-      }, 8000);
     });
   }
 
