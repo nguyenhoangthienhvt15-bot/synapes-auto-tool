@@ -525,6 +525,12 @@ export function generateContractHtml(data: UserRegistrationData): string {
 <head>
   <meta charset="utf-8">
   <title>Hợp Đồng Điện Tử Dịch Vụ SYNAPES Studio - ${data.fullName}</title>
+  <style>
+    @page { size: A4 portrait; margin: 0; }
+    @media print {
+      html, body { margin: 0; padding: 0; background: #ffffff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
 </head>
 <body style="margin: 0; padding: 0; background: #ffffff;">
   ${generateContractDocHtml(data)}
@@ -555,6 +561,20 @@ export async function downloadPersonalizedContractPdf(data: UserRegistrationData
   document.body.appendChild(container);
 
   try {
+    // Đảm bảo font chữ và toàn bộ ảnh (chữ ký tay, con dấu, QR) được decode xong trước khi chụp canvas
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready.catch(() => {});
+    }
+    const imgs = Array.from(container.querySelectorAll('img'));
+    await Promise.all(
+      imgs.map((img) => {
+        if (typeof img.decode === 'function') {
+          return img.decode().catch(() => {});
+        }
+        return Promise.resolve();
+      })
+    );
+
     const page1El = container.querySelector('#pdf-page-1') as HTMLElement;
     const page2El = container.querySelector('#pdf-page-2') as HTMLElement;
 
@@ -602,7 +622,7 @@ export async function downloadPersonalizedContractPdf(data: UserRegistrationData
 export function printPersonalizedContractPdf(data: UserRegistrationData): void {
   const printWindow = window.open('', '_blank');
   if (!printWindow) return;
-  printWindow.document.write(generateContractDocHtml(data));
+  printWindow.document.write(generateContractHtml(data));
   printWindow.document.close();
   printWindow.focus();
   setTimeout(() => {

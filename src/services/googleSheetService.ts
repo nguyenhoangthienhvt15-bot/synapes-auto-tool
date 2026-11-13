@@ -326,7 +326,8 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
       const formActionUrl = webhookUrl.split('?')[0].replace(/\/viewform$/, '/formResponse').replace(/\/edit$/, '/formResponse');
       const formParams = new URLSearchParams();
 
-      if (enrichedPayload.action === 'register' || enrichedPayload.fullName || enrichedPayload.email) {
+      // Với hành động đăng ký mới: ánh xạ đầy đủ 13 trường Form; với action hệ thống (forgot_password, change_password, approve_*): đóng gói [ACTION:...] vào Ghi chú
+      if (!enrichedPayload.action || enrichedPayload.action === 'register') {
         formParams.append('entry.1151079902', enrichedPayload.fullName || '');
         formParams.append('entry.1501072816', enrichedPayload.idCardNumber || '');
         formParams.append('entry.1306932060', enrichedPayload.dob || '');
@@ -341,10 +342,13 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
         formParams.append('entry.102692895', enrichedPayload.deliveryDays ? `${enrichedPayload.deliveryDays} ngày` : (enrichedPayload.depositAmount > 0 ? '5 ngày' : 'Bàn giao ngay'));
         formParams.append('entry.770343613', enrichedPayload.notes || '📄 Hợp đồng đã ký điện tử qua WebApp — Chờ Kỹ sư duyệt');
       } else {
+        const actionPayloadForForm: Record<string, any> = { ...enrichedPayload };
+        delete actionPayloadForForm.signatureImage;
+        delete actionPayloadForForm.buyerSignature;
         formParams.append('entry.1151079902', enrichedPayload.fullName || 'SYNAPES System');
         formParams.append('entry.368593840', enrichedPayload.email || 'system@synapes.io');
         formParams.append('entry.1772830631', enrichedPayload.phone || '');
-        formParams.append('entry.770343613', `[ACTION:${enrichedPayload.action}] ${JSON.stringify(enrichedPayload)}`);
+        formParams.append('entry.770343613', `[ACTION:${enrichedPayload.action}] ${JSON.stringify(actionPayloadForForm)}`);
       }
 
       // Hỗ trợ nếu form URL có query entry.XXXX đơn lẻ kiểu cũ
@@ -354,7 +358,7 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
         formParams.append(singleEntryMatch[0], JSON.stringify(enrichedPayload));
       }
 
-      // Gửi song song đa luồng (Google Form + Backend Node.js Relay) với keepalive: true để không chặn luồng
+      // Gửi Google Form trực tiếp và đồng bộ chữ ký / bản sao lưu về Backend Node.js (không lặp lại form POST từ backend)
       const formFetchPromise = fetch(formActionUrl, {
         method: 'POST',
         mode: 'no-cors',
@@ -369,7 +373,7 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
         method: 'POST',
         keepalive: true,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(enrichedPayload),
+        body: JSON.stringify({ ...enrichedPayload, skipFormRelay: true }),
       }).catch(() => null);
 
       // Chờ tối đa 350ms để cập nhật ngay UI cho người dùng
@@ -398,13 +402,13 @@ export async function callAppsScriptWebhook(payload: Record<string, any>): Promi
     // ignore
   }
 
-  // Đồng thời chuyển tiếp qua backend Node.js server để lưu dự phòng đa tầng
+  // Đồng thời chuyển tiếp qua backend Node.js server để lưu dự phòng đa tầng (chữ ký & metadata)
   try {
     fetch('/api/save-registration', {
       method: 'POST',
       keepalive: true,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...enrichedPayload, webhookUrl }),
+      body: JSON.stringify({ ...enrichedPayload, webhookUrl, skipFormRelay: true }),
     }).catch(() => { });
   } catch { }
 
@@ -552,7 +556,8 @@ export function getStoredRegistrations(): UserRegistrationData[] {
  * Lưu hồ sơ người dùng đăng ký mới và đồng bộ tức thời lên trang tính "THÔNG TIN NGƯỜI DÙNG"
  */
 export async function saveUserRegistration(
-  data: UserRegistrationData
+  data: UserRegistrationData,
+  options?: { localOnly?: boolean }
 ): Promise<{ success: boolean; syncedToSheet: boolean; message: string }> {
   try {
     const formattedDob = formatDobToDDMMYYYY(data.dob);
@@ -596,6 +601,14 @@ export async function saveUserRegistration(
     }
 
     localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(current));
+
+    if (options?.localOnly) {
+      return {
+        success: true,
+        syncedToSheet: false,
+        message: 'Đã lưu nháp hồ sơ tại máy, chờ hoàn tất ký hợp đồng',
+      };
+    }
 
     // Gửi trực tiếp lên Google Sheet "THÔNG TIN NGƯỜI DÙNG" qua Apps Script Webhook
     const webhookRes = await callAppsScriptWebhook({
@@ -682,6 +695,19 @@ export function approveStoredRegistration(id: string, stage: 1 | 2 = 1): {
       (item.contractPackageName || item.notes || '').toLowerCase().includes('deposit');
 
     if (stage === 1) {
+      const contractMeta = {
+        idCardNumber: item.idCardNumber || '',
+        contractCategory: item.contractCategory || 'personal',
+        contractPackage: item.contractPackage || '',
+        contractPackageName: item.contractPackageName || '',
+        depositAmount: item.depositAmount || 0,
+        totalAmount: item.totalAmount || 0,
+        originalAmount: item.originalAmount || 0,
+        deliveryDays: item.deliveryDays || 0,
+        signatureImage: item.signatureImage || '',
+        buyerSignature: item.signatureImage || '',
+      };
+
       if (isDeposit) {
         item.isApproved = true;
         item.status = 'approved';
@@ -696,6 +722,7 @@ export function approveStoredRegistration(id: string, stage: 1 | 2 = 1): {
           gender: item.gender || 'Nam',
           phone: item.phone,
           address: item.address,
+          ...contractMeta,
         }).catch(() => { });
 
         return { success: true, registration: item };
@@ -734,12 +761,26 @@ export function approveStoredRegistration(id: string, stage: 1 | 2 = 1): {
           address: item.address,
           code,
           password,
+          ...contractMeta,
         }).catch(() => { });
 
         return { success: true, code, password, registration: item };
       }
     } else {
       // Stage 2: Duyệt bàn giao lần 2 (Cấp mã + pass sau khi thanh toán đủ)
+      const contractMeta = {
+        idCardNumber: item.idCardNumber || '',
+        contractCategory: item.contractCategory || 'personal',
+        contractPackage: item.contractPackage || '',
+        contractPackageName: item.contractPackageName || '',
+        depositAmount: item.depositAmount || 0,
+        totalAmount: item.totalAmount || 0,
+        originalAmount: item.originalAmount || 0,
+        deliveryDays: item.deliveryDays || 0,
+        signatureImage: item.signatureImage || '',
+        buyerSignature: item.signatureImage || '',
+      };
+
       const baseCode = item.assignedCode || generateUserCode(item.dob);
       let code = baseCode;
       let suffix = 2;
@@ -774,6 +815,7 @@ export function approveStoredRegistration(id: string, stage: 1 | 2 = 1): {
         address: item.address,
         code,
         password,
+        ...contractMeta,
       }).catch(() => { });
 
       return { success: true, code, password, registration: item };
