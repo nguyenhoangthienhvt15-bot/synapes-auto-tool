@@ -554,6 +554,9 @@ export async function discoverModelsFromKey(
 
         if (supportsGenerate && lowerId.includes('gemini')) {
           const isRec =
+            lowerId === 'gemini-3.6-flash' ||
+            lowerId === 'gemini-3.5-flash' ||
+            lowerId === 'gemini-3-flash-preview' ||
             lowerId === 'gemini-2.5-flash' ||
             lowerId === 'gemini-2.5-pro' ||
             lowerId === 'gemini-2.0-flash';

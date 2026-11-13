@@ -94,22 +94,32 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
     }
   }, [videoUrl, inputMode]);
 
-  // Quản lý Khóa API BYOK trực tiếp tại màn hình
+  // Quản lý Khóa API BYOK trực tiếp tại màn hình (đồng bộ với Settings nếu config cập nhật)
   const [customGeminiKey, setCustomGeminiKey] = useState<string>(() => localStorage.getItem('synapes_custom_gemini_key') || config.gemini?.apiKey || '');
   const [showKeyInput, setShowKeyInput] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!customGeminiKey && config.gemini?.apiKey) {
+      setCustomGeminiKey(config.gemini.apiKey);
+    }
+  }, [config.gemini?.apiKey]);
 
   // Kiểm tra trạng thái BYOK Key
   const effectiveGeminiKey = customGeminiKey || config.gemini?.apiKey || '';
   const hasGeminiKey = Boolean(effectiveGeminiKey && effectiveGeminiKey.length > 5);
+  const hasOpenAIKey = Boolean(config.openai?.apiKey && config.openai.apiKey.length > 5);
   const hasClaudeKey = Boolean(config.claude?.apiKey && config.claude.apiKey.length > 5);
   const hasDeepSeekKey = Boolean(config.deepseek?.apiKey && config.deepseek.apiKey.length > 5);
+  const hasAnyByokKey = hasGeminiKey || hasOpenAIKey || hasClaudeKey || hasDeepSeekKey;
   const activeKeyName = hasGeminiKey
-    ? 'Gemini 2.0 API (BYOK Đã Kích Hoạt)'
-    : hasDeepSeekKey
-      ? 'DeepSeek API (BYOK Sẵn Sàng)'
-      : hasClaudeKey
-        ? 'Claude API (BYOK Sẵn Sàng)'
-        : 'Zero-Mock Semantic Engine (Tự Động)';
+    ? `Gemini AI (${config.gemini?.model || 'gemini-3.6-flash'} • BYOK)`
+    : hasOpenAIKey
+      ? `OpenAI GPT (${config.openai?.model || 'gpt-4o-mini'} • BYOK)`
+      : hasDeepSeekKey
+        ? 'DeepSeek API (BYOK Sẵn Sàng)'
+        : hasClaudeKey
+          ? 'Claude API (BYOK Sẵn Sàng)'
+          : 'Zero-Mock Semantic Engine (Tự Động)';
 
   const handleSaveQuickKey = (key: string) => {
     const trimmed = key.trim();
@@ -366,7 +376,7 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
               </button>
             </div>
             <div className="flex items-center gap-2 text-xs font-semibold text-zinc-100">
-              <span className={`w-2 h-2 rounded-full ${hasGeminiKey || hasClaudeKey || hasDeepSeekKey ? 'bg-emerald-400 animate-pulse' : 'bg-emerald-500'}`}></span>
+              <span className={`w-2 h-2 rounded-full ${hasAnyByokKey ? 'bg-emerald-400 animate-pulse' : 'bg-emerald-500'}`}></span>
               <span className="truncate">{activeKeyName}</span>
             </div>
 
@@ -374,7 +384,7 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
               <div className="pt-2 border-t border-zinc-700/60 space-y-2">
                 <input
                   type="password"
-                  placeholder="Dán Gemini API Key (AIzaSy...)..."
+                  placeholder="Dán Gemini API Key (AIza... hoặc AQ...)"
                   defaultValue={customGeminiKey}
                   id="quick-gemini-key-input"
                   className="w-full px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-white text-[11px] focus:outline-none focus:border-indigo-500"
@@ -385,7 +395,7 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
                       const el = document.getElementById('quick-gemini-key-input') as HTMLInputElement;
                       if (el) handleSaveQuickKey(el.value);
                     }}
-                    className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[11px] font-medium"
+                    className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[11px] font-medium cursor-pointer"
                   >
                     Lưu & Kích Hoạt
                   </button>
@@ -393,7 +403,7 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
               </div>
             ) : (
               <div className="text-[10px] text-zinc-400 border-t border-zinc-700/60 pt-1.5 flex items-center justify-between">
-                <span>{hasGeminiKey ? 'Hạn mức: Cá nhân' : 'Phân tích: Chuẩn xác 100%'}</span>
+                <span>{hasAnyByokKey ? 'Hạn mức: Cá nhân (BYOK)' : 'Phân tích: Chuẩn xác 100%'}</span>
                 <span className="text-emerald-400 font-medium">Chi phí chủ: 0đ</span>
               </div>
             )}
@@ -567,8 +577,9 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
                 <iframe
                   src={detectedVideo.embedUrl}
                   title="Video Mẫu"
-                  className="w-full h-full border-0 rounded-xl"
+                  className="w-full h-full border-0 rounded-xl relative z-10"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerPolicy="strict-origin-when-cross-origin"
                   allowFullScreen
                 ></iframe>
               ) : filePreviewUrl ? (
@@ -579,6 +590,20 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
                 </div>
               )}
             </div>
+            {detectedVideo && videoUrl && (
+              <div className="flex items-center justify-between text-[11px] text-zinc-400 pt-1">
+                <span>Nếu chủ kênh tắt quyền phát nhúng trên web ngoài, bạn vẫn có thể bấm "Bóc Tách Cấu Trúc" bình thường.</span>
+                <a
+                  href={videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-300 hover:text-white flex items-center gap-1 underline flex-shrink-0"
+                >
+                  <span>Mở video gốc</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            )}
           </div>
         )}
 
@@ -605,10 +630,21 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
       {/* 3. Phân Tích Chi Tiết Toàn Bộ Cấu Trúc Video (Deconstructed DNA Dashboard) */}
       {dnaBlueprint && (
         <div className="bg-white border border-black/[0.08] rounded-2xl p-6 shadow-xs space-y-6">
-          <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-zinc-100 pb-3">
             <div>
-              <span className="text-[11px] font-bold tracking-wider uppercase text-emerald-600">ĐÃ GIẢI MÃ THÀNH CÔNG</span>
-              <h2 className="font-bold text-zinc-900 text-lg">Phân Tích Chi Tiết Toàn Bộ Cấu Trúc Video</h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-bold tracking-wider uppercase text-emerald-600">ĐÃ GIẢI MÃ THÀNH CÔNG</span>
+                {dnaBlueprint.engineMeta?.mode === 'byok-llm' ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    ✓ BYOK AI LIVE: {dnaBlueprint.engineMeta.provider?.toUpperCase()} / {dnaBlueprint.engineMeta.modelUsed}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-zinc-100 text-zinc-600 border border-zinc-200">
+                    ⚡ Engine: {dnaBlueprint.engineMeta?.modelUsed || 'Zero-Mock Semantic Engine'}
+                  </span>
+                )}
+              </div>
+              <h2 className="font-bold text-zinc-900 text-lg mt-0.5">Phân Tích Chi Tiết Toàn Bộ Cấu Trúc Video</h2>
               <p className="text-xs text-zinc-500 mt-0.5">Tiêu đề: {dnaBlueprint.sourceTitle || 'Video viral mẫu'}</p>
             </div>
             <div className="flex items-center gap-2">
@@ -620,6 +656,15 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
               </span>
             </div>
           </div>
+
+          {dnaBlueprint.engineMeta?.warning && (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <strong>Lưu ý về API Key BYOK:</strong> Hệ thống nhận phản hồi lỗi từ nhà cung cấp AI (<code>{dnaBlueprint.engineMeta.warning}</code>) nên đã tự động chuyển sang Smart Semantic Engine để không gián đoạn phân tích. Hãy kiểm tra lại Key/Model trong mục Cấu Hình Động Cơ AI hoặc nút "+ Nhập Key AI".
+              </div>
+            </div>
+          )}
 
           {/* 4 Cards Thống Kê Nhanh */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">

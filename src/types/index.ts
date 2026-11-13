@@ -377,6 +377,13 @@ export interface VideoDnaBlueprint {
       action: string;
     }>;
   };
+  modelUsed?: string;
+  engineMeta?: {
+    mode: 'byok-llm' | 'semantic-fallback';
+    provider?: string;
+    modelUsed?: string;
+    warning?: string;
+  };
   scenes: DeconstructedScene[];
   rawTranscript: string;
 }

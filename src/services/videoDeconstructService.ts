@@ -83,9 +83,27 @@ export async function deconstructVideoDna(options: {
   let realTitle = '';
   let realAuthor = '';
 
-  const geminiKey = config.gemini?.apiKey || '';
+  const activeProvider = config.activeProvider || config.mode || 'gemini';
+  const activeKey =
+    activeProvider === 'deepseek'
+      ? config.deepseek?.apiKey
+      : activeProvider === 'claude'
+        ? config.claude?.apiKey
+        : activeProvider === 'openai'
+          ? config.openai?.apiKey
+          : config.gemini?.apiKey || '';
+  const activeModel =
+    activeProvider === 'deepseek'
+      ? config.deepseek?.model || 'deepseek-chat'
+      : activeProvider === 'claude'
+        ? config.claude?.model || 'claude-3-5-sonnet-20241022'
+        : activeProvider === 'openai'
+          ? config.openai?.model || 'gpt-4o-mini'
+          : config.gemini?.model || 'gemini-3.6-flash';
+
+  const geminiKey = config.gemini?.apiKey || (activeProvider === 'gemini' ? activeKey : '') || '';
   const geminiEndpoint = 'https://generativelanguage.googleapis.com/v1beta';
-  const geminiModel = config.gemini?.model || 'gemini-2.0-flash';
+  const geminiModel = config.gemini?.model || 'gemini-3.6-flash';
 
   // 1. Ưu tiên gọi Backend Engine (/api/video-deconstruct) để trích xuất Chapters thật, Thời lượng thật, Thumbnail Vision & Hypit SVML
   onProgress?.('Đang trích xuất Metadata, Chapters, Thumbnail Vision & bóc tách Hypit SVML...', 40);
@@ -97,8 +115,9 @@ export async function deconstructVideoDna(options: {
         videoUrl,
         videoData,
         manualTranscript,
-        apiKey: geminiKey,
-        model: geminiModel,
+        provider: activeKey ? activeProvider : geminiKey ? 'gemini' : activeProvider,
+        apiKey: activeKey || geminiKey,
+        model: activeKey ? activeModel : geminiModel,
       }),
     });
 
