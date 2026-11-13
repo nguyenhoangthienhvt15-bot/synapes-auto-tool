@@ -431,7 +431,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Check if file exists, with index.html SPA fallback
+  // Check if file exists, with strict static-asset 404 vs SPA index.html fallback
+  const reqExt = path.extname(cleanUrl).toLowerCase();
+  const isStaticAssetRequest =
+    cleanUrl.startsWith('/assets/') ||
+    (reqExt !== '' && reqExt !== '.html' && reqExt !== '.htm');
+
   let stat = null;
   try {
     stat = fs.statSync(filePath);
@@ -440,6 +445,16 @@ const server = http.createServer(async (req, res) => {
       stat = fs.statSync(filePath);
     }
   } catch {
+    // Never mask a missing JS/CSS/image/asset behind index.html (causes MIME module crash)
+    if (isStaticAssetRequest) {
+      res.writeHead(404, {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      });
+      res.end('404 Asset Not Found');
+      return;
+    }
+
     filePath = path.join(DIST_DIR, 'index.html');
     try {
       stat = fs.statSync(filePath);
@@ -454,13 +469,17 @@ const server = http.createServer(async (req, res) => {
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
   // Cache-Control Policy
-  const isHtml = filePath.endsWith('index.html');
-  if (isHtml) {
+  const isNoStoreShell = filePath.endsWith('index.html') || cleanUrl === '/sw.js';
+  if (isNoStoreShell) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   } else if (cleanUrl.startsWith('/assets/')) {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   } else {
     res.setHeader('Cache-Control', 'public, max-age=3600');
+  }
+
+  if (COMPRESSIBLE_EXTS.has(ext)) {
+    res.setHeader('Vary', 'Accept-Encoding');
   }
 
   res.setHeader('Content-Type', contentType);
@@ -526,6 +545,31 @@ const server = http.createServer(async (req, res) => {
     fs.createReadStream(filePath).pipe(res);
   }
 });
+
+function warmStaticCache() {
+  if (!fs.existsSync(DIST_DIR)) return;
+  const targets = [path.join(DIST_DIR, 'index.html'), path.join(DIST_DIR, 'sw.js')];
+  const assetsDir = path.join(DIST_DIR, 'assets');
+  if (fs.existsSync(assetsDir)) {
+    try {
+      for (const file of fs.readdirSync(assetsDir)) {
+        targets.push(path.join(assetsDir, file));
+      }
+    } catch {
+      // Ignore directory read failure during warm-up
+    }
+  }
+  let warmedCount = 0;
+  for (const target of targets) {
+    if (fs.existsSync(target)) {
+      const ext = path.extname(target).toLowerCase();
+      if (getCachedFile(target, ext)) warmedCount++;
+    }
+  }
+  console.log(`[SYNAPES Cache] Pre-warmed ${warmedCount} static/gzipped assets in memory.`);
+}
+
+warmStaticCache();
 
 server.listen(PORT, HOST, () => {
   console.log(`[SYNAPES Studio Web Service] running at http://${HOST}:${PORT}`);
