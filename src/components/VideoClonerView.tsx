@@ -60,6 +60,8 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileBase64, setFileBase64] = useState<string>('');
   const [filePreviewUrl, setFilePreviewUrl] = useState<string>('');
+  const [manualTranscript, setManualTranscript] = useState<string>('');
+  const [showTranscriptBox, setShowTranscriptBox] = useState<boolean>(false);
 
   // Trạng thái bóc tách
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
@@ -164,6 +166,7 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
         videoUrl: inputMode === 'url' ? targetUrl : undefined,
         videoData: inputMode === 'upload' ? fileBase64 : undefined,
         mimeType: selectedFile?.type || 'video/mp4',
+        manualTranscript: manualTranscript.trim() || undefined,
         config: effectiveConfig,
         onProgress: (status, percent) => {
           setStatusMessage(status);
@@ -455,6 +458,25 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
                   </>
                 )}
               </button>
+            </div>
+
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setShowTranscriptBox((prev) => !prev)}
+                className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer flex items-center gap-1"
+              >
+                <span>{showTranscriptBox ? '▾ Ẩn ô nhập Transcript thủ công' : '▸ Bổ sung Lời thoại / Transcript (Tùy chọn — giúp Hypit SVML bám sát từng chữ)'}</span>
+              </button>
+              {showTranscriptBox && (
+                <textarea
+                  rows={3}
+                  value={manualTranscript}
+                  onChange={(e) => setManualTranscript(e.target.value)}
+                  placeholder="Dán lời thoại / phụ đề (transcript) của video vào đây nếu muốn AI neo chính xác Word-Anchored Timing theo từng câu nói..."
+                  className="mt-2 w-full px-3.5 py-2 text-xs bg-zinc-50 border border-black/10 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500 text-zinc-900"
+                />
+              )}
             </div>
 
             <div className="flex items-center gap-2 pt-1 text-[11px] text-zinc-500">
@@ -796,11 +818,156 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
             </div>
           </div>
 
-          {/* 5. Khung Nhân Bản Cho Chủ Đề Mới */}
+          {/* 4.5. PHÂN TÍCH CẤU TRÚC LẬP LUẬN, CÁCH NÓI, PHONG CÁCH TRÌNH CHIẾU & HYPIT SVML BLUEPRINT */}
+          {(dnaBlueprint.rhetoricalStructure || dnaBlueprint.deliveryStyle || dnaBlueprint.presentationStyle || dnaBlueprint.hypitSvmlBlueprint) && (
+            <div className="bg-white border border-indigo-200/80 rounded-2xl p-5 shadow-xs space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-100 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                      HYPIT SVML ARCHITECTURE
+                    </span>
+                    <span className="text-[11px] font-mono text-zinc-500">
+                      Tỷ lệ gốc: {dnaBlueprint.visualStyle?.recommendedAspectRatio || '16:9'}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-zinc-950 text-base mt-1">
+                    Giải Mã Cấu Trúc Xây Dựng Video (Lời Thoại • Cách Nói • Trình Chiếu)
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  {dnaBlueprint.hypitSvmlBlueprint?.svmlMarkup && (
+                    <button
+                      onClick={() => copyKeyText(dnaBlueprint.hypitSvmlBlueprint?.svmlMarkup || '', 'svml-markup')}
+                      className="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {copiedKey === 'svml-markup' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>Copy SVML Blueprint</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => copyKeyText(JSON.stringify(dnaBlueprint, null, 2), 'dna-json')}
+                    className="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {copiedKey === 'dna-json' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>Export JSON</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 3 Trụ Cột: Cấu trúc lập luận, Cách nói, Phong cách trình chiếu */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs">
+                {dnaBlueprint.rhetoricalStructure && (
+                  <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-200/80 space-y-2.5">
+                    <div className="font-bold text-amber-900 uppercase tracking-wider text-[11px]">
+                      1. Cấu Trúc Lập Luận ({dnaBlueprint.rhetoricalStructure.frameworkName})
+                    </div>
+                    <div className="space-y-1.5">
+                      {(dnaBlueprint.rhetoricalStructure.stages || []).map((step, sIdx) => (
+                        <div key={sIdx} className="p-2 rounded-lg bg-white/90 border border-amber-100">
+                          <div className="flex items-center justify-between font-semibold text-zinc-900 text-[11px]">
+                            <span>{step.stageName}</span>
+                            <span className="font-mono text-[10px] text-amber-700">{step.timeRange}</span>
+                          </div>
+                          <p className="text-[11px] text-zinc-600 mt-0.5">{step.purpose}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {dnaBlueprint.deliveryStyle && (
+                  <div className="p-4 rounded-xl bg-sky-50/60 border border-sky-200/80 space-y-2">
+                    <div className="font-bold text-sky-900 uppercase tracking-wider text-[11px]">
+                      2. Cách Nói & Giọng Điệu (Delivery)
+                    </div>
+                    <div className="space-y-1.5 text-[11px] text-zinc-700">
+                      <p><strong>Persona:</strong> {dnaBlueprint.deliveryStyle.voicePersona}</p>
+                      <p><strong>Nhịp câu:</strong> {dnaBlueprint.deliveryStyle.cadencePattern} ({dnaBlueprint.deliveryStyle.sentenceLengthAvg})</p>
+                      <p><strong>Mật độ thuật ngữ:</strong> {dnaBlueprint.deliveryStyle.terminologyDensity}</p>
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {(dnaBlueprint.deliveryStyle.signaturePhrases || []).map((dev, dIdx) => (
+                          <span key={dIdx} className="px-2 py-0.5 rounded bg-white border border-sky-200 text-sky-900 text-[10px] font-medium">
+                            {dev}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {dnaBlueprint.presentationStyle && (
+                  <div className="p-4 rounded-xl bg-violet-50/60 border border-violet-200/80 space-y-2">
+                    <div className="font-bold text-violet-900 uppercase tracking-wider text-[11px]">
+                      3. Phong Cách Trình Chiếu (Visual)
+                    </div>
+                    <div className="space-y-1.5 text-[11px] text-zinc-700">
+                      <p><strong>Format:</strong> {dnaBlueprint.presentationStyle.formatType}</p>
+                      <p><strong>Bố cục:</strong> {dnaBlueprint.presentationStyle.slideLayoutPattern}</p>
+                      <p><strong>Typography:</strong> {dnaBlueprint.presentationStyle.typographyRules}</p>
+                      <p><strong>B-Roll & Chart:</strong> {dnaBlueprint.presentationStyle.bRollAndChartRatio}</p>
+                      <p><strong>Thumbnail:</strong> {dnaBlueprint.presentationStyle.thumbnailFormula}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Hypit SVML Word-Anchored Layers & Pluggable Variables */}
+              {dnaBlueprint.hypitSvmlBlueprint && (
+                <div className="p-4 rounded-xl bg-zinc-950 text-zinc-100 border border-zinc-800 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400">
+                        hypit-ai/hypit • SVML v{dnaBlueprint.hypitSvmlBlueprint.version}
+                      </span>
+                      <h4 className="font-bold text-sm text-white">
+                        {dnaBlueprint.hypitSvmlBlueprint.templateId}
+                      </h4>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(dnaBlueprint.hypitSvmlBlueprint.variables || []).map((v, vIdx) => (
+                        <span
+                          key={vIdx}
+                          title={`${v.label}: ${v.description} (VD: ${v.originalValue})`}
+                          className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 font-mono text-[10px]"
+                        >
+                          {`{{${v.key}}}`}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    {(dnaBlueprint.hypitSvmlBlueprint.wordAnchoredTracks || []).map((layer, lIdx) => (
+                      <div key={lIdx} className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[11px] space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-mono text-[10px] uppercase">
+                            [{layer.layerType}]
+                          </span>
+                          <span className="font-mono text-[10px] text-zinc-400">{layer.timeRange}</span>
+                        </div>
+                        <div className="text-amber-300 font-medium">
+                          Anchor: "{layer.anchorPhrase}"
+                        </div>
+                        <div className="text-zinc-300">{layer.action}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 5. Khung Nhân Bản Cho Chủ Đề Mới (Tùy Chọn) */}
           <div className="p-5 bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/40 border-2 border-indigo-200 rounded-2xl space-y-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-indigo-600" />
-              <h3 className="font-bold text-zinc-950 text-base">Bước 2: Nhân Bản Video Tương Tự Cho Chủ Đề Mới</h3>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-indigo-600" />
+                <h3 className="font-bold text-zinc-950 text-base">Bước 2 (Tùy Chọn): Nhân Bản Video Tương Tự Cho Chủ Đề Mới</h3>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-700">
+                Áp dụng Blueprint SVML ở trên
+              </span>
             </div>
             <p className="text-xs text-zinc-600 leading-relaxed">
               Hệ thống sẽ giữ nguyên 100% "công thức DNA thành công" (độ dài câu, nhịp cắt, kiểu hook 3s, vị trí SFX) của video gốc, nhưng tạo ra nội dung và kịch bản hoàn toàn mới cho chủ đề của bạn.

@@ -332,6 +332,51 @@ export interface VideoDnaBlueprint {
     negativePrompts: string[];
     cinematicKeywords: string[];
   };
+  chapters?: Array<{
+    timestamp: string;
+    startSec: number;
+    title: string;
+  }>;
+  rhetoricalStructure?: {
+    frameworkName: string;
+    stages: Array<{
+      stageName: string;
+      timeRange: string;
+      purpose: string;
+      transitionPhrase: string;
+    }>;
+  };
+  deliveryStyle?: {
+    voicePersona: string;
+    cadencePattern: string;
+    signaturePhrases: string[];
+    terminologyDensity: string;
+    sentenceLengthAvg: string;
+  };
+  presentationStyle?: {
+    formatType: string;
+    slideLayoutPattern: string;
+    typographyRules: string;
+    bRollAndChartRatio: string;
+    thumbnailFormula: string;
+  };
+  hypitSvmlBlueprint?: {
+    version: string;
+    templateId: string;
+    svmlMarkup?: string;
+    variables: Array<{
+      key: string;
+      label: string;
+      originalValue: string;
+      description: string;
+    }>;
+    wordAnchoredTracks: Array<{
+      anchorPhrase: string;
+      timeRange: string;
+      layerType: 'A-ROLL' | 'B-ROLL' | 'CHART-SLIDE' | 'KINETIC-TEXT' | 'SFX';
+      action: string;
+    }>;
+  };
   scenes: DeconstructedScene[];
   rawTranscript: string;
 }
