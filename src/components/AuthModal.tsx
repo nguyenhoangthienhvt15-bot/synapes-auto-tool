@@ -9,6 +9,7 @@ import {
   resetToTempPassword,
   fetchGoogleSheetLive,
   sendForgotPasswordViaSheet,
+  syncForgotPasswordWithServer,
 } from '../services/googleSheetService';
 
 interface AuthModalProps {
@@ -167,9 +168,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         );
       });
 
-      const matched = regMatch || sheetMatch;
+      const newDefaultPass = generateUserPassword();
+      const localMatched = regMatch || sheetMatch;
 
-      if (!matched) {
+      // 2B. Nếu GViz hạn chế quyền (401), đối soát trực tiếp qua danh bạ đồng bộ trên Server
+      const serverForgotRes = await syncForgotPasswordWithServer({
+        email: emailClean,
+        phone: forgotPhone.trim(),
+        code: regMatch?.assignedCode || sheetMatch?.code,
+        newPassword: newDefaultPass,
+      });
+
+      const isMatched = Boolean(localMatched) || Boolean(serverForgotRes.matched);
+
+      if (!isMatched) {
         const newAttempts = forgotAttempts + 1;
         setForgotAttempts(newAttempts);
         try {
@@ -186,12 +198,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
 
       // 3. Nếu đúng thông tin: Tạo lại mật khẩu mặc định mới dạng SNP_[3 số + 3 chữ]
-      const newDefaultPass = generateUserPassword();
       const matchedCode =
         regMatch?.assignedCode ||
         sheetMatch?.code ||
+        serverForgotRes.code ||
         generateUserCode(regMatch?.dob || '01/01/2000');
-      const matchedName = regMatch?.fullName || sheetMatch?.clientName || 'Khách hàng SYNAPES';
+      const matchedName = regMatch?.fullName || sheetMatch?.clientName || serverForgotRes.fullName || 'Khách hàng SYNAPES';
 
       const now = new Date();
       const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} - ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
