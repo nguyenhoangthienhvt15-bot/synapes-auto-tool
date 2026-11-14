@@ -1131,6 +1131,10 @@ async function postJsonHttps(targetUrl, headers, bodyObj, timeoutMs = 25000) {
 // ============================================================================
 // 5B. SECURE SERVER-SIDE AUTHENTICATION REPOSITORY & VERIFICATION
 // ============================================================================
+const AUTH_SYNC_SECRET = process.env.WEBHOOK_SECRET || 'SynapesWebhookSecretToken2026';
+const AUTH_TOKEN_SECRET = process.env.JWT_SECRET || AUTH_SYNC_SECRET || 'SynapesAuthSecret2026';
+const AUTH_DIRECTORY_FILE = path.resolve(process.cwd(), 'data', 'auth_directory.json');
+
 const SYSTEM_CORE_ACCOUNTS = [
   {
     code: 'VIP-001',
@@ -1179,6 +1183,10 @@ const SYSTEM_CORE_ACCOUNTS = [
 function computeServerPasswordHash(code, plainPassword) {
   const codeNorm = String(code || '').trim().toUpperCase();
   const passNorm = String(plainPassword || '').trim();
+  const existingHashMatch = passNorm.match(/BCRYPT\$[A-F0-9]{16,64}/i);
+  if (existingHashMatch) {
+    return existingHashMatch[0].toUpperCase();
+  }
   const digest = crypto.createHash('sha256')
     .update(`SYNAPES_BCRYPT_V2::${codeNorm}::${passNorm}::PRIVATE_KEY_SALT`)
     .digest('hex')
@@ -1187,38 +1195,141 @@ function computeServerPasswordHash(code, plainPassword) {
   return `BCRYPT$${digest}`;
 }
 
+function computeServerPhoneVerifyHash(email, phoneDigits) {
+  const emailNorm = String(email || '').trim().toLowerCase();
+  const digits = String(phoneDigits || '').replace(/\D/g, '');
+  const tail = digits.length >= 9 ? digits.slice(-9) : digits;
+  if (!emailNorm || tail.length < 8) return '';
+  return crypto.createHash('sha256')
+    .update(`SYNAPES_PHONE_V1::${emailNorm}::${tail}`)
+    .digest('hex')
+    .toUpperCase();
+}
+
+function issueServerAuthToken(code) {
+  const codeNorm = String(code || '').trim().toUpperCase();
+  const exp = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  const payload = `${codeNorm}.${exp}`;
+  const sig = crypto.createHmac('sha256', AUTH_TOKEN_SECRET).update(payload).digest('hex');
+  return `${payload}.${sig}`;
+}
+
+function verifyServerAuthToken(token, expectedCode) {
+  if (!token || typeof token !== 'string') return false;
+  const parts = token.trim().split('.');
+  if (parts.length !== 3) return false;
+  const [tokenCode, expStr, providedSig] = parts;
+  const exp = Number(expStr);
+  if (!tokenCode || !Number.isFinite(exp) || Date.now() > exp) return false;
+  if (expectedCode && tokenCode.toUpperCase() !== String(expectedCode).trim().toUpperCase()) return false;
+  const expectedSig = crypto.createHmac('sha256', AUTH_TOKEN_SECRET).update(`${tokenCode}.${expStr}`).digest('hex');
+  return constantTimeVerify(providedSig, expectedSig);
+}
+
+const AUTH_DIRECTORY_MAP = new Map();
+
+function loadAuthDirectory() {
+  for (const core of SYSTEM_CORE_ACCOUNTS) {
+    const codeNorm = core.code.toUpperCase();
+    const passNorm = String(core.currentTempPassword || '').trim();
+    AUTH_DIRECTORY_MAP.set(codeNorm, {
+      code: core.code,
+      clientName: core.clientName,
+      registeredGmail: core.registeredGmail,
+      passwordHash: computeServerPasswordHash(codeNorm, passNorm),
+      passwordHashUpper: computeServerPasswordHash(codeNorm, passNorm.toUpperCase()),
+      accountStatus: core.accountStatus || 'never_changed',
+      isDefaultPassword: core.accountStatus === 'never_changed' || core.accountStatus === 'temp_password_active',
+      phoneVerifyHash: '',
+      updatedAt: 0,
+      localChangedAt: 0,
+      source: 'core_seed',
+    });
+  }
+
+  try {
+    if (fs.existsSync(AUTH_DIRECTORY_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(AUTH_DIRECTORY_FILE, 'utf8'));
+      const list = Array.isArray(parsed) ? parsed : [];
+      for (const item of list) {
+        if (!item || !item.code || !item.passwordHash) continue;
+        const codeKey = String(item.code).trim().toUpperCase();
+        AUTH_DIRECTORY_MAP.set(codeKey, {
+          ...item,
+          code: String(item.code).trim(),
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('Notice loading auth_directory.json:', err.message);
+  }
+}
+
+function saveAuthDirectoryToDisk() {
+  try {
+    const regDir = path.dirname(AUTH_DIRECTORY_FILE);
+    if (!fs.existsSync(regDir)) fs.mkdirSync(regDir, { recursive: true });
+    const rows = Array.from(AUTH_DIRECTORY_MAP.values());
+    fs.writeFileSync(AUTH_DIRECTORY_FILE, JSON.stringify(rows, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('Notice saving auth_directory.json:', err.message);
+  }
+}
+
+loadAuthDirectory();
+
 async function verifyUserCredentialsServerSide(code, plainPassword) {
   const codeClean = String(code || '').trim().toUpperCase();
   const passClean = String(plainPassword || '').trim();
   if (!codeClean || !passClean) return null;
 
-  // 1. Kiểm tra tài khoản trong danh sách hệ thống (dùng constantTimeVerify chống Timing Attack)
-  const found = SYSTEM_CORE_ACCOUNTS.find((a) => a.code.toUpperCase() === codeClean);
-  if (found) {
-    if (
-      constantTimeVerify(passClean, found.currentTempPassword) ||
-      constantTimeVerify(passClean.toUpperCase(), found.currentTempPassword.toUpperCase())
-    ) {
+  const inputHash = computeServerPasswordHash(codeClean, passClean);
+  const inputHashUpper = computeServerPasswordHash(codeClean, passClean.toUpperCase());
+
+  // 1. Kiểm tra trong AUTH_DIRECTORY_MAP (đã bao gồm đồng bộ realtime từ Google Sheet + mật khẩu người dùng tự đổi + core accounts)
+  const entry = AUTH_DIRECTORY_MAP.get(codeClean);
+  if (entry && entry.passwordHash) {
+    const exactMatch = constantTimeVerify(inputHash, entry.passwordHash);
+    const upperMatch =
+      Boolean(entry.passwordHashUpper) &&
+      constantTimeVerify(inputHashUpper, entry.passwordHashUpper);
+
+    if (exactMatch || upperMatch) {
       return {
-        code: found.code,
-        clientName: found.clientName,
-        registeredGmail: found.registeredGmail,
-        isDefaultPassword: found.accountStatus === 'never_changed',
+        code: entry.code,
+        clientName: entry.clientName || 'Khách Hàng Studio',
+        registeredGmail: entry.registeredGmail || '',
+        isDefaultPassword: Boolean(entry.isDefaultPassword),
       };
     }
+
+    // Nếu tài khoản đã tồn tại trong AUTH_DIRECTORY_MAP và có passwordHash xác thực -> không rơi xuống fallback cũ
+    return null;
   }
 
-  // 2. Kiểm tra các hồ sơ đăng ký đã lưu trên đĩa (nếu có)
+  // 2. Kiểm tra các hồ sơ đăng ký đã lưu trên đĩa (nếu có và chưa có trong AUTH_DIRECTORY_MAP)
   const regFilePath = path.resolve(process.cwd(), 'data', 'registrations.json');
   try {
     if (fs.existsSync(regFilePath)) {
       const regList = JSON.parse(fs.readFileSync(regFilePath, 'utf8'));
       const reg = regList.find((r) => r.assignedCode && r.assignedCode.toUpperCase() === codeClean);
       if (reg) {
+        const regPass = String(reg.assignedPassword || '').trim();
+        const regHashMatch = regPass.match(/BCRYPT\$[A-F0-9]{16,64}/i);
+        if (regHashMatch) {
+          if (constantTimeVerify(inputHash, regHashMatch[0].toUpperCase())) {
+            return {
+              code: reg.assignedCode,
+              clientName: reg.fullName,
+              registeredGmail: reg.email,
+              isDefaultPassword: false,
+            };
+          }
+          return null;
+        }
         if (
-          passClean === reg.assignedPassword ||
-          passClean.toUpperCase() === (reg.assignedPassword || '').toUpperCase() ||
-          passClean === 'AutoPass@8912'
+          (regPass && (constantTimeVerify(passClean, regPass) || constantTimeVerify(passClean.toUpperCase(), regPass.toUpperCase()))) ||
+          (!regPass && constantTimeVerify(passClean, 'AutoPass@8912'))
         ) {
           return {
             code: reg.assignedCode,
@@ -1231,6 +1342,43 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
     }
   } catch (e) {
     // ignore
+  }
+
+  // 3. Fallback trực tiếp tới Google Apps Script Web App nếu máy chủ được cấu hình APPS_SCRIPT_WEBHOOK_URL
+  const gasWebhookUrl = process.env.APPS_SCRIPT_WEBHOOK_URL || '';
+  if (gasWebhookUrl && gasWebhookUrl.includes('script.google.com/macros/s/')) {
+    try {
+      const sep = gasWebhookUrl.includes('?') ? '&' : '?';
+      const verifyUrl = `${gasWebhookUrl}${sep}action=verify_login&code=${encodeURIComponent(codeClean)}&passwordHash=${encodeURIComponent(inputHash)}&passwordHashUpper=${encodeURIComponent(inputHashUpper)}`;
+      const gasRes = await fetch(verifyUrl, { method: 'GET', headers: { Accept: 'application/json' } });
+      if (gasRes.ok) {
+        const gasData = await gasRes.json();
+        if (gasData && gasData.valid && gasData.user) {
+          AUTH_DIRECTORY_MAP.set(codeClean, {
+            code: gasData.user.code || codeClean,
+            clientName: gasData.user.name || 'Khách Hàng Studio',
+            registeredGmail: gasData.user.email || '',
+            passwordHash: inputHash,
+            passwordHashUpper: gasData.user.isDefaultPassword ? inputHashUpper : null,
+            accountStatus: gasData.user.isDefaultPassword ? 'never_changed' : 'custom_password_active',
+            isDefaultPassword: Boolean(gasData.user.isDefaultPassword),
+            phoneVerifyHash: '',
+            updatedAt: Date.now(),
+            localChangedAt: 0,
+            source: 'gas_verify_live',
+          });
+          saveAuthDirectoryToDisk();
+          return {
+            code: gasData.user.code || codeClean,
+            clientName: gasData.user.name || 'Khách Hàng Studio',
+            registeredGmail: gasData.user.email || '',
+            isDefaultPassword: Boolean(gasData.user.isDefaultPassword),
+          };
+        }
+      }
+    } catch {
+      // ignore fallback timeout
+    }
   }
 
   return null;
@@ -1262,7 +1410,7 @@ export async function handleStudioApiRequest(req, res) {
   } else {
     res.setHeader('Access-Control-Allow-Origin', 'https://synapes-auto-tool-web-service.onrender.com');
   }
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Synapes-Sync-Secret');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
 
   if (req.method === 'OPTIONS') {
@@ -1305,10 +1453,12 @@ export async function handleStudioApiRequest(req, res) {
 
       const user = await verifyUserCredentialsServerSide(codeClean, passClean);
       if (user) {
+        const authToken = issueServerAuthToken(user.code);
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(
           JSON.stringify({
             success: true,
+            authToken,
             user: {
               code: user.code,
               name: user.clientName,
@@ -1327,6 +1477,267 @@ export async function handleStudioApiRequest(req, res) {
           message: 'Mã tài khoản hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.',
         })
       );
+      return true;
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: String(err) }));
+      return true;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // CHANGE PASSWORD ENDPOINT (/api/auth/change-password)
+  // Lưu ngay mã băm BCRYPT$... khi người dùng đổi mật khẩu riêng để đăng nhập mọi thiết bị
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/auth/change-password' && req.method === 'POST') {
+    try {
+      const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
+      const now = Date.now();
+      const authRec = AUTH_RATE_LIMITS.get(clientIp) || { count: 0, resetAt: now + 60000 };
+      if (now > authRec.resetAt) {
+        authRec.count = 0;
+        authRec.resetAt = now + 60000;
+      }
+      authRec.count++;
+      AUTH_RATE_LIMITS.set(clientIp, authRec);
+      if (authRec.count > 15) {
+        res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, message: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.' }));
+        return true;
+      }
+
+      const body = (await readJsonBody(req)) || {};
+      const codeClean = String(body.code || '').trim().toUpperCase();
+      const rawPassOrHash = String(body.passwordHash || body.newPassword || '').trim();
+      const bearerHeader = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+      const token = String(body.authToken || bearerHeader || '').trim();
+
+      if (!codeClean || !rawPassOrHash) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, message: 'Thiếu mã tài khoản hoặc mật khẩu mới.' }));
+        return true;
+      }
+
+      let authorized = verifyServerAuthToken(token, codeClean);
+      if (!authorized && body.currentPassword) {
+        const verified = await verifyUserCredentialsServerSide(codeClean, String(body.currentPassword));
+        if (verified) authorized = true;
+      }
+
+      if (!authorized) {
+        res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, message: 'Phiên xác thực không hợp lệ hoặc đã hết hạn.' }));
+        return true;
+      }
+
+      const finalHash = /^BCRYPT\$[A-F0-9]{16,64}$/i.test(rawPassOrHash)
+        ? rawPassOrHash.toUpperCase()
+        : computeServerPasswordHash(codeClean, rawPassOrHash);
+
+      const prev = AUTH_DIRECTORY_MAP.get(codeClean);
+      AUTH_DIRECTORY_MAP.set(codeClean, {
+        code: prev?.code || codeClean,
+        clientName: String(body.fullName || prev?.clientName || 'Khách hàng SYNAPES').trim(),
+        registeredGmail: String(body.email || prev?.registeredGmail || '').trim(),
+        passwordHash: finalHash,
+        passwordHashUpper: null,
+        accountStatus: 'custom_password_active',
+        isDefaultPassword: false,
+        phoneVerifyHash: prev?.phoneVerifyHash || '',
+        updatedAt: Date.now(),
+        localChangedAt: Date.now(),
+        source: 'webapp_change_password',
+      });
+      saveAuthDirectoryToDisk();
+
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: true,
+        authToken: issueServerAuthToken(codeClean),
+        message: 'Đã cập nhật mật khẩu riêng lên máy chủ xác thực thành công.',
+      }));
+      return true;
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: String(err) }));
+      return true;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // GOOGLE SHEET -> SERVER SECURE AUTH DIRECTORY SYNC (/api/auth/sheet-sync)
+  // Chỉ nhận dữ liệu đã băm BCRYPT$... (KHÔNG nhận mật khẩu thô hoặc CCCD/SĐT)
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/auth/sheet-sync' && req.method === 'POST') {
+    try {
+      const providedSecret = String(req.headers['x-synapes-sync-secret'] || '').trim();
+      const body = (await readJsonBody(req)) || {};
+      const bodySecret = String(body.syncSecret || '').trim();
+      const validSecret =
+        constantTimeVerify(providedSecret, AUTH_SYNC_SECRET) ||
+        constantTimeVerify(bodySecret, AUTH_SYNC_SECRET);
+
+      if (!validSecret) {
+        res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, message: 'Forbidden: Invalid sync secret' }));
+        return true;
+      }
+
+      const incoming = Array.isArray(body.accounts) ? body.accounts : [];
+      const now = Date.now();
+      let upserted = 0;
+
+      for (const acc of incoming) {
+        if (!acc || !acc.code || !acc.passwordHash) continue;
+        const codeKey = String(acc.code).trim().toUpperCase();
+        if (!codeKey || codeKey === '(CHỜ BÀN GIAO)' || codeKey === '(CHƯA CẤP)') continue;
+
+        const existing = AUTH_DIRECTORY_MAP.get(codeKey);
+        const isIncomingReset = acc.accountStatus === 'temp_password_active';
+        const isRecentLocalCustom =
+          existing &&
+          existing.source === 'webapp_change_password' &&
+          !isIncomingReset &&
+          acc.accountStatus !== 'custom_password_active' &&
+          now - (existing.localChangedAt || 0) < 15 * 60 * 1000;
+
+        if (isRecentLocalCustom) {
+          if (acc.phoneVerifyHash && !existing.phoneVerifyHash) {
+            existing.phoneVerifyHash = acc.phoneVerifyHash;
+          }
+          continue;
+        }
+
+        AUTH_DIRECTORY_MAP.set(codeKey, {
+          code: String(acc.code).trim(),
+          clientName: String(acc.clientName || existing?.clientName || 'Khách Hàng Studio').trim(),
+          registeredGmail: String(acc.registeredGmail || existing?.registeredGmail || '').trim(),
+          passwordHash: String(acc.passwordHash).trim().toUpperCase(),
+          passwordHashUpper: acc.passwordHashUpper ? String(acc.passwordHashUpper).trim().toUpperCase() : null,
+          accountStatus: acc.accountStatus || 'never_changed',
+          isDefaultPassword: Boolean(acc.isDefaultPassword),
+          phoneVerifyHash: String(acc.phoneVerifyHash || existing?.phoneVerifyHash || '').trim(),
+          updatedAt: now,
+          localChangedAt: existing?.localChangedAt || 0,
+          source: 'sheet_sync',
+        });
+        upserted++;
+      }
+
+      if (upserted > 0) {
+        saveAuthDirectoryToDisk();
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: true, upserted, total: AUTH_DIRECTORY_MAP.size }));
+      return true;
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: String(err) }));
+      return true;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // FORGOT PASSWORD VERIFICATION & RESET (/api/auth/forgot-password)
+  // Hỗ trợ đối soát Gmail + SĐT ngay cả khi Google Sheet đang bật chế độ "Hạn chế"
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/auth/forgot-password' && req.method === 'POST') {
+    try {
+      const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
+      const now = Date.now();
+      const authRec = AUTH_RATE_LIMITS.get(clientIp) || { count: 0, resetAt: now + 60000 };
+      if (now > authRec.resetAt) {
+        authRec.count = 0;
+        authRec.resetAt = now + 60000;
+      }
+      authRec.count++;
+      AUTH_RATE_LIMITS.set(clientIp, authRec);
+      if (authRec.count > 10) {
+        res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, message: 'Quá nhiều yêu cầu khôi phục mật khẩu.' }));
+        return true;
+      }
+
+      const body = (await readJsonBody(req)) || {};
+      const emailClean = String(body.email || '').trim().toLowerCase();
+      const phoneDigits = String(body.phone || '').replace(/\D/g, '');
+      const phoneTail = phoneDigits.length >= 9 ? phoneDigits.slice(-9) : phoneDigits;
+      const newPassword = String(body.newPassword || '').trim();
+
+      if (!emailClean || phoneTail.length < 8) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, matched: false }));
+        return true;
+      }
+
+      const targetPhoneHash = computeServerPhoneVerifyHash(emailClean, phoneTail);
+      let matchedEntry = null;
+
+      for (const entry of AUTH_DIRECTORY_MAP.values()) {
+        if (String(entry.registeredGmail || '').trim().toLowerCase() === emailClean) {
+          if (entry.phoneVerifyHash && constantTimeVerify(targetPhoneHash, entry.phoneVerifyHash)) {
+            matchedEntry = entry;
+            break;
+          }
+        }
+      }
+
+      if (!matchedEntry) {
+        const regFilePath = path.resolve(process.cwd(), 'data', 'registrations.json');
+        if (fs.existsSync(regFilePath)) {
+          const regList = JSON.parse(fs.readFileSync(regFilePath, 'utf8'));
+          if (Array.isArray(regList)) {
+            for (let i = regList.length - 1; i >= 0; i--) {
+              const r = regList[i];
+              const rEmail = String(r?.email || '').trim().toLowerCase();
+              const rDigits = String(r?.phone || '').replace(/\D/g, '');
+              const rTail = rDigits.length >= 9 ? rDigits.slice(-9) : rDigits;
+              if (rEmail === emailClean && rTail === phoneTail && r.assignedCode) {
+                matchedEntry = {
+                  code: String(r.assignedCode).trim().toUpperCase(),
+                  clientName: r.fullName || 'Khách hàng SYNAPES',
+                  registeredGmail: emailClean,
+                  phoneVerifyHash: targetPhoneHash,
+                };
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (!matchedEntry) {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: true, matched: false }));
+        return true;
+      }
+
+      if (newPassword) {
+        const codeKey = matchedEntry.code.toUpperCase();
+        AUTH_DIRECTORY_MAP.set(codeKey, {
+          code: matchedEntry.code,
+          clientName: matchedEntry.clientName || 'Khách hàng SYNAPES',
+          registeredGmail: emailClean,
+          passwordHash: computeServerPasswordHash(codeKey, newPassword),
+          passwordHashUpper: computeServerPasswordHash(codeKey, newPassword.toUpperCase()),
+          accountStatus: 'temp_password_active',
+          isDefaultPassword: true,
+          phoneVerifyHash: matchedEntry.phoneVerifyHash || targetPhoneHash,
+          updatedAt: now,
+          localChangedAt: 0,
+          source: 'webapp_forgot_password',
+        });
+        saveAuthDirectoryToDisk();
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: true,
+        matched: true,
+        code: matchedEntry.code,
+        fullName: matchedEntry.clientName || 'Khách hàng SYNAPES',
+      }));
       return true;
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });

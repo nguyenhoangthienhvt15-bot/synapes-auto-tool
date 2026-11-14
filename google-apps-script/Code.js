@@ -802,18 +802,50 @@ function handleSheetCheckboxEdit(e, canSendMail) {
   if (!e || !e.range) return;
 
   var sheet = e.range.getSheet();
-  if (!isUsersSheet(sheet)) return;
-
+  var sheetName = "";
+  try { sheetName = String(sheet.getName() || "").trim(); } catch (eName) { }
   var col = e.range.getColumn();
   var row = e.range.getRow();
+
+  // Nếu Kỹ sư chỉnh sửa trực tiếp Mã Code / Mật khẩu trên "Quản Lý Mật Khẩu" -> đồng bộ ngay lên WebApp
+  if (sheetName === SHEET_NAME_ACCOUNTS) {
+    if (canSendMail && row >= 5 && (col === 2 || col === 5 || col === 7)) {
+      try {
+        syncAuthDirectoryToWebApp(SpreadsheetApp.getActiveSpreadsheet(), "accounts_sheet_manual_edit");
+      } catch (eSyncAcc) { }
+    }
+    return;
+  }
+
+  if (!isUsersSheet(sheet)) return;
+
   if (row < 2) return;
+
+  var is20Cols = isNew20ColsSheet(sheet);
+
+  // Nếu Kỹ sư chỉnh sửa trực tiếp cột Mã Code (16) hoặc Mật Khẩu (17) trên "THÔNG TIN NGƯỜI DÙNG" -> đồng bộ sang Quản Lý Mật Khẩu & WebApp
+  if (canSendMail && is20Cols && (col === 16 || col === 17)) {
+    try {
+      var uRow = sheet.getRange(row, 1, 1, 20).getDisplayValues()[0];
+      var edCode = String(uRow[15] || "").trim().toUpperCase();
+      var edPass = String(uRow[16] || "").trim();
+      var edName = String(uRow[2] || "").trim();
+      var edMail = String(uRow[6] || "").replace(/\s+/g, "").trim();
+      var edPhone = String(uRow[7] || "").replace(/^'+/, "").trim();
+      var edAddr = String(uRow[8] || "").trim();
+      if (edCode && edCode !== "(CHỜ BÀN GIAO)" && edPass && edPass !== "(Chờ bàn giao)") {
+        syncAccountToMainSheet(edCode, edName, edMail, edPass, edPhone, edAddr, false);
+        syncAuthDirectoryToWebApp(SpreadsheetApp.getActiveSpreadsheet(), "users_sheet_manual_edit");
+      }
+    } catch (eSyncUser) { }
+    return;
+  }
 
   var isChecked = e.range.getValue();
   if (isChecked !== true && String(isChecked).toUpperCase() !== "TRUE") {
     return;
   }
 
-  var is20Cols = isNew20ColsSheet(sheet);
   if (!((is20Cols && (col === 15 || col === 18)) || (!is20Cols && col === 9))) {
     return;
   }
@@ -1253,6 +1285,7 @@ function processFirstApproval(sheet, row, canSendMail, batchCtx) {
     sheet.getRange(row, 19).setFontColor("#15803d").setFontWeight("bold");
     syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
     if (!ctx.quietToast) {
+      syncAuthDirectoryToWebApp(ss, "first_approval_full");
       ss.toast("✅ Đã cấp mã " + code + " và gửi Gmail kích hoạt tới " + email, "🚀 SYNAPES Studio", 6);
     }
     return true;
@@ -1381,6 +1414,7 @@ function processFinalHandoverApproval(sheet, row, canSendMail, batchCtx) {
     sheet.getRange(row, 19).setFontColor("#15803d").setFontWeight("bold");
     syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
     if (!ctx.quietToast) {
+      syncAuthDirectoryToWebApp(ss, "final_handover_approval");
       ss.toast("✅ Đã bàn giao hệ thống và gửi tài khoản mã " + code + " kèm HĐ hoàn chỉnh tới " + email, "🚀 SYNAPES Studio", 6);
     }
     return true;
@@ -2629,6 +2663,7 @@ function approveAllPendingUsers() {
   }
 
   SpreadsheetApp.flush();
+  syncAuthDirectoryToWebApp(ss, "batch_approval");
   SpreadsheetApp.getUi().alert("⚡ ĐÃ DUYỆT & GỬI GMAIL TỰ ĐỘNG CHO " + count + " HỒ SƠ KHÁCH HÀNG!");
 }
 
@@ -2739,6 +2774,10 @@ function processWebhookPayload(payload) {
 
       if (action === "change_password") {
         return handleChangePasswordWebhook(ss, payload);
+      }
+
+      if (action === "verify_login") {
+        return handleVerifyLoginWebhook(ss, payload);
       }
 
       if (action === "emergency_report" || action === "system_health_report") {
@@ -3028,6 +3067,7 @@ function handleForgotPasswordWebhook(ss, payload) {
     var codeColIdx = is20 ? 15 : 9;
     var passColIdx = is20 ? 16 : 10;
     var statusColIdx = is20 ? 18 : 11;
+    var noteColIdx = is20 ? 19 : 12;
 
     for (var i = 0; i < uData.length; i++) {
       var rMail = String(uData[i][mailColIdx] || uData[i][5] || "").trim().toLowerCase();
@@ -3038,6 +3078,7 @@ function handleForgotPasswordWebhook(ss, payload) {
         if (uData[i][2]) fullName = uData[i][2];
         uSheet.getRange(rIdx, passColIdx + 1).setValue(newPassword).setFontWeight("bold").setFontColor("#b91c1c");
         uSheet.getRange(rIdx, statusColIdx + 1).setValue("🔄 Đã cấp lại MK (" + nowStr + ")");
+        uSheet.getRange(rIdx, noteColIdx + 1).setValue("Đã ký hợp đồng | 🔄 Đã cấp lại MK tạm (" + nowStr + ")");
         break;
       }
     }
@@ -3046,6 +3087,7 @@ function handleForgotPasswordWebhook(ss, payload) {
   if (code) {
     syncAccountToMainSheet(code, fullName, email, newPassword, phone, "", true);
   }
+  syncAuthDirectoryToWebApp(ss, "forgot_password");
 
   var mailRes = sendForgotPasswordEmail(email, fullName, code || "SYNAPES_USER", newPassword);
 
@@ -3151,6 +3193,8 @@ function handleChangePasswordWebhook(ss, payload) {
     }
   }
 
+  syncAuthDirectoryToWebApp(ss, "change_password");
+
   return {
     status: "success",
     action: "change_password",
@@ -3158,10 +3202,256 @@ function handleChangePasswordWebhook(ss, payload) {
   };
 }
 
+function sha256HexGas(inputStr) {
+  var rawBytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(inputStr || ""),
+    Utilities.Charset.UTF_8
+  );
+  var hex = "";
+  for (var i = 0; i < rawBytes.length; i++) {
+    var b = rawBytes[i];
+    if (b < 0) b += 256;
+    var h = b.toString(16);
+    if (h.length === 1) h = "0" + h;
+    hex += h;
+  }
+  return hex;
+}
+
+function extractGasPasswordHash(raw) {
+  if (!raw) return null;
+  var m = String(raw).match(/BCRYPT\$[A-F0-9]{16,64}/i);
+  return m ? m[0].toUpperCase() : null;
+}
+
+function computeGasPasswordHash(code, plainPassword) {
+  var codeNorm = String(code || "").trim().toUpperCase();
+  var passNorm = String(plainPassword || "").trim();
+  var existingHash = extractGasPasswordHash(passNorm);
+  if (existingHash) return existingHash;
+  var digest = sha256HexGas("SYNAPES_BCRYPT_V2::" + codeNorm + "::" + passNorm + "::PRIVATE_KEY_SALT")
+    .slice(0, 32)
+    .toUpperCase();
+  return "BCRYPT$" + digest;
+}
+
+function computePhoneVerifyHashGas(email, phoneOrNote) {
+  var emailNorm = String(email || "").trim().toLowerCase();
+  var raw = String(phoneOrNote || "");
+  var phoneMatch = raw.match(/(?:SĐT\s*:\s*|^)([+0-9][0-9\s.-]{7,14}\d)/i) || raw.match(/0\d{8,10}/);
+  var phoneCandidate = phoneMatch ? (phoneMatch[1] || phoneMatch[0]) : raw;
+  var digits = String(phoneCandidate || "").replace(/\D/g, "");
+  var tail = digits.length >= 9 ? digits.slice(-9) : digits;
+  if (!emailNorm || tail.length < 8) return "";
+  return sha256HexGas("SYNAPES_PHONE_V1::" + emailNorm + "::" + tail).toUpperCase();
+}
+
+function isPlaceholderCredentialGas(val) {
+  var s = String(val || "").trim();
+  if (!s) return true;
+  var up = s.toUpperCase();
+  return up === "(CHỜ BÀN GIAO)" || up === "(CHƯA CẤP)" || up === "(CHỜ DUYỆT)";
+}
+
+function collectSheetAuthDirectory(ss) {
+  if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
+  var merged = {};
+
+  // 1. Đọc tab "Quản Lý Mật Khẩu"
+  var accSheet = getAccountsSheet(ss);
+  if (accSheet && accSheet.getLastRow() >= 5) {
+    var accRows = accSheet.getRange(5, 1, accSheet.getLastRow() - 4, Math.max(accSheet.getLastColumn(), 9)).getDisplayValues();
+    for (var i = 0; i < accRows.length; i++) {
+      var code = String(accRows[i][1] || "").trim().toUpperCase();
+      var pass = String(accRows[i][4] || "").trim();
+      if (!code || isPlaceholderCredentialGas(code) || isPlaceholderCredentialGas(pass)) continue;
+      if (code.indexOf("MÃ CODE") !== -1) continue;
+
+      var name = String(accRows[i][2] || "Khách Hàng Studio").trim();
+      var email = String(accRows[i][3] || "").replace(/\s+/g, "").trim();
+      var statusText = String(accRows[i][6] || "").toLowerCase();
+      var noteText = String(accRows[i][8] || "");
+      var existingHash = extractGasPasswordHash(pass) || extractGasPasswordHash(noteText);
+      var isMasked = isHashedOrCustomPasswordGas(pass) || Boolean(existingHash);
+      var isResetStatus = !isMasked && (statusText.indexOf("cấp lại") !== -1 || statusText.indexOf("temp") !== -1);
+
+      var passwordHash = existingHash || computeGasPasswordHash(code, pass);
+      var passwordHashUpper = isMasked ? null : computeGasPasswordHash(code, pass.toUpperCase());
+      var accountStatus = isMasked
+        ? "custom_password_active"
+        : (isResetStatus ? "temp_password_active" : "never_changed");
+
+      merged[code] = {
+        code: code,
+        clientName: name,
+        registeredGmail: email,
+        passwordHash: passwordHash,
+        passwordHashUpper: passwordHashUpper,
+        accountStatus: accountStatus,
+        isDefaultPassword: accountStatus !== "custom_password_active",
+        phoneVerifyHash: computePhoneVerifyHashGas(email, noteText)
+      };
+    }
+  }
+
+  // 2. Đọc & hợp nhất tab "THÔNG TIN NGƯỜI DÙNG"
+  var uSheet = getUsersSheet(ss, false);
+  if (uSheet && uSheet.getLastRow() >= 2) {
+    var is20 = isNew20ColsSheet(uSheet);
+    var uCols = Math.max(uSheet.getLastColumn(), is20 ? 20 : 13);
+    var uRows = uSheet.getRange(2, 1, uSheet.getLastRow() - 1, uCols).getDisplayValues();
+    for (var j = 0; j < uRows.length; j++) {
+      var uCode = String((is20 ? uRows[j][15] : uRows[j][9]) || "").trim().toUpperCase();
+      var uPass = String((is20 ? uRows[j][16] : uRows[j][10]) || "").trim();
+      if (!uCode || isPlaceholderCredentialGas(uCode) || isPlaceholderCredentialGas(uPass)) continue;
+
+      var uName = String(uRows[j][2] || "Khách Hàng Studio").trim();
+      var uMail = String((is20 ? uRows[j][6] : uRows[j][5]) || "").replace(/\s+/g, "").trim();
+      var uPhone = String((is20 ? uRows[j][7] : uRows[j][6]) || "").trim();
+      var uStatus = String((is20 ? uRows[j][18] : uRows[j][11]) || "").toLowerCase();
+      var uNote = String((is20 ? uRows[j][19] : uRows[j][12]) || "");
+      var uExistingHash = extractGasPasswordHash(uPass) || extractGasPasswordHash(uNote);
+      var uIsMasked = isHashedOrCustomPasswordGas(uPass) || Boolean(uExistingHash);
+      var uIsReset = !uIsMasked && (uStatus.indexOf("cấp lại") !== -1 || uNote.toLowerCase().indexOf("cấp lại") !== -1);
+
+      var uPasswordHash = uExistingHash || computeGasPasswordHash(uCode, uPass);
+      var uPasswordHashUpper = uIsMasked ? null : computeGasPasswordHash(uCode, uPass.toUpperCase());
+      var uAccountStatus = uIsMasked
+        ? "custom_password_active"
+        : (uIsReset ? "temp_password_active" : "never_changed");
+      var uPhoneHash = computePhoneVerifyHashGas(uMail, uPhone);
+
+      var prev = merged[uCode];
+      if (!prev) {
+        merged[uCode] = {
+          code: uCode,
+          clientName: uName,
+          registeredGmail: uMail,
+          passwordHash: uPasswordHash,
+          passwordHashUpper: uPasswordHashUpper,
+          accountStatus: uAccountStatus,
+          isDefaultPassword: uAccountStatus !== "custom_password_active",
+          phoneVerifyHash: uPhoneHash
+        };
+      } else {
+        // Nếu 1 trong 2 tab vừa cấp lại MK tạm -> ưu tiên MK tạm mới, ngược lại ưu tiên custom hash nếu có
+        var chosen = prev;
+        if (uAccountStatus === "temp_password_active" && prev.accountStatus !== "temp_password_active") {
+          chosen = {
+            code: uCode,
+            clientName: uName || prev.clientName,
+            registeredGmail: uMail || prev.registeredGmail,
+            passwordHash: uPasswordHash,
+            passwordHashUpper: uPasswordHashUpper,
+            accountStatus: "temp_password_active",
+            isDefaultPassword: true,
+            phoneVerifyHash: uPhoneHash || prev.phoneVerifyHash
+          };
+        } else if (uIsMasked && prev.accountStatus !== "custom_password_active" && prev.accountStatus !== "temp_password_active") {
+          chosen = {
+            code: uCode,
+            clientName: uName || prev.clientName,
+            registeredGmail: uMail || prev.registeredGmail,
+            passwordHash: uPasswordHash,
+            passwordHashUpper: null,
+            accountStatus: "custom_password_active",
+            isDefaultPassword: false,
+            phoneVerifyHash: uPhoneHash || prev.phoneVerifyHash
+          };
+        } else if (uPhoneHash && !prev.phoneVerifyHash) {
+          chosen.phoneVerifyHash = uPhoneHash;
+        }
+        merged[uCode] = chosen;
+      }
+    }
+  }
+
+  var list = [];
+  for (var k in merged) {
+    if (merged.hasOwnProperty(k)) list.push(merged[k]);
+  }
+  return list;
+}
+
+function syncAuthDirectoryToWebApp(ss, triggerSource) {
+  try {
+    var accounts = collectSheetAuthDirectory(ss);
+    if (!accounts || accounts.length === 0) return false;
+    var secret = "SynapesWebhookSecretToken2026";
+    try {
+      var propSecret = PropertiesService.getScriptProperties().getProperty("SYNAPES_SYNC_SECRET");
+      if (propSecret) secret = propSecret;
+    } catch (eProp) { }
+
+    var res = UrlFetchApp.fetch("https://synapes-auto-tool-web-service.onrender.com/api/auth/sheet-sync", {
+      method: "post",
+      contentType: "application/json",
+      headers: {
+        "X-Synapes-Sync-Secret": secret
+      },
+      payload: JSON.stringify({
+        accounts: accounts,
+        source: triggerSource || "apps_script",
+        syncedAt: new Date().toISOString()
+      }),
+      muteHttpExceptions: true,
+      validateHttpsCertificates: false
+    });
+    return res.getResponseCode() >= 200 && res.getResponseCode() < 300;
+  } catch (err) {
+    Logger.log("syncAuthDirectoryToWebApp error: " + err);
+    return false;
+  }
+}
+
+function handleVerifyLoginWebhook(ss, payload) {
+  var code = String(payload.code || "").trim().toUpperCase();
+  var passRaw = String(payload.password || "").trim();
+  var passHash = String(payload.passwordHash || "").trim().toUpperCase();
+  var passHashUpper = String(payload.passwordHashUpper || "").trim().toUpperCase();
+
+  if (!code || (!passRaw && !passHash)) {
+    return { status: "error", valid: false, message: "Missing code or password" };
+  }
+
+  var accounts = collectSheetAuthDirectory(ss);
+  var hashToCheck = passHash || computeGasPasswordHash(code, passRaw);
+  var hashUpperToCheck = passHashUpper || (passRaw ? computeGasPasswordHash(code, passRaw.toUpperCase()) : "");
+
+  for (var i = 0; i < accounts.length; i++) {
+    var acc = accounts[i];
+    if (acc.code === code) {
+      var exactOk = acc.passwordHash === hashToCheck;
+      var upperOk = Boolean(acc.passwordHashUpper) && Boolean(hashUpperToCheck) && acc.passwordHashUpper === hashUpperToCheck;
+      if (exactOk || upperOk) {
+        return {
+          status: "success",
+          action: "verify_login",
+          valid: true,
+          user: {
+            code: acc.code,
+            name: acc.clientName,
+            email: acc.registeredGmail,
+            isDefaultPassword: Boolean(acc.isDefaultPassword)
+          }
+        };
+      }
+      return { status: "success", action: "verify_login", valid: false };
+    }
+  }
+  return { status: "success", action: "verify_login", valid: false };
+}
+
 function syncToWebApp() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   reconcileAllApprovedUsersToAccountsSheet(ss);
-  SpreadsheetApp.getUi().alert("✅ Đã hoàn tất đồng bộ 2 chiều với WebApp!");
+  var synced = syncAuthDirectoryToWebApp(ss, "manual_menu_sync");
+  SpreadsheetApp.getUi().alert(
+    synced
+      ? "✅ Đã đồng bộ hoàn tất toàn bộ tài khoản & mật khẩu lên WebApp!"
+      : "✅ Đã đối soát 2 tab Sheet thành công! (WebApp sẽ tự đồng bộ ở chu kỳ kế tiếp)"
+  );
 }
 
 function openWebAppUrl() {
@@ -3232,6 +3522,7 @@ function runCloudKeepAliveAndBackgroundCron() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     syncPendingFormBridgeResponses();
+    syncAuthDirectoryToWebApp(ss, "cron_keepalive");
   } catch (e) {
     Logger.log("runCloudKeepAliveAndBackgroundCron bridge sync error: " + e);
   }

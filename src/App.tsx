@@ -7,7 +7,8 @@ import {
 } from './data/mockData';
 import {
   fetchGoogleSheetLive, getCachedSheetRows, cacheSheetRows, getLastSyncTime,
-  saveCustomPassword, getStoredRegistrations, verifyAccountLogin
+  saveCustomPassword, getStoredRegistrations, verifyAccountLogin,
+  verifyLoginViaAppsScriptWebhook
 } from './services/googleSheetService';
 import {
   getActiveSession, setActiveSession, clearActiveSession,
@@ -241,6 +242,9 @@ export function App() {
           };
           try {
             localStorage.setItem(`synapes_explicit_login_${userAccount.code}`, 'true');
+            if (authData.authToken) {
+              sessionStorage.setItem(`synapes_auth_token_${userAccount.code.toUpperCase()}`, authData.authToken);
+            }
           } catch { }
 
           setCurrentUser(userAccount);
@@ -299,32 +303,53 @@ export function App() {
       }
     }
 
-    if (!row) {
+    let resolvedUserAccount: UserAccount | null = null;
+    if (row) {
+      const authCheck = verifyAccountLogin(codeClean, passClean, row);
+      if (authCheck.valid) {
+        resolvedUserAccount = {
+          code: row.code,
+          name: row.clientName,
+          email: row.registeredGmail,
+          isLoggedIn: true,
+          isDefaultPassword: authCheck.isDefaultPassword,
+        };
+      }
+    }
+
+    // 3. Fallback trực tiếp tới Apps Script Web App (/exec) nếu GViz bị hạn chế quyền
+    if (!resolvedUserAccount) {
+      try {
+        const gasAuth = await verifyLoginViaAppsScriptWebhook(codeClean, passClean);
+        if (gasAuth && gasAuth.valid && gasAuth.user) {
+          resolvedUserAccount = {
+            code: gasAuth.user.code || codeClean,
+            name: gasAuth.user.name || 'Khách Hàng Studio',
+            email: gasAuth.user.email || '',
+            isLoggedIn: true,
+            isDefaultPassword: Boolean(gasAuth.user.isDefaultPassword),
+          };
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!resolvedUserAccount) {
       return false;
     }
 
-    const authCheck = verifyAccountLogin(codeClean, passClean, row);
-    if (!authCheck.valid) {
-      return false;
-    }
-
-    const userAccount: UserAccount = {
-      code: row.code,
-      name: row.clientName,
-      email: row.registeredGmail,
-      isLoggedIn: true,
-      isDefaultPassword: authCheck.isDefaultPassword,
-    };
+    const userAccount: UserAccount = resolvedUserAccount;
 
     try {
-      localStorage.setItem(`synapes_explicit_login_${row.code}`, 'true');
+      localStorage.setItem(`synapes_explicit_login_${userAccount.code}`, 'true');
     } catch { }
 
     setCurrentUser(userAccount);
     setActiveSession(userAccount);
 
     // Nạp toàn bộ dữ liệu người dùng đã lưu trước đó trong tài khoản được cấp
-    const profile = getUserProfile(row.code, row.clientName, row.registeredGmail);
+    const profile = getUserProfile(userAccount.code, userAccount.name, userAccount.email);
     setAiConfig(profile.aiConfig);
     setSelectedAiProvider(profile.aiConfig.activeProvider || profile.aiConfig.mode || 'gemini');
     setProjects(profile.projects);
@@ -334,11 +359,16 @@ export function App() {
     setSelectedProject(profile.projects[0] || null);
 
     setIsAuthModalOpen(false);
-    showToast(`Đăng nhập thành công với tài khoản ${row.code} (${row.clientName})!`);
+    showToast(`Đăng nhập thành công với tài khoản ${userAccount.code} (${userAccount.name})!`);
     return true;
   };
 
   const handleLogout = () => {
+    try {
+      if (currentUser?.code) {
+        sessionStorage.removeItem(`synapes_auth_token_${currentUser.code.toUpperCase()}`);
+      }
+    } catch { }
     clearActiveSession();
     setCurrentUser(null);
     setAiConfig(EMPTY_AI_CONFIG);
@@ -356,15 +386,23 @@ export function App() {
     const now = new Date();
     const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
 
+    let sessionAuthToken = '';
+    try {
+      sessionAuthToken = sessionStorage.getItem(`synapes_auth_token_${currentUser.code.toUpperCase()}`) || '';
+    } catch { }
+
     const passHash = saveCustomPassword(
       currentUser.code,
       newPass,
       currentUser.email,
-      currentUser.name
+      currentUser.name,
+      sessionAuthToken
     );
 
+    let updatedFound = false;
     const updated = sheetRows.map((r) => {
       if (r.code.toUpperCase() === currentUser.code.toUpperCase()) {
+        updatedFound = true;
         return {
           ...r,
           currentTempPassword: `🔒 Đã mã hóa [${passHash}]`,
@@ -375,6 +413,17 @@ export function App() {
       }
       return r;
     });
+    if (!updatedFound) {
+      updated.push({
+        code: currentUser.code,
+        clientName: currentUser.name,
+        registeredGmail: currentUser.email,
+        currentTempPassword: `🔒 Đã mã hóa [${passHash}]`,
+        lastIssuedTime: timeString,
+        accountStatus: 'custom_password_active',
+        engineerNotes: `🟢 Đã tạo mật khẩu mới (${timeString})`,
+      });
+    }
 
     setSheetRows(updated);
     cacheSheetRows(updated);

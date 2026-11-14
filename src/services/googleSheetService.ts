@@ -873,14 +873,112 @@ export async function changeUserPasswordViaSheet(params: {
 }
 
 /**
+ * Đặt lại mật khẩu khẩn cấp / Quên mật khẩu trên máy chủ backend (hỗ trợ cả khi Google Sheet đang Hạn chế 401)
+ */
+export async function syncForgotPasswordWithServer(params: {
+  email: string;
+  phone: string;
+  code?: string;
+  newPassword?: string;
+}): Promise<{ matched: boolean; code?: string; fullName?: string }> {
+  try {
+    const res = await fetch('/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        matched: Boolean(data?.matched),
+        code: data?.code,
+        fullName: data?.fullName,
+      };
+    }
+  } catch {
+    // ignore offline errors
+  }
+  return { matched: false };
+}
+
+/**
+ * Xác thực trực tiếp qua Google Apps Script Web App (/exec) nếu URL đã được cấu hình
+ */
+export async function verifyLoginViaAppsScriptWebhook(
+  code: string,
+  plainPassword: string
+): Promise<{ valid: boolean; user?: { code: string; name: string; email: string; isDefaultPassword: boolean } } | null> {
+  const webhookUrl = getAppsScriptWebhookUrl();
+  if (!webhookUrl || !webhookUrl.includes('script.google.com/macros/s/')) {
+    return null;
+  }
+  const codeClean = (code || '').trim().toUpperCase();
+  const passClean = (plainPassword || '').trim();
+  if (!codeClean || !passClean) return null;
+
+  const passwordHash = computePasswordHash(codeClean, passClean);
+  const passwordHashUpper = computePasswordHash(codeClean, passClean.toUpperCase());
+
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return null;
+  }
+
+  return new Promise((resolve) => {
+    const cbName = `__synapes_verify_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    const script = document.createElement('script');
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      try {
+        if (script.parentNode) script.parentNode.removeChild(script);
+        delete (window as any)[cbName];
+      } catch {
+        // ignore
+      }
+    };
+
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve(null);
+    }, 4500);
+
+    (window as any)[cbName] = (resp: any) => {
+      cleanup();
+      if (resp && typeof resp.valid === 'boolean') {
+        resolve({ valid: resp.valid, user: resp.user });
+      } else {
+        resolve(null);
+      }
+    };
+
+    script.onerror = () => {
+      cleanup();
+      resolve(null);
+    };
+
+    const payloadObj = {
+      action: 'verify_login',
+      code: codeClean,
+      passwordHash,
+      passwordHashUpper,
+    };
+    const sep = webhookUrl.includes('?') ? '&' : '?';
+    script.src = `${webhookUrl}${sep}callback=${cbName}&payload=${encodeURIComponent(JSON.stringify(payloadObj))}&_t=${Date.now()}`;
+    document.head.appendChild(script);
+  });
+}
+
+/**
  * Lưu mật khẩu riêng của tài khoản dưới dạng mã băm 1 chiều (BCRYPT$...)
- * và đồng bộ trạng thái "🟢 Đã tạo mật khẩu mới" lên Google Sheet.
+ * và đồng bộ trạng thái "🟢 Đã tạo mật khẩu mới" lên cả Server API & Google Sheet.
  */
 export function saveCustomPassword(
   code: string,
   plainOrHash: string,
   email?: string,
-  fullName?: string
+  fullName?: string,
+  authToken?: string,
+  currentPassword?: string
 ): string {
   const codeClean = (code || '').trim().toUpperCase();
   const passwordHash = computePasswordHash(codeClean, plainOrHash);
@@ -917,6 +1015,39 @@ export function saveCustomPassword(
   } catch (e) {
     console.warn('Failed to save custom password', e);
   }
+
+  // Đồng bộ tức thì lên Server API (/api/auth/change-password) để đăng nhập được trên mọi trình duyệt & thiết bị
+  try {
+    let resolvedToken = authToken || '';
+    if (!resolvedToken && typeof sessionStorage !== 'undefined') {
+      resolvedToken = sessionStorage.getItem(`synapes_auth_token_${codeClean}`) || '';
+    }
+    fetch('/api/auth/change-password', {
+      method: 'POST',
+      keepalive: true,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {}),
+      },
+      body: JSON.stringify({
+        code: codeClean,
+        passwordHash,
+        email: (email || '').trim(),
+        fullName: fullName || 'Khách hàng SYNAPES',
+        authToken: resolvedToken,
+        currentPassword: currentPassword || '',
+      }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.authToken && typeof sessionStorage !== 'undefined') {
+          try {
+            sessionStorage.setItem(`synapes_auth_token_${codeClean}`, data.authToken);
+          } catch { }
+        }
+      })
+      .catch(() => { });
+  } catch { }
 
   // Đẩy trạng thái "Đã tạo mật khẩu mới" + mã băm 1 chiều lên Google Sheet
   changeUserPasswordViaSheet({
@@ -973,32 +1104,32 @@ export function verifyAccountLogin(
 
   const localStoredCustom = customMap[codeClean];
   const localTempReset = tempResetMap[codeClean];
+  const rowPass = (row.currentTempPassword || '').trim();
+  const rowIsMaskedOrHashed = isPasswordMaskedOrHashed(rowPass);
   const sheetHash =
-    extractPasswordHash(row.currentTempPassword) ||
+    extractPasswordHash(rowPass) ||
     extractPasswordHash(row.engineerNotes);
 
-  const isSheetCustomActive =
-    row.accountStatus === 'custom_password_active' ||
-    Boolean(sheetHash) ||
-    isPasswordMaskedOrHashed(row.currentTempPassword);
-
-  // Trường hợp vừa cấp lại mật khẩu qua Quên mật khẩu trên trình duyệt này
-  if (localTempReset && !localStoredCustom) {
+  // Trường hợp A: Vừa cấp lại mật khẩu tạm thời (trên trình duyệt này hoặc trên Google Sheet)
+  if (row.accountStatus === 'temp_password_active' && rowPass && !rowIsMaskedOrHashed) {
+    if (passClean === rowPass || passClean.toUpperCase() === rowPass.toUpperCase()) {
+      return { valid: true, isDefaultPassword: true };
+    }
+  }
+  if (localTempReset && !localStoredCustom && !rowIsMaskedOrHashed && !sheetHash) {
     if (passClean === localTempReset || passClean.toUpperCase() === localTempReset.toUpperCase()) {
       return { valid: true, isDefaultPassword: true };
     }
   }
 
-  // Trường hợp 1: Tài khoản ĐÃ TẠO MẬT KHẨU MỚI (cục bộ hoặc trên Google Sheet)
-  if (localStoredCustom || isSheetCustomActive) {
-    // Kiểm tra khớp với mã băm lưu cục bộ (hoặc mật khẩu chữ thường cũ nếu có từ phiên bản trước)
+  // Trường hợp B: Tài khoản ĐÃ TẠO MẬT KHẨU RIÊNG (lưu cục bộ hoặc đã băm BCRYPT$... trên Sheet)
+  if (localStoredCustom || rowIsMaskedOrHashed || sheetHash) {
     if (localStoredCustom) {
       const localExpectedHash = computePasswordHash(codeClean, localStoredCustom);
       if (inputHash === localExpectedHash || passClean === localStoredCustom) {
         return { valid: true, isDefaultPassword: false };
       }
     }
-    // Kiểm tra khớp với mã băm BCRYPT$... lưu trên Google Sheet (đăng nhập từ bất kỳ máy/trình duyệt nào)
     if (sheetHash && inputHash === sheetHash) {
       return { valid: true, isDefaultPassword: false };
     }
@@ -1006,11 +1137,13 @@ export function verifyAccountLogin(
     return { valid: false, isDefaultPassword: false };
   }
 
-  // Trường hợp 2: Tài khoản CHƯA ĐỔI MẬT KHẨU (đang dùng mật khẩu mặc định SNP_... được cấp)
-  const rowPass = (row.currentTempPassword || '').trim();
-  if (rowPass && !isPasswordMaskedOrHashed(rowPass)) {
+  // Trường hợp C: Tài khoản có mật khẩu hiển thị trực tiếp trên Sheet (chưa băm/ẩn)
+  if (rowPass && !rowIsMaskedOrHashed) {
     if (passClean === rowPass || passClean.toUpperCase() === rowPass.toUpperCase()) {
-      return { valid: true, isDefaultPassword: true };
+      return {
+        valid: true,
+        isDefaultPassword: row.accountStatus !== 'custom_password_active',
+      };
     }
   }
 
@@ -1216,14 +1349,15 @@ export function parseUsersSheetGvizResponse(response: any): {
 
     if (assignedCode && assignedPassword) {
       const combinedStatus = `${assignedPassword} ${emailStatus} ${notes}`.toLowerCase();
-      const isCustomPass =
-        isPasswordMaskedOrHashed(assignedPassword) ||
-        combinedStatus.includes('đã tạo mật khẩu mới') ||
-        combinedStatus.includes('đổi mật khẩu') ||
-        combinedStatus.includes('đổi pass');
+      const hasPassHash = isPasswordMaskedOrHashed(assignedPassword);
       const isTempReset =
-        !isCustomPass &&
-        (combinedStatus.includes('cấp lại') || combinedStatus.includes('temp'));
+        !hasPassHash &&
+        (emailStatus.toLowerCase().includes('cấp lại') || combinedStatus.includes('cấp lại') || combinedStatus.includes('temp'));
+      const isCustomPass =
+        hasPassHash ||
+        (!isTempReset &&
+          emailStatus.toLowerCase().includes('đã tạo mật khẩu mới') &&
+          !assignedPassword.toUpperCase().startsWith('SNP_'));
 
       approvedRows.push({
         code: assignedCode,
@@ -1309,7 +1443,7 @@ export function parseGvizResponse(response: any): EngineerSheetRow[] {
       cellVals[1] &&
       (cellVals[1].startsWith('SNP_') ||
         cellVals[1].includes('-') ||
-        /^[A-Z0-9_-]{4,22}$/i.test(cellVals[1]))
+        /^[A-Z0-9_-]{3,36}$/i.test(cellVals[1]))
     ) {
       code = cellVals[1].toUpperCase();
       codeIndex = 1;
@@ -1318,7 +1452,7 @@ export function parseGvizResponse(response: any): EngineerSheetRow[] {
       !cellVals[0].match(/^\d+(\.0)?$/) &&
       (cellVals[0].startsWith('SNP_') ||
         cellVals[0].includes('-') ||
-        /^[A-Z0-9_-]{4,22}$/i.test(cellVals[0]))
+        /^[A-Z0-9_-]{3,36}$/i.test(cellVals[0]))
     ) {
       code = cellVals[0].toUpperCase();
       codeIndex = 0;
@@ -1331,7 +1465,7 @@ export function parseGvizResponse(response: any): EngineerSheetRow[] {
           (val.startsWith('SNP_') ||
             val.startsWith('VIP') ||
             val.startsWith('FYER') ||
-            (val.includes('-') && val.length <= 25))
+            (val.includes('-') && val.length <= 36))
         ) {
           code = val.toUpperCase();
           codeIndex = i;
@@ -1370,9 +1504,12 @@ export function parseGvizResponse(response: any): EngineerSheetRow[] {
           !cellVals[i].includes('@') &&
           cellVals[i] !== clientName &&
           cellVals[i].length >= 4 &&
-          cellVals[i].length <= 30
+          cellVals[i].length <= 120
         ) {
-          if (/^(SNP_|Auto-|Start@|snp@|[A-Za-z0-9@#$!%*?&_]{6,})/i.test(cellVals[i])) {
+          if (
+            isPasswordMaskedOrHashed(cellVals[i]) ||
+            /^(SNP_|Auto-|Start@|snp@|[A-Za-z0-9@#$!%*?&_]{6,})/i.test(cellVals[i])
+          ) {
             currentTempPassword = cellVals[i];
             break;
           }
@@ -1381,19 +1518,22 @@ export function parseGvizResponse(response: any): EngineerSheetRow[] {
     }
 
     const lastIssuedTime = cellVals[5] || 'Mới cập nhật';
-    const statusRaw = `${cellVals[6] || ''} ${cellVals[7] || ''} ${cellVals[8] || ''} ${currentTempPassword}`.toLowerCase();
+    const statusCellRaw = `${cellVals[6] || ''} ${cellVals[7] || ''}`.toLowerCase();
+    const isMaskedPassCell = isPasswordMaskedOrHashed(currentTempPassword);
     let accountStatus: 'custom_password_active' | 'temp_password_active' | 'never_changed' = 'never_changed';
-    if (
-      isPasswordMaskedOrHashed(currentTempPassword) ||
-      statusRaw.includes('đổi pass') ||
-      statusRaw.includes('đã tạo mật khẩu mới') ||
-      statusRaw.includes('đổi mật khẩu') ||
-      statusRaw.includes('custom') ||
-      statusRaw.includes('riêng')
+    if (isMaskedPassCell) {
+      accountStatus = 'custom_password_active';
+    } else if (statusCellRaw.includes('cấp lại') || statusCellRaw.includes('temp')) {
+      accountStatus = 'temp_password_active';
+    } else if (
+      (statusCellRaw.includes('đổi pass') ||
+        statusCellRaw.includes('đã tạo mật khẩu mới') ||
+        statusCellRaw.includes('đổi mật khẩu') ||
+        statusCellRaw.includes('custom') ||
+        statusCellRaw.includes('riêng')) &&
+      !currentTempPassword.toUpperCase().startsWith('SNP_')
     ) {
       accountStatus = 'custom_password_active';
-    } else if (statusRaw.includes('cấp lại') || statusRaw.includes('temp')) {
-      accountStatus = 'temp_password_active';
     }
 
     const engineerNotes = cellVals[8] || cellVals[7] || 'Khách hàng SYNAPES';
@@ -1432,7 +1572,7 @@ async function fetchGvizByGid(sheetId: string, gid: string): Promise<any | null>
   const timestamp = Date.now();
   try {
     const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&gid=${gid}&_t=${timestamp}`;
-    const res = await fetchWithTimeout(url, { method: 'GET', cache: 'no-store' }, 2000);
+    const res = await fetchWithTimeout(url, { method: 'GET', cache: 'no-store' }, 4000);
     if (res.status === 401 || res.status === 403) {
       // Bảng tính đã được chuyển quyền sang "Hạn chế (Chỉ mình tôi)" — an toàn tuyệt đối
       return null;
@@ -1472,7 +1612,7 @@ async function fetchGvizByGid(sheetId: string, gid: string): Promise<any | null>
     const timeout = setTimeout(() => {
       cleanup();
       resolve(null);
-    }, 2000);
+    }, 4000);
 
     (window as any)[callbackName] = (resp: any) => {
       cleanup();
@@ -1521,21 +1661,40 @@ export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): P
       const codeKey = r.code.toUpperCase();
       const existing = mergedMap.get(codeKey);
       if (existing) {
-        const isCustom =
-          existing.accountStatus === 'custom_password_active' ||
-          r.accountStatus === 'custom_password_active';
-        const chosenPass =
-          isPasswordMaskedOrHashed(existing.currentTempPassword)
-            ? existing.currentTempPassword
-            : isPasswordMaskedOrHashed(r.currentTempPassword)
-              ? r.currentTempPassword
-              : r.currentTempPassword || existing.currentTempPassword;
-        mergedMap.set(codeKey, {
-          ...existing,
-          currentTempPassword: chosenPass,
-          accountStatus: isCustom ? 'custom_password_active' : existing.accountStatus,
-          engineerNotes: `${existing.engineerNotes} | ${r.engineerNotes}`,
-        });
+        const existingIsReset = existing.accountStatus === 'temp_password_active' && !isPasswordMaskedOrHashed(existing.currentTempPassword);
+        const approvedIsReset = r.accountStatus === 'temp_password_active' && !isPasswordMaskedOrHashed(r.currentTempPassword);
+
+        if (approvedIsReset && !existingIsReset) {
+          mergedMap.set(codeKey, {
+            ...existing,
+            currentTempPassword: r.currentTempPassword,
+            accountStatus: 'temp_password_active',
+            engineerNotes: `${existing.engineerNotes} | ${r.engineerNotes}`,
+          });
+        } else if (existingIsReset && !approvedIsReset) {
+          mergedMap.set(codeKey, {
+            ...existing,
+            engineerNotes: `${existing.engineerNotes} | ${r.engineerNotes}`,
+          });
+        } else {
+          const isCustom =
+            isPasswordMaskedOrHashed(existing.currentTempPassword) ||
+            isPasswordMaskedOrHashed(r.currentTempPassword) ||
+            existing.accountStatus === 'custom_password_active' ||
+            r.accountStatus === 'custom_password_active';
+          const chosenPass =
+            isPasswordMaskedOrHashed(existing.currentTempPassword)
+              ? existing.currentTempPassword
+              : isPasswordMaskedOrHashed(r.currentTempPassword)
+                ? r.currentTempPassword
+                : r.currentTempPassword || existing.currentTempPassword;
+          mergedMap.set(codeKey, {
+            ...existing,
+            currentTempPassword: chosenPass,
+            accountStatus: isCustom ? 'custom_password_active' : existing.accountStatus,
+            engineerNotes: `${existing.engineerNotes} | ${r.engineerNotes}`,
+          });
+        }
       } else {
         mergedMap.set(codeKey, r);
       }
@@ -1544,7 +1703,7 @@ export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): P
     // Áp dụng trạng thái mật khẩu riêng đã đổi cục bộ (nếu Sheet đang trong quá trình đồng bộ)
     for (const [codeKey, rowItem] of mergedMap.entries()) {
       const localCustom = customPassMap[codeKey];
-      if (localCustom) {
+      if (localCustom && rowItem.accountStatus !== 'temp_password_active') {
         const hashStr = computePasswordHash(codeKey, localCustom);
         mergedMap.set(codeKey, {
           ...rowItem,
