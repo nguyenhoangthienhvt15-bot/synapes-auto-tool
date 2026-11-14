@@ -1,4 +1,9 @@
-import { EngineerSheetRow, UserRegistrationData } from '../types';
+import {
+  EngineerSheetRow,
+  UserRegistrationData,
+  UserAccount,
+  ContractCategory,
+} from '../types';
 
 export const GOOGLE_SHEET_ID = '1E9zec8lX52-ofleS0MG-oRSc8k_hK9aBtC1XBaqNafY';
 export const GOOGLE_SHEET_GID_ACCOUNTS = '0'; // Tab "Quản Lý Mật Khẩu"
@@ -907,7 +912,16 @@ export async function syncForgotPasswordWithServer(params: {
 export async function verifyLoginViaAppsScriptWebhook(
   code: string,
   plainPassword: string
-): Promise<{ valid: boolean; user?: { code: string; name: string; email: string; isDefaultPassword: boolean } } | null> {
+): Promise<{
+  valid: boolean;
+  user?: {
+    code: string;
+    name: string;
+    email: string;
+    isDefaultPassword: boolean;
+    planTier?: ContractCategory;
+  };
+} | null> {
   const webhookUrl = getAppsScriptWebhookUrl();
   if (!webhookUrl || !webhookUrl.includes('script.google.com/macros/s/')) {
     return null;
@@ -1795,4 +1809,75 @@ export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): P
 
   const cached = getCachedSheetRows();
   return cached || [];
+}
+
+/**
+ * Xác định phân hạng gói cước của tài khoản ('personal' | 'enterprise').
+ * Chỉ tài khoản Gói Toàn Hệ ('enterprise') mới được sử dụng khối Nhân Bản Video (BYOK - ULTRA).
+ * Tài khoản Gói Cá Nhân Hóa ('personal') hoặc chưa đăng nhập trả về 'personal'.
+ */
+export function resolveUserPlanTier(
+  user: UserAccount | null | undefined,
+  sheetAccounts?: EngineerSheetRow[]
+): ContractCategory {
+  if (!user) return 'personal';
+
+  const codeNorm = (user.code || '').trim().toUpperCase();
+  const emailNorm = (user.email || '').trim().toLowerCase();
+
+  // 1. Kiểm tra dữ liệu đăng ký hợp đồng cục bộ (trình duyệt)
+  try {
+    const regs = typeof window !== 'undefined' ? getStoredRegistrations() : [];
+    const matchedReg = regs.find((r) => {
+      const regCode = (r.assignedCode || '').trim().toUpperCase();
+      const regEmail = (r.email || '').trim().toLowerCase();
+      return (codeNorm && regCode === codeNorm) || (emailNorm && regEmail === emailNorm);
+    });
+    if (matchedReg) {
+      if (
+        matchedReg.contractCategory === 'enterprise' ||
+        matchedReg.contractPackage?.startsWith('enterprise') ||
+        /toàn\s*hệ|\bultra\b/i.test(matchedReg.contractPackageName || '')
+      ) {
+        return 'enterprise';
+      }
+      if (matchedReg.contractCategory === 'personal') {
+        return 'personal';
+      }
+    }
+  } catch {
+    // ignore storage errors in non-browser contexts
+  }
+
+  // 2. Tài khoản Gói Toàn Hệ (Enterprise / Admin) mặc định
+  const ENTERPRISE_CORE_CODES = ['SNP_2611092202', 'VIP-001', 'VIP-003'];
+  if (codeNorm && ENTERPRISE_CORE_CODES.includes(codeNorm)) {
+    return 'enterprise';
+  }
+
+  // 3. Tài khoản Gói Cá Nhân Hóa mặc định (không bao gồm BYOK ULTRA)
+  const PERSONAL_CORE_CODES = ['VIP-002', 'VIP-004', 'VIP-005', 'FYER-72626', 'FYER-051126'];
+  if (codeNorm && PERSONAL_CORE_CODES.includes(codeNorm)) {
+    return 'personal';
+  }
+
+  // 4. Trường planTier được Server / Google Sheet gắn trực tiếp khi đăng nhập
+  if (user.planTier === 'enterprise' || user.planTier === 'personal') {
+    return user.planTier;
+  }
+
+  // 5. Đối chiếu ghi chú gói trên Google Sheet
+  if (Array.isArray(sheetAccounts) && sheetAccounts.length > 0) {
+    const sheetRow = sheetAccounts.find((row) => {
+      const rowCode = (row.code || '').trim().toUpperCase();
+      const rowEmail = (row.registeredGmail || '').trim().toLowerCase();
+      return (codeNorm && rowCode === codeNorm) || (emailNorm && rowEmail === emailNorm);
+    });
+    const notes = sheetRow?.engineerNotes || '';
+    if (/toàn\s*hệ|enterprise|doanh\s*nghiệp\s*max|\bultra\b/i.test(notes) && !/cá\s*nhân/i.test(notes)) {
+      return 'enterprise';
+    }
+  }
+
+  return 'personal';
 }

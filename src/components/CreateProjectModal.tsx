@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Skill, Project, AIProviderConfig, AIProviderId, StoryboardScene } from '../types';
+import {
+  Skill,
+  Project,
+  AIProviderConfig,
+  AIProviderId,
+  StoryboardScene,
+  SocialPlatformFormatId,
+  PlatformFormatPreset,
+} from '../types';
 import {
   Sparkles,
   Monitor,
@@ -50,6 +58,136 @@ interface CreateProjectModalProps {
   onAddSkill?: (newSkill: Skill) => void;
 }
 
+const PLATFORM_FORMAT_PRESETS: PlatformFormatPreset[] = [
+  {
+    id: 'youtube-long-16-9',
+    platform: 'youtube',
+    platformLabel: 'YouTube',
+    title: 'YouTube Video Dài',
+    aspectRatio: '16:9',
+    displayRatio: '16:9',
+    resolution: '1920x1080 (16:9)',
+    recommendedMinutes: 8,
+    description: 'Màn hình ngang chuẩn YouTube, phân tích chuyên sâu & kể chuyện dài',
+    promptStyleHint: 'YouTube 16:9 ngang, kể chuyện có chiều sâu và giữ chân người xem',
+  },
+  {
+    id: 'youtube-shorts-9-16',
+    platform: 'youtube',
+    platformLabel: 'YouTube',
+    title: 'YouTube Shorts',
+    aspectRatio: '9:16',
+    displayRatio: '9:16',
+    resolution: '1080x1920 (9:16)',
+    recommendedMinutes: 1,
+    description: 'Video dọc dưới 60 giây tối ưu đề xuất YouTube Shorts',
+    promptStyleHint: 'YouTube Shorts 9:16 dọc, mở đầu nhanh gọn và súc tích',
+  },
+  {
+    id: 'tiktok-viral-9-16',
+    platform: 'tiktok',
+    platformLabel: 'TikTok',
+    title: 'TikTok Viral',
+    aspectRatio: '9:16',
+    displayRatio: '9:16',
+    resolution: '1080x1920 (9:16)',
+    recommendedMinutes: 1,
+    description: 'Hook 3 giây đầu, nhịp cắt nhanh & phụ đề dọc cho TikTok',
+    promptStyleHint: 'TikTok 9:16 nhịp cắt nhanh, hook 3 giây đầu gây tò mò',
+  },
+  {
+    id: 'instagram-reels-9-16',
+    platform: 'instagram',
+    platformLabel: 'Instagram',
+    title: 'Instagram Reels',
+    aspectRatio: '9:16',
+    displayRatio: '9:16',
+    resolution: '1080x1920 (9:16)',
+    recommendedMinutes: 1,
+    description: 'Thẩm mỹ điện ảnh, chuyển cảnh mượt tối ưu Instagram Reels',
+    promptStyleHint: 'Instagram Reels 9:16 chú trọng bố cục thị giác và chuyển cảnh mượt',
+  },
+  {
+    id: 'instagram-feed-4-5',
+    platform: 'instagram',
+    platformLabel: 'Instagram',
+    title: 'Instagram Feed (4:5)',
+    aspectRatio: '9:16',
+    displayRatio: '4:5',
+    resolution: '1080x1350 (4:5)',
+    recommendedMinutes: 1,
+    description: 'Khung dọc 4:5 chiếm trọn diện tích bảng tin Instagram Feed',
+    promptStyleHint: 'Instagram Feed 4:5 nổi bật giữa khung hình di động',
+  },
+  {
+    id: 'facebook-reels-9-16',
+    platform: 'facebook',
+    platformLabel: 'Facebook',
+    title: 'Facebook Reels',
+    aspectRatio: '9:16',
+    displayRatio: '9:16',
+    resolution: '1080x1920 (9:16)',
+    recommendedMinutes: 1,
+    description: 'Tăng giữ chân & chia sẻ tự nhiên trên Facebook Reels',
+    promptStyleHint: 'Facebook Reels 9:16 dễ đồng cảm, thúc đẩy bình luận và chia sẻ',
+  },
+  {
+    id: 'facebook-watch-16-9',
+    platform: 'facebook',
+    platformLabel: 'Facebook',
+    title: 'Facebook Watch',
+    aspectRatio: '16:9',
+    displayRatio: '16:9',
+    resolution: '1920x1080 (16:9)',
+    recommendedMinutes: 5,
+    description: 'Video ngang trung-dài tối ưu trang Fanpage & Facebook Watch',
+    promptStyleHint: 'Facebook Watch 16:9 dẫn dắt mạch lạc, giữ chân phút đầu',
+  },
+  {
+    id: 'threads-video-9-16',
+    platform: 'threads',
+    platformLabel: 'Threads',
+    title: 'Threads Video',
+    aspectRatio: '9:16',
+    displayRatio: '9:16',
+    resolution: '1080x1920 (9:16)',
+    recommendedMinutes: 1,
+    description: 'Clip dọc ngắn trực diện, mở màn nhanh gợi thảo luận trên Threads',
+    promptStyleHint: 'Threads 9:16 ngắn gọn, đi thẳng trọng tâm kích thích tranh luận',
+  },
+];
+
+async function compressImageToDataUrl(file: File): Promise<string> {
+  const rawDataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Không thể đọc tệp hình ảnh đã chọn.'));
+    reader.readAsDataURL(file);
+  });
+
+  return await new Promise<string>((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxDim = 1280;
+      const w = img.naturalWidth || img.width || 1;
+      const h = img.naturalHeight || img.height || 1;
+      const scale = Math.min(1, maxDim / Math.max(w, h));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(w * scale));
+      canvas.height = Math.max(1, Math.round(h * scale));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(rawDataUrl);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => resolve(rawDataUrl);
+    img.src = rawDataUrl;
+  });
+}
+
 export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   skills: initialSkills,
   aiConfig,
@@ -59,17 +197,42 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   onAddSkill,
 }) => {
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
+  const [selectedPlatformFormat, setSelectedPlatformFormat] =
+    useState<SocialPlatformFormatId>('youtube-long-16-9');
   const [allSkills, setAllSkills] = useState<Skill[]>(initialSkills);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [hoveredSkill, setHoveredSkill] = useState<Skill | null>(null);
   const [promptText, setPromptText] = useState('');
   const [targetDurationMin, setTargetDurationMin] = useState<number>(8);
 
-  // Tách riêng đính kèm Hình ảnh và Tệp Âm thanh
-  const [attachedImage, setAttachedImage] = useState<{ name: string; size: number } | null>(null);
-  const [attachedAudio, setAttachedAudio] = useState<{ name: string; size: number } | null>(null);
+  // Tách riêng đính kèm Hình ảnh (Data URL đa phương thức) và Tệp Âm thanh (Object URL)
+  const [attachedImage, setAttachedImage] = useState<{
+    name: string;
+    size: number;
+    dataUrl: string;
+  } | null>(null);
+  const [attachedAudio, setAttachedAudio] = useState<{
+    name: string;
+    size: number;
+    objectUrl: string;
+  } | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
+  const attachedAudioUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      abortControllerRef.current?.abort();
+      if (attachedAudioUrlRef.current) {
+        URL.revokeObjectURL(attachedAudioUrlRef.current);
+        attachedAudioUrlRef.current = null;
+      }
+    };
+  }, []);
 
   // Trạng thái Tự thiết kế phong cách biên tập
   const [isDesigningSkill, setIsDesigningSkill] = useState(false);
@@ -252,10 +415,28 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const activeSkill = allSkills.find((s) => s.id === selectedSkillId) || null;
   const displaySkillInfo = hoveredSkill || activeSkill;
 
+  const selectedPlatformPreset =
+    PLATFORM_FORMAT_PRESETS.find((p) => p.id === selectedPlatformFormat) ||
+    PLATFORM_FORMAT_PRESETS[0];
+
+  const handleCancelOrClose = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsSuggestingScript(false);
+    setIsGenerating(false);
+    onClose();
+  };
+
   // Bước 2: Model AI gợi ý kịch bản
   const handleSuggestScript = async () => {
     const finalPrompt = promptText.trim();
     if (!finalPrompt) return;
+
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     setIsSuggestingScript(true);
     setIsGenerating(true);
@@ -272,12 +453,20 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         skillId: selectedSkillId || undefined,
         skills: allSkills,
         aspectRatio,
+        platformFormat: selectedPlatformFormat,
+        platformFormatLabel: `${selectedPlatformPreset.title} (${selectedPlatformPreset.resolution})`,
         targetDurationMin,
+        attachedImageDataUrl: attachedImage?.dataUrl,
+        attachedImageName: attachedImage?.name,
+        attachedAudioUrl: attachedAudio?.objectUrl,
+        attachedAudioName: attachedAudio?.name,
+        signal: controller.signal,
         provider: selectedProvider,
         model: selectedModel,
         apiKey,
         endpointUrl: endpoint,
         onProgress: (stepText, pct) => {
+          if (!isMountedRef.current || controller.signal.aborted) return;
           setGenerationStep(stepText);
           if (typeof pct === 'number') {
             setGenerationPercent(pct);
@@ -285,16 +474,27 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         },
       });
 
+      if (!isMountedRef.current || controller.signal.aborted) return;
       setSuggestedScript(generated);
       setPreviewScenes(generated.storyboard);
       setWorkflowStep('script_preview');
       setIsSuggestingScript(false);
       setIsGenerating(false);
     } catch (err: any) {
+      if (!isMountedRef.current) return;
+      if (err?.name === 'AbortError' || controller.signal.aborted) {
+        setIsSuggestingScript(false);
+        setIsGenerating(false);
+        return;
+      }
       console.error('Error suggesting AI script:', err);
       setIsSuggestingScript(false);
       setIsGenerating(false);
       setKeyErrorNotice(err?.message || 'Có lỗi xảy ra khi gợi ý kịch bản.');
+    } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
   };
 
@@ -317,6 +517,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     const finalPrompt = promptText.trim();
     if (!finalPrompt) return;
 
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsGenerating(true);
     setKeyErrorNotice(null);
 
@@ -336,12 +540,20 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           skillId: selectedSkillId || undefined,
           skills: allSkills,
           aspectRatio,
+          platformFormat: selectedPlatformFormat,
+          platformFormatLabel: `${selectedPlatformPreset.title} (${selectedPlatformPreset.resolution})`,
           targetDurationMin,
+          attachedImageDataUrl: attachedImage?.dataUrl,
+          attachedImageName: attachedImage?.name,
+          attachedAudioUrl: attachedAudio?.objectUrl,
+          attachedAudioName: attachedAudio?.name,
+          signal: controller.signal,
           provider: selectedProvider,
           model: selectedModel,
           apiKey,
           endpointUrl: endpoint,
           onProgress: (stepText, pct) => {
+            if (!isMountedRef.current || controller.signal.aborted) return;
             setGenerationStep(stepText);
             if (typeof pct === 'number') {
               setGenerationPercent(pct);
@@ -349,6 +561,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           },
         });
       }
+
+      if (!isMountedRef.current || controller.signal.aborted) return;
 
       // Áp dụng storyboard đã chỉnh sửa nếu có
       if (previewScenes && previewScenes.length > 0) {
@@ -369,6 +583,12 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       const result = await dispatchScriptToPluginEngine({
         scriptResult: scriptToDispatch,
         aspectRatio,
+        platformFormat: selectedPlatformFormat,
+        platformFormatLabel: `${selectedPlatformPreset.title} (${selectedPlatformPreset.resolution})`,
+        targetChannels: [selectedPlatformPreset.platform],
+        attachedImageDataUrl: attachedImage?.dataUrl,
+        attachedAudioUrl: attachedAudio?.objectUrl,
+        signal: controller.signal,
         scriptModelName: selectedModel,
         scriptProviderName: provMeta?.name || selectedProvider,
         pluginId: selectedPluginTool,
@@ -376,6 +596,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         pluginToken,
         userPrompt: finalPrompt,
         onProgress: (stepText, pct) => {
+          if (!isMountedRef.current || controller.signal.aborted) return;
           setGenerationStep(stepText);
           if (typeof pct === 'number') {
             setGenerationPercent(pct);
@@ -383,13 +604,23 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         },
       });
 
+      if (!isMountedRef.current || controller.signal.aborted) return;
       onCreateProject(result.project);
       setIsGenerating(false);
       onClose();
     } catch (err: any) {
+      if (!isMountedRef.current) return;
+      if (err?.name === 'AbortError' || controller.signal.aborted) {
+        setIsGenerating(false);
+        return;
+      }
       console.error('Error dispatching script to plugin:', err);
       setIsGenerating(false);
       setKeyErrorNotice(err?.message || 'Có lỗi xảy ra khi gửi kịch bản sang công cụ Plugin.');
+    } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
   };
 
@@ -404,17 +635,17 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isGenerating) onClose();
+      if (e.key === 'Escape') handleCancelOrClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, isGenerating]);
+  });
 
   return (
     <div
       className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 select-none animate-in fade-in duration-150"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !isGenerating) onClose();
+        if (e.target === e.currentTarget) handleCancelOrClose();
       }}
     >
       <div className="studio-card p-6 max-w-2xl w-full shadow-2xl relative max-h-[93vh] overflow-y-auto space-y-4">
@@ -435,9 +666,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
-            disabled={isGenerating}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition cursor-pointer"
+            onClick={handleCancelOrClose}
+            title={isGenerating ? 'Hủy tác vụ đang chạy & Đóng cửa sổ' : 'Đóng cửa sổ'}
+            className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-950 hover:bg-zinc-100 transition cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -446,15 +677,24 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         {workflowStep === 'input' ? (
           <form onSubmit={handleSubmitCreate} className="space-y-4 text-xs">
             {/* 1. KHUÔN MẪU ĐỊNH DẠNG VIDEO */}
-            <div>
-              <label className="text-zinc-800 font-semibold block mb-1.5">
-                1. Khuôn mẫu định dạng video *
-              </label>
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-zinc-800 font-semibold block">
+                  1. Khuôn mẫu định dạng video *
+                </label>
+                <span className="text-[10.5px] font-mono px-2 py-0.5 rounded bg-zinc-100 text-zinc-700 border border-black/[0.06]">
+                  {selectedPlatformPreset.title} • {selectedPlatformPreset.resolution}
+                </span>
+              </div>
+
               <div className="grid grid-cols-2 gap-2.5">
                 <div
                   onClick={() => {
                     setAspectRatio('16:9');
-                    setTargetDurationMin(8);
+                    if (selectedPlatformPreset.aspectRatio !== '16:9') {
+                      setSelectedPlatformFormat('youtube-long-16-9');
+                      setTargetDurationMin(8);
+                    }
                   }}
                   className={`p-3.5 rounded-xl border cursor-pointer transition ${aspectRatio === '16:9'
                       ? 'border-zinc-950 bg-zinc-50/90 text-zinc-950 shadow-2xs ring-1 ring-zinc-950/5'
@@ -466,14 +706,17 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     <span>Khuôn Mẫu Video Dài (16:9)</span>
                   </div>
                   <div className="text-[11px] text-zinc-500 mt-1 leading-relaxed">
-                    Định dạng màn hình ngang 16:9 tiêu chuẩn cho YouTube và các nền tảng truyền hình
+                    Định dạng màn hình ngang 16:9 tiêu chuẩn cho YouTube và Facebook Watch
                   </div>
                 </div>
 
                 <div
                   onClick={() => {
                     setAspectRatio('9:16');
-                    setTargetDurationMin(1);
+                    if (selectedPlatformPreset.aspectRatio !== '9:16') {
+                      setSelectedPlatformFormat('tiktok-viral-9-16');
+                      setTargetDurationMin(1);
+                    }
                   }}
                   className={`p-3.5 rounded-xl border cursor-pointer transition ${aspectRatio === '9:16'
                       ? 'border-zinc-950 bg-zinc-50/90 text-zinc-950 shadow-2xs ring-1 ring-zinc-950/5'
@@ -485,8 +728,49 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     <span>Khuôn Mẫu Video Ngắn (9:16)</span>
                   </div>
                   <div className="text-[11px] text-zinc-500 mt-1 leading-relaxed">
-                    Định dạng màn hình dọc 9:16 tiêu chuẩn cho Shorts, TikTok và Meta Reels
+                    Định dạng dọc chuẩn Shorts, TikTok, Instagram Reels, Facebook Reels & Threads
                   </div>
+                </div>
+              </div>
+
+              {/* Chọn định dạng chi tiết theo nền tảng mạng xã hội */}
+              <div className="pt-1">
+                <div className="text-[11px] font-medium text-zinc-600 mb-1.5 flex items-center justify-between">
+                  <span>Định dạng tối ưu theo nền tảng xuất bản (Instagram, Facebook, TikTok, YouTube, Threads):</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {PLATFORM_FORMAT_PRESETS.map((preset) => {
+                    const isSelected = selectedPlatformFormat === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedPlatformFormat(preset.id);
+                          setAspectRatio(preset.aspectRatio);
+                          setTargetDurationMin(preset.recommendedMinutes);
+                        }}
+                        title={preset.description}
+                        className={`p-2 rounded-lg border text-left transition cursor-pointer ${
+                          isSelected
+                            ? 'border-zinc-950 bg-zinc-900 text-white shadow-xs'
+                            : 'border-black/[0.08] bg-white hover:bg-zinc-50 text-zinc-800 hover:border-black/[0.2]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-semibold text-[11px] truncate">{preset.title}</span>
+                          {isSelected && <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" />}
+                        </div>
+                        <div
+                          className={`text-[10px] font-mono mt-0.5 ${
+                            isSelected ? 'text-zinc-300' : 'text-zinc-500'
+                          }`}
+                        >
+                          {preset.resolution}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -700,7 +984,13 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 required
                 placeholder="Nhập nội dung, đề tài hoặc dàn ý kịch bản bạn muốn sản xuất (Ví dụ: Giới thiệu kiến trúc vi xử lý mới, Phân tích thị trường tài chính, Phim tư liệu lịch sử...)..."
                 value={promptText}
-                onChange={(e) => setPromptText(e.target.value)}
+                onChange={(e) => {
+                  setPromptText(e.target.value);
+                  if (suggestedScript) {
+                    setSuggestedScript(null);
+                    setPreviewScenes([]);
+                  }
+                }}
                 className="w-full bg-white border border-black/[0.12] rounded-xl p-3 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950/5 leading-relaxed transition"
               />
             </div>
@@ -885,19 +1175,30 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                   {attachedImage ? (
                     <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-black/[0.08] shadow-2xs">
                       <div className="flex items-center gap-2 min-w-0">
-                        <ImageIcon className="w-3.5 h-3.5 text-sky-600 flex-shrink-0" />
+                        {attachedImage.dataUrl ? (
+                          <img
+                            src={attachedImage.dataUrl}
+                            alt={attachedImage.name}
+                            className="w-8 h-8 rounded object-cover border border-black/[0.08] flex-shrink-0"
+                          />
+                        ) : (
+                          <ImageIcon className="w-3.5 h-3.5 text-sky-600 flex-shrink-0" />
+                        )}
                         <div className="min-w-0">
                           <div className="text-[11px] font-mono text-zinc-900 truncate">
                             {attachedImage.name}
                           </div>
-                          <div className="text-[10px] text-zinc-400">
-                            {(attachedImage.size / 1024).toFixed(0)} KB
+                          <div className="text-[10px] text-emerald-600 font-medium">
+                            {(attachedImage.size / 1024).toFixed(0)} KB • Đã nạp ảnh cho AI Vision
                           </div>
                         </div>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setAttachedImage(null)}
+                        onClick={() => {
+                          setAttachedImage(null);
+                          if (imageInputRef.current) imageInputRef.current.value = '';
+                        }}
                         className="p-1 rounded text-zinc-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
                         title="Gỡ ảnh đã chọn"
                       >
@@ -919,9 +1220,17 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const file = e.target.files?.[0];
-                      if (file) setAttachedImage({ name: file.name, size: file.size });
+                      if (!file) return;
+                      try {
+                        const dataUrl = await compressImageToDataUrl(file);
+                        if (!isMountedRef.current) return;
+                        setAttachedImage({ name: file.name, size: file.size, dataUrl });
+                        setKeyErrorNotice(null);
+                      } catch (readErr: any) {
+                        setKeyErrorNotice(readErr?.message || 'Không đọc được tệp hình ảnh.');
+                      }
                     }}
                   />
                 </div>
@@ -942,14 +1251,21 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                           <div className="text-[11px] font-mono text-zinc-900 truncate">
                             {attachedAudio.name}
                           </div>
-                          <div className="text-[10px] text-zinc-400">
-                            {(attachedAudio.size / 1024).toFixed(0)} KB
+                          <div className="text-[10px] text-emerald-600 font-medium">
+                            {(attachedAudio.size / 1024).toFixed(0)} KB • Đã nạp Audio Track
                           </div>
                         </div>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setAttachedAudio(null)}
+                        onClick={() => {
+                          if (attachedAudioUrlRef.current) {
+                            URL.revokeObjectURL(attachedAudioUrlRef.current);
+                            attachedAudioUrlRef.current = null;
+                          }
+                          setAttachedAudio(null);
+                          if (audioInputRef.current) audioInputRef.current.value = '';
+                        }}
                         className="p-1 rounded text-zinc-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
                         title="Gỡ tệp âm thanh"
                       >
@@ -973,7 +1289,13 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) setAttachedAudio({ name: file.name, size: file.size });
+                      if (!file) return;
+                      if (attachedAudioUrlRef.current) {
+                        URL.revokeObjectURL(attachedAudioUrlRef.current);
+                      }
+                      const objectUrl = URL.createObjectURL(file);
+                      attachedAudioUrlRef.current = objectUrl;
+                      setAttachedAudio({ name: file.name, size: file.size, objectUrl });
                     }}
                   />
                 </div>
@@ -1000,11 +1322,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             <div className="pt-3 border-t border-black/[0.06] flex flex-wrap items-center justify-between gap-2">
               <button
                 type="button"
-                onClick={onClose}
-                disabled={isGenerating}
+                onClick={handleCancelOrClose}
                 className="btn-secondary cursor-pointer"
               >
-                Hủy
+                {isGenerating ? 'Dừng & Đóng' : 'Hủy'}
               </button>
 
               <div className="flex items-center gap-2">
@@ -1169,14 +1490,29 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
             {/* Nút hành động */}
             <div className="pt-3 border-t border-black/[0.06] flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => setWorkflowStep('input')}
-                disabled={isGenerating}
-                className="btn-secondary cursor-pointer"
-              >
-                ← Quay lại ý tưởng
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (abortControllerRef.current) {
+                      abortControllerRef.current.abort();
+                      abortControllerRef.current = null;
+                    }
+                    setIsGenerating(false);
+                    setWorkflowStep('input');
+                  }}
+                  className="btn-secondary cursor-pointer"
+                >
+                  {isGenerating ? 'Dừng & Quay lại' : '← Quay lại ý tưởng'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelOrClose}
+                  className="btn-secondary cursor-pointer"
+                >
+                  {isGenerating ? 'Dừng & Đóng' : 'Đóng'}
+                </button>
+              </div>
 
               <button
                 type="button"

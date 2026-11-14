@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import {
   Plus, Film, Clock, Calendar, Folder, Share2,
   HardDrive, Cpu, BookOpen, ChevronDown, Terminal,
-  PanelLeftClose, PanelLeftOpen, Layers
+  PanelLeftClose, PanelLeftOpen, Layers, Lock
 } from 'lucide-react';
+import { ContractCategory } from '../types';
 import { MiniPeakHoursAreaChart } from './MiniPeakHoursAreaChart';
 import { ProviderBrandLogo } from './AiProviderDropdown';
 
@@ -14,6 +15,7 @@ interface SidebarProps {
   onOpenCreateModal: () => void;
   onSelectAiProvider?: (provider: string) => void;
   selectedAiProvider?: string;
+  userPlanTier?: ContractCategory;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
 }
@@ -25,6 +27,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCreateModal,
   onSelectAiProvider,
   selectedAiProvider,
+  userPlanTier = 'personal',
   isCollapsed = false,
   onToggleCollapse,
 }) => {
@@ -78,14 +81,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <button
             onClick={() => onSelectView('video-cloner')}
-            className={`w-10 h-10 rounded-lg flex items-center justify-center transition cursor-pointer ${
+            className={`w-10 h-10 rounded-lg flex items-center justify-center transition cursor-pointer relative ${
               activeView === 'video-cloner'
                 ? 'bg-zinc-100 text-zinc-950 font-bold border border-zinc-300'
                 : 'text-zinc-500 hover:text-zinc-950 hover:bg-zinc-50'
             }`}
-            title="Nhân Bản Video (BYOK)"
+            title={
+              userPlanTier === 'enterprise'
+                ? 'Nhân Bản Video (BYOK) • Gói Toàn Hệ ULTRA'
+                : 'Nhân Bản Video (BYOK) • Yêu cầu Gói Toàn Hệ ULTRA'
+            }
           >
             <Film className="w-4 h-4" />
+            <span
+              className={`absolute -top-1 -right-1 px-1 rounded text-[7px] font-mono font-bold border ${
+                userPlanTier === 'enterprise'
+                  ? 'bg-indigo-600 text-white border-indigo-700'
+                  : 'bg-amber-400 text-zinc-950 border-amber-500'
+              }`}
+            >
+              ULTRA
+            </span>
           </button>
 
           <button
@@ -188,14 +204,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   ? 'bg-zinc-100 text-zinc-950 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100'
               }`}
-              title="Phân tích bóc tách cấu trúc DNA & Nhân bản Video"
+              title={
+                userPlanTier === 'enterprise'
+                  ? 'Phân tích bóc tách cấu trúc DNA & Nhân bản Video (Gói Toàn Hệ ULTRA)'
+                  : 'Tính năng ULTRA — Dành riêng cho Gói Trả Phí Toàn Hệ'
+              }
             >
-              <div className="flex items-center gap-2.5">
-                <Film className="w-3.5 h-3.5 text-zinc-700" />
-                <span>Nhân Bản Video (BYOK)</span>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Film className="w-3.5 h-3.5 text-zinc-700 flex-shrink-0" />
+                <span className="truncate">Nhân Bản Video (BYOK)</span>
               </div>
-              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
-                PRO
+              <span
+                className={`px-1.5 py-0.2 rounded text-[9px] font-mono font-bold border inline-flex items-center gap-0.5 flex-shrink-0 ${
+                  userPlanTier === 'enterprise'
+                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                    : 'bg-gradient-to-r from-amber-100 to-indigo-100 text-amber-900 border-amber-300'
+                }`}
+              >
+                {userPlanTier !== 'enterprise' && <Lock className="w-2.5 h-2.5" />}
+                <span>ULTRA</span>
               </span>
             </button>
 
