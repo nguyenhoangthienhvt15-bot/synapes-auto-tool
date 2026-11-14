@@ -1,5 +1,28 @@
 export type AspectRatio = '16:9' | '9:16';
 
+export type SocialPlatformFormatId =
+  | 'youtube-long-16-9'
+  | 'youtube-shorts-9-16'
+  | 'tiktok-viral-9-16'
+  | 'instagram-reels-9-16'
+  | 'instagram-feed-4-5'
+  | 'facebook-reels-9-16'
+  | 'facebook-watch-16-9'
+  | 'threads-video-9-16';
+
+export interface PlatformFormatPreset {
+  id: SocialPlatformFormatId;
+  platform: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'threads';
+  platformLabel: string;
+  title: string;
+  aspectRatio: AspectRatio;
+  displayRatio: string;
+  resolution: string;
+  recommendedMinutes: number;
+  description: string;
+  promptStyleHint: string;
+}
+
 export type ProjectStatus =
   | 'pending_approval' // Chờ duyệt
   | 'scheduled'        // Đã lên lịch
@@ -123,10 +146,12 @@ export interface Project {
   title: string;
   status: ProjectStatus;
   aspectRatio: AspectRatio;
+  platformFormat?: SocialPlatformFormatId;
+  platformFormatLabel?: string;
   videoGenre?: VideoGenre;
   newsTickerText?: string;
   duration: number; // in seconds
-  targetChannels: ('youtube' | 'tiktok' | 'facebook')[];
+  targetChannels: ('youtube' | 'tiktok' | 'facebook' | 'instagram' | 'threads')[];
   videoUrl: string;
   thumbnailUrl: string;
   musicTrack: {
@@ -156,6 +181,8 @@ export interface Project {
     youtube?: string;
     tiktok?: string;
     facebook?: string;
+    instagram?: string;
+    threads?: string;
   };
 }
 
@@ -165,6 +192,7 @@ export interface UserAccount {
   email: string;
   isLoggedIn: boolean;
   isDefaultPassword: boolean;
+  planTier?: ContractCategory;
   avatarUrl?: string;
 }
 

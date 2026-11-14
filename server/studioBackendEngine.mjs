@@ -1142,6 +1142,7 @@ const SYSTEM_CORE_ACCOUNTS = [
     registeredGmail: 'hoangnam.media@gmail.com',
     currentTempPassword: 'AutoPass@8912',
     accountStatus: 'custom_password_active',
+    planTier: 'enterprise',
   },
   {
     code: 'VIP-002',
@@ -1149,6 +1150,7 @@ const SYSTEM_CORE_ACCOUNTS = [
     registeredGmail: 'thutrang.lifestyle@gmail.com',
     currentTempPassword: 'Start@7821',
     accountStatus: 'never_changed',
+    planTier: 'personal',
   },
   {
     code: 'VIP-003',
@@ -1156,6 +1158,7 @@ const SYSTEM_CORE_ACCOUNTS = [
     registeredGmail: 'alpha.contact@gmail.com',
     currentTempPassword: 'Auto-910283',
     accountStatus: 'temp_password_active',
+    planTier: 'enterprise',
   },
   {
     code: 'VIP-004',
@@ -1163,6 +1166,7 @@ const SYSTEM_CORE_ACCOUNTS = [
     registeredGmail: 'minhtri.tech@gmail.com',
     currentTempPassword: 'Start@4452',
     accountStatus: 'custom_password_active',
+    planTier: 'personal',
   },
   {
     code: 'VIP-005',
@@ -1170,6 +1174,7 @@ const SYSTEM_CORE_ACCOUNTS = [
     registeredGmail: 'hoangyen.creator@gmail.com',
     currentTempPassword: 'Start@9911',
     accountStatus: 'never_changed',
+    planTier: 'personal',
   },
   {
     code: 'SNP_2611092202',
@@ -1177,8 +1182,24 @@ const SYSTEM_CORE_ACCOUNTS = [
     registeredGmail: 'nguyenhoangthien.hvt.15@gmail.com',
     currentTempPassword: 'SNP_378UPH',
     accountStatus: 'custom_password_active',
+    planTier: 'enterprise',
   },
 ];
+
+function inferServerPlanTier(entry) {
+  if (!entry) return 'personal';
+  if (entry.planTier === 'enterprise' || entry.contractCategory === 'enterprise') return 'enterprise';
+  if (entry.planTier === 'personal' || entry.contractCategory === 'personal') return 'personal';
+  const codeNorm = String(entry.code || entry.assignedCode || '').trim().toUpperCase();
+  if (codeNorm === 'SNP_2611092202' || codeNorm === 'VIP-001' || codeNorm === 'VIP-003') {
+    return 'enterprise';
+  }
+  const textSignal = `${entry.engineerNotes || ''} ${entry.contractPackage || ''} ${entry.contractPackageName || ''}`.toLowerCase();
+  if (/toàn\s*hệ|enterprise|doanh\s*nghiệp\s*max|\bultra\b/.test(textSignal)) {
+    return 'enterprise';
+  }
+  return 'personal';
+}
 
 function computeServerPasswordHash(code, plainPassword) {
   const codeNorm = String(code || '').trim().toUpperCase();
@@ -1240,6 +1261,7 @@ function loadAuthDirectory() {
       passwordHashUpper: computeServerPasswordHash(codeNorm, passNorm.toUpperCase()),
       accountStatus: core.accountStatus || 'never_changed',
       isDefaultPassword: core.accountStatus === 'never_changed' || core.accountStatus === 'temp_password_active',
+      planTier: core.planTier || inferServerPlanTier(core),
       phoneVerifyHash: '',
       updatedAt: 0,
       localChangedAt: 0,
@@ -1300,6 +1322,7 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
         clientName: entry.clientName || 'Khách Hàng Studio',
         registeredGmail: entry.registeredGmail || '',
         isDefaultPassword: Boolean(entry.isDefaultPassword),
+        planTier: inferServerPlanTier(entry),
       };
     }
 
@@ -1316,6 +1339,7 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
       if (reg) {
         const regPass = String(reg.assignedPassword || '').trim();
         const regHashMatch = regPass.match(/BCRYPT\$[A-F0-9]{16,64}/i);
+        const regTier = inferServerPlanTier(reg);
         if (regHashMatch) {
           if (constantTimeVerify(inputHash, regHashMatch[0].toUpperCase())) {
             return {
@@ -1323,6 +1347,7 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
               clientName: reg.fullName,
               registeredGmail: reg.email,
               isDefaultPassword: false,
+              planTier: regTier,
             };
           }
           return null;
@@ -1336,6 +1361,7 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
             clientName: reg.fullName,
             registeredGmail: reg.email,
             isDefaultPassword: true,
+            planTier: regTier,
           };
         }
       }
@@ -1354,6 +1380,7 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
       if (gasRes.ok) {
         const gasData = await gasRes.json();
         if (gasData && gasData.valid && gasData.user) {
+          const gasTier = inferServerPlanTier({ ...gasData.user, code: gasData.user.code || codeClean });
           AUTH_DIRECTORY_MAP.set(codeClean, {
             code: gasData.user.code || codeClean,
             clientName: gasData.user.name || 'Khách Hàng Studio',
@@ -1362,6 +1389,7 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
             passwordHashUpper: gasData.user.isDefaultPassword ? inputHashUpper : null,
             accountStatus: gasData.user.isDefaultPassword ? 'never_changed' : 'custom_password_active',
             isDefaultPassword: Boolean(gasData.user.isDefaultPassword),
+            planTier: gasTier,
             phoneVerifyHash: '',
             updatedAt: Date.now(),
             localChangedAt: 0,
@@ -1373,6 +1401,7 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
             clientName: gasData.user.name || 'Khách Hàng Studio',
             registeredGmail: gasData.user.email || '',
             isDefaultPassword: Boolean(gasData.user.isDefaultPassword),
+            planTier: gasTier,
           };
         }
       }
@@ -1464,6 +1493,7 @@ export async function handleStudioApiRequest(req, res) {
               name: user.clientName,
               email: user.registeredGmail,
               isDefaultPassword: user.isDefaultPassword,
+              planTier: user.planTier || 'personal',
             },
           })
         );
@@ -1616,6 +1646,7 @@ export async function handleStudioApiRequest(req, res) {
           passwordHashUpper: acc.passwordHashUpper ? String(acc.passwordHashUpper).trim().toUpperCase() : null,
           accountStatus: acc.accountStatus || 'never_changed',
           isDefaultPassword: Boolean(acc.isDefaultPassword),
+          planTier: inferServerPlanTier({ ...acc, code: acc.code, planTier: acc.planTier || existing?.planTier }),
           phoneVerifyHash: String(acc.phoneVerifyHash || existing?.phoneVerifyHash || '').trim(),
           updatedAt: now,
           localChangedAt: existing?.localChangedAt || 0,
@@ -2128,7 +2159,7 @@ export async function handleStudioApiRequest(req, res) {
   if (cleanUrl === '/api/llm-generate' && req.method === 'POST') {
     try {
       const body = await readJsonBody(req);
-      const { provider, model, apiKey, systemPrompt, userPrompt, endpointUrl } = body || {};
+      const { provider, model, apiKey, systemPrompt, userPrompt, endpointUrl, imageDataUrl } = body || {};
 
       if (!apiKey || String(apiKey).trim().length < 5) {
         res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -2137,20 +2168,28 @@ export async function handleStudioApiRequest(req, res) {
       }
 
       const cleanKey = String(apiKey).trim();
+      const parsedImageMatch =
+        typeof imageDataUrl === 'string'
+          ? imageDataUrl.trim().match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/)
+          : null;
 
       if (provider === 'gemini') {
         const base = (endpointUrl || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
-        const cleanMod = String(model || 'gemini-2.5-flash').replace(/^models\//, '').trim();
+        const requestedMod = String(model || 'gemini-2.0-flash').replace(/^models\//, '').trim();
+        const isAliasOrPreview = /^(gemini-3\.[5-9]|gemma-4)/i.test(requestedMod);
         // Filter out non-text-generation endpoints (tts, imagen, embedding, live-only, veo)
-        const isNonScriptModel = /tts|imagen|-image|embedding|robotics|veo|audio|-live|aqa/i.test(cleanMod);
-        const candidates = Array.from(
-          new Set([
-            ...(isNonScriptModel ? [] : [cleanMod]),
-            'gemini-2.5-flash',
-            'gemini-2.5-pro',
-            'gemini-2.0-flash',
-          ])
-        );
+        const isNonScriptModel = /tts|imagen|-image|embedding|robotics|veo|audio|-live|aqa/i.test(requestedMod);
+
+        const resolveGeminiServerModelCandidates = () =>
+          Array.from(
+            new Set([
+              ...(!isNonScriptModel && !isAliasOrPreview ? [requestedMod] : []),
+              'gemini-2.0-flash',
+              'gemini-2.5-flash',
+            ])
+          );
+
+        const candidates = resolveGeminiServerModelCandidates();
 
         const extractGeminiText = (parsed) => {
           const parts = parsed?.candidates?.[0]?.content?.parts;
@@ -2161,39 +2200,63 @@ export async function handleStudioApiRequest(req, res) {
           return anyText.length > 0 ? anyText[anyText.length - 1].text.trim() : '';
         };
 
+        const geminiParts = [{ text: `${systemPrompt}\n\n${userPrompt}` }];
+        if (parsedImageMatch) {
+          geminiParts.push({
+            inlineData: {
+              mimeType: parsedImageMatch[1],
+              data: parsedImageMatch[2],
+            },
+          });
+        }
+
         let lastErr = 'Gemini call failed';
         for (const mod of candidates) {
           const gUrl = `${base}/models/${encodeURIComponent(mod)}:generateContent?key=${encodeURIComponent(cleanKey)}`;
-          let resp = await postJsonHttps(gUrl, {}, {
-            contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
-            generationConfig: {
-              temperature: 0.65,
-              maxOutputTokens: 8192,
-              responseMimeType: 'application/json',
-            },
-          });
-
-          // Retry without responseMimeType if preview/experimental model rejects JSON mode
-          if (resp.status === 400) {
-            resp = await postJsonHttps(gUrl, {}, {
-              contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
-              generationConfig: {
-                temperature: 0.65,
-                maxOutputTokens: 8192,
+          try {
+            let resp = await postJsonHttps(
+              gUrl,
+              {},
+              {
+                contents: [{ parts: geminiParts }],
+                generationConfig: {
+                  temperature: 0.65,
+                  maxOutputTokens: 2500,
+                  responseMimeType: 'application/json',
+                },
               },
-            });
-          }
+              9000
+            );
 
-          if (resp.status === 200) {
-            const parsed = JSON.parse(resp.text);
-            const outText = extractGeminiText(parsed);
-            if (outText) {
-              res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-              res.end(JSON.stringify({ text: outText, actualModel: mod }));
-              return true;
+            // Retry without responseMimeType if preview/experimental model rejects JSON mode
+            if (resp.status === 400) {
+              resp = await postJsonHttps(
+                gUrl,
+                {},
+                {
+                  contents: [{ parts: geminiParts }],
+                  generationConfig: {
+                    temperature: 0.65,
+                    maxOutputTokens: 2500,
+                  },
+                },
+                9000
+              );
             }
-          } else {
-            lastErr = `HTTP ${resp.status}: ${resp.text.slice(0, 200)}`;
+
+            if (resp.status === 200) {
+              const parsed = JSON.parse(resp.text);
+              const outText = extractGeminiText(parsed);
+              if (outText) {
+                res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                res.end(JSON.stringify({ text: outText, actualModel: mod }));
+                return true;
+              }
+            } else {
+              lastErr = `HTTP ${resp.status}: ${resp.text.slice(0, 200)}`;
+            }
+          } catch (attemptErr) {
+            lastErr = String(attemptErr?.message || attemptErr);
           }
         }
         res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -2211,11 +2274,12 @@ export async function handleStudioApiRequest(req, res) {
           },
           {
             model: model || 'claude-3-7-sonnet-20250219',
-            max_tokens: 4096,
+            max_tokens: 2500,
             temperature: 0.65,
             system: systemPrompt,
             messages: [{ role: 'user', content: userPrompt }],
-          }
+          },
+          9000
         );
         if (resp.status === 200) {
           const parsed = JSON.parse(resp.text);
@@ -2237,13 +2301,21 @@ export async function handleStudioApiRequest(req, res) {
             ? 'https://api.deepseek.com/v1'
             : 'https://api.x.ai/v1';
       const base = (endpointUrl || defaultBase).replace(/\/+$/, '');
+      const userContent =
+        provider === 'openai' && parsedImageMatch
+          ? [
+              { type: 'text', text: userPrompt },
+              { type: 'image_url', image_url: { url: imageDataUrl.trim() } },
+            ]
+          : userPrompt;
       const payload = {
         model: model || (provider === 'openai' ? 'gpt-4o' : provider === 'deepseek' ? 'deepseek-chat' : 'grok-2'),
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
+          { role: 'user', content: userContent },
         ],
         temperature: 0.65,
+        max_tokens: 2500,
       };
       if (provider !== 'grok') {
         payload.response_format = { type: 'json_object' };
@@ -2251,7 +2323,8 @@ export async function handleStudioApiRequest(req, res) {
       const resp = await postJsonHttps(
         `${base}/chat/completions`,
         { Authorization: `Bearer ${cleanKey}` },
-        payload
+        payload,
+        9000
       );
       if (resp.status === 200) {
         const parsed = JSON.parse(resp.text);

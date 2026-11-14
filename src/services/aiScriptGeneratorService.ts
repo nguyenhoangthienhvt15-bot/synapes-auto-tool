@@ -3,6 +3,7 @@ import type {
   StoryboardScene,
   Skill,
   AspectRatio,
+  SocialPlatformFormatId,
   VideoGenre,
   CharacterActor,
   CameraDialogueAngle,
@@ -20,7 +21,8 @@ export type TopicDomain =
   | 'sports'
   | 'ai-cyber'
   | 'hardware'
-  | 'animation-3d';
+  | 'animation-3d'
+  | 'creative';
 
 export interface ResearchHeadlineItem {
   title: string;
@@ -47,13 +49,20 @@ export interface TopicResearchPayload {
 export interface GenerateScriptParams {
   prompt: string;
   skillId?: string;
-  skills: Skill[];
+  skills?: Skill[];
   aspectRatio: AspectRatio;
+  platformFormat?: SocialPlatformFormatId;
+  platformFormatLabel?: string;
   targetDurationMin: number;
   provider: AIProviderId;
   model: string;
   apiKey: string;
   endpointUrl?: string;
+  attachedImageDataUrl?: string;
+  attachedImageName?: string;
+  attachedAudioUrl?: string;
+  attachedAudioName?: string;
+  signal?: AbortSignal;
   onProgress?: (stepText: string, percent: number) => void;
 }
 
@@ -64,6 +73,8 @@ export interface GeneratedScriptResult {
   providerUsed: string;
   videoGenre: VideoGenre;
   topicDomain: TopicDomain;
+  platformFormat?: SocialPlatformFormatId;
+  platformFormatLabel?: string;
   newsTickerText?: string;
   title: string;
   description: string;
@@ -77,6 +88,7 @@ export interface GeneratedScriptResult {
   voiceoverTrack: {
     name: string;
     voiceName: string;
+    audioUrl?: string;
   };
   duration: number;
   characterActors?: CharacterActor[];
@@ -274,6 +286,13 @@ export const CLIENT_DOMAIN_PHOTO_POOLS: Record<TopicDomain, string[]> = {
     '/3d_insect_scene_1.jpg',
     '/3d_insect_scene_2.jpg',
   ],
+  creative: [
+    'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?auto=format&fit=crop&w=1400&q=85',
+    'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1400&q=85',
+    'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=1400&q=85',
+    'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=1400&q=85',
+    'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1400&q=85',
+  ],
 };
 
 const SCENE_VIDEO_CLIPS = [
@@ -363,11 +382,19 @@ export function classifyTopicDomainClient(text: string): TopicDomain {
     return 'hardware';
   }
 
-  if (/trí tuệ nhân tạo|\bai\b|chatgpt|gemini|claude|deepseek|robot|bán dẫn|siêu chip|cyber| dữ liệu lớn/.test(q)) {
+  if (/trí tuệ nhân tạo|\bai\b|chatgpt|gemini|claude|deepseek|robot|bán dẫn|siêu chip|cyber|dữ liệu lớn/.test(q)) {
     return 'ai-cyber';
   }
 
-  return 'news';
+  if (
+    /bản tin|thời sự|tin tức|tin nóng|điểm tin|24h|báo chí|phóng sự|chính sách|pháp luật|bão|lũ|thời tiết|breaking news|\bnews\b/.test(
+      q
+    )
+  ) {
+    return 'news';
+  }
+
+  return 'creative';
 }
 
 /**
@@ -555,18 +582,75 @@ export function buildAiSceneImageUrl(
   return `/api/image-proxy?domain=${resolvedDomain}&idx=${idx}&url=${encodeURIComponent(curatedUrl)}`;
 }
 
+function createUserAbortError(): Error {
+  const err = new Error('Đã hủy khởi tạo dự án theo yêu cầu người dùng.');
+  err.name = 'AbortError';
+  return err;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw createUserAbortError();
+  }
+}
+
+async function fetchWithTimeoutAndSignal(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  externalSignal?: AbortSignal
+): Promise<Response> {
+  throwIfAborted(externalSignal);
+
+  const controller = new AbortController();
+  let timedOut = false;
+
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  const onExternalAbort = () => controller.abort();
+  if (externalSignal) {
+    externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+  }
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    if (externalSignal?.aborted) {
+      throw createUserAbortError();
+    }
+    if (timedOut) {
+      throw new Error(`Kết nối quá thời gian (${Math.round(timeoutMs / 1000)}s)`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    if (externalSignal) {
+      externalSignal.removeEventListener('abort', onExternalAbort);
+    }
+  }
+}
+
 /**
  * Thu thập dữ liệu tin tức Google News RSS & Wikipedia thời gian thực từ Backend
  */
-async function fetchRealtimeTopicResearch(query: string): Promise<TopicResearchPayload> {
+async function fetchRealtimeTopicResearch(
+  query: string,
+  externalSignal?: AbortSignal
+): Promise<TopicResearchPayload> {
   const fallbackDomain = classifyTopicDomainClient(query);
   try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 6000);
-    const resp = await fetch(`/api/topic-research?q=${encodeURIComponent(query)}`, {
-      signal: ctrl.signal,
-    });
-    clearTimeout(timer);
+    const resp = await fetchWithTimeoutAndSignal(
+      `/api/topic-research?q=${encodeURIComponent(query)}`,
+      {},
+      5000,
+      externalSignal
+    );
     if (resp.ok) {
       const data = await resp.json();
       return {
@@ -577,7 +661,10 @@ async function fetchRealtimeTopicResearch(query: string): Promise<TopicResearchP
         visuals: Array.isArray(data.visuals) ? data.visuals : [],
       };
     }
-  } catch {
+  } catch (err: any) {
+    if (err?.name === 'AbortError' || externalSignal?.aborted) {
+      throw createUserAbortError();
+    }
     // Fallback offline gracefully
   }
   return {
@@ -601,15 +688,17 @@ function buildDirectorSystemPrompt(
   research: TopicResearchPayload,
   skill: Skill | undefined,
   aspectRatio: AspectRatio,
-  targetDurationMin: number
+  targetDurationMin: number,
+  platformFormatLabel?: string,
+  hasAttachedImage?: boolean
 ): string {
   const isShort = aspectRatio === '9:16';
   const isCountingSong = /đếm\s*số|1\s*đến\s*10|một\s*đến\s*mười|counting/i.test(`${rawPrompt} ${coreSubject}`);
-  const sceneCount = videoGenre === '3d-animation' && isCountingSong ? 10 : isShort ? 6 : 6;
+  const sceneCount = videoGenre === '3d-animation' && isCountingSong ? 10 : isShort ? 5 : 6;
 
   const roleInstruction =
     videoGenre === '3d-animation'
-      ? `Bạn là Tổng Đạo Diễn Phim Hoạt Hình 3D Ca Nhạc Thiếu Nhi (chuẩn Pixar / Disney / CoComelon 3D Animation). Phong cách: Tươi sáng, vần điệu vui nhộn, đồng bộ nhịp nhạc 130 BPM, mô tả chuyển động hình thể nhân vật 3D rõ ràng (vỗ cánh, bật nhảy Squash & Stretch, nhép miệng hát, vẫy tay) và giữ tính nhất quán tạo hình nhân vật 100% xuyên suốt mọi khung hình.`
+      ? `Bạn là Tổng Đạo Diễn Phim Hoạt Hình 3D (chuẩn Pixar / Disney). Phong cách: Tươi sáng, sinh động, mô tả chuyển động hình thể nhân vật 3D rõ ràng và giữ tính nhất quán tạo hình nhân vật 100% xuyên suốt mọi khung hình.`
       : videoGenre === 'news-broadcast'
       ? `Bạn là Tổng Biên Tập & Đạo Diễn Bản Tin Thời Sự Quốc Tế 24h (chuẩn VTV1, Reuters, BBC World News). Phong cách: Chính xác, khách quan, sắc bén, dẫn dắt dữ kiện thực tế có chiều sâu địa chính trị - xã hội. TUYỆT ĐỐI CẤM dùng văn mẫu quảng cáo sản phẩm công nghệ (như "siêu phẩm", "tuyệt tác công nghệ", "thay đổi cuộc chơi") cho bản tin thời sự!`
       : videoGenre === 'finance-analysis'
@@ -618,7 +707,7 @@ function buildDirectorSystemPrompt(
           ? `Bạn là Đạo Diễn Phim Tài Liệu Khoa Học & Lịch Sử (chuẩn National Geographic / Netflix Documentary). Phong cách: Tự sự cuốn hút, giàu tri thức xác thực và chiều sâu lịch sử.`
           : videoGenre === 'apple-keynote'
             ? `Bạn là Đạo Diễn Thương Mại Công Nghệ Cao Cấp. Phong cách: Điềm tĩnh, súc tích, tập trung vào thiết kế kỹ thuật và trải nghiệm thực tế.`
-            : `Bạn là Đạo Diễn Nội Dung Sáng Tạo Đa Nền Tảng. Phong cách: Tự nhiên, giàu cảm xúc, lôi cuốn người xem ngay từ 3 giây đầu.`;
+            : `Bạn là Đạo Diễn Nội Dung Sáng Tạo Đa Nền Tảng. Phong cách: Tự nhiên, giàu cảm xúc, kể chuyện hình ảnh cuốn hút ngay từ 3 giây đầu.`;
 
   const liveNewsBlock =
     research.headlines.length > 0
@@ -633,14 +722,20 @@ function buildDirectorSystemPrompt(
     ? `\nTHÔNG TIN BỐI CẢNH THỰC TẾ:\n${research.wikiSummary.slice(0, 900)}`
     : '';
 
+  const attachmentNote = hasAttachedImage
+    ? `\nTƯ LIỆU HÌNH ẢNH ĐÍNH KÈM: Người dùng có đính kèm ảnh gốc làm điểm khởi đầu. BẮT BUỘC bám sát chi tiết nhân vật, bối cảnh và màu sắc từ ảnh đính kèm trong toàn bộ kịch bản và visualPrompt!`
+    : '';
+
   return `${roleInstruction}
 
 NHIỆM VỤ: Biên soạn kịch bản video hoàn chỉnh gồm đúng ${sceneCount} phân cảnh về chủ đề: "${coreSubject}" (Yêu cầu gốc của người dùng: "${rawPrompt}").
+- Định dạng xuất bản mục tiêu: ${platformFormatLabel || (isShort ? '9:16 (Shorts / Reels / TikTok)' : `16:9 (YouTube / Video dài ${targetDurationMin} phút)`)}
 - Lĩnh vực phân loại: ${domain.toUpperCase()} | Thể loại đồ họa: ${videoGenre.toUpperCase()}
 - Bộ Skill: "${skill?.name || 'Biên kịch Chuyên nghiệp'}" (${skill?.tone || 'Chính xác, cuốn hút'})
-- Khung hình: ${isShort ? '9:16 (Shorts / Reels / TikTok)' : `16:9 (Bản tin / Phim ngang YouTube, mục tiêu ${targetDurationMin} phút)`}
+- Khung hình: ${isShort ? '9:16 (Dọc chuẩn TikTok / Reels / Shorts / Threads)' : `16:9 (Ngang chuẩn YouTube / Facebook Watch, mục tiêu ${targetDurationMin} phút)`}
 ${liveNewsBlock}
 ${wikiBlock}
+${attachmentNote}
 
 QUY TẮC NGHIÊM NGẶT (BẮT BUỘC TUÂN THỦ 100%):
 1. TUYỆT ĐỐI KHÔNG lặp lại nguyên văn mệnh lệnh của người dùng (như "Tạo bản tin về...", "Làm video về...") trong "title", "headline" hay "voiceover".
@@ -746,20 +841,28 @@ async function callServerLlmProxy(
   apiKey: string,
   systemPrompt: string,
   userPrompt: string,
-  endpointUrl?: string
+  endpointUrl?: string,
+  imageDataUrl?: string,
+  externalSignal?: AbortSignal
 ): Promise<{ data: any; actualModel: string }> {
-  const resp = await fetch('/api/llm-generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      provider,
-      model,
-      apiKey,
-      systemPrompt,
-      userPrompt: `[YÊU CẦU]: Hãy tạo kịch bản JSON hoàn chỉnh, bám sát thực tế cho chủ đề "${userPrompt}".`,
-      endpointUrl,
-    }),
-  });
+  const resp = await fetchWithTimeoutAndSignal(
+    '/api/llm-generate',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider,
+        model,
+        apiKey,
+        systemPrompt,
+        userPrompt: `[YÊU CẦU]: Hãy tạo kịch bản JSON hoàn chỉnh, bám sát thực tế cho chủ đề "${userPrompt}".`,
+        endpointUrl,
+        imageDataUrl,
+      }),
+    },
+    11000,
+    externalSignal
+  );
 
   if (!resp.ok) {
     const errObj = await resp.json().catch(() => null);
@@ -785,63 +888,84 @@ async function callGeminiDirectBrowser(
   apiKey: string,
   systemPrompt: string,
   userPrompt: string,
-  endpointUrl?: string
+  endpointUrl?: string,
+  imageDataUrl?: string,
+  externalSignal?: AbortSignal
 ): Promise<{ data: any; actualModel: string }> {
   const base = (endpointUrl || 'https://generativelanguage.googleapis.com/v1beta')
     .trim()
     .replace(/\/+$/, '');
 
-  const cleanPreferred = preferredModel.replace(/^models\//, '').trim() || 'gemini-3.6-flash';
+  const cleanPreferred = preferredModel.replace(/^models\//, '').trim() || 'gemini-2.0-flash';
+  const isAliasOrPreview = /^(gemini-3\.[5-9]|gemma-4)/i.test(cleanPreferred);
   const isNonScript = /tts|imagen|-image|embedding|veo|audio|-live|aqa/i.test(cleanPreferred);
 
   const candidateModels = Array.from(
     new Set([
-      ...(isNonScript ? [] : [cleanPreferred]),
-      'gemini-3.6-flash',
-      'gemini-3.5-flash',
-      'gemini-3.8-flash',
-      'gemma-4-26b-a4b-it',
+      ...(!isNonScript && !isAliasOrPreview ? [cleanPreferred] : []),
+      'gemini-2.0-flash',
       'gemini-2.5-flash',
     ])
   );
 
+  const parts: any[] = [
+    {
+      text: `${systemPrompt}\n\n[YÊU CẦU]: Viết kịch bản JSON hoàn chỉnh cho "${userPrompt}".`,
+    },
+  ];
+  const imgMatch =
+    typeof imageDataUrl === 'string'
+      ? imageDataUrl.trim().match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/)
+      : null;
+  if (imgMatch) {
+    parts.push({
+      inlineData: {
+        mimeType: imgMatch[1],
+        data: imgMatch[2],
+      },
+    });
+  }
+
   let lastError: Error | null = null;
 
   for (const mod of candidateModels) {
+    throwIfAborted(externalSignal);
     try {
       const url = `${base}/models/${encodeURIComponent(mod)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-      const contents = [
+      const contents = [{ parts }];
+
+      let res = await fetchWithTimeoutAndSignal(
+        url,
         {
-          parts: [
-            {
-              text: `${systemPrompt}\n\n[YÊU CẦU]: Viết kịch bản JSON hoàn chỉnh cho "${userPrompt}".`,
-            },
-          ],
-        },
-      ];
-
-      let res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            temperature: 0.65,
-            maxOutputTokens: 8192,
-            responseMimeType: 'application/json',
-          },
-        }),
-      });
-
-      if (res.status === 400) {
-        res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents,
-            generationConfig: { temperature: 0.65, maxOutputTokens: 8192 },
+            generationConfig: {
+              temperature: 0.65,
+              maxOutputTokens: 2500,
+              responseMimeType: 'application/json',
+            },
           }),
-        });
+        },
+        7000,
+        externalSignal
+      );
+
+      if (res.status === 400) {
+        res = await fetchWithTimeoutAndSignal(
+          url,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents,
+              generationConfig: { temperature: 0.65, maxOutputTokens: 2500 },
+            }),
+          },
+          7000,
+          externalSignal
+        );
       }
 
       if (!res.ok) {
@@ -858,6 +982,9 @@ async function callGeminiDirectBrowser(
         }
       }
     } catch (err: any) {
+      if (err?.name === 'AbortError' || externalSignal?.aborted) {
+        throw err;
+      }
       lastError = err;
     }
   }
@@ -865,22 +992,37 @@ async function callGeminiDirectBrowser(
   throw lastError || new Error('Không thể kết nối Gemini API.');
 }
 
+function splitPromptClauses(rawPrompt: string, coreSubject: string): string[] {
+  const source = (coreSubject || rawPrompt || '').trim();
+  const clauses = source
+    .split(/[\n.!?;]+|,\s+(?=[A-ZÀ-Ỹa-zà-ỹ0-9])/g)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 6);
+  return clauses.length > 0 ? clauses : [source];
+}
+
 /**
  * ĐỘNG CƠ BIÊN KỊCH BÁO CHÍ & ĐIỆN ẢNH ĐA THỂ LOẠI NỘI BỘ
  * Tự động tổng hợp từ dữ liệu Google News RSS & Wikipedia thời gian thực cho MỌI chủ đề bất kỳ
  */
 function generateBespokeMultiGenreScript(
+  rawPrompt: string,
   coreSubject: string,
   videoGenre: VideoGenre,
   domain: TopicDomain,
   research: TopicResearchPayload,
-  skill: Skill | undefined
+  skill: Skill | undefined,
+  platformFormat?: SocialPlatformFormatId,
+  platformFormatLabel?: string,
+  hasAttachedImage?: boolean
 ): any {
   const h1 = research.headlines[0]?.title;
   const h2 = research.headlines[1]?.title;
   const h3 = research.headlines[2]?.title;
   const src1 = research.headlines[0]?.source || 'các hãng thông tấn quốc tế';
   const src2 = research.headlines[1]?.source || 'giới phân tích chiến lược';
+  const promptClauses = splitPromptClauses(rawPrompt, coreSubject);
+  const fullTextSignal = `${rawPrompt} ${coreSubject}`;
 
   // Tách 1-2 câu ngắn gọn từ Wikipedia nếu có
   const wikiClean = (research.wikiSummary || '')
@@ -889,13 +1031,14 @@ function generateBespokeMultiGenreScript(
     .filter((s) => s.length > 35 && s.length < 220);
   const wikiFact1 = wikiClean[0] || '';
 
-  // 0. CHẾ ĐỘ HOẠT HÌNH 3D ĐỐI THOẠI ĐA NHÂN VẬT & NHIỀU KIỂU GIỌNG (3D DIALOGUE DRAMA)
+  // 0. CHẾ ĐỘ HOẠT HÌNH 3D ĐỐI THOẠI ĐA NHÂN VẬT & SÁNG TẠO THEO PROMPT
   if (videoGenre === '3d-animation' || domain === 'animation-3d') {
-    const isDialogue = /nói\s*chuyện|đối\s*thoại|hội\s*thoại|thỏ\s*con\s*bị\s*ốm|nhiều\s*kiểu\s*giọng|nhiều\s*giọng/i.test(
-      `${coreSubject}`
+    const isRabbitDialogue = /thỏ\s*con|thỏ\s*hồng|bị\s*ốm|bác\s*sĩ\s*gấu/i.test(fullTextSignal);
+    const isInsectCounting = /côn\s*trùng|cào\s*cào|châu\s*chấu|đếm\s*số|1\s*đến\s*10|một\s*đến\s*mười/i.test(
+      fullTextSignal
     );
 
-    if (isDialogue) {
+    if (isRabbitDialogue) {
       const title = `Phim Hoạt Hình 3D Đối Thoại: Thỏ Con Bị Ốm & Các Bạn Nhỏ (Đa Giọng Thoại)`;
       const characterActors: CharacterActor[] = [
         {
@@ -1070,39 +1213,107 @@ function generateBespokeMultiGenreScript(
       };
     }
 
-    const title = `Vũ Hội Côn Trùng 3D Nhảy Múa Hát Đếm Số Từ 1 Đến 10 — ${coreSubject}`;
-    const countingVerses = [
-      { n: 1, name: 'MỘT CHÚ CÀO CÀO XANH', lyric: 'Số Một! Một chú cào cào xanh lá bật nhảy thật cao, vỗ đôi cánh mỏng hát vang lời chào ngày mới!' },
-      { n: 2, name: 'HAI CHÚ ONG VÀNG CHĂM CHỈ', lyric: 'Số Hai! Một, hai! Hai chú ong vàng rực rỡ đập cánh xoay vòng, cùng nhau nhảy múa dưới nắng mai!' },
-      { n: 3, name: 'BA BẠN BỌ RÙA ĐỐM ĐỎ', lyric: 'Số Ba! Một, hai, ba! Ba bạn bọ rùa áo đỏ chấm bi lắc lư theo nhịp trống rộn ràng!' },
-      { n: 4, name: 'BỐN CÁNH BƯỚM NGỌC BÍCH', lyric: 'Số Bốn! Một, hai, ba, bốn! Bốn bạn bướm ngọc bích vẫy đôi cánh lấp lánh bay lượn quanh đài hoa!' },
-      { n: 5, name: 'NĂM BẠN KIẾN NHỎ ĐỒNG CA', lyric: 'Số Năm! Một, hai, ba, bốn, năm! Năm bạn kiến nhỏ vui tươi vỗ tay nhịp nhàng hát vang bài ca đếm số!' },
-      { n: 6, name: 'SÁU BẠN CÔN TRÙNG HÒA NHỊP', lyric: 'Số Sáu! Một, hai, ba, bốn, năm, sáu! Sáu người bạn côn trùng cùng bật nhảy khỏe khoắn trên sân khấu rừng xanh!' },
-      { n: 7, name: 'BẢY VŨ CÔNG RỪNG CỔ TÍCH', lyric: 'Số Bảy! Một, hai, ba, bốn, năm, sáu, bảy! Bảy vũ công tí hon xoay vòng dưới cầu vồng bảy sắc lung linh!' },
-      { n: 8, name: 'TÁM NHẠC CÔNG VỖ CÁNH', lyric: 'Số Tám! Một, hai, ba, bốn, năm, sáu, bảy, tám! Tám chú côn trùng đáng yêu đập cánh rộn rã theo điệu nhạc vui!' },
-      { n: 9, name: 'CHÍN NGƯỜI BẠN TỎA SÁNG', lyric: 'Số Chín! Một, hai, ba, bốn, năm, sáu, bảy, tám, chín! Chín bạn nhỏ nắm tay nhau nhảy điệu vũ hội mùa xuân!' },
-      { n: 10, name: 'MƯỜI BẠN CÔN TRÙNG ĐẠI HỢP XƯỚNG', lyric: 'Số Mười! Một, hai, ba, bốn, năm, sáu, bảy, tám, chín, mười! Đủ mười bạn côn trùng 3D cùng nhảy múa hát vang chào các bé!' },
-    ];
+    if (isInsectCounting) {
+      const title = `Vũ Hội Côn Trùng 3D Nhảy Múa Hát Đếm Số Từ 1 Đến 10 — ${coreSubject}`;
+      const countingVerses = [
+        { n: 1, name: 'MỘT CHÚ CÀO CÀO XANH', lyric: 'Số Một! Một chú cào cào xanh lá bật nhảy thật cao, vỗ đôi cánh mỏng hát vang lời chào ngày mới!' },
+        { n: 2, name: 'HAI CHÚ ONG VÀNG CHĂM CHỈ', lyric: 'Số Hai! Một, hai! Hai chú ong vàng rực rỡ đập cánh xoay vòng, cùng nhau nhảy múa dưới nắng mai!' },
+        { n: 3, name: 'BA BẠN BỌ RÙA ĐỐM ĐỎ', lyric: 'Số Ba! Một, hai, ba! Ba bạn bọ rùa áo đỏ chấm bi lắc lư theo nhịp trống rộn ràng!' },
+        { n: 4, name: 'BỐN CÁNH BƯỚM NGỌC BÍCH', lyric: 'Số Bốn! Một, hai, ba, bốn! Bốn bạn bướm ngọc bích vẫy đôi cánh lấp lánh bay lượn quanh đài hoa!' },
+        { n: 5, name: 'NĂM BẠN KIẾN NHỎ ĐỒNG CA', lyric: 'Số Năm! Một, hai, ba, bốn, năm! Năm bạn kiến nhỏ vui tươi vỗ tay nhịp nhàng hát vang bài ca đếm số!' },
+        { n: 6, name: 'SÁU BẠN CÔN TRÙNG HÒA NHỊP', lyric: 'Số Sáu! Một, hai, ba, bốn, năm, sáu! Sáu người bạn côn trùng cùng bật nhảy khỏe khoắn trên sân khấu rừng xanh!' },
+        { n: 7, name: 'BẢY VŨ CÔNG RỪNG CỔ TÍCH', lyric: 'Số Bảy! Một, hai, ba, bốn, năm, sáu, bảy! Bảy vũ công tí hon xoay vòng dưới cầu vồng bảy sắc lung linh!' },
+        { n: 8, name: 'TÁM NHẠC CÔNG VỖ CÁNH', lyric: 'Số Tám! Một, hai, ba, bốn, năm, sáu, bảy, tám! Tám chú côn trùng đáng yêu đập cánh rộn rã theo điệu nhạc vui!' },
+        { n: 9, name: 'CHÍN NGƯỜI BẠN TỎA SÁNG', lyric: 'Số Chín! Một, hai, ba, bốn, năm, sáu, bảy, tám, chín! Chín bạn nhỏ nắm tay nhau nhảy điệu vũ hội mùa xuân!' },
+        { n: 10, name: 'MƯỜI BẠN CÔN TRÙNG ĐẠI HỢP XƯỚNG', lyric: 'Số Mười! Một, hai, ba, bốn, năm, sáu, bảy, tám, chín, mười! Đủ mười bạn côn trùng 3D cùng nhảy múa hát vang chào các bé!' },
+      ];
+      const animPool = CLIENT_DOMAIN_PHOTO_POOLS['animation-3d'];
+      const scenes = countingVerses.map((v, i) => ({
+        sceneNumber: v.n,
+        headline: `${String(v.n).padStart(2, '0')}. SỐ ${v.n} — ${v.name}`,
+        durationSec: 4,
+        voiceover: v.lyric,
+        visualPrompt: `Pixar 3D animation wide shot of exactly ${v.n} cute 3D articulated cartoon insects dancing and singing number ${v.n} on an enchanted mossy forest stump stage, subsurface scattering, 60fps skeletal motion, 8k`,
+        imageUrl: animPool[i % animPool.length],
+        cameraMotion: i % 2 === 0 ? 'dolly-in' : 'orbit',
+        lightingStyle: 'golden-hour',
+        sfx: 'Cheerful 130BPM Marimba & Cartoon Boing + Wing Buzz',
+        transition: 'dissolve',
+      }));
+
+      return {
+        title,
+        newsTicker: 'VŨ HỘI HOẠT HÌNH 3D PIXAR • CÙNG CÁC BẠN CÔN TRÙNG NHẢY MÚA HÁT ĐẾM SỐ TỪ 1 ĐẾN 10',
+        musicGenre: 'Upbeat Kids 3D Animation Marimba & Xylophone 130BPM',
+        tags: ['HoatHinh3D', 'ConTrungNhayMua', 'HatDemSo1Den10', 'NhacThieuNhi3D', 'Synapes3DStudio'],
+        scenes,
+      };
+    }
+
+    // Các prompt hoạt hình 3D / nhân vật tự do theo đúng yêu cầu người dùng
+    const c1 = promptClauses[0] || coreSubject;
+    const c2 = promptClauses[1] || coreSubject;
     const animPool = CLIENT_DOMAIN_PHOTO_POOLS['animation-3d'];
-    const scenes = countingVerses.map((v, i) => ({
-      sceneNumber: v.n,
-      headline: `${String(v.n).padStart(2, '0')}. SỐ ${v.n} — ${v.name}`,
-      durationSec: 4,
-      voiceover: v.lyric,
-      visualPrompt: `Pixar 3D animation wide shot of exactly ${v.n} cute 3D articulated cartoon insects dancing and singing number ${v.n} on an enchanted mossy forest stump stage, subsurface scattering, 60fps skeletal motion, 8k`,
-      imageUrl: animPool[i % animPool.length],
-      cameraMotion: i % 2 === 0 ? 'dolly-in' : 'orbit',
-      lightingStyle: 'golden-hour',
-      sfx: 'Cheerful 130BPM Marimba & Cartoon Boing + Wing Buzz',
-      transition: 'dissolve',
-    }));
+    const custom3dTitle = `${coreSubject}${platformFormatLabel ? ` (${platformFormatLabel})` : ''}`;
+    const custom3dScenes = [
+      {
+        sceneNumber: 1,
+        headline: `01. MỞ MÀN: ${truncateHeadlineWords(c1.toUpperCase(), 38)}`,
+        durationSec: 5,
+        voiceover: hasAttachedImage
+          ? `Từ khung hình tư liệu gốc đầy sống động: ${c1}. Hãy cùng bước vào thế giới chuyển động 3D rực rỡ ngay từ giây đầu tiên!`
+          : `Câu chuyện bắt đầu ngay lúc này: ${c1}. Một khởi đầu tươi sáng đầy bất ngờ đang chờ đón phía trước!`,
+        visualPrompt: `Pixar 3D animation stylized scene faithful to reference visual: ${coreSubject}, expressive characters, warm sunlight, 35mm cinema lens, 8k`,
+        imageUrl: animPool[1],
+        cameraMotion: 'dolly-in',
+        lightingStyle: 'golden-hour',
+        sfx: 'Magical Harp Swell + Soft Cartoon Pop',
+        transition: 'fade',
+      },
+      {
+        sceneNumber: 2,
+        headline: '02. NHÂN VẬT TỎA SÁNG & TƯƠNG TÁC',
+        durationSec: 5,
+        voiceover: `Từng biểu cảm đáng yêu và cử chỉ tinh nghịch xoay quanh ${c2} bắt đầu trở nên sống động hơn bao giờ hết.`,
+        visualPrompt: `3D Pixar medium shot focusing on main character personality and playful interaction of ${coreSubject}, subsurface scattering, 8k`,
+        imageUrl: animPool[2],
+        cameraMotion: 'orbit',
+        lightingStyle: 'studio-clean',
+        sfx: 'Playful Marimba Groove',
+        transition: 'dissolve',
+      },
+      {
+        sceneNumber: 3,
+        headline: '03. CAO TRÀO BẤT NGỜ & CẢM XÚC',
+        durationSec: 6,
+        voiceover: `Điểm nhấn đắt giá nhất chính là khoảnh khắc ${coreSubject} tạo nên tình huống thú vị khiến người xem không thể rời mắt.`,
+        visualPrompt: `Dynamic 3D animation action frame showcasing key story moment of ${coreSubject}, volumetric god rays, crisp 60fps motion, 8k`,
+        imageUrl: animPool[3],
+        cameraMotion: 'pan-right',
+        lightingStyle: 'volumetric',
+        sfx: 'Upbeat Adventure Rise',
+        transition: 'cut',
+      },
+      {
+        sceneNumber: 4,
+        headline: '04. THÔNG ĐIỆP NGỌT NGÀO & KẾT THÚC VUI TƯƠI',
+        durationSec: 5,
+        voiceover: `Khép lại câu chuyện đáng yêu về ${coreSubject}. Bạn thích khoảnh khắc nào nhất? Hãy thả tim và chia sẻ ngay cùng bạn bè nhé!`,
+        visualPrompt: `Warm heartwarming 3D animation finale wide shot of ${coreSubject}, slow Dolly Out under golden sunset, 8k`,
+        imageUrl: animPool[0],
+        cameraMotion: 'dolly-out',
+        lightingStyle: 'golden-hour',
+        sfx: 'Warm Celebration Chime',
+        transition: 'fade',
+      },
+    ];
 
     return {
-      title,
-      newsTicker: 'VŨ HỘI HOẠT HÌNH 3D PIXAR • CÙNG CÁC BẠN CÔN TRÙNG NHẢY MÚA HÁT ĐẾM SỐ TỪ 1 ĐẾN 10',
-      musicGenre: 'Upbeat Kids 3D Animation Marimba & Xylophone 130BPM',
-      tags: ['HoatHinh3D', 'ConTrungNhayMua', 'HatDemSo1Den10', 'NhacThieuNhi3D', 'Synapes3DStudio'],
-      scenes,
+      title: custom3dTitle,
+      newsTicker: `HOẠT HÌNH 3D SÁNG TẠO • ${coreSubject.toUpperCase()}`,
+      musicGenre: 'Playful 3D Storytelling Acoustic & Marimba',
+      tags: ['HoatHinh3D', 'KeChuyenSangTao', 'SynapesStudio', platformFormat || 'video-3d'],
+      scenes: custom3dScenes,
     };
   }
 
@@ -1436,28 +1647,36 @@ function generateBespokeMultiGenreScript(
     };
   }
 
-  // 5. CHẾ ĐỘ ĐỜI SỐNG / ẨM THỰC / DU LỊCH / VIRAL XÃ HỘI
-  const title = `Khám Phá Trọn Vẹn ${coreSubject} — Những Góc Nhìn Đắt Giá Nhất`;
+  // 5. CHẾ ĐỘ SÁNG TẠO THEO PROMPT TỰ DO / MẠNG XÃ HỘI (INSTAGRAM, FACEBOOK, TIKTOK, THREADS, YOUTUBE)
+  const clause1 = promptClauses[0] || coreSubject;
+  const clause2 = promptClauses[1] || coreSubject;
+  const clause3 = promptClauses[2] || h1 || coreSubject;
+  const platformTag = platformFormatLabel || 'Đa Nền Tảng';
+  const isShortPlatform = platformFormat ? !platformFormat.includes('16-9') : false;
+
+  const title = `${coreSubject}${platformFormatLabel ? ` — Chuẩn ${platformFormatLabel}` : ''}`;
   const scenes = [
     {
       sceneNumber: 1,
-      headline: `01. HÀNH TRÌNH KHÁM PHÁ ${truncateHeadlineWords(coreSubject.toUpperCase(), 38)}`,
-      durationSec: 8,
-      voiceover: wikiFact1
-        ? `Nếu bạn đang tìm kiếm một trải nghiệm thực sự đáng nhớ, hãy cùng chúng tôi đến ngay với ${coreSubject}. ${wikiFact1}`
-        : `Nếu bạn từng tự hỏi điều gì làm nên sức hút đặc biệt của ${coreSubject}, hãy cùng theo dõi trọn vẹn hành trình khám phá chân thực và sống động ngay sau đây.`,
-      visualPrompt: `Vibrant cinematic establishing shot of ${coreSubject}, natural golden sunlight, 35mm lens, authentic atmosphere, 8k`,
+      headline: `01. HOOK MỞ MÀN: ${truncateHeadlineWords(clause1.toUpperCase(), 38)}`,
+      durationSec: isShortPlatform ? 5 : 7,
+      voiceover: hasAttachedImage
+        ? `Hãy nhìn thật kỹ khung hình gốc ngay lúc này: ${clause1}. Chỉ trong vài giây tới, bạn sẽ chứng kiến câu chuyện sống động bước ra từ chính bức ảnh này!`
+        : wikiFact1
+          ? `${clause1}. ${wikiFact1}`
+          : `Khoan lướt qua! Hãy cùng theo dõi ngay câu chuyện về ${clause1} với góc nhìn cực kỳ lôi cuốn dành riêng cho ${platformTag}.`,
+      visualPrompt: `${hasAttachedImage ? 'Image-to-video motion starting seamlessly from uploaded reference image: ' : 'Vibrant cinematic opening frame of '}${coreSubject}, dynamic natural light, crisp 35mm lens, 8k`,
       cameraMotion: 'dolly-in',
       lightingStyle: 'golden-hour',
-      sfx: 'Warm Acoustic Swell + Whoosh',
+      sfx: 'Warm Acoustic Swell + Hook Whoosh',
       transition: 'fade',
     },
     {
       sceneNumber: 2,
-      headline: '02. NÉT ĐẶC SẮC TẠO NÊN BẢN SẮC RIÊNG',
-      durationSec: 8,
-      voiceover: `Điểm chạm đầu tiên chinh phục mọi giác quan chính là sự hòa quyện tinh tế giữa không gian, con người và những giá trị nguyên bản được gìn giữ trọn vẹn tại ${coreSubject}.`,
-      visualPrompt: `Authentic close-up detail shot capturing the rich texture and culture of ${coreSubject}, shallow depth of field, 85mm lens, 8k`,
+      headline: '02. DIỄN BIẾN CHÍNH & CHI TIẾT ĐẮT GIÁ',
+      durationSec: isShortPlatform ? 6 : 8,
+      voiceover: `Đi sâu vào từng khoảnh khắc thực tế xoay quanh ${clause2}, mọi chuyển động ánh sáng, biểu cảm và nhịp điệu đều được dẫn dắt tự nhiên để giữ trọn sự chú ý.`,
+      visualPrompt: `Expressive medium tracking shot revealing key action and character details of ${clause2}, shallow depth of field, 85mm lens, 8k`,
       cameraMotion: 'orbit',
       lightingStyle: 'rembrandt',
       sfx: 'Natural Ambient Transition',
@@ -1465,12 +1684,12 @@ function generateBespokeMultiGenreScript(
     },
     {
       sceneNumber: 3,
-      headline: '03. TRẢI NGHIỆM THỰC TẾ ĐẦY CẢM HỨNG',
-      durationSec: 8,
+      headline: '03. ĐIỂM NHẤN CAO TRÀO & BỨT PHÁ CẢM XÚC',
+      durationSec: isShortPlatform ? 6 : 8,
       voiceover: h1
-        ? `Đặc biệt trong thời gian gần đây, ${h1}, càng khiến ${coreSubject} trở thành tâm điểm được cộng đồng yêu thích và chia sẻ rộng rãi.`
-        : `Từng khoảnh khắc trải nghiệm thực tế đều mang lại nguồn năng lượng tươi mới, mở ra những góc nhìn thú vị mà qua ảnh chụp thông thường khó lòng cảm nhận hết được.`,
-      visualPrompt: `Dynamic tracking shot following real-life experience of ${coreSubject}, crisp natural daylight, 60fps cinematic look, 8k`,
+        ? `Đặc biệt khi kết hợp với góc nhìn thực tế: ${clause3}, câu chuyện càng trở nên sinh động, giàu năng lượng và dễ dàng lan tỏa mạnh mẽ.`
+        : `Đây chính là giây phút cao trào đắt giá nhất trong hành trình ${coreSubject} — nơi mọi chi tiết hội tụ tạo nên cảm xúc chân thực khó quên.`,
+      visualPrompt: `Dynamic high-energy visual shot highlighting the climax of ${coreSubject}, vibrant color grading, smooth 60fps cinema look, 8k`,
       cameraMotion: 'pan-right',
       lightingStyle: 'studio-clean',
       sfx: 'Upbeat Rhythm Hit',
@@ -1478,10 +1697,10 @@ function generateBespokeMultiGenreScript(
     },
     {
       sceneNumber: 4,
-      headline: '04. KINH NGHIỆM & LƯU Ý ĐÁNG GIÁ',
-      durationSec: 8,
-      voiceover: `Để có trải nghiệm trọn vẹn nhất với ${coreSubject}, thời điểm lý tưởng và sự chuẩn bị kỹ lưỡng về lịch trình sẽ giúp bạn tận hưởng trọn vẹn từng khoảnh khắc đáng giá.`,
-      visualPrompt: `Scenic aerial perspective overlooking ${coreSubject}, atmospheric morning mist and warm sunbeams, 8k photography`,
+      headline: `04. TỐI ƯU KHUNG HÌNH ${platformTag.toUpperCase()}`,
+      durationSec: isShortPlatform ? 5 : 7,
+      voiceover: `Nhịp cắt cảnh, âm thanh nền và góc quay được căn chỉnh chuẩn tỷ lệ ${platformTag}, giúp người xem cảm nhận trọn vẹn từng chi tiết ngay từ lần chạm đầu tiên.`,
+      visualPrompt: `Scenic artistic perspective showcasing the atmosphere of ${coreSubject}, warm sunbeams and balanced framing, 8k cinematography`,
       cameraMotion: 'crane-up',
       lightingStyle: 'volumetric',
       sfx: 'Soft Chime & Breeze',
@@ -1489,10 +1708,10 @@ function generateBespokeMultiGenreScript(
     },
     {
       sceneNumber: 5,
-      headline: '05. LỜI KẾT & CHIA SẺ CÙNG CỘNG ĐỒNG',
-      durationSec: 8,
-      voiceover: `Hy vọng hành trình khám phá ${coreSubject} vừa rồi đã mang đến cho bạn nhiều cảm hứng mới mẻ. Bạn ấn tượng nhất với chi tiết nào? Hãy chia sẻ ngay dưới phần bình luận nhé!`,
-      visualPrompt: `Warm sunset wide shot concluding the story of ${coreSubject}, slow Dolly Out camera movement, 35mm cinema look, 8k`,
+      headline: '05. KẾT THÚC & KÊU GỌI TƯƠNG TÁC',
+      durationSec: isShortPlatform ? 5 : 7,
+      voiceover: `Và đó là trọn vẹn câu chuyện về ${coreSubject}. Bạn ấn tượng nhất với giây thứ mấy? Hãy bình luận và chia sẻ video này ngay nhé!`,
+      visualPrompt: `Warm concluding wide shot of ${coreSubject}, slow Dolly Out camera movement, 35mm cinema look, 8k`,
       cameraMotion: 'dolly-out',
       lightingStyle: 'golden-hour',
       sfx: 'Warm Acoustic Finale',
@@ -1502,10 +1721,10 @@ function generateBespokeMultiGenreScript(
 
   return {
     title,
-    musicGenre: 'Inspiring Acoustic & Cinematic Pulse',
+    musicGenre: 'Inspiring Acoustic & Modern Social Pulse',
     tags: [
-      coreSubject.replace(/[^a-zA-Z0-9À-ỹ]/g, '').slice(0, 22) || 'KhamPha',
-      'TraiNghiem',
+      coreSubject.replace(/[^a-zA-Z0-9À-ỹ]/g, '').slice(0, 22) || 'SangTaoNoiDung',
+      platformFormat || 'DaNenTang',
       'XuHuong',
       ...(skill?.defaultTags?.map((t) => t.replace(/^#/, '')).slice(0, 2) || ['SynapesStudio']),
     ],
@@ -1577,15 +1796,23 @@ export async function generateAiVideoScript(
   const {
     prompt,
     skillId,
-    skills,
+    skills = [],
     aspectRatio,
+    platformFormat,
+    platformFormatLabel,
     targetDurationMin,
     provider,
     model,
     apiKey,
     endpointUrl,
+    attachedImageDataUrl,
+    attachedAudioUrl,
+    attachedAudioName,
+    signal,
     onProgress,
   } = params;
+
+  throwIfAborted(signal);
 
   const skill = skills.find((s) => s.id === skillId || s.command === skillId);
   const provMeta = PROVIDERS.find((p) => p.id === provider);
@@ -1601,21 +1828,44 @@ export async function generateAiVideoScript(
     coreSubject = extractCleanSubject(coreSubject);
   }
 
-  onProgress?.(`Đang tra cứu dữ liệu thời gian thực & báo chí cho "${coreSubject}"...`, 20);
+  const prelimDomain = classifyTopicDomainClient(coreSubject);
+  const needsLiveResearch =
+    isRandomReq ||
+    (prelimDomain !== 'creative' &&
+      prelimDomain !== 'animation-3d' &&
+      (!attachedImageDataUrl ||
+        /bản tin|thời sự|tin tức|chiến sự|giá vàng|chứng khoán|iphone|khoa học|lịch sử/i.test(prompt)));
 
-  // 2. Tra cứu Google News RSS + Wikipedia + Ảnh báo chí thực tế từ Backend
-  let research = await fetchRealtimeTopicResearch(coreSubject);
+  let research: TopicResearchPayload = {
+    query: coreSubject,
+    domain: prelimDomain,
+    headlines: [],
+    wikiSummary: '',
+    visuals: [],
+  };
 
-  // Nếu là bản tin ngẫu nhiên và Google News trả về tin nóng thực tế, có thể lấy ngay tiêu điểm nóng nhất
-  if (isRandomReq && research.headlines.length > 0 && /thời sự|quốc tế/i.test(prompt)) {
-    const liveTopHeadline = research.headlines[0].title;
-    if (liveTopHeadline && liveTopHeadline.length > 15) {
-      coreSubject = liveTopHeadline;
-      research = await fetchRealtimeTopicResearch(coreSubject);
+  if (needsLiveResearch) {
+    onProgress?.(`Đang tra cứu dữ liệu thời gian thực & báo chí cho "${coreSubject}"...`, 22);
+    // 2. Tra cứu Google News RSS + Wikipedia + Ảnh báo chí thực tế từ Backend
+    research = await fetchRealtimeTopicResearch(coreSubject, signal);
+    throwIfAborted(signal);
+
+    // Nếu là bản tin ngẫu nhiên và Google News trả về tin nóng thực tế, có thể lấy ngay tiêu điểm nóng nhất
+    if (isRandomReq && research.headlines.length > 0 && /thời sự|quốc tế/i.test(prompt)) {
+      const liveTopHeadline = research.headlines[0].title;
+      if (liveTopHeadline && liveTopHeadline.length > 15) {
+        coreSubject = liveTopHeadline;
+        research = await fetchRealtimeTopicResearch(coreSubject, signal);
+        throwIfAborted(signal);
+      }
     }
+  } else {
+    onProgress?.(`Đang phân tích ý tưởng & tư liệu đính kèm cho "${coreSubject}"...`, 28);
   }
 
-  const domain: TopicDomain = research.domain || classifyTopicDomainClient(coreSubject);
+  const domain: TopicDomain = prelimDomain === 'creative' || prelimDomain === 'animation-3d'
+    ? prelimDomain
+    : research.domain || prelimDomain;
   const videoGenre: VideoGenre = detectVideoGenre(prompt, coreSubject, domain, skill);
 
   const systemPrompt = buildDirectorSystemPrompt(
@@ -1626,7 +1876,9 @@ export async function generateAiVideoScript(
     research,
     skill,
     aspectRatio,
-    targetDurationMin
+    targetDurationMin,
+    platformFormatLabel,
+    Boolean(attachedImageDataUrl)
   );
 
   let rawJson: any = null;
@@ -1646,19 +1898,27 @@ export async function generateAiVideoScript(
           apiKey,
           systemPrompt,
           coreSubject,
-          endpointUrl
+          endpointUrl,
+          attachedImageDataUrl,
+          signal
         );
         rawJson = proxyRes.data;
         actualModelUsed = proxyRes.actualModel;
-      } catch (proxyErr) {
+      } catch (proxyErr: any) {
+        if (proxyErr?.name === 'AbortError' || signal?.aborted) {
+          throw createUserAbortError();
+        }
         // Dự phòng gọi trực tiếp trên trình duyệt cho Gemini nếu proxy không phản hồi
         if (provider === 'gemini') {
+          onProgress?.(`Đang chuyển sang kênh kết nối trực tiếp ${provName}...`, 62);
           const directRes = await callGeminiDirectBrowser(
             model,
             apiKey,
             systemPrompt,
             coreSubject,
-            endpointUrl
+            endpointUrl,
+            attachedImageDataUrl,
+            signal
           );
           rawJson = directRes.data;
           actualModelUsed = directRes.actualModel;
@@ -1669,27 +1929,46 @@ export async function generateAiVideoScript(
 
       if (rawJson && Array.isArray(rawJson.scenes) && rawJson.scenes.length > 0) {
         isLiveApi = true;
-        engineMessage = `Đã biên kịch trực tiếp bởi ${provName} (${actualModelUsed}) kết hợp dữ liệu thời gian thực.`;
+        engineMessage = `Đã biên kịch trực tiếp bởi ${provName} (${actualModelUsed}) kết hợp dữ liệu thực tế.`;
       }
     } catch (err: any) {
+      if (err?.name === 'AbortError' || signal?.aborted) {
+        throw createUserAbortError();
+      }
       console.warn('Live LLM API fallback triggered:', err);
-      actualModelUsed = 'Live News & Cinema Engine';
-      engineMessage = `Đã kích hoạt Động cơ Biên kịch Báo chí & Điện ảnh Thời gian thực cho "${coreSubject}".`;
+      actualModelUsed = 'SYNAPES Studio Creative Engine';
+      engineMessage = `Đã kích hoạt Động cơ Biên kịch Thông minh SYNAPES Studio cho "${coreSubject}".`;
     }
   } else {
-    actualModelUsed = 'Live News & Cinema Engine';
+    actualModelUsed = 'SYNAPES Studio Creative Engine';
   }
 
-  // 4. Nếu chưa có API Key hoặc API quá tải: Sử dụng Động cơ Biên kịch Đa Thể Loại dựa trên dữ liệu thực tế vừa thu thập
+  throwIfAborted(signal);
+
+  // 4. Nếu chưa có API Key hoặc API quá tải: Sử dụng Động cơ Biên kịch Đa Thể Loại dựa trên dữ liệu & Prompt thực tế
   if (!rawJson || !Array.isArray(rawJson.scenes) || rawJson.scenes.length === 0) {
-    onProgress?.(`Đang biên tập kịch bản ${videoGenre === 'news-broadcast' ? 'Bản tin 24h' : 'Điện ảnh'} từ nguồn tin thực tế...`, 70);
-    rawJson = generateBespokeMultiGenreScript(coreSubject, videoGenre, domain, research, skill);
+    onProgress?.(
+      `Đang biên tập kịch bản ${videoGenre === 'news-broadcast' ? 'Bản tin 24h' : platformFormatLabel || 'Sáng tạo'} bám sát Prompt...`,
+      75
+    );
+    rawJson = generateBespokeMultiGenreScript(
+      prompt,
+      coreSubject,
+      videoGenre,
+      domain,
+      research,
+      skill,
+      platformFormat,
+      platformFormatLabel,
+      Boolean(attachedImageDataUrl)
+    );
     if (!engineMessage) {
-      engineMessage = `Đã hoàn tất dựng kịch bản & hình ảnh thực tế cho "${coreSubject}".`;
+      engineMessage = `Đã hoàn tất dựng kịch bản & hình ảnh cho "${coreSubject}".`;
     }
   }
 
-  onProgress?.('Đang đồng bộ hình ảnh báo chí thực tế, gói đồ họa & giọng đọc phát thanh viên...', 90);
+  throwIfAborted(signal);
+  onProgress?.('Đang đồng bộ hình ảnh, tư liệu đính kèm, gói đồ họa & giọng đọc...', 92);
 
   const motions: StoryboardScene['cameraMotion'][] = [
     'dolly-in',
@@ -1728,8 +2007,10 @@ export async function generateAiVideoScript(
       `Authentic photojournalistic shot of ${coreSubject}, 35mm lens, dramatic natural lighting, 8k`;
 
     const aiImageUrl =
-      sc.imageUrl ||
-      buildAiSceneImageUrl(visualPrompt, aspectRatio, idx + 1, domain, research.visuals);
+      idx === 0 && attachedImageDataUrl
+        ? attachedImageDataUrl
+        : sc.imageUrl ||
+          buildAiSceneImageUrl(visualPrompt, aspectRatio, idx + 1, domain, research.visuals);
 
     const clipUrl = SCENE_VIDEO_CLIPS[idx % SCENE_VIDEO_CLIPS.length];
     const cameraMotion = motions.includes(sc.cameraMotion)
@@ -1768,6 +2049,17 @@ export async function generateAiVideoScript(
         `Cập nhật diễn biến quan trọng tiếp theo xoay quanh ${coreSubject} từ nguồn dữ liệu thực tế.`,
       visualPrompt,
       imageUrl: aiImageUrl,
+      ...(idx === 0 && attachedImageDataUrl
+        ? {
+            customMediaUrl: attachedImageDataUrl,
+            customMediaType: 'image' as const,
+          }
+        : {}),
+      ...(idx === 0 && attachedAudioUrl
+        ? {
+            customAudioUrl: attachedAudioUrl,
+          }
+        : {}),
       clipUrl,
       cameraMotion,
       lightingStyle,
@@ -1796,6 +2088,7 @@ export async function generateAiVideoScript(
 
   const totalDuration = accumulatedSec || 48;
   const heroThumbnail =
+    attachedImageDataUrl ||
     storyboard[0]?.imageUrl ||
     buildAiSceneImageUrl(coreSubject, aspectRatio, 1, domain, research.visuals);
 
@@ -1829,6 +2122,8 @@ export async function generateAiVideoScript(
     providerUsed: isLiveApi ? provName : 'SYNAPES Studio',
     videoGenre,
     topicDomain: domain,
+    platformFormat,
+    platformFormatLabel,
     newsTickerText,
     title: cleanFinalTitle,
     description: finalDescription,
@@ -1851,8 +2146,9 @@ export async function generateAiVideoScript(
       volume: 18,
     },
     voiceoverTrack: {
-      name: defaultVoice.label,
+      name: attachedAudioUrl && attachedAudioName ? `Tệp đính kèm: ${attachedAudioName}` : defaultVoice.label,
       voiceName: defaultVoice.id,
+      ...(attachedAudioUrl ? { audioUrl: attachedAudioUrl } : {}),
     },
     duration: totalDuration,
     characterActors: rawJson.characterActors,

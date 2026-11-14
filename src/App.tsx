@@ -8,7 +8,7 @@ import {
 import {
   fetchGoogleSheetLive, getCachedSheetRows, cacheSheetRows, getLastSyncTime,
   saveCustomPassword, getStoredRegistrations, verifyAccountLogin,
-  verifyLoginViaAppsScriptWebhook
+  verifyLoginViaAppsScriptWebhook, resolveUserPlanTier
 } from './services/googleSheetService';
 import {
   getActiveSession, setActiveSession, clearActiveSession,
@@ -233,12 +233,17 @@ export function App() {
       if (serverAuthRes.ok) {
         const authData = await serverAuthRes.json();
         if (authData.success && authData.user) {
-          const userAccount: UserAccount = {
+          const baseUser: UserAccount = {
             code: authData.user.code,
             name: authData.user.name,
             email: authData.user.email,
             isLoggedIn: true,
             isDefaultPassword: Boolean(authData.user.isDefaultPassword),
+            planTier: authData.user.planTier,
+          };
+          const userAccount: UserAccount = {
+            ...baseUser,
+            planTier: authData.user.planTier || resolveUserPlanTier(baseUser, sheetRows),
           };
           try {
             localStorage.setItem(`synapes_explicit_login_${userAccount.code}`, 'true');
@@ -307,12 +312,16 @@ export function App() {
     if (row) {
       const authCheck = verifyAccountLogin(codeClean, passClean, row);
       if (authCheck.valid) {
-        resolvedUserAccount = {
+        const sheetBaseUser: UserAccount = {
           code: row.code,
           name: row.clientName,
           email: row.registeredGmail,
           isLoggedIn: true,
           isDefaultPassword: authCheck.isDefaultPassword,
+        };
+        resolvedUserAccount = {
+          ...sheetBaseUser,
+          planTier: resolveUserPlanTier(sheetBaseUser, currentRows),
         };
       }
     }
@@ -322,12 +331,17 @@ export function App() {
       try {
         const gasAuth = await verifyLoginViaAppsScriptWebhook(codeClean, passClean);
         if (gasAuth && gasAuth.valid && gasAuth.user) {
-          resolvedUserAccount = {
+          const gasBaseUser: UserAccount = {
             code: gasAuth.user.code || codeClean,
             name: gasAuth.user.name || 'Khách Hàng Studio',
             email: gasAuth.user.email || '',
             isLoggedIn: true,
             isDefaultPassword: Boolean(gasAuth.user.isDefaultPassword),
+            planTier: gasAuth.user.planTier,
+          };
+          resolvedUserAccount = {
+            ...gasBaseUser,
+            planTier: gasAuth.user.planTier || resolveUserPlanTier(gasBaseUser, currentRows),
           };
         }
       } catch {
@@ -530,6 +544,8 @@ export function App() {
     showToast(`Đã ghép ${newClipCount} clip thành công (${Math.floor(finalDurationSec / 60)}m${finalDurationSec % 60}s).`);
   };
 
+  const effectivePlanTier = resolveUserPlanTier(currentUser, sheetRows);
+
   return (
     <div className="min-h-screen bg-[#FFFFFF] text-zinc-950 flex flex-col font-sans select-none">
       {/* Toast Notification (Refined Minimal Floating Pill) */}
@@ -545,6 +561,7 @@ export function App() {
         currentUser={currentUser}
         pendingCount={pendingCount}
         activeView={activeView}
+        userPlanTier={effectivePlanTier}
         onSelectView={setActiveView}
         onLogout={handleLogout}
         onOpenChangePass={() => {
@@ -565,6 +582,7 @@ export function App() {
           activeView={activeView}
           pendingCount={pendingCount}
           selectedAiProvider={selectedAiProvider}
+          userPlanTier={effectivePlanTier}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={handleToggleSidebar}
           onSelectAiProvider={(prov) => {
@@ -708,7 +726,11 @@ export function App() {
               <div className={activeView === 'video-cloner' ? 'block' : 'hidden'}>
                 <VideoClonerView
                   config={aiConfig}
+                  currentUser={currentUser}
+                  userPlanTier={effectivePlanTier}
                   onOpenSettings={() => setActiveView('ai-engine')}
+                  onOpenLogin={() => setIsAuthModalOpen(true)}
+                  onOpenRegister={() => setIsRegisterModalOpen(true)}
                   onProjectCreated={(newProj) => {
                     setProjects([newProj, ...projects]);
                     setSelectedProject(newProj);

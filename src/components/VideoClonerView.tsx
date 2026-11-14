@@ -24,6 +24,8 @@ import {
   Columns,
   Maximize2,
   VolumeX,
+  Lock,
+  Crown,
 } from 'lucide-react';
 import {
   AIProviderConfig,
@@ -31,6 +33,8 @@ import {
   VideoDnaBlueprint,
   ClonedVideoProject,
   Project,
+  UserAccount,
+  ContractCategory,
 } from '../types';
 import {
   deconstructVideoDna,
@@ -41,7 +45,11 @@ import {
 
 interface VideoClonerViewProps {
   config: AIProviderConfig;
+  currentUser?: UserAccount | null;
+  userPlanTier?: ContractCategory;
   onOpenSettings: () => void;
+  onOpenLogin?: () => void;
+  onOpenRegister?: () => void;
   onProjectCreated?: (project: Project) => void;
   onNavigateToReview?: () => void;
 }
@@ -68,7 +76,11 @@ function loadSavedClonerState(): {
 
 export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
   config,
+  currentUser,
+  userPlanTier = 'personal',
   onOpenSettings,
+  onOpenLogin,
+  onOpenRegister,
   onProjectCreated,
   onNavigateToReview,
 }) => {
@@ -188,6 +200,7 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
 
   // Kích hoạt bóc tách video
   const handleStartDeconstruct = async (urlToUse?: string) => {
+    if (userPlanTier !== 'enterprise') return;
     const targetUrl = urlToUse || videoUrl;
     if (inputMode === 'url' && !targetUrl.trim()) {
       alert('Vui lòng dán đường dẫn video (YouTube, TikTok, Facebook, Reels)!');
@@ -244,6 +257,7 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
 
   // Kích hoạt nhân bản cho chủ đề mới
   const handleStartSynthesis = async () => {
+    if (userPlanTier !== 'enterprise') return;
     if (!dnaBlueprint) return;
     if (!newTopic.trim()) {
       alert('Vui lòng nhập chủ đề hoặc sản phẩm mới bạn muốn xây dựng!');
@@ -375,6 +389,100 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
     alert('🎉 Đã đẩy Kịch bản Nhân bản vào Hàng đợi Chờ duyệt của Studio thành công!');
     onNavigateToReview?.();
   };
+
+  if (userPlanTier !== 'enterprise') {
+    return (
+      <div className="max-w-4xl mx-auto py-8 px-2 pb-16">
+        <div className="bg-white border border-black/[0.08] rounded-2xl shadow-sm overflow-hidden">
+          <div className="bg-zinc-950 text-white p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-amber-400 text-zinc-950 text-[10.5px] font-mono font-bold tracking-wider uppercase">
+                <Crown className="w-3.5 h-3.5" />
+                <span>ULTRA • Độc quyền Gói Trả Phí Toàn Hệ</span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
+                <Lock className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                <span>Nhân Bản Video (BYOK) & Giải Mã DNA Triệu View</span>
+              </h1>
+              <p className="text-xs sm:text-sm text-zinc-300 max-w-2xl leading-relaxed">
+                Khối chức năng Bóc tách cấu trúc DNA, Giải mã Hook 3s & Nhân bản Video tự động theo khóa API riêng (BYOK) đã được chuyển sang phân hạng <strong>Gói Trả Phí Toàn Hệ (Enterprise ULTRA)</strong>.
+              </p>
+            </div>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 flex-shrink-0">
+              <div className="text-[10px] font-mono uppercase text-zinc-400">Hạng tài khoản hiện tại</div>
+              <div className="text-sm font-bold text-amber-300 mt-0.5">
+                {currentUser ? `${currentUser.code} • Gói Cá Nhân Hóa` : 'Khách / Gói Cá Nhân Hóa'}
+              </div>
+              <div className="text-[11px] text-zinc-400 mt-1 flex items-center gap-1">
+                <Lock className="w-3 h-3 text-amber-400" />
+                <span>BYOK đang ở chế độ ULTRA</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 sm:p-8 space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="p-4 rounded-xl bg-zinc-50 border border-black/[0.06] space-y-1.5">
+                <div className="font-semibold text-zinc-950 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-indigo-600" />
+                  <span>Bóc tách DNA Video</span>
+                </div>
+                <p className="text-[11px] text-zinc-600 leading-relaxed">
+                  Phân tích từng phân cảnh, nhịp cắt, khung hình và lời thoại từ URL hoặc Video tải lên.
+                </p>
+              </div>
+              <div className="p-4 rounded-xl bg-zinc-50 border border-black/[0.06] space-y-1.5">
+                <div className="font-semibold text-zinc-950 flex items-center gap-1.5">
+                  <Key className="w-4 h-4 text-amber-600" />
+                  <span>Hệ sinh thái BYOK</span>
+                </div>
+                <p className="text-[11px] text-zinc-600 leading-relaxed">
+                  Kết nối khóa API riêng với năng lực xử lý đa luồng không giới hạn cho doanh nghiệp.
+                </p>
+              </div>
+              <div className="p-4 rounded-xl bg-zinc-50 border border-black/[0.06] space-y-1.5">
+                <div className="font-semibold text-zinc-950 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>Gói Cá Nhân vẫn giữ đầy đủ</span>
+                </div>
+                <p className="text-[11px] text-zinc-600 leading-relaxed">
+                  Khởi tạo dự án theo Prompt, đa nền tảng (Insta, Facebook, TikTok, YouTube, Threads) & xuất bản bình thường.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-black/[0.06] flex flex-wrap items-center justify-between gap-3">
+              <div className="text-xs text-zinc-600">
+                Nâng cấp lên <strong>Gói Trả Phí Toàn Hệ</strong> hoặc đăng nhập mã Enterprise để mở khóa toàn bộ khối BYOK (ULTRA).
+              </div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                {onOpenLogin && (
+                  <button
+                    type="button"
+                    onClick={onOpenLogin}
+                    className="btn-secondary cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Key className="w-3.5 h-3.5" />
+                    <span>Đăng Nhập Tài Khoản Toàn Hệ</span>
+                  </button>
+                )}
+                {onOpenRegister && (
+                  <button
+                    type="button"
+                    onClick={onOpenRegister}
+                    className="px-4 py-2 rounded-lg bg-zinc-950 hover:bg-black text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                  >
+                    <Crown className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Đăng Ký / Nâng Cấp Gói Toàn Hệ (ULTRA)</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
