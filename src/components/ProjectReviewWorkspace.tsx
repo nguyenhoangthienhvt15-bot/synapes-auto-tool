@@ -1239,20 +1239,40 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
               </button>
               <button
                 onClick={() => {
-                  if (revisionPrompt.trim()) {
-                    const lowerRev = revisionPrompt.toLowerCase();
+                  const trimmedRev = revisionPrompt.trim();
+                  if (trimmedRev) {
+                    const lowerRev = trimmedRev.toLowerCase();
                     const numMatch = lowerRev.match(/(\d+)\s*(giây|s\b)/);
-                    const requestedDur = numMatch ? Math.max(4, Math.min(15, parseInt(numMatch[1], 10))) : null;
+                    const requestedDur = numMatch ? Math.max(4, Math.min(30, parseInt(numMatch[1], 10))) : null;
                     const wantApple3d =
                       projDomain === 'hardware' &&
                       (lowerRev.includes('3d') || lowerRev.includes('apple') || lowerRev.includes('bóc tách'));
                     const wantNews = lowerRev.includes('bản tin') || lowerRev.includes('thời sự');
+                    const wantReplaceImage = /đổi ảnh|thay ảnh|ảnh mới|b-roll/i.test(lowerRev);
+
+                    const parsedClauses = trimmedRev
+                      .split(/\r?\n|;\s*/)
+                      .map((line) => line.replace(/^\d+[.)\-:]\s*/, '').trim())
+                      .filter((line) => line.length >= 4);
+                    const clauses = parsedClauses.length > 0 ? parsedClauses : [trimmedRev];
 
                     let acc = 0;
                     const updatedStoryboard = project.storyboard.map((s, idx) => {
-                      const nextPrompt = `${s.visualPrompt}, ${revisionPrompt.trim()}`;
+                      const sceneDirective =
+                        clauses.length > 1 ? clauses[idx % clauses.length] : trimmedRev;
+                      const nextPrompt = `${s.visualPrompt}, ${sceneDirective}`;
+                      const nextHeadline =
+                        clauses.length > 1
+                          ? `${String(idx + 1).padStart(2, '0')}. ${sceneDirective.slice(0, 44).toUpperCase()}`
+                          : `${(s.headline || `0${idx + 1}`).replace(/\s*•.*$/, '')} • ${sceneDirective.slice(0, 26).toUpperCase()}`;
+                      const nextVoiceover =
+                        clauses.length > 1
+                          ? sceneDirective
+                          : `${(s.voiceover || '').replace(/[.!?]+$/, '')}. Đặc biệt: ${sceneDirective}.`;
+
+                      const keepCustomMedia = Boolean(s.customMediaUrl) && !wantReplaceImage;
                       const newSeed = (Date.now() % 900) + idx * 7 + 20;
-                      const dur = requestedDur || Math.max(5, (s.endSec || 8) - (s.startSec || 0));
+                      const dur = requestedDur || Math.max(4, (s.endSec || 8) - (s.startSec || 0));
                       const st = acc;
                       const en = st + dur;
                       acc = en;
@@ -1263,14 +1283,19 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
 
                       return {
                         ...s,
-                        customMediaUrl: undefined,
+                        headline: nextHeadline,
+                        voiceover: nextVoiceover,
+                        customMediaUrl: keepCustomMedia ? s.customMediaUrl : undefined,
+                        customMediaType: keepCustomMedia ? s.customMediaType : undefined,
                         startSec: st,
                         endSec: en,
                         timeRange: `${sm}:${ss} - ${em}:${es}`,
                         visualPrompt: nextPrompt,
                         cameraMotion: inferCameraFromPrompt(nextPrompt, s.cameraMotion),
                         lightingStyle: inferLightingFromPrompt(nextPrompt, s.lightingStyle),
-                        imageUrl: buildAiSceneImageUrl(nextPrompt, aspectRatio, newSeed, projDomain),
+                        imageUrl: keepCustomMedia
+                          ? s.imageUrl
+                          : buildAiSceneImageUrl(nextPrompt, aspectRatio, newSeed, projDomain),
                         explodedView: wantApple3d ? idx === 3 || s.explodedView : false,
                         apertureBlades: wantApple3d ? idx === 4 || s.apertureBlades : false,
                         appleMotion3d: (wantApple3d

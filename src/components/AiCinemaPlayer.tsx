@@ -124,7 +124,9 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   const [exportProgress, setExportProgress] = useState<number>(0);
   const [exportStatusText, setExportStatusText] = useState<string>('');
   const [exportScope, setExportScope] = useState<'full' | 'current'>('full');
+  const [exportSpeedMultiplier, setExportSpeedMultiplier] = useState<1 | 2 | 4>(2);
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
+  const exportCancelRef = useRef<(() => void) | null>(null);
 
   // Walkthrough / Session screen recording state
   const [isRecordingSession, setIsRecordingSession] = useState<boolean>(false);
@@ -3815,16 +3817,21 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     }
   };
 
-  // Real Video Export with Complete Mixed Stereo Audio
+  // Real Video Export with Complete Mixed Stereo Audio & Turbo Speed Multiplier
   const handleExportFullTimelineVideo = () => {
     const canvas = canvasRef.current;
     if (!canvas || isExportingVideo) return;
+
+    const prevSpeed = playbackSpeedRef.current;
+    let isCancelled = false;
 
     try {
       setIsExportingVideo(true);
       setShowExportModal(true);
       setExportProgress(0);
-      setExportStatusText('Đang nạp trước bộ âm thanh Neural TTS & giải mã DSP...');
+      setExportStatusText(
+        `Đang nạp trước Neural TTS & bộ trộn âm thanh (Tốc độ ${exportSpeedMultiplier}x)...`
+      );
 
       // Preload voiceover for all scenes
       synthRef.current?.preloadScenesVoiceover(scenes);
@@ -3857,11 +3864,22 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
       const chunks: BlobPart[] = [];
       recorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) chunks.push(e.data);
+        if (!isCancelled && e.data && e.data.size > 0) chunks.push(e.data);
       };
 
       recorder.onstop = () => {
+        playbackSpeedRef.current = prevSpeed;
+        exportCancelRef.current = null;
         synthRef.current?.stopCinematicSoundtrack();
+        setIsPlaying(false);
+
+        if (isCancelled) {
+          setIsExportingVideo(false);
+          setExportProgress(0);
+          setExportStatusText('Đã hủy kết xuất video.');
+          return;
+        }
+
         const blob = new Blob(chunks, { type: mimeType });
         const url = URL.createObjectURL(blob);
         setIsExportingVideo(false);
@@ -3874,38 +3892,63 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
 
         setTimeout(() => {
           setShowExportModal(false);
         }, 1800);
       };
 
-      // Set playback to start
+      // Set playback to start & apply speed multiplier
+      playbackSpeedRef.current = exportSpeedMultiplier;
       seekToTime(exportScope === 'current' ? currentScene.startSec : 0);
       setIsPlaying(true);
 
       recorder.start(250);
 
-      // Duration to record
+      // Duration to record scaled by multiplier
       const targetDurationSec =
-        exportScope === 'current' ? currentScene.endSec - currentScene.startSec : totalDuration;
-      const totalMs = targetDurationSec * 1000;
+        exportScope === 'current' ? Math.max(1, currentScene.endSec - currentScene.startSec) : Math.max(1, totalDuration);
+      const totalMs = Math.max(1000, Math.round((targetDurationSec * 1000) / exportSpeedMultiplier));
       const startMs = Date.now();
 
       const timer = setInterval(() => {
+        if (isCancelled) {
+          clearInterval(timer);
+          return;
+        }
         const elapsed = Date.now() - startMs;
         const pct = Math.min(99, Math.round((elapsed / totalMs) * 100));
         setExportProgress(pct);
-        setExportStatusText(`Đang tổng hợp khung hình & lồng tiếng... (${pct}%)`);
+        setExportStatusText(
+          `Đang tổng hợp khung hình (${exportSpeedMultiplier}x) & lồng tiếng... (${pct}%)`
+        );
 
         if (elapsed >= totalMs) {
           clearInterval(timer);
           if (recorder.state === 'recording') recorder.stop();
         }
-      }, 300);
+      }, 200);
+
+      exportCancelRef.current = () => {
+        isCancelled = true;
+        clearInterval(timer);
+        playbackSpeedRef.current = prevSpeed;
+        setIsPlaying(false);
+        synthRef.current?.stopCinematicSoundtrack();
+        if (recorder.state === 'recording') {
+          recorder.stop();
+        }
+        setIsExportingVideo(false);
+        setExportProgress(0);
+        setExportStatusText('Đã hủy kết xuất video.');
+      };
     } catch (err) {
       console.error('Export error:', err);
+      playbackSpeedRef.current = prevSpeed;
+      exportCancelRef.current = null;
       setIsExportingVideo(false);
+      setIsPlaying(false);
       synthRef.current?.stopCinematicSoundtrack();
       alert('Không thể xuất video: ' + String(err));
     }
@@ -4483,6 +4526,38 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                   </label>
                 </div>
 
+                {/* Chọn tốc độ kết xuất */}
+                <div className="p-3 rounded-xl bg-zinc-50 border border-black/[0.06] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-zinc-800">Tốc độ kết xuất Video:</span>
+                    <span className="text-[10.5px] font-mono text-emerald-700 font-semibold">
+                      Ước tính ~{Math.max(1, Math.round((exportScope === 'current' ? Math.max(1, currentScene.endSec - currentScene.startSec) : Math.max(1, totalDuration)) / exportSpeedMultiplier))}s
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(
+                      [
+                        { val: 1 as const, label: '1x Chuẩn' },
+                        { val: 2 as const, label: '2x Nhanh (Khuyên dùng)' },
+                        { val: 4 as const, label: '4x Siêu tốc' },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.val}
+                        type="button"
+                        onClick={() => setExportSpeedMultiplier(opt.val)}
+                        className={`px-2 py-1.5 rounded-lg text-[10.5px] font-semibold border transition cursor-pointer ${
+                          exportSpeedMultiplier === opt.val
+                            ? 'bg-zinc-900 text-white border-zinc-950 shadow-2xs'
+                            : 'bg-white text-zinc-700 border-black/[0.08] hover:border-black/[0.2]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between text-[11px] text-zinc-500 font-mono">
                   <span>Định dạng: WebM / VP9 HD</span>
                   <span>Âm thanh: Stereo 48kHz</span>
@@ -4524,6 +4599,16 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                   />
                 </div>
                 <div className="font-mono text-zinc-400 text-xs">{exportProgress}% hoàn tất</div>
+
+                <div className="pt-1 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => exportCancelRef.current?.()}
+                    className="px-3.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-semibold transition cursor-pointer"
+                  >
+                    Hủy kết xuất
+                  </button>
+                </div>
               </div>
             )}
           </div>

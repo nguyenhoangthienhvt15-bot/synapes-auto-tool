@@ -33,6 +33,11 @@ import {
   Layers,
   ArrowRight,
   Eye,
+  Zap,
+  Brain,
+  Clock,
+  Mic,
+  Wand2,
 } from 'lucide-react';
 import {
   PROVIDERS,
@@ -45,7 +50,11 @@ import {
   PluginPreset,
   detectPluginBrand,
 } from '../services/aiModelDiscoveryService';
-import { generateAiVideoScript, GeneratedScriptResult } from '../services/aiScriptGeneratorService';
+import {
+  generateAiVideoScript,
+  enhanceDirectorPrompt,
+  GeneratedScriptResult,
+} from '../services/aiScriptGeneratorService';
 import { dispatchScriptToPluginEngine } from '../services/pluginWebhookService';
 import { AiProviderDropdown, AiModelDropdown, ProviderBrandLogo } from './AiProviderDropdown';
 
@@ -188,6 +197,83 @@ async function compressImageToDataUrl(file: File): Promise<string> {
   });
 }
 
+const DURATION_CHIPS = [
+  { sec: 15, label: '15s' },
+  { sec: 30, label: '30s' },
+  { sec: 60, label: '60s' },
+  { sec: 180, label: '3 phút' },
+  { sec: 300, label: '5 phút' },
+  { sec: 480, label: '8 phút' },
+];
+
+const STUDIO_VOICE_OPTIONS = [
+  { id: '', label: 'Tự động theo thể loại Video' },
+  { id: 'vi-sg-male-1', label: 'Anh Nam Minh (Sài Gòn — Năng động)' },
+  { id: 'vi-sg-female-1', label: 'Chị Diệu Thảo (Sài Gòn — Truyền cảm)' },
+  { id: 'vi-dn-male-1', label: 'Anh Văn Quang (Thời sự 24h — Dõng dạc)' },
+  { id: 'vi-hn-male-1', label: 'Anh Hoàng (Hà Nội — Trầm Phóng sự)' },
+  { id: 'vi-hn-female-1', label: 'Chị Mai Linh (Hà Nội — Chuẩn Mực)' },
+  { id: 'vi-apple-keynote-male', label: 'Anh Tuấn Kiệt (Keynote Điện Ảnh)' },
+];
+
+const CAMERA_MOTION_OPTIONS: { id: StoryboardScene['cameraMotion']; label: string }[] = [
+  { id: 'dolly-in', label: 'Dolly-In (Đẩy cận)' },
+  { id: 'pan-right', label: 'Pan-Right (Lia phải)' },
+  { id: 'orbit', label: 'Orbit (Quay vòng 3D)' },
+  { id: 'crane-up', label: 'Crane-Up (Nâng góc cao)' },
+  { id: 'pan-left', label: 'Pan-Left (Lia trái)' },
+  { id: 'dolly-out', label: 'Dolly-Out (Lùi toàn cảnh)' },
+];
+
+const QUICK_PROMPT_CHIPS = [
+  {
+    label: '🦆 3 chú vịt trong hồ sen',
+    prompt:
+      'Từ hình ảnh 3 chú vịt con lông vàng bơi trong hồ sen nắng sớm\n1. Toàn cảnh 3 chú vịt tung tăng rẽ sóng mặt hồ hoa sen nở rộ.\n2. Cận cảnh 1 chú vịt tò mò rỉa cánh, giọt nước lấp lánh dưới nắng.\n3. Cả 3 chú vịt nối đuôi nhau bơi về phía ánh hoàng hôn rực rỡ.',
+  },
+  {
+    label: '🐰 Hoạt hình 3D Thỏ Con Bị Ốm',
+    prompt:
+      'Phim hoạt hình 3D đối thoại: Thỏ Con bị ốm đến gặp Bác sĩ Gấu và bạn Cừu Bông ở phòng khám rừng xanh',
+  },
+  {
+    label: '☕ Review quán cà phê chill',
+    prompt:
+      'Review tiệm cà phê rang xay thủ công phong cách tối giản buổi sáng nắng ấm\n1. Mở đầu bằng tách espresso rót chậm hương thơm lan tỏa.\n2. Góc bàn gỗ tràn ngập ánh nắng xuyên qua khung cửa kính.\n3. Barista pha pour-over nghệ thuật và lời mời ghé thưởng thức.',
+  },
+  {
+    label: '📱 Keynote Công nghệ AI',
+    prompt:
+      'Giới thiệu hệ sinh thái Chip AI thế hệ mới chuẩn điện ảnh Apple Keynote với hiệu ứng bóc tách vi xử lý silicon',
+  },
+  {
+    label: '🌅 Du lịch & Kể chuyện điện ảnh',
+    prompt:
+      'Hành trình khám phá bình minh trên bờ biển hoang sơ với flycam toàn cảnh, sóng vỗ bờ cát vàng và thông điệp sống chậm đầy cảm hứng',
+  },
+];
+
+function recalculatePreviewTimeline(scenes: StoryboardScene[]): StoryboardScene[] {
+  let acc = 0;
+  const fmt = (sec: number) =>
+    `${Math.floor(sec / 60)
+      .toString()
+      .padStart(2, '0')}:${(sec % 60).toString().padStart(2, '0')}`;
+  return scenes.map((s, idx) => {
+    const dur = Math.max(2, Math.min(120, Math.round((s.endSec || 0) - (s.startSec || 0)) || 6));
+    const startSec = acc;
+    const endSec = startSec + dur;
+    acc = endSec;
+    return {
+      ...s,
+      sceneNumber: idx + 1,
+      startSec,
+      endSec,
+      timeRange: `${fmt(startSec)} - ${fmt(endSec)}`,
+    };
+  });
+}
+
 export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   skills: initialSkills,
   aiConfig,
@@ -203,7 +289,12 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [hoveredSkill, setHoveredSkill] = useState<Skill | null>(null);
   const [promptText, setPromptText] = useState('');
-  const [targetDurationMin, setTargetDurationMin] = useState<number>(8);
+  const [targetDurationMin, setTargetDurationMin] = useState<number>(3);
+  const [targetDurationSec, setTargetDurationSec] = useState<number>(180);
+  const [selectedVoiceId, setSelectedVoiceId] = useState<string>('');
+  const [imageMotionMode, setImageMotionMode] = useState<'consistent-anchor' | 'hybrid-scenes'>(
+    'consistent-anchor'
+  );
 
   // Tách riêng đính kèm Hình ảnh (Data URL đa phương thức) và Tệp Âm thanh (Object URL)
   const [attachedImage, setAttachedImage] = useState<{
@@ -258,6 +349,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   });
 
   const isCurrentKeyConfigured = isProviderKeyConfigured(selectedProvider, aiConfig);
+  const [creationSpeedMode, setCreationSpeedMode] = useState<'turbo' | 'cloud'>(() =>
+    isProviderKeyConfigured(selectedProvider, aiConfig) ? 'cloud' : 'turbo'
+  );
 
   // Cơ chế tạo video qua công cụ Plugin: Ý tưởng -> Model AI gợi ý kịch bản -> Gửi sang Plugin -> Chuyển về Chờ Duyệt
   const [workflowStep, setWorkflowStep] = useState<'input' | 'script_preview'>('input');
@@ -429,6 +523,19 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     onClose();
   };
 
+  const handleEnhancePrompt = () => {
+    const current = promptText.trim();
+    if (!current) return;
+    const enhanced = enhanceDirectorPrompt(
+      current,
+      selectedPlatformPreset?.title,
+      Boolean(attachedImage?.dataUrl)
+    );
+    setPromptText(enhanced);
+    setSuggestedScript(null);
+    setPreviewScenes([]);
+  };
+
   // Bước 2: Model AI gợi ý kịch bản
   const handleSuggestScript = async () => {
     const finalPrompt = promptText.trim();
@@ -440,7 +547,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
     setIsSuggestingScript(true);
     setIsGenerating(true);
-    setGenerationStep(`Model AI (${selectedModel}) đang phân tích đề tài & gợi ý kịch bản phân cảnh...`);
+    setGenerationStep(
+      creationSpeedMode === 'turbo'
+        ? `⚡ Siêu tốc: Đang bóc tách trực tiếp prompt thành kịch bản...`
+        : `Model AI (${selectedModel}) đang phân tích đề tài & gợi ý kịch bản phân cảnh...`
+    );
     setGenerationPercent(20);
     setKeyErrorNotice(null);
 
@@ -455,7 +566,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         aspectRatio,
         platformFormat: selectedPlatformFormat,
         platformFormatLabel: `${selectedPlatformPreset.title} (${selectedPlatformPreset.resolution})`,
-        targetDurationMin,
+        targetDurationMin: Math.max(0.25, targetDurationSec / 60),
+        targetDurationSec,
+        preferredVoiceId: selectedVoiceId || undefined,
+        creationSpeedMode,
+        imageMotionMode,
         attachedImageDataUrl: attachedImage?.dataUrl,
         attachedImageName: attachedImage?.name,
         attachedAudioUrl: attachedAudio?.objectUrl,
@@ -498,18 +613,58 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     }
   };
 
-  // Cập nhật câu thoại của cảnh trong bản xem trước kịch bản
-  const handleUpdatePreviewSceneVoiceover = (sceneId: number, text: string) => {
+  // Cập nhật các trường của cảnh trong bản xem trước kịch bản
+  const handleUpdatePreviewSceneField = (sceneId: number, patch: Partial<StoryboardScene>) => {
     setPreviewScenes((prev) =>
-      prev.map((s) => (s.id === sceneId ? { ...s, voiceover: text } : s))
+      prev.map((s) => (s.id === sceneId ? { ...s, ...patch } : s))
     );
   };
 
-  // Cập nhật visual prompt của cảnh trong bản xem trước kịch bản
-  const handleUpdatePreviewScenePrompt = (sceneId: number, text: string) => {
+  const handleUpdatePreviewSceneDuration = (sceneId: number, newDurationSec: number) => {
+    const safeDur = Math.max(2, Math.min(120, Number(newDurationSec) || 6));
     setPreviewScenes((prev) =>
-      prev.map((s) => (s.id === sceneId ? { ...s, visualPrompt: text } : s))
+      recalculatePreviewTimeline(
+        prev.map((s) => (s.id === sceneId ? { ...s, endSec: s.startSec + safeDur } : s))
+      )
     );
+  };
+
+  const handleAddPreviewScene = () => {
+    setPreviewScenes((prev) => {
+      const last = prev[prev.length - 1];
+      const nextIdx = prev.length + 1;
+      const newScene: StoryboardScene = {
+        id: Date.now() + nextIdx,
+        sceneNumber: nextIdx,
+        headline: `0${nextIdx}. PHÂN CẢNH MỞ RỘNG THEO PROMPT`,
+        timeRange: '00:00 - 00:06',
+        startSec: last ? last.endSec : 0,
+        endSec: (last ? last.endSec : 0) + 6,
+        voiceover: `Điểm nhấn tiếp theo làm rõ thông điệp cốt lõi từ yêu cầu: ${promptText.trim().slice(0, 120)}.`,
+        visualPrompt: last?.visualPrompt || `Cinematic shot continuing ${promptText.trim().slice(0, 100)}`,
+        imageUrl: last?.imageUrl || attachedImage?.dataUrl || '',
+        ...(attachedImage?.dataUrl && imageMotionMode !== 'hybrid-scenes'
+          ? { customMediaUrl: attachedImage.dataUrl, customMediaType: 'image' as const }
+          : {}),
+        clipUrl: last?.clipUrl || '',
+        cameraMotion: CAMERA_MOTION_OPTIONS[nextIdx % CAMERA_MOTION_OPTIONS.length].id,
+        lightingStyle: last?.lightingStyle || 'studio-clean',
+        sfx: last?.sfx || 'Soft Whoosh Transition',
+        transition: 'dissolve',
+        voiceId: last?.voiceId || 'vi-sg-male-1',
+        voiceLanguage: 'vi',
+        voiceSpeed: last?.voiceSpeed || 1.05,
+        voicePitch: last?.voicePitch || 1.0,
+      };
+      return recalculatePreviewTimeline([...prev, newScene]);
+    });
+  };
+
+  const handleDeletePreviewScene = (sceneId: number) => {
+    setPreviewScenes((prev) => {
+      if (prev.length <= 1) return prev;
+      return recalculatePreviewTimeline(prev.filter((s) => s.id !== sceneId));
+    });
   };
 
   // Bước 3 & 4: Gửi kịch bản sang công cụ Plugin và chuyển sản phẩm video về Bàn Chờ Duyệt
@@ -529,7 +684,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
       // Nếu chưa chạy gợi ý trước đó, tạo kịch bản ngay
       if (!scriptToDispatch) {
-        setGenerationStep(`Model AI (${selectedModel}) đang khởi tạo kịch bản phân cảnh...`);
+        setGenerationStep(
+          creationSpeedMode === 'turbo'
+            ? `⚡ Siêu tốc: Đang bóc tách kịch bản chuẩn prompt...`
+            : `Model AI (${selectedModel}) đang khởi tạo kịch bản phân cảnh...`
+        );
         setGenerationPercent(18);
 
         const apiKey = getProviderApiKey(selectedProvider, aiConfig);
@@ -542,7 +701,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           aspectRatio,
           platformFormat: selectedPlatformFormat,
           platformFormatLabel: `${selectedPlatformPreset.title} (${selectedPlatformPreset.resolution})`,
-          targetDurationMin,
+          targetDurationMin: Math.max(0.25, targetDurationSec / 60),
+          targetDurationSec,
+          preferredVoiceId: selectedVoiceId || undefined,
+          creationSpeedMode,
+          imageMotionMode,
           attachedImageDataUrl: attachedImage?.dataUrl,
           attachedImageName: attachedImage?.name,
           attachedAudioUrl: attachedAudio?.objectUrl,
@@ -566,8 +729,13 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
       // Áp dụng storyboard đã chỉnh sửa nếu có
       if (previewScenes && previewScenes.length > 0) {
+        const recomputedTotal = previewScenes.reduce(
+          (acc, s) => acc + Math.max(2, Math.round((s.endSec || 0) - (s.startSec || 0)) || 6),
+          0
+        );
         scriptToDispatch = {
           ...scriptToDispatch,
+          duration: recomputedTotal || scriptToDispatch.duration,
           storyboard: previewScenes,
         };
       }
@@ -693,7 +861,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     setAspectRatio('16:9');
                     if (selectedPlatformPreset.aspectRatio !== '16:9') {
                       setSelectedPlatformFormat('youtube-long-16-9');
-                      setTargetDurationMin(8);
+                      setTargetDurationMin(3);
+                      setTargetDurationSec(180);
                     }
                   }}
                   className={`p-3.5 rounded-xl border cursor-pointer transition ${aspectRatio === '16:9'
@@ -715,7 +884,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     setAspectRatio('9:16');
                     if (selectedPlatformPreset.aspectRatio !== '9:16') {
                       setSelectedPlatformFormat('tiktok-viral-9-16');
-                      setTargetDurationMin(1);
+                      setTargetDurationMin(0.5);
+                      setTargetDurationSec(30);
                     }
                   }}
                   className={`p-3.5 rounded-xl border cursor-pointer transition ${aspectRatio === '9:16'
@@ -748,7 +918,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                         onClick={() => {
                           setSelectedPlatformFormat(preset.id);
                           setAspectRatio(preset.aspectRatio);
-                          setTargetDurationMin(preset.recommendedMinutes);
+                          const nextSec = preset.aspectRatio === '9:16' ? 30 : preset.recommendedMinutes >= 5 ? 180 : 180;
+                          setTargetDurationSec(nextSec);
+                          setTargetDurationMin(nextSec / 60);
                         }}
                         title={preset.description}
                         className={`p-2 rounded-lg border text-left transition cursor-pointer ${
@@ -975,14 +1147,46 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             </div>
 
             {/* 3. CHỦ ĐỀ HOẶC KỊCH BẢN NỘI DUNG */}
-            <div className="space-y-1.5">
-              <label className="text-zinc-800 font-semibold block">
-                3. Chủ đề hoặc Kịch bản nội dung *
-              </label>
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-zinc-800 font-semibold block">
+                  3. Chủ đề hoặc Kịch bản nội dung *
+                </label>
+                <button
+                  type="button"
+                  onClick={handleEnhancePrompt}
+                  disabled={!promptText.trim() || isGenerating}
+                  className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed shadow-2xs"
+                  title="Tự động mở rộng ý tưởng ngắn thành dàn ý phân cảnh chi tiết bám sát khuôn mẫu đạo diễn"
+                >
+                  <Wand2 className="w-3 h-3 text-indigo-600" />
+                  <span>✨ Nâng cấp Prompt Chuẩn Đạo Diễn</span>
+                </button>
+              </div>
+
+              {/* Quick Prompt Chips */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] text-zinc-500 font-medium mr-0.5">Gợi ý nhanh:</span>
+                {QUICK_PROMPT_CHIPS.map((chip) => (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    onClick={() => {
+                      setPromptText(chip.prompt);
+                      setSuggestedScript(null);
+                      setPreviewScenes([]);
+                    }}
+                    className="px-2 py-0.5 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-700 hover:text-zinc-950 border border-black/[0.06] text-[10.5px] font-medium transition cursor-pointer"
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+
               <textarea
-                rows={3}
+                rows={4}
                 required
-                placeholder="Nhập nội dung, đề tài hoặc dàn ý kịch bản bạn muốn sản xuất (Ví dụ: Giới thiệu kiến trúc vi xử lý mới, Phân tích thị trường tài chính, Phim tư liệu lịch sử...)..."
+                placeholder="Nhập nội dung, đề tài hoặc gõ từng dòng phân cảnh (Ví dụ: 1. Cảnh mở đầu..., 2. Cận cảnh nhân vật..., hoặc để AI bóc tách trực tiếp từ câu lệnh của bạn)..."
                 value={promptText}
                 onChange={(e) => {
                   setPromptText(e.target.value);
@@ -993,6 +1197,94 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 }}
                 className="w-full bg-white border border-black/[0.12] rounded-xl p-3 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950/5 leading-relaxed transition"
               />
+
+              {/* Thời lượng, Giọng đọc AI & Chế độ tốc độ */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+                {/* Thời lượng mục tiêu */}
+                <div className="p-2.5 rounded-xl bg-zinc-50/80 border border-black/[0.07] space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-800">
+                    <Clock className="w-3.5 h-3.5 text-zinc-600" />
+                    <span>Thời lượng Video</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {DURATION_CHIPS.map((chip) => {
+                      const active = targetDurationSec === chip.sec;
+                      return (
+                        <button
+                          key={chip.sec}
+                          type="button"
+                          onClick={() => {
+                            setTargetDurationSec(chip.sec);
+                            setTargetDurationMin(chip.sec / 60);
+                          }}
+                          className={`px-2 py-0.5 rounded-md text-[10.5px] font-mono font-semibold border transition cursor-pointer ${
+                            active
+                              ? 'bg-zinc-900 text-white border-zinc-950 shadow-2xs'
+                              : 'bg-white text-zinc-700 border-black/[0.08] hover:border-black/[0.2]'
+                          }`}
+                        >
+                          {chip.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Chọn Giọng đọc AI */}
+                <div className="p-2.5 rounded-xl bg-zinc-50/80 border border-black/[0.07] space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-800">
+                    <Mic className="w-3.5 h-3.5 text-zinc-600" />
+                    <span>Giọng đọc AI (Tiếng Việt)</span>
+                  </div>
+                  <select
+                    value={selectedVoiceId}
+                    onChange={(e) => setSelectedVoiceId(e.target.value)}
+                    className="w-full bg-white border border-black/[0.1] rounded-lg px-2 py-1.5 text-[11px] font-medium text-zinc-900 focus:outline-none focus:border-zinc-950 cursor-pointer"
+                  >
+                    {STUDIO_VOICE_OPTIONS.map((v) => (
+                      <option key={v.id || 'auto'} value={v.id}>
+                        {v.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Chế độ tốc độ xử lý */}
+                <div className="p-2.5 rounded-xl bg-zinc-50/80 border border-black/[0.07] space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-800">
+                    <Zap className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Tốc độ khởi tạo</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setCreationSpeedMode('turbo')}
+                      className={`px-2 py-1 rounded-lg text-[10.5px] font-semibold border flex items-center justify-center gap-1 transition cursor-pointer ${
+                        creationSpeedMode === 'turbo'
+                          ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                          : 'bg-white text-zinc-700 border-black/[0.08] hover:border-black/[0.2]'
+                      }`}
+                      title="Dựng kịch bản & phân cảnh tức thì dưới 1 giây bằng Động cơ Đạo diễn nội bộ bám sát 100% prompt"
+                    >
+                      <Zap className="w-3 h-3" />
+                      <span>Siêu tốc (&lt;1s)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCreationSpeedMode('cloud')}
+                      className={`px-2 py-1 rounded-lg text-[10.5px] font-semibold border flex items-center justify-center gap-1 transition cursor-pointer ${
+                        creationSpeedMode === 'cloud'
+                          ? 'bg-zinc-900 text-white border-zinc-950 shadow-2xs'
+                          : 'bg-white text-zinc-700 border-black/[0.08] hover:border-black/[0.2]'
+                      }`}
+                      title="Kết nối Model AI đám mây (Gemini/GPT/Claude) chạy đua đa luồng để sáng tạo sâu"
+                    >
+                      <Brain className="w-3 h-3" />
+                      <span>AI Cloud</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* 4. CƠ CHẾ PLUGIN & MÔ HÌNH AI BIÊN KỊCH */}
@@ -1173,37 +1465,70 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     </span>
                   </div>
                   {attachedImage ? (
-                    <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-black/[0.08] shadow-2xs">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {attachedImage.dataUrl ? (
-                          <img
-                            src={attachedImage.dataUrl}
-                            alt={attachedImage.name}
-                            className="w-8 h-8 rounded object-cover border border-black/[0.08] flex-shrink-0"
-                          />
-                        ) : (
-                          <ImageIcon className="w-3.5 h-3.5 text-sky-600 flex-shrink-0" />
-                        )}
-                        <div className="min-w-0">
-                          <div className="text-[11px] font-mono text-zinc-900 truncate">
-                            {attachedImage.name}
-                          </div>
-                          <div className="text-[10px] text-emerald-600 font-medium">
-                            {(attachedImage.size / 1024).toFixed(0)} KB • Đã nạp ảnh cho AI Vision
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-black/[0.08] shadow-2xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {attachedImage.dataUrl ? (
+                            <img
+                              src={attachedImage.dataUrl}
+                              alt={attachedImage.name}
+                              className="w-8 h-8 rounded object-cover border border-black/[0.08] flex-shrink-0"
+                            />
+                          ) : (
+                            <ImageIcon className="w-3.5 h-3.5 text-sky-600 flex-shrink-0" />
+                          )}
+                          <div className="min-w-0">
+                            <div className="text-[11px] font-mono text-zinc-900 truncate">
+                              {attachedImage.name}
+                            </div>
+                            <div className="text-[10px] text-emerald-600 font-medium">
+                              {(attachedImage.size / 1024).toFixed(0)} KB • Đã nạp ảnh cho AI Vision
+                            </div>
                           </div>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAttachedImage(null);
+                            if (imageInputRef.current) imageInputRef.current.value = '';
+                          }}
+                          className="p-1 rounded text-zinc-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+                          title="Gỡ ảnh đã chọn"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAttachedImage(null);
-                          if (imageInputRef.current) imageInputRef.current.value = '';
-                        }}
-                        className="p-1 rounded text-zinc-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
-                        title="Gỡ ảnh đã chọn"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+
+                      {/* Chế độ chuyển động ảnh đính kèm qua nhiều phân cảnh */}
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                        <span className="text-[10px] font-semibold text-zinc-600 mr-0.5">
+                          Chế độ dựng ảnh:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setImageMotionMode('consistent-anchor')}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition cursor-pointer ${
+                            imageMotionMode === 'consistent-anchor'
+                              ? 'bg-zinc-900 text-white border-zinc-950'
+                              : 'bg-white text-zinc-700 border-black/[0.1] hover:border-black/[0.2]'
+                          }`}
+                          title="Giữ nguyên ảnh gốc xuyên suốt mọi phân cảnh với các góc máy Dolly/Pan/Orbit khác nhau"
+                        >
+                          Giữ nhân vật xuyên suốt
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setImageMotionMode('hybrid-scenes')}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition cursor-pointer ${
+                            imageMotionMode === 'hybrid-scenes'
+                              ? 'bg-zinc-900 text-white border-zinc-950'
+                              : 'bg-white text-zinc-700 border-black/[0.1] hover:border-black/[0.2]'
+                          }`}
+                          title="Cảnh 1 dùng ảnh gốc, các cảnh sau tự động cắt sang B-Roll đồng bộ theo prompt"
+                        >
+                          Kết hợp B-Roll mở rộng
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button
@@ -1361,78 +1686,138 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           /* WORKFLOW STEP 2: XEM LƯỚT KỊCH BẢN DO MODEL AI GỢI Ý & GỬI SANG PLUGIN */
           <div className="space-y-4 text-xs animate-in fade-in duration-150">
             {/* Header thanh kịch bản */}
-            <div className="p-3 rounded-xl bg-indigo-50/80 border border-indigo-200/80 flex items-start justify-between gap-2">
+            <div className="p-3 rounded-xl bg-indigo-50/80 border border-indigo-200/80 flex flex-wrap items-start justify-between gap-2">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="font-bold text-zinc-950 text-xs">
-                    Kịch Bản Được Gợi Ý Bởi {PROVIDERS.find((p) => p.id === selectedProvider)?.name} ({selectedModel})
+                    Kịch Bản: {suggestedScript?.modelUsed || selectedModel}
                   </span>
                   <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-indigo-100 text-indigo-900 border border-indigo-300">
                     {previewScenes.length} Phân cảnh
                   </span>
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-white text-zinc-800 border border-black/[0.08]">
+                    Tổng: {previewScenes.reduce((acc, s) => acc + Math.max(2, Math.round((s.endSec || 0) - (s.startSec || 0)) || 6), 0)}s
+                  </span>
                 </div>
                 <p className="text-[11px] text-zinc-600 mt-0.5">
-                  Bạn có thể đọc lướt, chỉnh sửa câu thoại hoặc visual prompt của từng cảnh trước khi điều phối sang công cụ Plugin.
+                  Chỉnh sửa trực tiếp tiêu đề cảnh, thời lượng, góc máy, lời thoại hoặc thêm/bớt phân cảnh trước khi điều phối sang Plugin.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setWorkflowStep('input')}
-                disabled={isGenerating}
-                className="px-2.5 py-1 rounded-lg bg-white border border-indigo-200 text-indigo-900 text-[11px] font-medium hover:bg-indigo-100 transition cursor-pointer flex items-center gap-1"
-              >
-                <span>← Sửa ý tưởng</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleAddPreviewScene}
+                  disabled={isGenerating}
+                  className="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-black text-white text-[11px] font-semibold transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>+ Thêm phân cảnh</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWorkflowStep('input')}
+                  disabled={isGenerating}
+                  className="px-2.5 py-1 rounded-lg bg-white border border-indigo-200 text-indigo-900 text-[11px] font-medium hover:bg-indigo-100 transition cursor-pointer flex items-center gap-1"
+                >
+                  <span>← Sửa ý tưởng</span>
+                </button>
+              </div>
             </div>
 
             {/* Danh sách phân cảnh kịch bản có thể chỉnh sửa */}
             <div className="space-y-2.5 max-h-[46vh] overflow-y-auto pr-1">
-              {previewScenes.map((scene, idx) => (
-                <div
-                  key={scene.id || idx}
-                  className="p-3 rounded-xl bg-white border border-black/[0.08] shadow-2xs space-y-2"
-                >
-                  <div className="flex items-center justify-between text-[11px] border-b border-black/[0.05] pb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-zinc-900 text-white font-mono font-bold flex items-center justify-center text-[10px]">
-                        {idx + 1}
-                      </span>
-                      <span className="font-semibold text-zinc-900 truncate">
-                        {scene.headline || `Cảnh 0${idx + 1}`}
-                      </span>
+              {previewScenes.map((scene, idx) => {
+                const sceneDuration = Math.max(2, Math.round((scene.endSec || 0) - (scene.startSec || 0)) || 6);
+                return (
+                  <div
+                    key={scene.id || idx}
+                    className="p-3 rounded-xl bg-white border border-black/[0.08] shadow-2xs space-y-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] border-b border-black/[0.05] pb-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-[180px]">
+                        <span className="w-5 h-5 rounded-full bg-zinc-900 text-white font-mono font-bold flex items-center justify-center text-[10px] flex-shrink-0">
+                          {idx + 1}
+                        </span>
+                        <input
+                          type="text"
+                          value={scene.headline || `Cảnh 0${idx + 1}`}
+                          onChange={(e) => handleUpdatePreviewSceneField(scene.id, { headline: e.target.value })}
+                          className="flex-1 bg-zinc-50 border border-black/[0.08] rounded-md px-2 py-1 text-[11px] font-semibold text-zinc-900 focus:outline-none focus:border-zinc-950 focus:bg-white transition"
+                          aria-label={`Tiêu đề phân cảnh ${idx + 1}`}
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5 font-mono text-[10px] text-zinc-600">
+                        <select
+                          value={scene.cameraMotion}
+                          onChange={(e) =>
+                            handleUpdatePreviewSceneField(scene.id, {
+                              cameraMotion: e.target.value as StoryboardScene['cameraMotion'],
+                            })
+                          }
+                          className="bg-zinc-50 border border-black/[0.08] rounded-md px-1.5 py-1 text-[10px] text-zinc-800 cursor-pointer focus:outline-none focus:border-zinc-950"
+                          title="Chuyển động góc máy"
+                        >
+                          {CAMERA_MOTION_OPTIONS.map((cam) => (
+                            <option key={cam.id} value={cam.id}>
+                              {cam.label}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="flex items-center gap-1 bg-zinc-50 border border-black/[0.08] rounded-md px-1.5 py-0.5">
+                          <input
+                            type="number"
+                            min={2}
+                            max={120}
+                            value={sceneDuration}
+                            onChange={(e) => handleUpdatePreviewSceneDuration(scene.id, Number(e.target.value))}
+                            className="w-10 bg-transparent text-center font-mono text-[10.5px] font-semibold text-zinc-900 focus:outline-none"
+                            title="Thời lượng cảnh (giây)"
+                          />
+                          <span>s</span>
+                        </div>
+                        {previewScenes.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePreviewScene(scene.id)}
+                            className="p-1 rounded-md text-zinc-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+                            title="Xóa cảnh"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 font-mono text-[10px] text-zinc-500">
-                      <span>{scene.cameraMotion}</span>
-                      <span>•</span>
-                      <span>{(scene.endSec - scene.startSec) || 8}s</span>
+
+                    <div>
+                      <label className="text-[10px] font-medium text-zinc-500 block mb-0.5">
+                        Lời thuyết minh (Voiceover Tiếng Việt):
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={scene.voiceover}
+                        onChange={(e) =>
+                          handleUpdatePreviewSceneField(scene.id, { voiceover: e.target.value })
+                        }
+                        className="w-full bg-zinc-50 border border-black/[0.08] rounded-lg p-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-950 focus:bg-white leading-relaxed transition"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-medium text-zinc-500 block mb-0.5">
+                        Mô tả camera & Visual Prompt gửi sang Plugin:
+                      </label>
+                      <input
+                        type="text"
+                        value={scene.visualPrompt}
+                        onChange={(e) =>
+                          handleUpdatePreviewSceneField(scene.id, { visualPrompt: e.target.value })
+                        }
+                        className="w-full bg-zinc-50 border border-black/[0.08] rounded-lg px-2 py-1 text-[11px] font-mono text-zinc-700 focus:outline-none focus:border-zinc-950 focus:bg-white transition"
+                      />
                     </div>
                   </div>
-
-                  <div>
-                    <label className="text-[10px] font-medium text-zinc-500 block mb-0.5">
-                      Lời thuyết minh (Voiceover Tiếng Việt):
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={scene.voiceover}
-                      onChange={(e) => handleUpdatePreviewSceneVoiceover(scene.id, e.target.value)}
-                      className="w-full bg-zinc-50 border border-black/[0.08] rounded-lg p-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-950 focus:bg-white leading-relaxed transition"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-medium text-zinc-500 block mb-0.5">
-                      Mô tả camera & Visual Prompt gửi sang Plugin:
-                    </label>
-                    <input
-                      type="text"
-                      value={scene.visualPrompt}
-                      onChange={(e) => handleUpdatePreviewScenePrompt(scene.id, e.target.value)}
-                      className="w-full bg-zinc-50 border border-black/[0.08] rounded-lg px-2 py-1 text-[11px] font-mono text-zinc-700 focus:outline-none focus:border-zinc-950 focus:bg-white transition"
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Bước 3: Chọn Công Cụ Plugin Video Điều Phối */}

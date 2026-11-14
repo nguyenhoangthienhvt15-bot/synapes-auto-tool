@@ -54,6 +54,10 @@ export interface GenerateScriptParams {
   platformFormat?: SocialPlatformFormatId;
   platformFormatLabel?: string;
   targetDurationMin: number;
+  targetDurationSec?: number;
+  preferredVoiceId?: string;
+  creationSpeedMode?: 'turbo' | 'cloud';
+  imageMotionMode?: 'consistent-anchor' | 'hybrid-scenes';
   provider: AIProviderId;
   model: string;
   apiKey: string;
@@ -521,6 +525,131 @@ export function extractCleanSubject(rawPrompt: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+const TOPIC_RESEARCH_CACHE = new Map<string, TopicResearchPayload>();
+const SCRIPT_RESULT_CACHE = new Map<string, GeneratedScriptResult>();
+
+interface SemanticVisualRule {
+  pattern: RegExp;
+  urls: string[];
+}
+
+const SEMANTIC_VISUAL_RULES: SemanticVisualRule[] = [
+  {
+    pattern: /\b(vịt|đàn vịt|chú vịt|thiên nga|ngỗng|duck|duckling|swan|goose)\b|hồ sen|ao sen|lotus pond/i,
+    urls: [
+      'https://images.unsplash.com/photo-1459682687441-7761439a709d?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1555852095-64e7428df0fa?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1474511320723-9a56873867b5?auto=format&fit=crop&w=1400&q=85',
+    ],
+  },
+  {
+    pattern: /\b(mèo|chú mèo|mèo con|cat|kitten|kitty)\b/i,
+    urls: [
+      'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1495360010541-f48722b34f7d?auto=format&fit=crop&w=1400&q=85',
+    ],
+  },
+  {
+    pattern: /\b(chó|cún|chú chó|dog|puppy|corgi|shiba|golden retriever)\b/i,
+    urls: [
+      'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1587300003388-59208cc962cb?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&w=1400&q=85',
+    ],
+  },
+  {
+    pattern: /\b(biển|đại dương|bãi biển|hoàng hôn|bình minh|ocean|sea|beach|sunset|sunrise)\b/i,
+    urls: [
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?auto=format&fit=crop&w=1400&q=85',
+    ],
+  },
+  {
+    pattern: /\b(rừng|núi|thác nước|thiên nhiên|cây xanh|forest|mountain|waterfall|nature|jungle)\b/i,
+    urls: [
+      'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1400&q=85',
+    ],
+  },
+  {
+    pattern: /\b(cà phê|trà|bánh|coffee|cafe|espresso|latte|tea|bakery)\b/i,
+    urls: [
+      'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1511920170033-f8396924c348?auto=format&fit=crop&w=1400&q=85',
+    ],
+  },
+  {
+    pattern: /\b(vũ trụ|không gian|phi hành gia|mặt trăng|sao hỏa|space|astronaut|moon|galaxy|cosmos)\b/i,
+    urls: [
+      'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1517976487492-5750f3195933?auto=format&fit=crop&w=1400&q=85',
+    ],
+  },
+  {
+    pattern: /\b(thành phố|đô thị|đường phố|ban đêm|neon|city|urban|street|tokyo|saigon|hanoi)\b/i,
+    urls: [
+      'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?auto=format&fit=crop&w=1400&q=85',
+    ],
+  },
+  {
+    pattern: /\b(xe|ô tô|siêu xe|mô tô|car|supercar|racing|automotive)\b/i,
+    urls: [
+      'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1542362567-b07e54358753?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=1400&q=85',
+    ],
+  },
+  {
+    pattern: /\b(thời trang|làm đẹp|skincare|fashion|style|makeup|beauty|studio)\b/i,
+    urls: [
+      'https://images.unsplash.com/photo-1483985988655-e837288018dd?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=1400&q=85',
+      'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=1400&q=85',
+    ],
+  },
+];
+
+function matchSemanticSceneVisual(text: string, idx: number): string | null {
+  if (!text) return null;
+  for (const rule of SEMANTIC_VISUAL_RULES) {
+    if (rule.pattern.test(text)) {
+      return rule.urls[idx % rule.urls.length];
+    }
+  }
+  return null;
+}
+
+export function enhanceDirectorPrompt(
+  rawPrompt: string,
+  platformFormatLabel?: string,
+  hasAttachedImage?: boolean
+): string {
+  const clean = extractCleanSubject(rawPrompt || '');
+  const subject = clean === 'Thời sự Quốc tế & Thế giới 24h' && (!rawPrompt || rawPrompt.trim().length < 4)
+    ? 'Câu chuyện sáng tạo giàu cảm xúc'
+    : clean;
+  const formatLine = platformFormatLabel ? ` (Tối ưu khung hình ${platformFormatLabel})` : '';
+  const imageAnchor = hasAttachedImage
+    ? ' Bắt đầu mượt mà từ ảnh gốc đính kèm, giữ đồng nhất nhân vật và ánh sáng xuyên suốt.'
+    : '';
+
+  return [
+    `Chủ đề chính: ${subject}${formatLine}.${imageAnchor}`,
+    `1. Mở màn Hook 3s: Giới thiệu trực diện bối cảnh và nhân vật trung tâm của ${subject} với góc máy cận cảnh giàu cảm xúc.`,
+    `2. Diễn biến chuyển động: Theo sát hành động nổi bật của ${subject}, tăng nhịp cắt cảnh mượt và âm thanh hiện trường sống động.`,
+    `3. Điểm nhấn cao trào: Khoảnh khắc bùng nổ tạo sự bất ngờ hoặc giá trị cốt lõi xoay quanh ${subject}.`,
+    `4. Kết thúc & Tương tác: Khung hình toàn cảnh ấm áp kèm câu hỏi gợi mở bình luận từ người xem.`,
+  ].join('\n');
+}
+
 /**
  * Sinh URL hình ảnh thực tế đúng 100% lĩnh vực chủ đề (thông qua CORS Image Proxy an toàn cho Canvas)
  */
@@ -538,8 +667,18 @@ export function buildAiSceneImageUrl(
 
   const idx = Math.max(0, sceneIndex - 1);
 
-  // 0. Đối với Hoạt hình 3D (animation-3d): Luôn ưu tiên Sân khấu 3D Pixar nội bộ sắc nét (tuyệt đối không lấy ảnh báo chí Wikipedia)
+  // 0. Đối với Hoạt hình 3D (animation-3d): ưu tiên Sân khấu 3D Pixar nội bộ cho kịch bản thỏ/côn trùng;
+  // nếu visualPrompt mô tả đối tượng cụ thể ngoài (vịt, mèo, vũ trụ...) vẫn ưu tiên khớp ảnh ngữ nghĩa chuẩn Prompt!
   if (resolvedDomain === 'animation-3d') {
+    const isClassicStage = /thỏ\s*con|bunny|rabbit|côn\s*trùng|grasshopper|insect|ladybug|clinic stage/i.test(
+      visualPrompt || ''
+    );
+    if (!isClassicStage) {
+      const animSemantic = matchSemanticSceneVisual(visualPrompt, idx);
+      if (animSemantic) {
+        return `/api/image-proxy?domain=${resolvedDomain}&idx=${idx}&url=${encodeURIComponent(animSemantic)}`;
+      }
+    }
     const animPool = CLIENT_DOMAIN_PHOTO_POOLS['animation-3d'];
     return animPool[idx % animPool.length];
   }
@@ -562,6 +701,12 @@ export function buildAiSceneImageUrl(
     else if (/display|oled|screen|120hz|bezel/.test(lower)) hwUrl = REAL_IPHONE_18_INTERNET_IMAGES[1];
     else if (/battery|magsafe|charging/.test(lower)) hwUrl = REAL_IPHONE_18_INTERNET_IMAGES[4];
     return `/api/image-proxy?domain=hardware&idx=${idx}&url=${encodeURIComponent(hwUrl)}`;
+  }
+
+  // 2.5 Khớp kho ảnh ngữ nghĩa đa tầng theo đúng từ khóa đối tượng/bối cảnh trong Prompt
+  const semanticMatch = matchSemanticSceneVisual(visualPrompt, idx);
+  if (semanticMatch && (sceneIndex <= 15 || idx > 0)) {
+    return `/api/image-proxy?domain=${resolvedDomain}&idx=${idx}&url=${encodeURIComponent(semanticMatch)}`;
   }
 
   // 3. Đối với mọi chủ đề Thời sự / Chiến sự / Tài chính / Khoa học / Lịch sử / Đời sống:
@@ -643,23 +788,32 @@ async function fetchRealtimeTopicResearch(
   query: string,
   externalSignal?: AbortSignal
 ): Promise<TopicResearchPayload> {
+  const cacheKey = (query || '').trim().toLowerCase();
+  const cached = TOPIC_RESEARCH_CACHE.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const fallbackDomain = classifyTopicDomainClient(query);
   try {
     const resp = await fetchWithTimeoutAndSignal(
       `/api/topic-research?q=${encodeURIComponent(query)}`,
       {},
-      5000,
+      2200,
       externalSignal
     );
     if (resp.ok) {
       const data = await resp.json();
-      return {
+      const payload: TopicResearchPayload = {
         query,
         domain: (data.domain as TopicDomain) || fallbackDomain,
         headlines: Array.isArray(data.headlines) ? data.headlines : [],
         wikiSummary: String(data.wikiSummary || ''),
         visuals: Array.isArray(data.visuals) ? data.visuals : [],
       };
+      if (TOPIC_RESEARCH_CACHE.size > 30) TOPIC_RESEARCH_CACHE.clear();
+      TOPIC_RESEARCH_CACHE.set(cacheKey, payload);
+      return payload;
     }
   } catch (err: any) {
     if (err?.name === 'AbortError' || externalSignal?.aborted) {
@@ -860,7 +1014,7 @@ async function callServerLlmProxy(
         imageDataUrl,
       }),
     },
-    11000,
+    5500,
     externalSignal
   );
 
@@ -948,7 +1102,7 @@ async function callGeminiDirectBrowser(
             },
           }),
         },
-        7000,
+        5000,
         externalSignal
       );
 
@@ -963,7 +1117,7 @@ async function callGeminiDirectBrowser(
               generationConfig: { temperature: 0.65, maxOutputTokens: 2500 },
             }),
           },
-          7000,
+          5000,
           externalSignal
         );
       }
@@ -993,12 +1147,61 @@ async function callGeminiDirectBrowser(
 }
 
 function splitPromptClauses(rawPrompt: string, coreSubject: string): string[] {
+  const nonEmptyLines = (rawPrompt || '')
+    .split(/\r?\n+/)
+    .map((line) => line.trim())
+    .filter((line) => line.length >= 6);
+
+  const numberedSceneLines = nonEmptyLines
+    .filter((line) => /^\s*(?:\d+[\.\):]|Cảnh\s*\d+:|Scene\s*\d+:)/i.test(line))
+    .map((line) => line.replace(/^\s*(?:\d+[\.\):]|[-•*]|Cảnh\s*\d+:|Scene\s*\d+:)\s*/i, '').trim())
+    .filter((line) => line.length >= 6);
+
+  if (numberedSceneLines.length >= 2) {
+    return numberedSceneLines.slice(0, 8);
+  }
+
+  const rawLines = nonEmptyLines
+    .map((line) => line.replace(/^\s*(?:\d+[\.\):]|[-•*]|Cảnh\s*\d+:|Scene\s*\d+:)\s*/i, '').trim())
+    .filter((line) => line.length >= 6 && !/^chủ đề(?:\s+chính)?:/i.test(line));
+
+  if (rawLines.length >= 2) {
+    return rawLines.slice(0, 8);
+  }
+
   const source = (coreSubject || rawPrompt || '').trim();
   const clauses = source
-    .split(/[\n.!?;]+|,\s+(?=[A-ZÀ-Ỹa-zà-ỹ0-9])/g)
+    .split(/[.!?;]+|,\s+(?=[A-ZÀ-Ỹa-zà-ỹ0-9])/g)
     .map((s) => s.trim())
     .filter((s) => s.length >= 6);
   return clauses.length > 0 ? clauses : [source];
+}
+
+interface ParsedPromptDetails {
+  beats: string[];
+  quotedLines: string[];
+  moodHint: string;
+}
+
+function parsePromptStructure(rawPrompt: string, coreSubject: string): ParsedPromptDetails {
+  const beats = splitPromptClauses(rawPrompt, coreSubject);
+  const quotedLines: string[] = [];
+  const quoteRegex = /["“]([^"”]{4,160})["”]/g;
+  let m: RegExpExecArray | null;
+  while ((m = quoteRegex.exec(rawPrompt || '')) !== null) {
+    if (m[1]) quotedLines.push(m[1].trim());
+  }
+
+  const lower = (rawPrompt || '').toLowerCase();
+  const moodHint = /hài|vui|dễ thương|tinh nghịch|ấm áp/.test(lower)
+    ? 'warm playful cheerful atmosphere'
+    : /kịch tính|gay cấn|bí ẩn|hồi hộp|hành động/.test(lower)
+      ? 'dramatic suspenseful high-contrast cinema'
+      : /buồn|cảm động|sâu lắng|lãng mạn|bình yên/.test(lower)
+        ? 'emotional poetic golden hour light'
+        : 'crisp cinematic natural lighting';
+
+  return { beats, quotedLines, moodHint };
 }
 
 /**
@@ -1014,7 +1217,8 @@ function generateBespokeMultiGenreScript(
   skill: Skill | undefined,
   platformFormat?: SocialPlatformFormatId,
   platformFormatLabel?: string,
-  hasAttachedImage?: boolean
+  hasAttachedImage?: boolean,
+  targetDurationSec?: number
 ): any {
   const h1 = research.headlines[0]?.title;
   const h2 = research.headlines[1]?.title;
@@ -1251,20 +1455,26 @@ function generateBespokeMultiGenreScript(
     }
 
     // Các prompt hoạt hình 3D / nhân vật tự do theo đúng yêu cầu người dùng
-    const c1 = promptClauses[0] || coreSubject;
-    const c2 = promptClauses[1] || coreSubject;
-    const animPool = CLIENT_DOMAIN_PHOTO_POOLS['animation-3d'];
+    const { beats: prompt3dBeats, quotedLines: quoted3d, moodHint: mood3d } = parsePromptStructure(
+      rawPrompt,
+      coreSubject
+    );
+    const desired3dDur = targetDurationSec && targetDurationSec > 0 ? targetDurationSec : 24;
+    const per3dDur = Math.max(4, Math.min(10, Math.round(desired3dDur / Math.max(4, prompt3dBeats.length))));
+    const c1 = prompt3dBeats[0] || coreSubject;
+    const c2 = prompt3dBeats[1] || coreSubject;
+    const c3 = prompt3dBeats[2] || quoted3d[0] || coreSubject;
+    const c4 = prompt3dBeats[3] || coreSubject;
     const custom3dTitle = `${coreSubject}${platformFormatLabel ? ` (${platformFormatLabel})` : ''}`;
     const custom3dScenes = [
       {
         sceneNumber: 1,
         headline: `01. MỞ MÀN: ${truncateHeadlineWords(c1.toUpperCase(), 38)}`,
-        durationSec: 5,
+        durationSec: per3dDur,
         voiceover: hasAttachedImage
           ? `Từ khung hình tư liệu gốc đầy sống động: ${c1}. Hãy cùng bước vào thế giới chuyển động 3D rực rỡ ngay từ giây đầu tiên!`
-          : `Câu chuyện bắt đầu ngay lúc này: ${c1}. Một khởi đầu tươi sáng đầy bất ngờ đang chờ đón phía trước!`,
-        visualPrompt: `Pixar 3D animation stylized scene faithful to reference visual: ${coreSubject}, expressive characters, warm sunlight, 35mm cinema lens, 8k`,
-        imageUrl: animPool[1],
+          : `Câu chuyện bắt đầu ngay lúc này: ${c1}. ${quoted3d[0] ? `"${quoted3d[0]}" — ` : ''}Một khởi đầu tươi sáng đầy bất ngờ đang chờ đón phía trước!`,
+        visualPrompt: `Pixar 3D animation stylized scene of ${c1}, expressive characters, ${mood3d}, 35mm cinema lens, 8k`,
         cameraMotion: 'dolly-in',
         lightingStyle: 'golden-hour',
         sfx: 'Magical Harp Swell + Soft Cartoon Pop',
@@ -1272,11 +1482,12 @@ function generateBespokeMultiGenreScript(
       },
       {
         sceneNumber: 2,
-        headline: '02. NHÂN VẬT TỎA SÁNG & TƯƠNG TÁC',
-        durationSec: 5,
-        voiceover: `Từng biểu cảm đáng yêu và cử chỉ tinh nghịch xoay quanh ${c2} bắt đầu trở nên sống động hơn bao giờ hết.`,
-        visualPrompt: `3D Pixar medium shot focusing on main character personality and playful interaction of ${coreSubject}, subsurface scattering, 8k`,
-        imageUrl: animPool[2],
+        headline: `02. ${prompt3dBeats[1] ? truncateHeadlineWords(c2.toUpperCase(), 38) : 'NHÂN VẬT TỎA SÁNG & TƯƠNG TÁC'}`,
+        durationSec: per3dDur,
+        voiceover: prompt3dBeats[1]
+          ? `${c2}. Từng biểu cảm, ánh mắt và chuyển động 3D đều bám sát từng chi tiết bạn đã mô tả.`
+          : `Từng biểu cảm đáng yêu và cử chỉ tinh nghịch xoay quanh ${coreSubject} bắt đầu trở nên sống động hơn bao giờ hết.`,
+        visualPrompt: `3D Pixar medium tracking shot of ${c2}, personality and playful interaction, subsurface scattering, 8k`,
         cameraMotion: 'orbit',
         lightingStyle: 'studio-clean',
         sfx: 'Playful Marimba Groove',
@@ -1284,11 +1495,12 @@ function generateBespokeMultiGenreScript(
       },
       {
         sceneNumber: 3,
-        headline: '03. CAO TRÀO BẤT NGỜ & CẢM XÚC',
-        durationSec: 6,
-        voiceover: `Điểm nhấn đắt giá nhất chính là khoảnh khắc ${coreSubject} tạo nên tình huống thú vị khiến người xem không thể rời mắt.`,
-        visualPrompt: `Dynamic 3D animation action frame showcasing key story moment of ${coreSubject}, volumetric god rays, crisp 60fps motion, 8k`,
-        imageUrl: animPool[3],
+        headline: `03. ${prompt3dBeats[2] ? truncateHeadlineWords(c3.toUpperCase(), 38) : 'CAO TRÀO BẤT NGỜ & CẢM XÚC'}`,
+        durationSec: per3dDur,
+        voiceover: prompt3dBeats[2]
+          ? `Bước sang phân đoạn cao trào: ${c3}, tạo nên điểm nhấn cảm xúc khiến người xem không thể rời mắt.`
+          : `Điểm nhấn đắt giá nhất chính là khoảnh khắc ${coreSubject} tạo nên tình huống thú vị khiến người xem không thể rời mắt.`,
+        visualPrompt: `Dynamic 3D animation action frame depicting ${c3}, ${mood3d}, volumetric god rays, 60fps, 8k`,
         cameraMotion: 'pan-right',
         lightingStyle: 'volumetric',
         sfx: 'Upbeat Adventure Rise',
@@ -1296,11 +1508,12 @@ function generateBespokeMultiGenreScript(
       },
       {
         sceneNumber: 4,
-        headline: '04. THÔNG ĐIỆP NGỌT NGÀO & KẾT THÚC VUI TƯƠI',
-        durationSec: 5,
-        voiceover: `Khép lại câu chuyện đáng yêu về ${coreSubject}. Bạn thích khoảnh khắc nào nhất? Hãy thả tim và chia sẻ ngay cùng bạn bè nhé!`,
-        visualPrompt: `Warm heartwarming 3D animation finale wide shot of ${coreSubject}, slow Dolly Out under golden sunset, 8k`,
-        imageUrl: animPool[0],
+        headline: `04. ${prompt3dBeats[3] ? truncateHeadlineWords(c4.toUpperCase(), 38) : 'THÔNG ĐIỆP & KẾT THÚC VUI TƯƠI'}`,
+        durationSec: per3dDur,
+        voiceover: prompt3dBeats[3]
+          ? `${c4}. Bạn thích khoảnh khắc nào nhất trong câu chuyện "${coreSubject}"? Hãy thả tim và bình luận ngay nhé!`
+          : `Khép lại câu chuyện đáng yêu về ${coreSubject}. Bạn thích khoảnh khắc nào nhất? Hãy thả tim và chia sẻ ngay cùng bạn bè nhé!`,
+        visualPrompt: `Warm heartwarming 3D animation finale wide shot of ${c4}, slow Dolly Out under golden sunset, 8k`,
         cameraMotion: 'dolly-out',
         lightingStyle: 'golden-hour',
         sfx: 'Warm Celebration Chime',
@@ -1648,76 +1861,125 @@ function generateBespokeMultiGenreScript(
   }
 
   // 5. CHẾ ĐỘ SÁNG TẠO THEO PROMPT TỰ DO / MẠNG XÃ HỘI (INSTAGRAM, FACEBOOK, TIKTOK, THREADS, YOUTUBE)
-  const clause1 = promptClauses[0] || coreSubject;
-  const clause2 = promptClauses[1] || coreSubject;
-  const clause3 = promptClauses[2] || h1 || coreSubject;
+  const { beats: socialBeats, quotedLines: socialQuotes, moodHint: socialMood } = parsePromptStructure(
+    rawPrompt,
+    coreSubject
+  );
   const platformTag = platformFormatLabel || 'Đa Nền Tảng';
-  const isShortPlatform = platformFormat ? !platformFormat.includes('16-9') : false;
+  const isShortPlatform = platformFormat
+    ? !platformFormat.includes('16-9')
+    : (targetDurationSec ? targetDurationSec <= 60 : true);
+
+  const desiredTotalSec =
+    targetDurationSec && targetDurationSec > 0 ? targetDurationSec : isShortPlatform ? 30 : 48;
+  const targetCount = desiredTotalSec <= 18 ? 3 : desiredTotalSec <= 40 ? 4 : 5;
+  const perSceneSec = Math.max(4, Math.min(12, Math.round(desiredTotalSec / targetCount)));
 
   const title = `${coreSubject}${platformFormatLabel ? ` — Chuẩn ${platformFormatLabel}` : ''}`;
-  const scenes = [
-    {
-      sceneNumber: 1,
-      headline: `01. HOOK MỞ MÀN: ${truncateHeadlineWords(clause1.toUpperCase(), 38)}`,
-      durationSec: isShortPlatform ? 5 : 7,
-      voiceover: hasAttachedImage
-        ? `Hãy nhìn thật kỹ khung hình gốc ngay lúc này: ${clause1}. Chỉ trong vài giây tới, bạn sẽ chứng kiến câu chuyện sống động bước ra từ chính bức ảnh này!`
-        : wikiFact1
-          ? `${clause1}. ${wikiFact1}`
-          : `Khoan lướt qua! Hãy cùng theo dõi ngay câu chuyện về ${clause1} với góc nhìn cực kỳ lôi cuốn dành riêng cho ${platformTag}.`,
-      visualPrompt: `${hasAttachedImage ? 'Image-to-video motion starting seamlessly from uploaded reference image: ' : 'Vibrant cinematic opening frame of '}${coreSubject}, dynamic natural light, crisp 35mm lens, 8k`,
-      cameraMotion: 'dolly-in',
-      lightingStyle: 'golden-hour',
-      sfx: 'Warm Acoustic Swell + Hook Whoosh',
-      transition: 'fade',
-    },
-    {
-      sceneNumber: 2,
-      headline: '02. DIỄN BIẾN CHÍNH & CHI TIẾT ĐẮT GIÁ',
-      durationSec: isShortPlatform ? 6 : 8,
-      voiceover: `Đi sâu vào từng khoảnh khắc thực tế xoay quanh ${clause2}, mọi chuyển động ánh sáng, biểu cảm và nhịp điệu đều được dẫn dắt tự nhiên để giữ trọn sự chú ý.`,
-      visualPrompt: `Expressive medium tracking shot revealing key action and character details of ${clause2}, shallow depth of field, 85mm lens, 8k`,
-      cameraMotion: 'orbit',
-      lightingStyle: 'rembrandt',
-      sfx: 'Natural Ambient Transition',
-      transition: 'dissolve',
-    },
-    {
-      sceneNumber: 3,
-      headline: '03. ĐIỂM NHẤN CAO TRÀO & BỨT PHÁ CẢM XÚC',
-      durationSec: isShortPlatform ? 6 : 8,
-      voiceover: h1
-        ? `Đặc biệt khi kết hợp với góc nhìn thực tế: ${clause3}, câu chuyện càng trở nên sinh động, giàu năng lượng và dễ dàng lan tỏa mạnh mẽ.`
-        : `Đây chính là giây phút cao trào đắt giá nhất trong hành trình ${coreSubject} — nơi mọi chi tiết hội tụ tạo nên cảm xúc chân thực khó quên.`,
-      visualPrompt: `Dynamic high-energy visual shot highlighting the climax of ${coreSubject}, vibrant color grading, smooth 60fps cinema look, 8k`,
-      cameraMotion: 'pan-right',
-      lightingStyle: 'studio-clean',
-      sfx: 'Upbeat Rhythm Hit',
-      transition: 'cut',
-    },
-    {
-      sceneNumber: 4,
-      headline: `04. TỐI ƯU KHUNG HÌNH ${platformTag.toUpperCase()}`,
-      durationSec: isShortPlatform ? 5 : 7,
-      voiceover: `Nhịp cắt cảnh, âm thanh nền và góc quay được căn chỉnh chuẩn tỷ lệ ${platformTag}, giúp người xem cảm nhận trọn vẹn từng chi tiết ngay từ lần chạm đầu tiên.`,
-      visualPrompt: `Scenic artistic perspective showcasing the atmosphere of ${coreSubject}, warm sunbeams and balanced framing, 8k cinematography`,
-      cameraMotion: 'crane-up',
-      lightingStyle: 'volumetric',
-      sfx: 'Soft Chime & Breeze',
-      transition: 'dissolve',
-    },
-    {
-      sceneNumber: 5,
-      headline: '05. KẾT THÚC & KÊU GỌI TƯƠNG TÁC',
-      durationSec: isShortPlatform ? 5 : 7,
-      voiceover: `Và đó là trọn vẹn câu chuyện về ${coreSubject}. Bạn ấn tượng nhất với giây thứ mấy? Hãy bình luận và chia sẻ video này ngay nhé!`,
-      visualPrompt: `Warm concluding wide shot of ${coreSubject}, slow Dolly Out camera movement, 35mm cinema look, 8k`,
-      cameraMotion: 'dolly-out',
-      lightingStyle: 'golden-hour',
-      sfx: 'Warm Acoustic Finale',
-      transition: 'fade',
-    },
+  const defaultCameraFlow: StoryboardScene['cameraMotion'][] = [
+    'dolly-in',
+    'pan-right',
+    'orbit',
+    'crane-up',
+    'dolly-out',
   ];
+  const defaultLightingFlow: StoryboardScene['lightingStyle'][] = [
+    'golden-hour',
+    'studio-clean',
+    'volumetric',
+    'rembrandt',
+    'golden-hour',
+  ];
+
+  // Nếu người dùng nhập kịch bản nhiều ý (>= 3 ý / dòng), dựng phân cảnh 1:1 theo từng ý của người dùng
+  const hasExplicitMultiBeats = socialBeats.length >= 3;
+  const scenes = hasExplicitMultiBeats
+    ? socialBeats.slice(0, Math.max(targetCount, Math.min(6, socialBeats.length))).map((beat, idx) => {
+        const cleanBeat = beat.trim();
+        const quoted = socialQuotes[idx] ? ` "${socialQuotes[idx]}"` : '';
+        return {
+          sceneNumber: idx + 1,
+          headline: `${String(idx + 1).padStart(2, '0')}. ${truncateHeadlineWords(cleanBeat.toUpperCase(), 38)}`,
+          durationSec: perSceneSec,
+          voiceover: `${cleanBeat}.${quoted}`.replace(/\.\./g, '.'),
+          visualPrompt: `${hasAttachedImage ? 'Smooth image-to-video motion keeping reference character consistent: ' : ''}${cleanBeat} (${coreSubject}), ${socialMood}, crisp 35mm cinema lens, 8k`,
+          cameraMotion: defaultCameraFlow[idx % defaultCameraFlow.length],
+          lightingStyle: defaultLightingFlow[idx % defaultLightingFlow.length],
+          sfx: idx === 0 ? 'Warm Acoustic Swell + Hook Whoosh' : idx === socialBeats.length - 1 ? 'Warm Acoustic Finale' : 'Natural Ambient Transition',
+          transition: idx === 0 || idx === socialBeats.length - 1 ? 'fade' : idx % 2 === 1 ? 'dissolve' : 'cut',
+        };
+      })
+    : [
+        {
+          sceneNumber: 1,
+          headline: `01. HOOK MỞ MÀN: ${truncateHeadlineWords((socialBeats[0] || coreSubject).toUpperCase(), 38)}`,
+          durationSec: perSceneSec,
+          voiceover: hasAttachedImage
+            ? `Ngay từ khung hình gốc đầu tiên: ${socialBeats[0] || coreSubject}.${socialQuotes[0] ? ` "${socialQuotes[0]}"` : ''} Cùng khám phá chuyển động sống động bước ra từ chính bức ảnh này!`
+            : wikiFact1
+              ? `${socialBeats[0] || coreSubject}. ${wikiFact1}`
+              : `Khoan lướt qua! Hãy cùng theo dõi ngay câu chuyện về ${socialBeats[0] || coreSubject} dành riêng cho khung hình ${platformTag}.`,
+          visualPrompt: `${hasAttachedImage ? 'Image-to-video motion starting seamlessly from uploaded reference image: ' : 'Vibrant cinematic opening frame of '}${coreSubject}, ${socialMood}, crisp 35mm lens, 8k`,
+          cameraMotion: 'dolly-in',
+          lightingStyle: 'golden-hour',
+          sfx: 'Warm Acoustic Swell + Hook Whoosh',
+          transition: 'fade',
+        },
+        {
+          sceneNumber: 2,
+          headline: '02. DIỄN BIẾN CHÍNH & CHI TIẾT ĐẮT GIÁ',
+          durationSec: perSceneSec,
+          voiceover: `Đi sâu vào từng khoảnh khắc thực tế xoay quanh ${socialBeats[1] || coreSubject}, từng chuyển động ánh sáng, biểu cảm và nhịp điệu đều giữ trọn sự chú ý.${socialQuotes[0] ? ` "${socialQuotes[0]}"` : ''}`,
+          visualPrompt: `Expressive medium tracking shot revealing key action and details of ${socialBeats[1] || coreSubject}, ${socialMood}, 85mm lens, 8k`,
+          cameraMotion: 'orbit',
+          lightingStyle: 'rembrandt',
+          sfx: 'Natural Ambient Transition',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 3,
+          headline: '03. ĐIỂM NHẤN CAO TRÀO & BỨT PHÁ CẢM XÚC',
+          durationSec: perSceneSec,
+          voiceover: h1
+            ? `Đặc biệt khi kết hợp với góc nhìn thực tế: ${h1}, câu chuyện về ${coreSubject} càng trở nên sinh động và lan tỏa mạnh mẽ.`
+            : `Đây chính là khoảnh khắc cao trào đắt giá nhất của ${coreSubject} — nơi mọi chi tiết trong bối cảnh hội tụ tạo cảm xúc chân thực khó quên.`,
+          visualPrompt: `Dynamic high-energy visual shot highlighting climax of ${coreSubject}, ${socialMood}, smooth 60fps cinema look, 8k`,
+          cameraMotion: 'pan-right',
+          lightingStyle: 'studio-clean',
+          sfx: 'Upbeat Rhythm Hit',
+          transition: 'cut',
+        },
+        ...(targetCount >= 4
+          ? [
+              {
+                sceneNumber: 4,
+                headline: `04. KẾT THÚC & KÊU GỌI TƯƠNG TÁC`,
+                durationSec: perSceneSec,
+                voiceover: `Và đó là trọn vẹn câu chuyện "${coreSubject}" chuẩn tỷ lệ ${platformTag}. Bạn ấn tượng nhất với giây thứ mấy? Hãy bình luận và chia sẻ ngay nhé!`,
+                visualPrompt: `Warm concluding wide shot of ${coreSubject}, slow Dolly Out camera movement, ${socialMood}, 35mm cinema look, 8k`,
+                cameraMotion: 'dolly-out',
+                lightingStyle: 'golden-hour',
+                sfx: 'Warm Acoustic Finale',
+                transition: 'fade',
+              },
+            ]
+          : []),
+        ...(targetCount >= 5
+          ? [
+              {
+                sceneNumber: 5,
+                headline: '05. DƯ ÂM & LỜI NHẮN CUỐI VIDEO',
+                durationSec: perSceneSec,
+                voiceover: `Đừng quên lưu lại video về ${coreSubject} và theo dõi kênh để đón xem những tập sáng tạo tiếp theo!`,
+                visualPrompt: `Scenic closing panorama of ${coreSubject}, gentle crane up, golden sunlight, 8k cinematography`,
+                cameraMotion: 'crane-up',
+                lightingStyle: 'volumetric',
+                sfx: 'Soft Chime & Breeze',
+                transition: 'fade',
+              },
+            ]
+          : []),
+      ];
 
   return {
     title,
@@ -1731,6 +1993,15 @@ function generateBespokeMultiGenreScript(
     scenes,
   };
 }
+
+const PREFERRED_VOICE_MAP: Record<string, { id: string; label: string; speed: number; pitch: number }> = {
+  'vi-sg-male-1': { id: 'vi-sg-male-1', label: 'Anh Nam Minh (Sài Gòn — Năng động, Cuốn hút)', speed: 1.12, pitch: 0.96 },
+  'vi-sg-female-1': { id: 'vi-sg-female-1', label: 'Chị Diệu Thảo (Sài Gòn — Trong trẻo, Truyền cảm)', speed: 1.06, pitch: 1.12 },
+  'vi-dn-male-1': { id: 'vi-dn-male-1', label: 'Anh Văn Quang (Thời sự 24h — Rõ ràng, Dõng dạc)', speed: 1.05, pitch: 0.92 },
+  'vi-hn-male-1': { id: 'vi-hn-male-1', label: 'Anh Hoàng (Hà Nội — Trầm ấm Phóng sự & Tài liệu)', speed: 1.0, pitch: 0.88 },
+  'vi-hn-female-1': { id: 'vi-hn-female-1', label: 'Chị Mai Linh (Hà Nội — Chuẩn Mực, Tin cậy)', speed: 1.04, pitch: 1.05 },
+  'vi-apple-keynote-male': { id: 'vi-apple-keynote-male', label: 'Anh Tuấn Kiệt (Keynote — Trầm Điện Ảnh)', speed: 0.98, pitch: 0.86 },
+};
 
 /**
  * Chọn hồ sơ giọng đọc Tiếng Việt chuẩn xác theo từng Thể loại Video
@@ -1788,6 +2059,127 @@ function pickDefaultVoiceForGenre(
 }
 
 /**
+ * Chạy đua hedged giữa Server LLM Proxy và gọi trực tiếp Gemini API trên trình duyệt:
+ * Proxy khởi động trước 600ms; nếu quá 600ms hoặc Proxy lỗi, chạy song song Gemini Direct và hủy luồng chậm hơn.
+ */
+async function raceGeminiProxyAndDirect(params: {
+  model: string;
+  apiKey: string;
+  systemPrompt: string;
+  coreSubject: string;
+  endpointUrl?: string;
+  attachedImageDataUrl?: string;
+  signal?: AbortSignal;
+  onHedgeStart?: () => void;
+}): Promise<{ data: any; actualModel: string }> {
+  throwIfAborted(params.signal);
+  const proxyCtrl = new AbortController();
+  const directCtrl = new AbortController();
+  const onParentAbort = () => {
+    proxyCtrl.abort();
+    directCtrl.abort();
+  };
+  params.signal?.addEventListener('abort', onParentAbort, { once: true });
+
+  return new Promise<{ data: any; actualModel: string }>((resolve, reject) => {
+    let settled = false;
+    let directStarted = false;
+    let pendingCount = 1;
+    let lastErr: any = null;
+    let hedgeTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = () => {
+      if (hedgeTimer) {
+        clearTimeout(hedgeTimer);
+        hedgeTimer = null;
+      }
+      params.signal?.removeEventListener('abort', onParentAbort);
+    };
+
+    const finishResolve = (res: { data: any; actualModel: string }, winner: 'proxy' | 'direct') => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (winner === 'proxy') directCtrl.abort();
+      else proxyCtrl.abort();
+      resolve(res);
+    };
+
+    const maybeRejectAll = () => {
+      if (settled) return;
+      if (params.signal?.aborted) {
+        settled = true;
+        cleanup();
+        reject(createUserAbortError());
+        return;
+      }
+      if (directStarted && pendingCount <= 0) {
+        settled = true;
+        cleanup();
+        reject(lastErr || new Error('Cả Proxy và Direct Gemini đều không phản hồi'));
+      }
+    };
+
+    const startDirect = () => {
+      if (settled || directStarted) return;
+      directStarted = true;
+      if (hedgeTimer) {
+        clearTimeout(hedgeTimer);
+        hedgeTimer = null;
+      }
+      if (params.signal?.aborted) {
+        maybeRejectAll();
+        return;
+      }
+      pendingCount += 1;
+      params.onHedgeStart?.();
+      callGeminiDirectBrowser(
+        params.model,
+        params.apiKey,
+        params.systemPrompt,
+        params.coreSubject,
+        params.endpointUrl,
+        params.attachedImageDataUrl,
+        directCtrl.signal
+      )
+        .then((res) => finishResolve(res, 'direct'))
+        .catch((err) => {
+          pendingCount -= 1;
+          lastErr = err;
+          maybeRejectAll();
+        });
+    };
+
+    hedgeTimer = setTimeout(startDirect, 600);
+
+    callServerLlmProxy(
+      'gemini',
+      params.model,
+      params.apiKey,
+      params.systemPrompt,
+      params.coreSubject,
+      params.endpointUrl,
+      params.attachedImageDataUrl,
+      proxyCtrl.signal
+    )
+      .then((res) => finishResolve(res, 'proxy'))
+      .catch((err) => {
+        pendingCount -= 1;
+        lastErr = err;
+        if (params.signal?.aborted) {
+          maybeRejectAll();
+          return;
+        }
+        if (!directStarted) {
+          startDirect();
+        } else {
+          maybeRejectAll();
+        }
+      });
+  });
+}
+
+/**
  * HÀM CHÍNH: Nghiên cứu chủ đề thời gian thực + Gọi LLM + Tổ hợp dự án Video đa phân cảnh
  */
 export async function generateAiVideoScript(
@@ -1801,6 +2193,10 @@ export async function generateAiVideoScript(
     platformFormat,
     platformFormatLabel,
     targetDurationMin,
+    targetDurationSec,
+    preferredVoiceId,
+    creationSpeedMode = 'cloud',
+    imageMotionMode = 'consistent-anchor',
     provider,
     model,
     apiKey,
@@ -1820,6 +2216,41 @@ export async function generateAiVideoScript(
 
   // 1. Kiểm tra nếu người dùng yêu cầu "Tạo bản tin ngẫu nhiên" không chỉ định chủ đề cụ thể
   const isRandomReq = isGenericRandomTopicRequest(prompt);
+  const resolvedDurationSec =
+    typeof targetDurationSec === 'number' && targetDurationSec > 0
+      ? targetDurationSec
+      : Math.max(15, Math.round((targetDurationMin || 3) * 60));
+
+  const cacheKey = !isRandomReq
+    ? JSON.stringify({
+        p: prompt.trim().toLowerCase(),
+        s: skillId || '',
+        a: aspectRatio,
+        pf: platformFormat || '',
+        td: resolvedDurationSec,
+        pv: preferredVoiceId || '',
+        sm: creationSpeedMode,
+        im: imageMotionMode,
+        img: attachedImageDataUrl ? `${attachedImageDataUrl.slice(0, 48)}_${attachedImageDataUrl.length}` : '',
+        aud: attachedAudioName || '',
+        audUrl: attachedAudioUrl ? `${attachedAudioUrl.slice(0, 48)}_${attachedAudioUrl.length}` : '',
+        pr: creationSpeedMode === 'turbo' ? 'turbo' : provider,
+        md: creationSpeedMode === 'turbo' ? 'turbo' : model,
+      })
+    : '';
+
+  if (cacheKey && SCRIPT_RESULT_CACHE.has(cacheKey)) {
+    onProgress?.('⚡ Đã khôi phục tức thì kịch bản & phân cảnh từ bộ nhớ đệm...', 100);
+    const cached = SCRIPT_RESULT_CACHE.get(cacheKey)!;
+    return {
+      ...cached,
+      storyboard: cached.storyboard.map((sc) => ({
+        ...sc,
+        dialogueLines: sc.dialogueLines ? [...sc.dialogueLines] : undefined,
+      })),
+    };
+  }
+
   let coreSubject = isRandomReq
     ? RANDOM_TOPIC_PRESETS[Math.floor(Math.random() * RANDOM_TOPIC_PRESETS.length)].prompt
     : extractCleanSubject(prompt);
@@ -1829,12 +2260,14 @@ export async function generateAiVideoScript(
   }
 
   const prelimDomain = classifyTopicDomainClient(coreSubject);
+  const isTurboMode = creationSpeedMode === 'turbo';
   const needsLiveResearch =
-    isRandomReq ||
-    (prelimDomain !== 'creative' &&
-      prelimDomain !== 'animation-3d' &&
-      (!attachedImageDataUrl ||
-        /bản tin|thời sự|tin tức|chiến sự|giá vàng|chứng khoán|iphone|khoa học|lịch sử/i.test(prompt)));
+    !isTurboMode &&
+    (isRandomReq ||
+      (prelimDomain !== 'creative' &&
+        prelimDomain !== 'animation-3d' &&
+        (!attachedImageDataUrl ||
+          /bản tin|thời sự|tin tức|chiến sự|giá vàng|chứng khoán|iphone|khoa học|lịch sử/i.test(prompt))));
 
   let research: TopicResearchPayload = {
     query: coreSubject,
@@ -1860,7 +2293,12 @@ export async function generateAiVideoScript(
       }
     }
   } else {
-    onProgress?.(`Đang phân tích ý tưởng & tư liệu đính kèm cho "${coreSubject}"...`, 28);
+    onProgress?.(
+      isTurboMode
+        ? `⚡ Chế độ Siêu tốc: Đang bóc tách trực tiếp từng câu prompt cho "${coreSubject}"...`
+        : `Đang phân tích ý tưởng & tư liệu đính kèm cho "${coreSubject}"...`,
+      isTurboMode ? 55 : 28
+    );
   }
 
   const domain: TopicDomain = prelimDomain === 'creative' || prelimDomain === 'animation-3d'
@@ -1876,22 +2314,39 @@ export async function generateAiVideoScript(
     research,
     skill,
     aspectRatio,
-    targetDurationMin,
+    resolvedDurationSec / 60,
     platformFormatLabel,
     Boolean(attachedImageDataUrl)
   );
 
   let rawJson: any = null;
   let isLiveApi = false;
-  let actualModelUsed = model;
-  let engineMessage = '';
+  let actualModelUsed = isTurboMode ? 'SYNAPES Turbo Director Engine' : model;
+  let engineMessage = isTurboMode
+    ? `⚡ Đã dựng siêu tốc bám sát 100% prompt "${coreSubject}" trong <1s.`
+    : '';
 
-  // 3. Gọi tới API của nhà cung cấp nếu người dùng đã gắn API Key
-  if (apiKey && apiKey.trim().length > 5 && provider !== 'plugin') {
+  // 3. Gọi tới API của nhà cung cấp nếu người dùng đã gắn API Key và đang ở chế độ AI Cloud
+  if (!isTurboMode && apiKey && apiKey.trim().length > 5 && provider !== 'plugin') {
     try {
-      onProgress?.(`Đang kết nối ${provName} (${model}) biên soạn kịch bản "${coreSubject}"...`, 48);
+      onProgress?.(`Đang kết nối song song ${provName} (${model}) biên soạn kịch bản "${coreSubject}"...`, 48);
 
-      try {
+      if (provider === 'gemini') {
+        const geminiRes = await raceGeminiProxyAndDirect({
+          model,
+          apiKey,
+          systemPrompt,
+          coreSubject,
+          endpointUrl,
+          attachedImageDataUrl,
+          signal,
+          onHedgeStart: () => {
+            onProgress?.(`Đang tăng tốc kết nối trực tiếp ${provName} (${model})...`, 64);
+          },
+        });
+        rawJson = geminiRes.data;
+        actualModelUsed = geminiRes.actualModel;
+      } else {
         const proxyRes = await callServerLlmProxy(
           provider,
           model,
@@ -1904,32 +2359,11 @@ export async function generateAiVideoScript(
         );
         rawJson = proxyRes.data;
         actualModelUsed = proxyRes.actualModel;
-      } catch (proxyErr: any) {
-        if (proxyErr?.name === 'AbortError' || signal?.aborted) {
-          throw createUserAbortError();
-        }
-        // Dự phòng gọi trực tiếp trên trình duyệt cho Gemini nếu proxy không phản hồi
-        if (provider === 'gemini') {
-          onProgress?.(`Đang chuyển sang kênh kết nối trực tiếp ${provName}...`, 62);
-          const directRes = await callGeminiDirectBrowser(
-            model,
-            apiKey,
-            systemPrompt,
-            coreSubject,
-            endpointUrl,
-            attachedImageDataUrl,
-            signal
-          );
-          rawJson = directRes.data;
-          actualModelUsed = directRes.actualModel;
-        } else {
-          throw proxyErr;
-        }
       }
 
       if (rawJson && Array.isArray(rawJson.scenes) && rawJson.scenes.length > 0) {
         isLiveApi = true;
-        engineMessage = `Đã biên kịch trực tiếp bởi ${provName} (${actualModelUsed}) kết hợp dữ liệu thực tế.`;
+        engineMessage = `Đã biên kịch trực tiếp bởi ${provName} (${actualModelUsed}) bám sát yêu cầu.`;
       }
     } catch (err: any) {
       if (err?.name === 'AbortError' || signal?.aborted) {
@@ -1939,13 +2373,13 @@ export async function generateAiVideoScript(
       actualModelUsed = 'SYNAPES Studio Creative Engine';
       engineMessage = `Đã kích hoạt Động cơ Biên kịch Thông minh SYNAPES Studio cho "${coreSubject}".`;
     }
-  } else {
+  } else if (!isTurboMode) {
     actualModelUsed = 'SYNAPES Studio Creative Engine';
   }
 
   throwIfAborted(signal);
 
-  // 4. Nếu chưa có API Key hoặc API quá tải: Sử dụng Động cơ Biên kịch Đa Thể Loại dựa trên dữ liệu & Prompt thực tế
+  // 4. Nếu đang ở chế độ Siêu tốc, chưa có API Key hoặc API quá tải: Sử dụng Động cơ Biên kịch Đa Thể Loại bám sát Prompt thực tế
   if (!rawJson || !Array.isArray(rawJson.scenes) || rawJson.scenes.length === 0) {
     onProgress?.(
       `Đang biên tập kịch bản ${videoGenre === 'news-broadcast' ? 'Bản tin 24h' : platformFormatLabel || 'Sáng tạo'} bám sát Prompt...`,
@@ -1960,7 +2394,8 @@ export async function generateAiVideoScript(
       skill,
       platformFormat,
       platformFormatLabel,
-      Boolean(attachedImageDataUrl)
+      Boolean(attachedImageDataUrl),
+      resolvedDurationSec
     );
     if (!engineMessage) {
       engineMessage = `Đã hoàn tất dựng kịch bản & hình ảnh cho "${coreSubject}".`;
@@ -1986,13 +2421,48 @@ export async function generateAiVideoScript(
     'cyberpunk',
   ];
 
-  const defaultVoice = pickDefaultVoiceForGenre(videoGenre, domain);
+  const preferredVoice = preferredVoiceId ? PREFERRED_VOICE_MAP[preferredVoiceId] : undefined;
+  const defaultVoice = preferredVoice || pickDefaultVoiceForGenre(videoGenre, domain);
   const isHardwareKeynote = videoGenre === 'apple-keynote' && domain === 'hardware';
 
-  const minSceneDur = videoGenre === '3d-animation' ? 3 : 5;
+  const rawScenes: any[] = Array.isArray(rawJson.scenes) ? rawJson.scenes : [];
+  const minSceneDur =
+    resolvedDurationSec <= 20 ? 2 : resolvedDurationSec <= 40 || videoGenre === '3d-animation' ? 3 : 4;
+  const maxSceneDur = Math.max(
+    30,
+    Math.ceil(resolvedDurationSec / Math.max(1, rawScenes.length)) + 15
+  );
+  const scaledDurations = rawScenes.map((s) =>
+    Math.max(
+      minSceneDur,
+      Math.min(maxSceneDur, Number(s?.durationSec) || (videoGenre === '3d-animation' ? 4 : 8))
+    )
+  );
+  const rawSum = scaledDurations.reduce((acc, d) => acc + d, 0);
+  if (
+    typeof targetDurationSec === 'number' &&
+    targetDurationSec > 0 &&
+    rawScenes.length > 0 &&
+    rawSum !== targetDurationSec
+  ) {
+    const ratio = targetDurationSec / Math.max(1, rawSum);
+    let running = 0;
+    for (let i = 0; i < scaledDurations.length; i++) {
+      if (i === scaledDurations.length - 1) {
+        scaledDurations[i] = Math.max(minSceneDur, Math.min(maxSceneDur, targetDurationSec - running));
+      } else {
+        scaledDurations[i] = Math.max(
+          minSceneDur,
+          Math.min(maxSceneDur, Math.round(scaledDurations[i] * ratio))
+        );
+        running += scaledDurations[i];
+      }
+    }
+  }
+
   let accumulatedSec = 0;
-  const storyboard: StoryboardScene[] = (rawJson.scenes || []).map((sc: any, idx: number) => {
-    const dur = Math.max(minSceneDur, Math.min(15, Number(sc.durationSec) || (videoGenre === '3d-animation' ? 4 : 8)));
+  const storyboard: StoryboardScene[] = rawScenes.map((sc: any, idx: number) => {
+    const dur = scaledDurations[idx] ?? 6;
     const startSec = accumulatedSec;
     const endSec = startSec + dur;
     accumulatedSec = endSec;
@@ -2006,11 +2476,13 @@ export async function generateAiVideoScript(
       sc.visualPrompt ||
       `Authentic photojournalistic shot of ${coreSubject}, 35mm lens, dramatic natural lighting, 8k`;
 
-    const aiImageUrl =
-      idx === 0 && attachedImageDataUrl
-        ? attachedImageDataUrl
-        : sc.imageUrl ||
-          buildAiSceneImageUrl(visualPrompt, aspectRatio, idx + 1, domain, research.visuals);
+    const applyAttachedImageToScene =
+      Boolean(attachedImageDataUrl) && (imageMotionMode !== 'hybrid-scenes' || idx === 0);
+
+    const aiImageUrl = applyAttachedImageToScene
+      ? attachedImageDataUrl!
+      : sc.imageUrl ||
+        buildAiSceneImageUrl(visualPrompt, aspectRatio, idx + 1, domain, research.visuals);
 
     const clipUrl = SCENE_VIDEO_CLIPS[idx % SCENE_VIDEO_CLIPS.length];
     const cameraMotion = motions.includes(sc.cameraMotion)
@@ -2037,6 +2509,8 @@ export async function generateAiVideoScript(
       sc.headline || `0${idx + 1}. ${coreSubject.toUpperCase().slice(0, 38)}`
     ).replace(/tạo\s+bản\s+tin\s+về\s+/gi, '');
 
+    const useExplicitNarratorVoice = Boolean(preferredVoice && !sc.speakerId);
+
     return {
       id: idx + 1,
       sceneNumber: idx + 1,
@@ -2049,7 +2523,7 @@ export async function generateAiVideoScript(
         `Cập nhật diễn biến quan trọng tiếp theo xoay quanh ${coreSubject} từ nguồn dữ liệu thực tế.`,
       visualPrompt,
       imageUrl: aiImageUrl,
-      ...(idx === 0 && attachedImageDataUrl
+      ...(applyAttachedImageToScene && attachedImageDataUrl
         ? {
             customMediaUrl: attachedImageDataUrl,
             customMediaType: 'image' as const,
@@ -2065,10 +2539,18 @@ export async function generateAiVideoScript(
       lightingStyle,
       sfx: sc.sfx || 'Broadcast Transition Pulse',
       transition: sc.transition === 'fade' || sc.transition === 'dissolve' ? sc.transition : 'cut',
-      voiceId: sc.voiceId || defaultVoice.id,
+      voiceId: useExplicitNarratorVoice ? preferredVoice!.id : sc.voiceId || defaultVoice.id,
       voiceLanguage: 'vi',
-      voiceSpeed: typeof sc.voiceSpeed === 'number' ? sc.voiceSpeed : defaultVoice.speed,
-      voicePitch: typeof sc.voicePitch === 'number' ? sc.voicePitch : defaultVoice.pitch,
+      voiceSpeed: useExplicitNarratorVoice
+        ? preferredVoice!.speed
+        : typeof sc.voiceSpeed === 'number'
+          ? sc.voiceSpeed
+          : defaultVoice.speed,
+      voicePitch: useExplicitNarratorVoice
+        ? preferredVoice!.pitch
+        : typeof sc.voicePitch === 'number'
+          ? sc.voicePitch
+          : defaultVoice.pitch,
       speakerId: sc.speakerId,
       speakerName: sc.speakerName,
       speakerAvatarUrl: sc.speakerAvatarUrl,
@@ -2086,7 +2568,7 @@ export async function generateAiVideoScript(
     };
   });
 
-  const totalDuration = accumulatedSec || 48;
+  const totalDuration = accumulatedSec || resolvedDurationSec || 48;
   const heroThumbnail =
     attachedImageDataUrl ||
     storyboard[0]?.imageUrl ||
@@ -2115,7 +2597,7 @@ export async function generateAiVideoScript(
 
   onProgress?.('Hoàn tất kết xuất dự án Video! Đang mở Bàn dựng Đa phân cảnh...', 100);
 
-  return {
+  const finalResult: GeneratedScriptResult = {
     success: true,
     isLiveApi,
     modelUsed: actualModelUsed,
@@ -2158,4 +2640,20 @@ export async function generateAiVideoScript(
     thumbnailUrl: heroThumbnail,
     engineMessage,
   };
+
+  if (cacheKey) {
+    if (SCRIPT_RESULT_CACHE.size >= 30) {
+      const oldestKey = SCRIPT_RESULT_CACHE.keys().next().value;
+      if (oldestKey) SCRIPT_RESULT_CACHE.delete(oldestKey);
+    }
+    SCRIPT_RESULT_CACHE.set(cacheKey, {
+      ...finalResult,
+      storyboard: finalResult.storyboard.map((sc) => ({
+        ...sc,
+        dialogueLines: sc.dialogueLines ? [...sc.dialogueLines] : undefined,
+      })),
+    });
+  }
+
+  return finalResult;
 }
