@@ -76,7 +76,6 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   onUpdateProject,
   onOpenVoiceStudio,
   onOpenShortcutsModal,
-  onOpenLiveDubbingModal,
   onOpenStitcherStudio,
 }) => {
   const scenes = project.storyboard && project.storyboard.length > 0 ? project.storyboard : [];
@@ -102,11 +101,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       ? 'studio-clean'
       : 'apple-keynote'
   );
-  const [activeVfx, setActiveVfx] = useState<VfxOverlayType>(() =>
-    effectiveGenre === 'news-broadcast' || effectiveGenre === 'finance-analysis'
-      ? 'vignette'
-      : 'apple-lens-flare'
-  );
+  const [activeVfx, setActiveVfx] = useState<VfxOverlayType>(() => 'vignette');
   const [anamoLetterbox, setAnamoLetterbox] = useState<boolean>(false);
   const [visualRenderMode, setVisualRenderMode] = useState<
     'auto-genre' | 'news-24h' | 'hybrid-3d' | 'clean-photo'
@@ -158,7 +153,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       setActiveVfx('vignette');
     } else {
       setActiveLut('apple-keynote');
-      setActiveVfx('apple-lens-flare');
+      setActiveVfx('vignette');
     }
   }, [project.id, project.title, effectiveGenre]);
 
@@ -170,13 +165,23 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   // Stable refs for 60fps requestAnimationFrame loop (prevents re-render teardown bug!)
   const currentTimeRef = useRef<number>(0);
   const isPlayingRef = useRef<boolean>(isPlaying);
+  const isMutedRef = useRef<boolean>(isMuted);
   const playbackSpeedRef = useRef<number>(playbackSpeed);
   const totalDurationRef = useRef<number>(totalDuration);
   const drawCinemaCanvasRef = useRef<(clockSec: number, overrideTimeSec?: number) => void>(() => {});
+  const masterAudioElementRef = useRef<HTMLAudioElement | null>(null);
+  const masterAudioUrl =
+    project.customAudioUrl ||
+    (project.voiceoverTrack?.isCustomMasterAudio ? project.voiceoverTrack?.audioUrl : '') ||
+    '';
 
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
+
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
 
   useEffect(() => {
     playbackSpeedRef.current = playbackSpeed;
@@ -191,6 +196,11 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     currentTimeRef.current = clamped;
     setCurrentTime(clamped);
     lastFrameTimeRef.current = performance.now();
+    if (masterAudioElementRef.current) {
+      try {
+        masterAudioElementRef.current.currentTime = clamped;
+      } catch { }
+    }
     drawCinemaCanvasRef.current(performance.now() / 1000, clamped);
   }, []);
 
@@ -392,10 +402,112 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   // Reference to user custom recorded audio element if currently playing
   const currentAudioElementRef = useRef<HTMLAudioElement | null>(null);
 
+  // Stop all active playback audio synchronously (used by Pause & Mute)
+  const stopAllActiveAudio = useCallback(() => {
+    synthRef.current?.stopSceneVoiceover();
+    synthRef.current?.stopCinematicSoundtrack();
+    if (currentAudioElementRef.current) {
+      try {
+        currentAudioElementRef.current.pause();
+      } catch { }
+      currentAudioElementRef.current = null;
+    }
+    if (masterAudioElementRef.current) {
+      try {
+        masterAudioElementRef.current.pause();
+      } catch { }
+    }
+    currentSpokenSceneRef.current = null;
+  }, []);
+
+  // Immediate Mute / Unmute synchronization across WebAudio, Scene Audio & Master Audio
+  useEffect(() => {
+    synthRef.current?.setMuted(isMuted);
+    if (currentAudioElementRef.current) {
+      currentAudioElementRef.current.muted = isMuted;
+      if (isMuted) {
+        currentAudioElementRef.current.pause();
+        currentAudioElementRef.current = null;
+      }
+    }
+    if (masterAudioElementRef.current) {
+      masterAudioElementRef.current.muted = isMuted;
+      if (isMuted) {
+        masterAudioElementRef.current.pause();
+      } else if (isPlayingRef.current) {
+        try {
+          masterAudioElementRef.current.currentTime = currentTimeRef.current;
+          synthRef.current?.resume();
+          masterAudioElementRef.current.play().catch(() => { });
+        } catch { }
+      }
+    }
+  }, [isMuted]);
+
+  // Manage Continuous Whole-Video Master Audio Element (Mic or Master AI WAV)
+  useEffect(() => {
+    if (masterAudioElementRef.current) {
+      try {
+        masterAudioElementRef.current.pause();
+      } catch { }
+      masterAudioElementRef.current = null;
+    }
+    if (!masterAudioUrl) return;
+
+    const audio = new Audio(masterAudioUrl);
+    audio.crossOrigin = 'anonymous';
+    audio.preload = 'auto';
+    audio.muted = isMutedRef.current;
+    audio.playbackRate = playbackSpeedRef.current;
+    synthRef.current?.attachMediaElementToVoice(audio);
+    masterAudioElementRef.current = audio;
+
+    if (isPlayingRef.current && !isMutedRef.current) {
+      synthRef.current?.stopSceneVoiceover();
+      synthRef.current?.resume();
+      try {
+        audio.currentTime = currentTimeRef.current;
+      } catch { }
+      audio.play().catch(() => { });
+    }
+
+    return () => {
+      try {
+        audio.pause();
+      } catch { }
+      if (masterAudioElementRef.current === audio) {
+        masterAudioElementRef.current = null;
+      }
+    };
+  }, [masterAudioUrl]);
+
+  // Sync Master Audio play/pause/speed with Player state
+  useEffect(() => {
+    if (!isPlaying) {
+      stopAllActiveAudio();
+      return;
+    }
+    if (masterAudioUrl && masterAudioElementRef.current) {
+      const audio = masterAudioElementRef.current;
+      audio.muted = isMuted;
+      audio.playbackRate = playbackSpeed;
+      if (!isMuted) {
+        synthRef.current?.stopSceneVoiceover();
+        synthRef.current?.resume();
+        if (Math.abs((audio.currentTime || 0) - currentTimeRef.current) > 0.4) {
+          try {
+            audio.currentTime = currentTimeRef.current;
+          } catch { }
+        }
+        audio.play().catch(() => { });
+      }
+    }
+  }, [isPlaying, isMuted, playbackSpeed, masterAudioUrl, stopAllActiveAudio]);
+
   // Speak Voiceover or Play User Custom Recording
   const speakSceneVoiceover = useCallback(
     (scene: StoryboardScene | undefined) => {
-      if (!scene || !isPlaying || isMuted) {
+      if (!scene || !isPlaying || isMuted || masterAudioUrl) {
         synthRef.current?.stopSceneVoiceover();
         if (currentAudioElementRef.current) {
           currentAudioElementRef.current.pause();
@@ -439,24 +551,27 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         pitchToUse
       );
     },
-    [isPlaying, isMuted, isTtsEnabled]
+    [isPlaying, isMuted, isTtsEnabled, masterAudioUrl]
   );
 
   // Trigger TTS & SFX when current scene changes
   useEffect(() => {
     if (!isPlaying) {
-      synthRef.current?.stopSceneVoiceover();
-      currentSpokenSceneRef.current = null;
+      stopAllActiveAudio();
       return;
     }
 
     if (currentScene && currentSpokenSceneRef.current !== currentScene.id) {
       currentSpokenSceneRef.current = currentScene.id;
-      synthRef.current?.playSfx('whoosh');
-      speakSceneVoiceover(currentScene);
+      if (!isMuted) {
+        synthRef.current?.playSfx('whoosh');
+        if (!masterAudioUrl) {
+          speakSceneVoiceover(currentScene);
+        }
+      }
       onSelectScene?.(currentScene.id);
     }
-  }, [currentSceneIndex, currentScene, isPlaying, speakSceneVoiceover, onSelectScene]);
+  }, [currentSceneIndex, currentScene, isPlaying, isMuted, masterAudioUrl, speakSceneVoiceover, onSelectScene, stopAllActiveAudio]);
 
   // Persistent 60fps Playback & Canvas Loop (Never torn down on React state re-renders!)
   useEffect(() => {
@@ -474,6 +589,11 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         if (next >= dur) {
           next = 0;
           currentSpokenSceneRef.current = null;
+          if (masterAudioElementRef.current) {
+            try {
+              masterAudioElementRef.current.currentTime = 0;
+            } catch { }
+          }
         }
         currentTimeRef.current = next;
         setCurrentTime(next);
@@ -492,17 +612,28 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     (window as any).__SYNAPES_PLAYER = {
       seekTo: (sec: number) => seekToTime(sec),
       setPlaying: (play: boolean) => {
+        if (!play) stopAllActiveAudio();
         isPlayingRef.current = play;
         setIsPlaying(play);
+      },
+      setMuted: (muted: boolean) => {
+        synthRef.current?.setMuted(muted);
+        isMutedRef.current = muted;
+        setIsMuted(muted);
       },
       getState: () => ({
         currentTime: currentTimeRef.current,
         totalDuration: totalDurationRef.current,
         currentSceneIndex: getCurrentSceneIndex(currentTimeRef.current),
         loadedImagesCount: Object.keys(loadedImagesRef.current).length,
+        isPlaying: isPlayingRef.current,
+        isMuted: isMutedRef.current,
+        hasMasterAudio: Boolean(masterAudioUrl),
+        masterAudioPaused: masterAudioElementRef.current ? masterAudioElementRef.current.paused : true,
+        audioState: synthRef.current?.getDebugAudioState(),
       }),
     };
-  }, [seekToTime, getCurrentSceneIndex]);
+  }, [seekToTime, getCurrentSceneIndex, stopAllActiveAudio, masterAudioUrl]);
 
   // Hotkey listener (Space, S, Shift+S, Left/Right, J/K/L, M, F, ?)
   useEffect(() => {
@@ -961,22 +1092,14 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       ctx.stroke();
     }
 
-    // Rotating global radar / latitude rings
+  // Ambient editorial glow backdrop (không vẽ radar quay giả tạo)
     const cx = W * 0.5;
     const cy = H * 0.46;
-    const baseR = Math.min(W, H) * 0.24;
-    for (let i = 0; i < 3; i++) {
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(clockSec * (0.18 + i * 0.07) * (i % 2 === 0 ? 1 : -1));
-      ctx.strokeStyle = `rgba(${primaryHue}, ${0.32 - i * 0.08})`;
-      ctx.lineWidth = 1.4;
-      ctx.setLineDash([10 + i * 6, 12]);
-      ctx.beginPath();
-      ctx.arc(0, 0, baseR + i * 28, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
+    const ambientGlow = ctx.createRadialGradient(cx, cy, 10, cx, cy, Math.min(W, H) * 0.42);
+    ambientGlow.addColorStop(0, `rgba(${primaryHue}, 0.14)`);
+    ambientGlow.addColorStop(1, 'rgba(9, 9, 11, 0)');
+    ctx.fillStyle = ambientGlow;
+    ctx.fillRect(0, 0, W, H);
 
     // Center headline preview while HD photo streams in
     ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
@@ -2087,12 +2210,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           draw3dDialogueCinemaStage(ctx, W, H, clockSec, activeIdx, progress, scene);
         } else if (isInsectCountingStage) {
           draw3dAnimationInsectStage(ctx, W, H, clockSec, activeIdx, progress);
-        } else {
-          drawAppleKeynoteSubtleMotionOverlay(ctx, W, H, clockSec, progress, activeIdx);
         }
-      } else if (visualRenderMode === 'hybrid-3d' && !isHardwareKeynoteProject) {
-        // Hiệu ứng quét ánh sáng điện ảnh trung tính cho các chủ đề không phải điện thoại
-        drawAppleKeynoteSubtleMotionOverlay(ctx, W, H, clockSec, progress, activeIdx);
       }
     } else if (is3dAnimationProject) {
       const isInsectCountingStage =
@@ -3530,8 +3648,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       flare.addColorStop(1, 'rgba(56, 189, 248, 0)');
       ctx.fillStyle = flare;
       ctx.fillRect(0, flareY - 4, W, 8);
-    } else if (vfx === 'apple-lens-flare') {
-      // Apple Cinema Anamorphic Lens Flare - Subtle horizontal laser blue & crystal streak
+    } else if (vfx === 'apple-lens-flare' && isHardwareKeynoteProject) {
+      // Apple Cinema Anamorphic Lens Flare (chỉ áp dụng cho dự án phần cứng Keynote)
       const flareY = H * 0.42 + Math.sin(t * 0.8) * 15;
       const flareGrad = ctx.createLinearGradient(0, flareY, W, flareY);
       flareGrad.addColorStop(0, 'rgba(56, 189, 248, 0)');
@@ -3993,24 +4111,11 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
             type="button"
             onClick={onOpenVoiceStudio}
             className="px-2.5 py-1.5 rounded-lg bg-indigo-950 hover:bg-indigo-900 text-indigo-200 font-semibold flex items-center gap-1.5 transition cursor-pointer border border-indigo-500/30 shadow-xs"
-            title="Mở phòng thu lồng tiếng AI đa vùng miền (Phím tắt: V)"
+            title="Mở phòng thu lồng tiếng toàn video (Phím tắt: V)"
           >
             <Mic className="w-3.5 h-3.5 text-emerald-400" />
             <span>Phòng Thu Giọng</span>
           </button>
-
-          {/* Live Mic Direct Dubbing Button (CỬA SỔ THỨ 3) */}
-          {onOpenLiveDubbingModal && (
-            <button
-              type="button"
-              onClick={onOpenLiveDubbingModal}
-              className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold flex items-center gap-1.5 transition cursor-pointer shadow-sm animate-pulse"
-              title="Mở cửa sổ thứ 3 vừa xem video vừa thu âm lồng tiếng trực tiếp bằng micro"
-            >
-              <Mic className="w-3.5 h-3.5 fill-white" />
-              <span>Thu Âm Trực Tiếp</span>
-            </button>
-          )}
 
           {/* Video Stitcher Button (Ghép Nối Video > 2 phút) */}
           {onOpenStitcherStudio && (

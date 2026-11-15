@@ -203,85 +203,16 @@ export function getUserProfile(
     console.warn(`Error reading profile for ${codeClean}`, err);
   }
 
-  // Dành cho tài khoản thử nghiệm VIP-001 nếu đăng nhập trực tiếp
+  // Tài khoản VIP-001 cũng khởi tạo ở trạng thái chưa liên kết kênh/Drive giả lập
   if (codeClean === 'VIP-001') {
     const demoProfile: UserProfileData = {
       code: 'VIP-001',
       name: fallbackName || 'Anh Hoàng Nam (Studio Media Tech)',
       email: fallbackEmail || 'hoangnam.media@gmail.com',
       aiConfig: DEFAULT_AI_CONFIG,
-      channels: [
-        {
-          id: 'yt',
-          platform: 'youtube',
-          name: 'YouTube Channel Official',
-          handle: '@TechReviewerOfficial',
-          avatarUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80',
-          status: 'connected',
-          apiScope: 'youtube.upload, youtube.readonly (Direct Upload 5–10 phút)',
-          tokenExpiry: 'Còn 58 ngày (Tự động gia hạn)',
-          connectedAt: '04/11/2026',
-          stats: {
-            metricLabel: 'Người đăng ký',
-            metricValue: '520.000 subs',
-            totalPublishedVideos: 48,
-            lastPublishedTime: '10:45 - 04/11/2026',
-          },
-        },
-        {
-          id: 'tt',
-          platform: 'tiktok',
-          name: 'TikTok Creator Shop VN',
-          handle: '@techreviewer_vn',
-          avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
-          status: 'connected',
-          apiScope: 'video.upload, video.publish, link.anchor (TikTok Shop Affiliate)',
-          tokenExpiry: 'Đã xác thực Direct Posting API',
-          connectedAt: '03/11/2026',
-          stats: {
-            metricLabel: 'Lượt theo dõi',
-            metricValue: '180.000 followers',
-            totalPublishedVideos: 112,
-            lastPublishedTime: '12:15 - 04/11/2026',
-          },
-        },
-        {
-          id: 'fb',
-          platform: 'facebook',
-          name: 'Facebook Fanpage Công Nghệ',
-          handle: 'Cộng Đồng Yêu Công Nghệ AI',
-          avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
-          status: 'connected',
-          apiScope: 'pages_manage_posts, pages_read_engagement, reels_upload',
-          tokenExpiry: 'Vĩnh viễn (Page Access Token)',
-          connectedAt: '01/11/2026',
-          stats: {
-            metricLabel: 'Lượt thích trang',
-            metricValue: '95.000 likes',
-            totalPublishedVideos: 64,
-            lastPublishedTime: '20:10 - 03/11/2026',
-          },
-        },
-        {
-          id: 'gd',
-          platform: 'drive',
-          name: 'Google Drive Backup Storage',
-          handle: 'synapes.backup@gmail.com',
-          avatarUrl: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=100&auto=format&fit=crop&q=80',
-          status: 'connected',
-          apiScope: 'drive.file (Bảo mật tối đa, chỉ truy cập thư mục app tạo)',
-          tokenExpiry: 'OAuth 2.0 Refresh Token',
-          connectedAt: '28/10/2026',
-          stats: {
-            metricLabel: 'Dung lượng đã dùng',
-            metricValue: '124 GB / 2 TB',
-            totalPublishedVideos: 224,
-            lastPublishedTime: '11:00 - 05/11/2026',
-          },
-        },
-      ],
-      driveEmail: 'synapes.backup@gmail.com',
-      driveConnected: true,
+      channels: getDisconnectedChannels(fallbackName, fallbackEmail),
+      driveEmail: fallbackEmail || '',
+      driveConnected: false,
       projects: INITIAL_PROJECTS,
     };
     saveUserProfile('VIP-001', demoProfile);

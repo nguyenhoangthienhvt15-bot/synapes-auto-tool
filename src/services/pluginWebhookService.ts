@@ -9,6 +9,7 @@ export interface PluginDispatchParams {
   platformFormatLabel?: string;
   targetChannels?: ('youtube' | 'tiktok' | 'facebook' | 'instagram' | 'threads')[];
   attachedImageDataUrl?: string;
+  attachedImages?: Array<{ name: string; size: number; dataUrl: string }>;
   attachedAudioUrl?: string;
   signal?: AbortSignal;
   scriptModelName: string;
@@ -67,6 +68,7 @@ export async function dispatchScriptToPluginEngine(
     platformFormatLabel,
     targetChannels,
     attachedImageDataUrl,
+    attachedImages = [],
     attachedAudioUrl,
     signal,
     scriptModelName,
@@ -190,13 +192,26 @@ export async function dispatchScriptToPluginEngine(
     scriptResult.videoUrl ||
     '';
 
-  // Gán clipUrl thật nếu có từ API và gán tư liệu đính kèm của người dùng nếu có
+  // Gán clipUrl thật nếu có từ API và phân bổ nhiều ảnh tư liệu đính kèm của người dùng qua các phân cảnh
+  const galleryList =
+    attachedImages && attachedImages.length > 0
+      ? attachedImages.map((img) => img.dataUrl).filter(Boolean)
+      : attachedImageDataUrl
+        ? [attachedImageDataUrl]
+        : [];
+
   const updatedStoryboard: StoryboardScene[] = scriptResult.storyboard.map((sc, idx) => {
+    const pickedCustomImg =
+      galleryList.length > 1
+        ? galleryList[idx % galleryList.length]
+        : sc.customMediaUrl || (idx === 0 && galleryList[0] ? galleryList[0] : undefined);
     return {
       ...sc,
       clipUrl: sc.clipUrl || remoteVideoUrl || '',
-      imageUrl: idx === 0 && attachedImageDataUrl ? attachedImageDataUrl : sc.imageUrl,
-      customMediaUrl: idx === 0 && attachedImageDataUrl ? attachedImageDataUrl : sc.customMediaUrl,
+      imageUrl: pickedCustomImg || sc.imageUrl,
+      ...(pickedCustomImg
+        ? { customMediaUrl: pickedCustomImg, customMediaType: 'image' as const }
+        : {}),
       customAudioUrl: idx === 0 && attachedAudioUrl ? attachedAudioUrl : sc.customAudioUrl,
     };
   });
@@ -238,7 +253,8 @@ export async function dispatchScriptToPluginEngine(
     duration: scriptResult.duration,
     targetChannels: resolvedChannels,
     videoUrl: chosenVideoUrl,
-    thumbnailUrl: attachedImageDataUrl || scriptResult.thumbnailUrl,
+    thumbnailUrl: galleryList[0] || attachedImageDataUrl || scriptResult.thumbnailUrl,
+    attachedImages: attachedImages && attachedImages.length > 0 ? attachedImages : undefined,
     musicTrack: scriptResult.musicTrack,
     voiceoverTrack: {
       ...scriptResult.voiceoverTrack,

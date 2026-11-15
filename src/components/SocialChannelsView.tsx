@@ -20,69 +20,69 @@ const DEFAULT_CHANNELS: ConnectedChannelAccount[] = [
   {
     id: 'yt',
     platform: 'youtube',
-    name: 'YouTube Channel Official',
-    handle: '@TechReviewerOfficial',
+    name: 'YouTube Channel',
+    handle: 'Chưa liên kết kênh',
     avatarUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80',
-    status: 'connected',
+    status: 'disconnected',
     apiScope: 'youtube.upload, youtube.readonly (Direct Upload 5–10 phút)',
-    tokenExpiry: 'Còn 58 ngày (Tự động gia hạn)',
-    connectedAt: '04/11/2026',
+    tokenExpiry: 'Chưa cấp OAuth Token',
+    connectedAt: '',
     stats: {
       metricLabel: 'Người đăng ký',
-      metricValue: '520.000 subs',
-      totalPublishedVideos: 48,
-      lastPublishedTime: '10:45 - 04/11/2026',
+      metricValue: '0',
+      totalPublishedVideos: 0,
+      lastPublishedTime: 'Chưa có',
     },
   },
   {
     id: 'tt',
     platform: 'tiktok',
-    name: 'TikTok Creator Shop VN',
-    handle: '@techreviewer_vn',
+    name: 'TikTok Creator',
+    handle: 'Chưa liên kết kênh',
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
-    status: 'connected',
+    status: 'disconnected',
     apiScope: 'video.upload, video.publish, link.anchor (TikTok Shop Affiliate)',
-    tokenExpiry: 'Đã xác thực Direct Posting API',
-    connectedAt: '03/11/2026',
+    tokenExpiry: 'Chưa cấp OAuth Token',
+    connectedAt: '',
     stats: {
       metricLabel: 'Lượt theo dõi',
-      metricValue: '180.000 followers',
-      totalPublishedVideos: 112,
-      lastPublishedTime: '12:15 - 04/11/2026',
+      metricValue: '0',
+      totalPublishedVideos: 0,
+      lastPublishedTime: 'Chưa có',
     },
   },
   {
     id: 'fb',
     platform: 'facebook',
-    name: 'Facebook Fanpage Công Nghệ',
-    handle: 'Cộng Đồng Yêu Công Nghệ AI',
+    name: 'Facebook Fanpage',
+    handle: 'Chưa liên kết Fanpage',
     avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
-    status: 'connected',
+    status: 'disconnected',
     apiScope: 'pages_manage_posts, pages_read_engagement, reels_upload',
-    tokenExpiry: 'Vĩnh viễn (Page Access Token)',
-    connectedAt: '01/11/2026',
+    tokenExpiry: 'Chưa cấp Page Access Token',
+    connectedAt: '',
     stats: {
       metricLabel: 'Lượt thích trang',
-      metricValue: '95.000 likes',
-      totalPublishedVideos: 64,
-      lastPublishedTime: '20:10 - 03/11/2026',
+      metricValue: '0',
+      totalPublishedVideos: 0,
+      lastPublishedTime: 'Chưa có',
     },
   },
   {
     id: 'gd',
     platform: 'drive',
-    name: 'Google Drive Backup Storage',
-    handle: 'synapes.backup@gmail.com',
+    name: 'Google Drive Storage',
+    handle: 'Chưa liên kết Google Drive',
     avatarUrl: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=100&auto=format&fit=crop&q=80',
-    status: 'connected',
-    apiScope: 'drive.file (Bảo mật tối đa, chỉ truy cập thư mục app tạo)',
-    tokenExpiry: 'OAuth 2.0 Refresh Token',
-    connectedAt: '28/10/2026',
+    status: 'disconnected',
+    apiScope: 'drive.file (Chỉ truy cập thư mục do ứng dụng tạo)',
+    tokenExpiry: 'Chưa cấp OAuth 2.0 Token',
+    connectedAt: '',
     stats: {
       metricLabel: 'Dung lượng đã dùng',
-      metricValue: '124 GB / 2 TB',
-      totalPublishedVideos: 224,
-      lastPublishedTime: '11:00 - 05/11/2026',
+      metricValue: 'Chưa đồng bộ',
+      totalPublishedVideos: 0,
+      lastPublishedTime: 'Chưa có',
     },
   },
 ];
@@ -113,10 +113,13 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
   const [activeGuide, setActiveGuide] = useState<'google' | 'tiktok' | 'meta'>('google');
   const [loginModalPlatform, setLoginModalPlatform] = useState<'youtube' | 'tiktok' | 'facebook' | 'drive' | null>(null);
 
-  // Form đăng nhập kênh mới
+  // Form đăng nhập kênh mới — luôn để trống, bắt buộc nhập Credential/Token thực
   const [inputChannelName, setInputChannelName] = useState('');
   const [inputHandle, setInputHandle] = useState('');
   const [inputEmailOrId, setInputEmailOrId] = useState('');
+  const [inputOAuthToken, setInputOAuthToken] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isTestingUpload, setIsTestingUpload] = useState<string | null>(null);
 
@@ -145,86 +148,130 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
       return;
     }
     setLoginModalPlatform(platform);
-    if (platform === 'youtube') {
-      setInputChannelName('Kênh Studio Official');
-      setInputHandle('@TechReviewerVN');
-      setInputEmailOrId('creator.youtube@gmail.com');
-    } else if (platform === 'tiktok') {
-      setInputChannelName('TikTok Creator Shop');
-      setInputHandle('@techreviewer_creator');
-      setInputEmailOrId('tt_account_vn');
-    } else if (platform === 'facebook') {
-      setInputChannelName('Facebook Fanpage AI');
-      setInputHandle('Cộng Đồng Video Sáng Tạo');
-      setInputEmailOrId('page_id_891241');
-    } else if (platform === 'drive') {
-      setInputChannelName('Google Drive Studio Storage');
-      setInputHandle('synapes.backup@gmail.com');
-      setInputEmailOrId('synapes.backup@gmail.com');
-    }
+    setInputChannelName('');
+    setInputHandle('');
+    setInputEmailOrId('');
+    setInputOAuthToken('');
+    setAuthError(null);
   };
 
-  const handleConfirmLogin = (e: React.FormEvent) => {
+  const handleConfirmLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loginModalPlatform) return;
+    if (!loginModalPlatform || isSubmittingLogin) return;
 
     const plat = loginModalPlatform;
-    const now = new Date();
-    const dateStr = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+    const channelNameClean = inputChannelName.trim();
+    const handleClean = inputHandle.trim();
+    const emailOrIdClean = inputEmailOrId.trim();
+    const tokenClean = inputOAuthToken.trim();
 
-    const idMap: Record<string, 'yt' | 'tt' | 'fb' | 'gd'> = {
-      youtube: 'yt',
-      tiktok: 'tt',
-      facebook: 'fb',
-      drive: 'gd',
-    };
-    const targetId = idMap[plat];
-
-    if (plat === 'drive') {
-      try {
-        localStorage.setItem('synapes_drive_email', inputEmailOrId.trim() || 'synapes.backup@gmail.com');
-        localStorage.setItem('synapes_drive_connected', 'true');
-      } catch (err) {
-        console.warn('Could not save drive login', err);
-      }
+    if (channelNameClean.length < 2 || handleClean.length < 2 || !emailOrIdClean) {
+      setAuthError('Vui lòng nhập đầy đủ Tên Kênh, @Handle/URL và Email/Client ID.');
+      return;
+    }
+    if (tokenClean.length < 16) {
+      setAuthError('OAuth Access Token / API Key phải có ít nhất 16 ký tự hợp lệ.');
+      return;
     }
 
-    const updated = channels.map((c) => {
-      if (c.id === targetId) {
-        return {
-          ...c,
-          name: inputChannelName.trim() || c.name,
-          handle: inputHandle.trim() || c.handle,
-          status: 'connected' as const,
-          connectedAt: dateStr,
-          tokenExpiry: plat === 'facebook' ? 'Vĩnh viễn (Page Token)' : 'Còn 60 ngày (Tự động gia hạn OAuth)',
-        };
+    setAuthError(null);
+    setIsSubmittingLogin(true);
+    try {
+      const resp = await fetch('/api/channels/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userCode: currentUser?.code || 'DEFAULT',
+          platform: plat,
+          channelName: channelNameClean,
+          handleOrUrl: handleClean,
+          emailOrId: emailOrIdClean,
+          oauthToken: tokenClean,
+        }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data?.success) {
+        setAuthError(data?.error || 'Xác thực OAuth Access Token thất bại. Vui lòng kiểm tra lại.');
+        return;
       }
-      return c;
-    });
 
-    setChannels(updated);
-    onUpdateChannels?.(updated);
-    showToast(`Đã đăng nhập và liên kết tài khoản ${inputChannelName} thành công! Quyền xuất bản đã sẵn sàng.`);
-    setLoginModalPlatform(null);
+      const now = new Date();
+      const dateStr = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+      const idMap: Record<string, 'yt' | 'tt' | 'fb' | 'gd'> = {
+        youtube: 'yt',
+        tiktok: 'tt',
+        facebook: 'fb',
+        drive: 'gd',
+      };
+      const targetId = idMap[plat];
+
+      if (plat === 'drive') {
+        try {
+          localStorage.setItem('synapes_drive_email', emailOrIdClean);
+          localStorage.setItem('synapes_drive_connected', 'true');
+        } catch (err) {
+          console.warn('Could not save drive login', err);
+        }
+      }
+
+      const updated = channels.map((c) => {
+        if (c.id === targetId) {
+          return {
+            ...c,
+            name: channelNameClean,
+            handle: handleClean,
+            status: 'connected' as const,
+            connectedAt: dateStr,
+            tokenExpiry: `Đã xác thực OAuth (${data.maskedToken || 'Token Verified'})`,
+          };
+        }
+        return c;
+      });
+
+      setChannels(updated);
+      onUpdateChannels?.(updated);
+      showToast(`Đã xác thực và liên kết tài khoản ${channelNameClean} thành công!`);
+      setLoginModalPlatform(null);
+    } catch (err) {
+      setAuthError('Không thể kết nối máy chủ xác thực OAuth: ' + String((err as Error)?.message || err));
+    } finally {
+      setIsSubmittingLogin(false);
+    }
   };
 
-  const handleDisconnect = (channelId: string, name: string) => {
+  const handleDisconnect = async (channelId: string, name: string) => {
     if (!currentUser || !currentUser.isLoggedIn) {
       showToast('⚠️ Vui lòng đăng nhập tài khoản Studio của bạn.');
       if (onOpenLogin) onOpenLogin();
       return;
     }
 
-    if (!confirm(`Bạn có chắc chắn muốn ngắt kết nối tài khoản [${name}]? Bạn sẽ cần đăng nhập lại khi xuất bản video.`)) {
+    if (!confirm(`Bạn có chắc chắn muốn ngắt kết nối tài khoản [${name}]? Bạn sẽ cần xác thực lại Token khi xuất bản video.`)) {
       return;
+    }
+
+    const platformMap: Record<string, string> = { yt: 'youtube', tt: 'tiktok', fb: 'facebook', gd: 'drive' };
+    try {
+      await fetch('/api/channels/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userCode: currentUser?.code || 'DEFAULT',
+          platform: platformMap[channelId] || channelId,
+        }),
+      });
+    } catch {
+      // ignore network error on disconnect cleanup
     }
 
     const updated = channels.map((c) => {
       if (c.id === channelId) {
         return {
           ...c,
+          handle: c.platform === 'facebook' ? 'Chưa liên kết Fanpage' : 'Chưa liên kết kênh',
           status: 'disconnected' as const,
+          tokenExpiry: 'Chưa cấp OAuth Token',
+          connectedAt: '',
         };
       }
       return c;
@@ -235,19 +282,32 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
     showToast(`Đã ngắt kết nối tài khoản ${name}.`);
   };
 
-  const handleTestUpload = (channel: ConnectedChannelAccount) => {
+  const handleTestUpload = async (channel: ConnectedChannelAccount) => {
     setIsTestingUpload(channel.id);
-    const isValid = channel.status === 'connected' && Boolean(channel.handle);
-    setIsTestingUpload(null);
-    if (isValid) {
-      showToast(`✅ [Kiểm Tra Thành Công]: Đã xác thực kết nối đăng video lên [${channel.name}] (${channel.handle})! Token và quyền API hợp lệ 100%.`);
-    } else {
-      showToast(`⚠️ [Cảnh Báo]: Kênh [${channel.name}] chưa được liên kết đầy đủ quyền OAuth 2.0.`);
+    try {
+      const resp = await fetch('/api/channels/verify-publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userCode: currentUser?.code || 'DEFAULT',
+          platform: channel.platform,
+        }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && data?.success) {
+        showToast(`✅ [Xác Thực Máy Chủ]: Kênh [${channel.name}] (${channel.handle}) có OAuth Token hợp lệ (${data.maskedToken}).`);
+      } else {
+        showToast(`⚠️ ${data?.error || `Kênh [${channel.name}] chưa xác thực OAuth Access Token thực trên máy chủ.`}`);
+      }
+    } catch {
+      showToast(`⚠️ Không thể kiểm tra trạng thái OAuth trên máy chủ.`);
+    } finally {
+      setIsTestingUpload(null);
     }
   };
 
   const handleRefreshToken = (channel: ConnectedChannelAccount) => {
-    showToast(`Đã làm mới OAuth Access Token cho ${channel.name} thành công.`);
+    handleOpenLoginModal(channel.platform);
   };
 
   const filteredChannels = channels.filter((c) => {
@@ -440,28 +500,28 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                 {isConnected ? (
                   <>
                     <div className="flex items-center gap-1.5">
-                      {/* Nút Test Upload Video hoặc Test Backup */}
+                      {/* Nút Kiểm Tra Token Thực hoặc Test Backup */}
                       <button
                         onClick={() => handleTestUpload(chan)}
                         disabled={isTestingUpload === chan.id}
                         className="btn-secondary py-1 px-2.5 text-[11px] inline-flex items-center gap-1"
-                        title={chan.platform === 'drive' ? 'Thử nghiệm sao lưu tập tin lên Google Drive' : 'Thử nghiệm đăng video test để kiểm tra quyền hạn'}
+                        title={chan.platform === 'drive' ? 'Kiểm tra kết nối lưu trữ Google Drive thực' : 'Kiểm tra quyền OAuth Token xuất bản video trên máy chủ'}
                       >
                         <UploadCloud className={`w-3 h-3 ${isTestingUpload === chan.id ? 'animate-bounce text-zinc-900' : 'text-zinc-500'}`} />
                         <span>
                           {isTestingUpload === chan.id
-                            ? 'Đang test...'
+                            ? 'Đang xác thực...'
                             : chan.platform === 'drive'
-                              ? 'Thử sao lưu Drive'
-                              : 'Thử đăng video'}
+                              ? 'Kiểm tra Drive'
+                              : 'Kiểm tra Token'}
                         </span>
                       </button>
 
-                      {/* Làm mới token */}
+                      {/* Cập nhật lại OAuth Token */}
                       <button
-                        onClick={() => handleRefreshToken(chan)}
+                        onClick={() => handleOpenLoginModal(chan.platform)}
                         className="p-1.5 rounded hover:bg-zinc-100 text-zinc-500 transition"
-                        title="Làm mới OAuth Token"
+                        title="Cập nhật lại OAuth Token"
                       >
                         <RefreshCw className="w-3 h-3" />
                       </button>
@@ -591,60 +651,12 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
             </div>
 
             <form onSubmit={handleConfirmLogin} className="space-y-3.5 text-xs">
-              {/* Nút đăng nhập 1 chạm chuẩn OAuth */}
-              <div className="p-3 bg-zinc-50 border border-black/5 rounded-lg space-y-2 text-center">
-                <div className="text-[11px] text-zinc-500">Đăng nhập nhanh bằng tài khoản có sẵn:</div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (loginModalPlatform === 'youtube') {
-                      setInputChannelName('Anh Hoàng Nam (Studio Media Tech)');
-                      setInputHandle('@HoangNamMedia');
-                      setInputEmailOrId('hoangnam.media@gmail.com');
-                    } else if (loginModalPlatform === 'tiktok') {
-                      setInputChannelName('TikTok Creator Shop');
-                      setInputHandle('@hoangnam_techvn');
-                      setInputEmailOrId('tt_creator_8921');
-                    } else if (loginModalPlatform === 'facebook') {
-                      setInputChannelName('Fanpage Công Nghệ AI');
-                      setInputHandle('Cộng Đồng Yêu AI');
-                      setInputEmailOrId('page_id_891241');
-                    } else if (loginModalPlatform === 'drive') {
-                      setInputChannelName('Google Drive Backup Storage');
-                      setInputHandle('synapes.backup@gmail.com');
-                      setInputEmailOrId('synapes.backup@gmail.com');
-                    }
-                  }}
-                  className="w-full py-2 px-3 rounded-lg bg-white hover:bg-zinc-100 text-zinc-900 border border-black/10 font-medium text-xs shadow-2xs flex items-center justify-center gap-2 transition"
-                >
-                  {loginModalPlatform === 'youtube' && (
-                    <svg className="w-4 h-4 text-red-600" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-                    </svg>
-                  )}
-                  {loginModalPlatform === 'tiktok' && (
-                    <svg className="w-4 h-4 text-black" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.86.12V9.4a6.33 6.33 0 0 0-.86-.06A6.34 6.34 0 0 0 3.1 15.68a6.34 6.34 0 0 0 10.74 4.54 6.29 6.29 0 0 0 1.93-4.55V8.87a8.28 8.28 0 0 0 4.82 1.54V6.96a4.85 4.85 0 0 1-1-.27z" />
-                    </svg>
-                  )}
-                  {loginModalPlatform === 'facebook' && (
-                    <svg className="w-4 h-4 text-[#0866FF]" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                    </svg>
-                  )}
-                  {loginModalPlatform === 'drive' && (
-                    <svg className="w-4 h-4" viewBox="0 0 87.3 78" fill="none">
-                      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da" />
-                      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47" />
-                      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l6.1 10.55z" fill="#ea4335" />
-                      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d" />
-                      <path d="m59.8 53h27.5c0-1.55-.4-3.1-1.2-4.5l-13.75-23.8c-.8-1.4-1.95-2.5-3.3-3.3L55.3 45.2z" fill="#2684fc" />
-                      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3H27.5l-6.15 10.6c1.35.8 2.9 1.2 4.5 1.2h43.2c1.6 0 3.15-.45 4.5-1.2z" fill="#ffba00" />
-                    </svg>
-                  )}
-                  <span>Chọn Tài Khoản Kênh Mẫu Có Sẵn</span>
-                </button>
-              </div>
+              {authError && (
+                <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[11px] flex items-start gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <span>{authError}</span>
+                </div>
+              )}
 
               <div>
                 <label className="text-zinc-700 font-medium block mb-1">
@@ -653,7 +665,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder={loginModalPlatform === 'drive' ? 'Ví dụ: Google Drive Studio Storage' : 'Ví dụ: Kênh Công Nghệ Số'}
+                  placeholder={loginModalPlatform === 'drive' ? 'Ví dụ: Kho Lưu Trữ Studio' : 'Ví dụ: Kênh Tin Công Nghệ'}
                   value={inputChannelName}
                   onChange={(e) => setInputChannelName(e.target.value)}
                   className="w-full bg-zinc-50 border border-black/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 focus:outline-none focus:bg-white focus:border-zinc-900"
@@ -662,12 +674,12 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
 
               <div>
                 <label className="text-zinc-700 font-medium block mb-1">
-                  {loginModalPlatform === 'drive' ? 'Tài Khoản / Thư Mục Đồng Bộ *' : 'Handle / Định Danh (@...) *'}
+                  {loginModalPlatform === 'drive' ? 'Thư Mục / URL Google Drive *' : 'Handle / URL Kênh (@...) *'}
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder={loginModalPlatform === 'drive' ? 'Ví dụ: synapes.backup@gmail.com' : 'Ví dụ: @techstudio_official'}
+                  placeholder={loginModalPlatform === 'drive' ? 'Ví dụ: https://drive.google.com/drive/folders/...' : 'Ví dụ: @ten_kenh_cua_ban'}
                   value={inputHandle}
                   onChange={(e) => setInputHandle(e.target.value)}
                   className="w-full bg-zinc-50 border border-black/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 font-mono focus:outline-none focus:bg-white focus:border-zinc-900"
@@ -676,14 +688,38 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
 
               <div>
                 <label className="text-zinc-700 font-medium block mb-1">
-                  {loginModalPlatform === 'drive' ? 'Email Google Drive (Gmail / Workspace) *' : 'Email Tài Khoản / Client ID *'}
+                  {loginModalPlatform === 'drive' ? 'Email Google Drive (Gmail / Workspace) *' : 'Email Quản Trị / Client ID *'}
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="synapes.backup@gmail.com"
+                  placeholder="name@company.com hoặc Channel/Page ID"
                   value={inputEmailOrId}
                   onChange={(e) => setInputEmailOrId(e.target.value)}
+                  className="w-full bg-zinc-50 border border-black/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 font-mono focus:outline-none focus:bg-white focus:border-zinc-900"
+                />
+              </div>
+
+              <div>
+                <label className="text-zinc-700 font-medium block mb-1">
+                  OAuth 2.0 Access Token / API Key * (tối thiểu 16 ký tự)
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={16}
+                  data-testid="social-oauth-token-input"
+                  placeholder={
+                    loginModalPlatform === 'youtube'
+                      ? 'ya29.a0... (YouTube Data API v3 OAuth Token)'
+                      : loginModalPlatform === 'tiktok'
+                        ? 'act.xxx... (TikTok Creator Content Posting Token)'
+                        : loginModalPlatform === 'facebook'
+                          ? 'EAABsb... (Meta Graph Page Access Token)'
+                          : 'ya29.a0... (Google Drive OAuth Token)'
+                  }
+                  value={inputOAuthToken}
+                  onChange={(e) => setInputOAuthToken(e.target.value)}
                   className="w-full bg-zinc-50 border border-black/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 font-mono focus:outline-none focus:bg-white focus:border-zinc-900"
                 />
               </div>
@@ -693,7 +729,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                 <span>
                   {loginModalPlatform === 'drive'
                     ? 'Chỉ cấp quyền drive.file: Ứng dụng chỉ được đọc/ghi tệp do chính nó tải lên, bảo vệ tối đa dữ liệu người dùng.'
-                    : 'Hệ thống tự động cấp quyền đăng tải trực tiếp vào lịch xuất bản và hàng đợi video.'}
+                    : 'Token được kiểm tra định dạng trên máy chủ trước khi liên kết với hàng đợi xuất bản video.'}
                 </span>
               </div>
 
@@ -707,9 +743,14 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary"
+                  disabled={isSubmittingLogin}
+                  className="btn-primary disabled:opacity-60"
                 >
-                  {loginModalPlatform === 'drive' ? 'Xác Nhận & Cấp Quyền Google Drive' : 'Xác Nhận & Cấp Quyền Đăng Video'}
+                  {isSubmittingLogin
+                    ? 'Đang xác thực...'
+                    : loginModalPlatform === 'drive'
+                      ? 'Xác Nhận & Cấp Quyền Google Drive'
+                      : 'Xác Thực & Liên Kết Kênh'}
                 </button>
               </div>
             </form>

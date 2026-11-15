@@ -181,20 +181,6 @@ export const PolicyModal: React.FC<PolicyModalProps> = ({ policyType, onClose })
 
         {/* PDF viewer frame */}
         <div className="flex-1 bg-zinc-100/50 p-2 sm:p-3 overflow-hidden flex flex-col gap-2 min-h-0">
-          {activeTab === 'disclaimer' && (
-            <div className="rounded-lg border border-amber-300/80 bg-amber-50/95 px-3.5 py-2.5 text-[11px] leading-relaxed text-amber-950 shadow-2xs flex items-start gap-2.5 flex-shrink-0">
-              <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
-                <p className="font-bold text-amber-950 uppercase tracking-tight text-[10.5px]">
-                  Cập nhật Điều khoản Miễn trừ Trách nhiệm (Tính hợp pháp API & Dữ liệu)
-                </p>
-                <p>
-                  Bên B (Khách hàng) cam kết chỉ sử dụng tài khoản, API Key và nguồn dữ liệu chính thống, có giấy phép hợp lệ từ nhà cung cấp gốc.
-                  <strong className="font-semibold"> Bên A (Nhà cung cấp) được miễn trừ hoàn toàn mọi trách nhiệm pháp lý, bồi thường thiệt hại và nghĩa vụ liên đới</strong> nếu Bên B tự ý tích hợp, sử dụng hoặc khai thác API của nhà phát triển không chính thức, API lậu/reverse-engineer, vượt rào kỹ thuật hoặc phát sinh sự cố từ dịch vụ bên thứ ba.
-                </p>
-              </div>
-            </div>
-          )}
           <div className="w-full flex-1 bg-white rounded-lg border border-black/10 overflow-hidden relative shadow-inner">
             <iframe
               key={currentDoc.pdfPath}

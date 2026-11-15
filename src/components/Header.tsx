@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserAccount, ContractCategory } from '../types';
 import {
-  Bell, KeyRound, LogOut, BookOpen, Terminal, Film,
+  Bell, KeyRound, LogOut, BookOpen, Film,
   PanelLeftClose, PanelLeftOpen, Lock, AudioLines
 } from 'lucide-react';
 
@@ -237,19 +237,6 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="px-1.5 py-0.2 rounded text-[8.5px] font-mono font-bold bg-emerald-600 text-white tracking-wider">
               LABS
             </span>
-          </button>
-
-          <button
-            onClick={() => onSelectView('mcp-tools')}
-            className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer flex items-center gap-1 whitespace-nowrap flex-shrink-0 ${
-              activeView === 'mcp-tools'
-                ? 'bg-white text-zinc-950 shadow-2xs border border-zinc-200/60 font-semibold'
-                : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/50'
-            }`}
-            title="Khối MCP Servers & Công cụ Video AI"
-          >
-            <Terminal className="w-3.5 h-3.5 text-zinc-500" />
-            <span>MCP & Video Tools</span>
           </button>
 
           <button

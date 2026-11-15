@@ -935,6 +935,7 @@ function fallbackBrowserSpeech(
 export class StudioAudioSynthesizer {
   private ctx: AudioContext | null = null;
   private destNode: MediaStreamAudioDestinationNode | null = null;
+  private masterGain: GainNode | null = null;
   private bgmGain: GainNode | null = null;
   private voiceGain: GainNode | null = null;
   private sfxGain: GainNode | null = null;
@@ -942,6 +943,9 @@ export class StudioAudioSynthesizer {
   private bgmIntervalId: any = null;
   private activeVoiceSource: AudioBufferSourceNode | null = null;
   private activeVoiceAbort: AbortController | null = null;
+  private isMutedState = false;
+  private playbackToken = 0;
+  private connectedMediaElements = new WeakSet<HTMLAudioElement>();
 
   constructor() {
     this.initContext();
@@ -954,6 +958,11 @@ export class StudioAudioSynthesizer {
         this.ctx = new AudioCtx();
         this.destNode = this.ctx.createMediaStreamDestination();
 
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.value = this.isMutedState ? 0 : 1.0;
+        this.masterGain.connect(this.ctx.destination);
+        this.masterGain.connect(this.destNode);
+
         this.bgmGain = this.ctx.createGain();
         this.bgmGain.gain.value = 0.2;
 
@@ -963,17 +972,51 @@ export class StudioAudioSynthesizer {
         this.sfxGain = this.ctx.createGain();
         this.sfxGain.gain.value = 0.42;
 
-        this.bgmGain.connect(this.ctx.destination);
-        this.bgmGain.connect(this.destNode);
-
-        this.voiceGain.connect(this.ctx.destination);
-        this.voiceGain.connect(this.destNode);
-
-        this.sfxGain.connect(this.ctx.destination);
-        this.sfxGain.connect(this.destNode);
+        this.bgmGain.connect(this.masterGain);
+        this.voiceGain.connect(this.masterGain);
+        this.sfxGain.connect(this.masterGain);
       }
     } catch (e) {
       console.warn('Web Audio init error:', e);
+    }
+  }
+
+  public setMuted(muted: boolean) {
+    this.isMutedState = muted;
+    if (muted) {
+      this.playbackToken++;
+      this.stopSceneVoiceover();
+      this.stopCinematicSoundtrack();
+    }
+    if (this.masterGain && this.ctx) {
+      const now = this.ctx.currentTime;
+      this.masterGain.gain.cancelScheduledValues(now);
+      this.masterGain.gain.setValueAtTime(muted ? 0 : 1.0, now);
+    }
+  }
+
+  public isMuted(): boolean {
+    return this.isMutedState;
+  }
+
+  public getDebugAudioState() {
+    return {
+      isMuted: this.isMutedState,
+      playbackToken: this.playbackToken,
+      hasActiveVoice: Boolean(this.activeVoiceSource || this.activeVoiceAbort),
+      isBgmPlaying: this.isBgmPlaying,
+      masterGainValue: this.masterGain?.gain.value ?? (this.isMutedState ? 0 : 1),
+    };
+  }
+
+  public attachMediaElementToVoice(audio: HTMLAudioElement) {
+    if (!this.ctx || !this.voiceGain || this.connectedMediaElements.has(audio)) return;
+    try {
+      const src = this.ctx.createMediaElementSource(audio);
+      src.connect(this.voiceGain);
+      this.connectedMediaElements.add(audio);
+    } catch {
+      // Fallback to native HTMLAudio output if element cannot be attached
     }
   }
 
@@ -993,18 +1036,13 @@ export class StudioAudioSynthesizer {
 
   public playCustomAudioBlob(audioUrl: string, onEnd?: () => void): HTMLAudioElement | null {
     this.stopSceneVoiceover();
+    if (this.isMutedState) return null;
     this.resume();
     try {
       const audio = new Audio(audioUrl);
       audio.crossOrigin = 'anonymous';
-      if (this.ctx && this.voiceGain) {
-        try {
-          const mediaSource = this.ctx.createMediaElementSource(audio);
-          mediaSource.connect(this.voiceGain);
-        } catch {
-          // Fallback to standard playback if MediaElementSource already connected
-        }
-      }
+      audio.muted = this.isMutedState;
+      this.attachMediaElementToVoice(audio);
       this.duckBgm(true);
       audio.onended = () => {
         this.duckBgm(false);
@@ -1032,6 +1070,7 @@ export class StudioAudioSynthesizer {
   }
 
   public stopSceneVoiceover() {
+    this.playbackToken++;
     if (this.activeVoiceAbort) {
       this.activeVoiceAbort.abort();
       this.activeVoiceAbort = null;
@@ -1063,9 +1102,11 @@ export class StudioAudioSynthesizer {
     customPitch?: number
   ) {
     this.stopSceneVoiceover();
+    if (this.isMutedState) return;
     this.resume();
     if (!this.ctx || !this.voiceGain || !text.trim()) return;
 
+    const myToken = this.playbackToken;
     const ctx = this.ctx;
     const voiceDestination = this.voiceGain;
     const effectiveRate = customRate ?? profile.rate;
@@ -1100,7 +1141,7 @@ export class StudioAudioSynthesizer {
             rate: effectiveRate,
             referenceAnalysis: refAnalysisCompat,
           });
-          if (abortCtrl.signal.aborted) return;
+          if (abortCtrl.signal.aborted || myToken !== this.playbackToken || this.isMutedState) return;
           const source = ctx.createBufferSource();
           source.buffer = rendered.audioBuffer;
           source.connect(voiceDestination);
@@ -1123,7 +1164,7 @@ export class StudioAudioSynthesizer {
           effectiveRate,
           customPitch
         );
-        if (abortCtrl.signal.aborted) return;
+        if (abortCtrl.signal.aborted || myToken !== this.playbackToken || this.isMutedState) return;
 
         const pitchRatio = computeEffectivePitchRatio(profile, customPitch, engine);
         const processedBuffer = processVocalTractPitchAndTempo(
@@ -1147,7 +1188,14 @@ export class StudioAudioSynthesizer {
 
         source.start(0);
       } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+        if (
+          err?.name === 'AbortError' ||
+          abortCtrl.signal.aborted ||
+          myToken !== this.playbackToken ||
+          this.isMutedState
+        ) {
+          return;
+        }
         fallbackBrowserSpeech(
           profile,
           text,
@@ -1169,6 +1217,7 @@ export class StudioAudioSynthesizer {
   }
 
   public playSfx(type: 'whoosh' | 'sub-drop' | 'camera-shutter' | 'chime' | 'glitch') {
+    if (this.isMutedState) return;
     this.resume();
     if (!this.ctx || !this.sfxGain) return;
     const ctx = this.ctx;
@@ -1252,7 +1301,7 @@ export class StudioAudioSynthesizer {
   }
 
   public startCinematicSoundtrack(bpm: number = 118) {
-    if (this.isBgmPlaying) return;
+    if (this.isBgmPlaying || this.isMutedState) return;
     this.resume();
     if (!this.ctx || !this.bgmGain) return;
 

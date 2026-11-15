@@ -57,12 +57,13 @@ export interface GenerateScriptParams {
   targetDurationSec?: number;
   preferredVoiceId?: string;
   creationSpeedMode?: 'turbo' | 'cloud';
-  imageMotionMode?: 'consistent-anchor' | 'hybrid-scenes';
+  imageMotionMode?: 'consistent-anchor' | 'hybrid-scenes' | 'distribute-gallery';
   provider: AIProviderId;
   model: string;
   apiKey: string;
   endpointUrl?: string;
   attachedImageDataUrl?: string;
+  attachedImages?: string[];
   attachedImageName?: string;
   attachedAudioUrl?: string;
   attachedAudioName?: string;
@@ -401,7 +402,11 @@ export function classifyTopicDomainClient(text: string): TopicDomain {
     return 'hardware';
   }
 
-  if (/trí tuệ nhân tạo|\bai\b|chatgpt|gemini|claude|deepseek|robot|bán dẫn|siêu chip|cyber|dữ liệu lớn/.test(q)) {
+  if (
+    /trí tuệ nhân tạo|\bai\b|nvidia|jensen huang|openai|chatgpt|gemini|claude|deepseek|robot|bán dẫn|siêu chip|cyber|dữ liệu lớn|kế nhiệm|ceo|tập đoàn công nghệ/.test(
+      q
+    )
+  ) {
     return 'ai-cyber';
   }
 
@@ -505,9 +510,10 @@ export function extractCleanSubject(rawPrompt: string): string {
     /^(xin\s+hãy|hãy|vui\s+lòng|giúp\s+tôi|nhờ\s+bạn|tiến\s+hành|thực\s+hiện)\s+/i,
     /^(khởi\s+tạo|tạo|làm|xây\s+dựng|viết|soạn|dựng|biên\s+tập|sản\s+xuất|lên\s+ý\s+tưởng)\s+(cho\s+tôi\s+|giúp\s+tôi\s+)?/i,
     /^(một\s+|1\s+)?(dự\s+án\s+)?(kịch\s+bản\s+)?(bản\s+tin\s+thời\s+sự|bản\s+tin\s+nhanh|bản\s+tin\s+nóng|bản\s+tin\s+24h|bản\s+tin|điểm\s+tin|tin\s+tức|tin\s+nóng|phóng\s+sự|phim\s+tài\s+liệu|chương\s+trình|video|videp|clip|shorts|reels)\s*/i,
-    /^(ngắn\s+|dài\s+|chi\s+tiết\s+|chuyên\s+sâu\s+|toàn\s+diện\s+|nóng\s+hổi\s+|mới\s+nhất\s+)+/i,
-    /^(giới\s+thiệu|review|đánh\s+giá|phân\s+tích|tổng\s+hợp|cập\s+nhật|tìm\s+hiểu|khám\s+phá|giải\s+mã|kể\s+chuyện|thuyết\s+minh|nói)\s+(chi\s+tiết\s+|toàn\s+diện\s+|chuyên\s+sâu\s+)?/i,
-    /^(về\s+chủ\s+đề|về\s+sự\s+kiện|về\s+vấn\s+đề|về\s+sản\s+phẩm|xoay\s+quanh|liên\s+quan\s+đến|về|cho)\s+/i,
+    /^(này\s+)?(sẽ\s+)?(tập\s+trung\s+vào\s+việc|tập\s+trung\s+vào|xoay\s+quanh\s+việc|nói\s+về\s+việc|phân\s+tích\s+việc|đề\s+cập\s+đến\s+việc|kể\s+về\s+việc)\s+/i,
+    /^(ngắn\s+|dài\s+|chi\s+tiết\s+|chuyên\s+sâu\s+|toàn\s+diện\s+|nóng\s+hổi\s+|mới\s+nhất\s+|sẽ\s+)+/i,
+    /^(giới\s+thiệu|review|đánh\s+giá|phân\s+tích|tổng\s+hợp|cập\s+nhật|tìm\s+hiểu|khám\s+phá|giải\s+mã|kể\s+chuyện|thuyết\s+minh|nói|tập\s+trung)\s+(chi\s+tiết\s+|toàn\s+diện\s+|chuyên\s+sâu\s+)?/i,
+    /^(vào\s+việc|về\s+việc|về\s+chủ\s+đề|về\s+sự\s+kiện|về\s+vấn\s+đề|về\s+sản\s+phẩm|xoay\s+quanh|liên\s+quan\s+đến|về|cho|việc)\s+/i,
   ];
 
   for (let pass = 0; pass < 5; pass++) {
@@ -1038,7 +1044,17 @@ async function callServerLlmProxy(
   userPrompt: string,
   endpointUrl?: string,
   imageDataUrl?: string,
-  externalSignal?: AbortSignal
+  externalSignal?: AbortSignal,
+  extraMeta?: {
+    rawPrompt?: string;
+    clauses?: string[];
+    sceneCount?: number;
+    durationSeconds?: number;
+    videoGenre?: string;
+    domain?: string;
+    platformFormatLabel?: string;
+    mode?: 'llm' | 'studio-research';
+  }
 ): Promise<{ data: any; actualModel: string }> {
   const resp = await fetchWithTimeoutAndSignal(
     '/api/llm-generate',
@@ -1053,9 +1069,10 @@ async function callServerLlmProxy(
         userPrompt: `[YÊU CẦU]: Hãy tạo kịch bản JSON hoàn chỉnh, bám sát thực tế cho chủ đề "${userPrompt}".`,
         endpointUrl,
         imageDataUrl,
+        ...(extraMeta || {}),
       }),
     },
-    5500,
+    7000,
     externalSignal
   );
 
@@ -1211,8 +1228,15 @@ function splitPromptClauses(rawPrompt: string, coreSubject: string): string[] {
   }
 
   const source = (coreSubject || rawPrompt || '').trim();
+  const compoundSplit = source
+    .split(/\s*(?:cũng\s+như|đồng\s+thời|bên\s+cạnh\s+đó|ngoài\s+ra|cùng\s+với|;\s*)\s*|[.!?]+/i)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 8);
+  if (compoundSplit.length >= 2) {
+    return compoundSplit.slice(0, 8);
+  }
   const clauses = source
-    .split(/[.!?;]+|,\s+(?=[A-ZÀ-Ỹa-zà-ỹ0-9])/g)
+    .split(/,\s+(?=[A-ZÀ-Ỹa-zà-ỹ0-9])/g)
     .map((s) => s.trim())
     .filter((s) => s.length >= 6);
   return clauses.length > 0 ? clauses : [source];
@@ -1571,108 +1595,195 @@ function generateBespokeMultiGenreScript(
     };
   }
 
-  // 1. CHẾ ĐỘ BẢN TIN THỜI SỰ / ĐỊA CHÍNH TRỊ / CHIẾN SỰ 24H
+  // 1. CHẾ ĐỘ BẢN TIN THỜI SỰ / ĐỊA CHÍNH TRỊ / CÔNG NGHỆ & XÃ HỘI 24H
   if (videoGenre === 'news-broadcast') {
     const isGeopolitics = domain === 'geopolitics';
+    const c1 = (promptClauses[0] || coreSubject).trim();
+    const c2 = promptClauses[1] ? promptClauses[1].trim() : '';
     const title = isGeopolitics
       ? `Bản Tin Đặc Biệt: Toàn Cảnh ${coreSubject} — Diễn Biến Nóng & Tác Động Chiến Lược`
-      : `Bản Tin Thời Sự 24h: Tiêu Điểm ${coreSubject} & Cập Nhật Mới Nhất`;
+      : c2
+        ? `Bản Tin Tiêu Điểm: ${truncateHeadlineWords(c1, 48)} & ${truncateHeadlineWords(c2, 46)}`
+        : `Bản Tin Thời Sự 24h: ${truncateHeadlineWords(c1, 78)}`;
 
     const tickerItems =
       research.headlines.length > 0
         ? research.headlines.slice(0, 4).map((h) => `[${h.source.toUpperCase()}] ${h.title}`)
         : [
-          `TRỰC TIẾP 24H: Theo dõi sát diễn biến ${coreSubject}`,
-          'Cập nhật liên tục từ các hãng thông tấn quốc tế và giới quan sát khu vực',
-          'Phân tích đa chiều tác động ngoại giao, an ninh và kinh tế toàn cầu',
+          `TIÊU ĐIỂM 24H: ${c1}`,
+          ...(c2 ? [`GÓC KHUẤT & CÂU CHUYỆN ĐẰNG SAU: ${c2}`] : []),
+          'Phân tích đa chiều dựa trên dữ kiện thực tế và bối cảnh thị trường',
         ];
 
-    const scenes = [
-      {
-        sceneNumber: 1,
-        headline: `01. TIÊU ĐIỂM NÓNG: ${truncateHeadlineWords(coreSubject.toUpperCase(), 42)}`,
-        durationSec: 8,
-        voiceover: h1
-          ? `Kính chào quý vị đang theo dõi Bản tin Đặc biệt. Tâm điểm chú ý của dư luận quốc tế hôm nay đổ dồn vào ${coreSubject}. Theo ghi nhận mới nhất từ ${src1}, ${h1}.`
-          : `Kính chào quý vị đang theo dõi Bản tin Thời sự Đặc biệt. Tâm điểm chú ý của dư luận trong nước và quốc tế đang đổ dồn về ${coreSubject} với hàng loạt diễn biến dồn dập và hết sức đáng chú ý.`,
-        visualPrompt: `Breaking news broadcast photojournalism wide shot of ${coreSubject}, dramatic real-world atmosphere, 35mm lens, 8k press photography`,
-        cameraMotion: 'dolly-in',
-        lightingStyle: 'studio-clean',
-        sfx: 'Breaking News Broadcast Stinger + Deep Pulse',
-        transition: 'fade',
-      },
-      {
-        sceneNumber: 2,
-        headline: isGeopolitics
-          ? '02. DIỄN BIẾN THỰC ĐỊA & CÁN CÂN ĐỐI ĐẦU'
-          : '02. BỐI CẢNH & NGUYÊN NHÂN CỐT LÕI',
-        durationSec: 9,
-        voiceover: wikiFact1
-          ? `Nhìn vào bức tranh tổng thể, giới quan sát chỉ rõ nền tảng cốt lõi của vấn đề. ${wikiFact1} Chính những mâu thuẫn tích tụ này đã đẩy cục diện bước sang giai đoạn nhạy cảm mới.`
-          : `Nhìn lại chuỗi sự kiện vừa qua, căng thẳng xoay quanh ${coreSubject} không bùng phát ngẫu nhiên mà bắt nguồn từ những bước đi chiến lược và lợi ích cốt lõi khó dung hòa giữa các bên liên quan.`,
-        visualPrompt: `Strategic command map and satellite reconnaissance overview of ${coreSubject}, photojournalistic documentary style, 8k`,
-        cameraMotion: 'pan-right',
-        lightingStyle: 'volumetric',
-        sfx: 'Radar Telemetry Sweep + Low Tension Drone',
-        transition: 'dissolve',
-      },
-      {
-        sceneNumber: 3,
-        headline: '03. CẬP NHẬT TỪ TRUYỀN THÔNG QUỐC TẾ',
-        durationSec: 9,
-        voiceover: h2
-          ? `Trong diễn biến liên quan vừa được ${src2} công bố: ${h2}. Động thái này ngay lập tức buộc các bên phải điều chỉnh trạng thái sẵn sàng và tăng cường các biện pháp răn đe chiến lược.`
-          : `Các nguồn tin thực địa và truyền thông quốc tế liên tục phát đi tín hiệu cho thấy mức độ cảnh giác đang được đẩy lên cao nhất, kéo theo nhiều cuộc họp tham vấn khẩn cấp ở cấp cao.`,
-        visualPrompt: `International press briefing and diplomatic flags representing ${coreSubject}, crisp broadcast photojournalism, 85mm lens`,
-        cameraMotion: 'orbit',
-        lightingStyle: 'rembrandt',
-        sfx: 'Press Camera Shutters + Subtle Whoosh',
-        transition: 'cut',
-      },
-      {
-        sceneNumber: 4,
-        headline: isGeopolitics
-          ? '04. TÁC ĐỘNG AN NINH & CHUỖI CUNG ỨNG TOÀN CẦU'
-          : '04. TÁC ĐỘNG ĐA CHIỀU TỚI XÃ HỘI & KINH TẾ',
-        durationSec: 8,
-        voiceover: h3
-          ? `Không chỉ dừng lại ở khía cạnh chính trị, sức nóng của ${coreSubject} đã lan sang thị trường toàn cầu. Ghi nhận thực tế cho thấy: ${h3}, tạo áp lực lớn lên giá năng lượng và chuỗi vận tải quốc tế.`
-          : `Sức nóng từ ${coreSubject} đang tạo ra hiệu ứng dây chuyền rõ nét lên thị trường tài chính, giá dầu mỏ cũng như tâm lý thận trọng của giới đầu tư trên khắp các châu lục.`,
-        visualPrompt: `Global energy shipping routes and financial market screens reacting to ${coreSubject}, dramatic cinematic realism, 8k`,
-        cameraMotion: 'crane-up',
-        lightingStyle: 'studio-clean',
-        sfx: 'Data Ticker Pulse + Atmospheric Riser',
-        transition: 'dissolve',
-      },
-      {
-        sceneNumber: 5,
-        headline: '05. PHẢN ỨNG NGOẠI GIAO & CÁC BÊN LIÊN QUAN',
-        durationSec: 8,
-        voiceover: `Trên bàn cờ ngoại giao, cộng đồng quốc tế đang nỗ lực kêu gọi kiềm chế tối đa nhằm ngăn chặn nguy cơ leo thang ngoài tầm kiểm soát, đồng thời mở ra các kênh đối thoại hậu trường đầy căng thẳng.`,
-        visualPrompt: `United Nations and international diplomatic summit table discussing ${coreSubject}, dramatic architectural lighting, 35mm lens, 8k`,
-        cameraMotion: 'pan-left',
-        lightingStyle: 'volumetric',
-        sfx: 'Subtle Orchestral Tension + Transition Hit',
-        transition: 'cut',
-      },
-      {
-        sceneNumber: 6,
-        headline: '06. NHẬN ĐỊNH CHUYÊN GIA & DỰ BÁO KỊCH BẢN',
-        durationSec: 8,
-        voiceover: `Giới phân tích nhận định những ngày sắp tới sẽ mang tính quyết định đối với toàn bộ cục diện ${coreSubject}. Chúng tôi sẽ tiếp tục cập nhật ngay khi có thông tin mới nhất. Quý vị nhận định thế nào về tình hình này?`,
-        visualPrompt: `Modern live television newsroom studio wrap-up with world map backdrop covering ${coreSubject}, slow Dolly Out shot, 8k broadcast quality`,
-        cameraMotion: 'dolly-out',
-        lightingStyle: 'studio-clean',
-        sfx: 'Broadcast News Finale Theme',
-        transition: 'fade',
-      },
-    ];
+    const scenes = isGeopolitics
+      ? [
+          {
+            sceneNumber: 1,
+            headline: `01. TIÊU ĐIỂM NÓNG: ${truncateHeadlineWords(c1.toUpperCase(), 42)}`,
+            durationSec: 8,
+            voiceover: h1
+              ? `Kính chào quý vị đang theo dõi Bản tin Đặc biệt. Tâm điểm chú ý của dư luận quốc tế hôm nay đổ dồn vào ${c1}. Theo ghi nhận mới nhất từ ${src1}, ${h1}.`
+              : `Kính chào quý vị đang theo dõi Bản tin Thời sự Đặc biệt. Tâm điểm chú ý của dư luận quốc tế đang đổ dồn về ${c1} với hàng loạt diễn biến hết sức đáng chú ý.`,
+            visualPrompt: `Breaking news broadcast photojournalism wide shot of ${c1}, dramatic real-world atmosphere, 35mm lens, 8k press photography`,
+            cameraMotion: 'dolly-in',
+            lightingStyle: 'studio-clean',
+            sfx: 'Breaking News Broadcast Stinger + Deep Pulse',
+            transition: 'fade',
+          },
+          {
+            sceneNumber: 2,
+            headline: '02. DIỄN BIẾN THỰC ĐỊA & CÁN CÂN ĐỐI ĐẦU',
+            durationSec: 9,
+            voiceover: wikiFact1
+              ? `Nhìn vào bức tranh tổng thể, giới quan sát chỉ rõ nền tảng cốt lõi của vấn đề. ${wikiFact1} Chính những mâu thuẫn tích tụ này đã đẩy cục diện bước sang giai đoạn nhạy cảm mới.`
+              : `Nhìn lại chuỗi sự kiện vừa qua, tình hình xoay quanh ${c1} bắt nguồn từ những bước đi chiến lược và lợi ích cốt lõi khó dung hòa giữa các bên liên quan.`,
+            visualPrompt: `Strategic command map and satellite reconnaissance overview of ${c1}, photojournalistic documentary style, 8k`,
+            cameraMotion: 'pan-right',
+            lightingStyle: 'volumetric',
+            sfx: 'Radar Telemetry Sweep + Low Tension Drone',
+            transition: 'dissolve',
+          },
+          {
+            sceneNumber: 3,
+            headline: '03. CẬP NHẬT TỪ TRUYỀN THÔNG QUỐC TẾ',
+            durationSec: 9,
+            voiceover: h2
+              ? `Trong diễn biến liên quan vừa được ${src2} công bố: ${h2}. Động thái này ngay lập tức buộc các bên phải điều chỉnh trạng thái sẵn sàng.`
+              : `Các nguồn tin thực địa và truyền thông quốc tế liên tục phát đi tín hiệu cho thấy mức độ cảnh giác đang được đẩy lên cao nhất.`,
+            visualPrompt: `International press briefing and diplomatic flags representing ${c1}, crisp broadcast photojournalism, 85mm lens`,
+            cameraMotion: 'orbit',
+            lightingStyle: 'rembrandt',
+            sfx: 'Press Camera Shutters + Subtle Whoosh',
+            transition: 'cut',
+          },
+          {
+            sceneNumber: 4,
+            headline: '04. TÁC ĐỘNG AN NINH & CHUỖI CUNG ỨNG TOÀN CẦU',
+            durationSec: 8,
+            voiceover: h3
+              ? `Không chỉ dừng lại ở khía cạnh chính trị, sức nóng của ${c1} đã lan sang thị trường toàn cầu. Ghi nhận thực tế cho thấy: ${h3}, tạo áp lực lớn lên giá năng lượng và chuỗi vận tải quốc tế.`
+              : `Sức nóng từ ${c1} đang tạo ra hiệu ứng dây chuyền rõ nét lên thị trường tài chính, giá năng lượng cũng như tâm lý thận trọng của giới đầu tư toàn cầu.`,
+            visualPrompt: `Global energy shipping routes and financial market screens reacting to ${c1}, dramatic cinematic realism, 8k`,
+            cameraMotion: 'crane-up',
+            lightingStyle: 'studio-clean',
+            sfx: 'Data Ticker Pulse + Atmospheric Riser',
+            transition: 'dissolve',
+          },
+          {
+            sceneNumber: 5,
+            headline: '05. PHẢN ỨNG NGOẠI GIAO & CÁC BÊN LIÊN QUAN',
+            durationSec: 8,
+            voiceover: `Trên bàn cờ ngoại giao, cộng đồng quốc tế đang nỗ lực kêu gọi kiềm chế tối đa nhằm ngăn chặn nguy cơ leo thang ngoài tầm kiểm soát, đồng thời mở ra các kênh đối thoại hậu trường.`,
+            visualPrompt: `United Nations and international diplomatic summit table discussing ${c1}, dramatic architectural lighting, 35mm lens, 8k`,
+            cameraMotion: 'pan-left',
+            lightingStyle: 'volumetric',
+            sfx: 'Subtle Orchestral Tension + Transition Hit',
+            transition: 'cut',
+          },
+          {
+            sceneNumber: 6,
+            headline: '06. NHẬN ĐỊNH CHUYÊN GIA & DỰ BÁO KỊCH BẢN',
+            durationSec: 8,
+            voiceover: `Giới phân tích nhận định những ngày sắp tới sẽ mang tính quyết định đối với toàn bộ cục diện ${c1}. Chúng tôi sẽ tiếp tục cập nhật ngay khi có thông tin mới nhất.`,
+            visualPrompt: `Modern live television newsroom studio wrap-up with world map backdrop covering ${c1}, slow Dolly Out shot, 8k broadcast quality`,
+            cameraMotion: 'dolly-out',
+            lightingStyle: 'studio-clean',
+            sfx: 'Broadcast News Finale Theme',
+            transition: 'fade',
+          },
+        ]
+      : [
+          {
+            sceneNumber: 1,
+            headline: `01. TIÊU ĐIỂM: ${truncateHeadlineWords(c1.toUpperCase(), 44)}`,
+            durationSec: 9,
+            voiceover: h1
+              ? `Kính chào quý vị đang theo dõi bản tin tiêu điểm hôm nay. Câu chuyện đang thu hút sự quan tâm đặc biệt từ dư luận chính là việc ${c1}. Theo ghi nhận từ ${src1}, ${h1}.`
+              : `Kính chào quý vị đang theo dõi bản tin tiêu điểm hôm nay. Câu chuyện đang thu hút sự chú ý lớn từ công chúng và giới chuyên môn chính là việc ${c1} — bước ngoặt mang nhiều ý nghĩa chiến lược.`,
+            visualPrompt: `Editorial broadcast documentary opening shot illustrating ${c1}, authentic photojournalism, crisp 35mm lens, 8k`,
+            cameraMotion: 'dolly-in',
+            lightingStyle: 'studio-clean',
+            sfx: 'Broadcast Opening Pulse',
+            transition: 'fade',
+          },
+          {
+            sceneNumber: 2,
+            headline: '02. BỐI CẢNH LỊCH SỬ & TẦM NHÌN DÀI HẠN',
+            durationSec: 9,
+            voiceover: wikiFact1
+              ? `Để hiểu rõ tầm quan trọng của bước chuyển này, cần nhìn lại nền tảng lịch sử: ${wikiFact1} Đó là lý do câu chuyện tìm lớp lãnh đạo kế cận luôn được giới quan sát đặt lên hàng đầu.`
+              : `Đằng sau mỗi quyết định quan trọng về nhân sự và chiến lược là cả một hành trình tích lũy nhiều thập kỷ, nơi bản sắc sáng tạo và kỷ luật vận hành đóng vai trò sống còn.`,
+            visualPrompt: `Documentary corporate leadership architecture and innovation center illustrating ${c1}, clean natural light, 50mm lens, 8k`,
+            cameraMotion: 'pan-right',
+            lightingStyle: 'volumetric',
+            sfx: 'Clean Editorial Transition',
+            transition: 'dissolve',
+          },
+          {
+            sceneNumber: 3,
+            headline: c2
+              ? `03. GÓC KHUẤT ĐỜI TƯ: ${truncateHeadlineWords(c2.toUpperCase(), 40)}`
+              : '03. CHÂN DUNG & NHỮNG GIÁ TRỊ PHÍA SAU HẬU TRƯỜNG',
+            durationSec: 9,
+            voiceover: c2
+              ? `Song hành với câu chuyện điều hành là ${c2}. Dù gắn bó suốt nhiều thập kỷ qua, nhân vật này luôn chọn lối sống kín tiếng, hiếm khi xuất hiện trước truyền thông đại chúng.`
+              : h2
+                ? `Theo thông tin từ ${src2}, ${h2}. Những chi tiết hậu trường ít được biết đến này đang giúp công chúng nhìn rõ hơn con người và triết lý đằng sau các quyết sách lớn.`
+                : `Ít ai biết rằng đằng sau ánh đèn sân khấu là sự đồng hành lặng lẽ, bền bỉ qua nhiều thế hệ, giữ cho bộ máy vận hành luôn ổn định và kiên định với mục tiêu dài hạn.`,
+            visualPrompt: `Intimate documentary still life and dignified portrait atmosphere highlighting ${c2 || c1}, warm natural chiaroscuro, 85mm lens, 8k`,
+            cameraMotion: 'orbit',
+            lightingStyle: 'golden-hour',
+            sfx: 'Warm Documentary Piano Swell',
+            transition: 'dissolve',
+          },
+          {
+            sceneNumber: 4,
+            headline: c2 ? '04. HƠN 4 THẬP KỶ GẮN BÓ & DẤU ẤN THẦM LẶNG' : '04. DỮ KIỆN THỰC TẾ & TÁC ĐỘNG ĐA CHIỀU',
+            durationSec: 9,
+            voiceover: h2
+              ? `Ghi nhận từ ${src2} cho biết thêm: ${h2}. Chính sự tảo tần, hậu thuẫn tinh thần và tầm nhìn nhân văn phía sau hậu trường đã tạo nên điểm tựa vững chắc hiếm thấy.`
+              : `Từ những ngày đầu khởi nghiệp đầy thử thách cho đến khi gặt hái thành công vang dội, sự thấu hiểu và gắn bó bền chặt suốt hàng chục năm luôn là giá trị cốt lõi được công chúng ngưỡng mộ.`,
+            visualPrompt: `Timeless archival documentary study representing 40 years of partnership and dedication behind ${c2 || c1}, warm editorial photography, 8k`,
+            cameraMotion: 'pan-left',
+            lightingStyle: 'rembrandt',
+            sfx: 'Subtle Film Transition',
+            transition: 'cut',
+          },
+          {
+            sceneNumber: 5,
+            headline: '05. TÁC ĐỘNG TỚI THỊ TRƯỜNG & THẾ HỆ KẾ CẬN',
+            durationSec: 8,
+            voiceover: h3
+              ? `Trên góc độ chuyên môn, ${h3}. Dư luận kỳ vọng những giá trị cốt lõi và văn hóa kỷ luật sẽ tiếp tục được kế thừa trọn vẹn trong giai đoạn chuyển giao sắp tới.`
+              : `Giới quan sát nhận định bài toán kế nhiệm không chỉ đo bằng năng lực điều hành ngắn hạn, mà còn nằm ở việc giữ vững bản sắc, niềm tin của cộng đồng và di sản bền vững suốt nhiều thập kỷ.`,
+            visualPrompt: `Modern innovation laboratory and forward-looking executive transition editorial photography for ${c1}, 35mm lens, 8k`,
+            cameraMotion: 'crane-up',
+            lightingStyle: 'studio-clean',
+            sfx: 'Modern Broadcast Pulse',
+            transition: 'dissolve',
+          },
+          {
+            sceneNumber: 6,
+            headline: '06. TỔNG KẾT & GÓC NHÌN BÌNH LUẬN',
+            durationSec: 8,
+            voiceover: `Khép lại bản tin hôm nay, câu chuyện về ${c1}${c2 ? ` cùng ${c2}` : ''} mở ra nhiều suy ngẫm về tầm nhìn lãnh đạo và giá trị đồng hành thầm lặng. Quý vị có nhận định gì về câu chuyện này? Hãy chia sẻ bên dưới bình luận nhé!`,
+            visualPrompt: `Clean editorial closing wide shot concluding the story of ${c1}, slow dolly out, natural contrast, 8k`,
+            cameraMotion: 'dolly-out',
+            lightingStyle: 'studio-clean',
+            sfx: 'Broadcast News Finale Theme',
+            transition: 'fade',
+          },
+        ];
 
     return {
       title,
       newsTicker: tickerItems.join('  •  '),
-      musicGenre: 'Broadcast Breaking News Pulse (Commercial Master)',
-      tags: ['BanTin24h', 'ThoiSuQuocTe', 'TinNong', 'PhanTichChienLuoc', 'DiaChinhTri'],
+      musicGenre: isGeopolitics
+        ? 'Broadcast Breaking News Pulse (Commercial Master)'
+        : 'Documentary Editorial Score',
+      tags: isGeopolitics
+        ? ['BanTin24h', 'ThoiSuQuocTe', 'TinNong', 'PhanTichChienLuoc', 'DiaChinhTri']
+        : ['BanTinTieuDiem', 'PhanTichChuyenSau', 'DoanhNhan', 'CongNghe'],
       scenes,
     };
   }
@@ -2368,11 +2479,24 @@ export async function generateAiVideoScript(
     apiKey,
     endpointUrl,
     attachedImageDataUrl,
+    attachedImages = [],
     attachedAudioUrl,
     attachedAudioName,
     signal,
     onProgress,
   } = params;
+
+  const attachedImageList = Array.from(
+    new Set(
+      (attachedImages && attachedImages.length > 0
+        ? attachedImages
+        : attachedImageDataUrl
+          ? [attachedImageDataUrl]
+          : []
+      ).filter(Boolean)
+    )
+  ).slice(0, 20);
+  const primaryAttachedImage = attachedImageList[0] || attachedImageDataUrl;
 
   throwIfAborted(signal);
 
@@ -2397,7 +2521,7 @@ export async function generateAiVideoScript(
       pv: preferredVoiceId || '',
       sm: creationSpeedMode,
       im: imageMotionMode,
-      img: attachedImageDataUrl ? `${attachedImageDataUrl.slice(0, 48)}_${attachedImageDataUrl.length}` : '',
+      img: attachedImageList.map((u) => `${u.slice(0, 32)}_${u.length}`).join('|'),
       aud: attachedAudioName || '',
       audUrl: attachedAudioUrl ? `${attachedAudioUrl.slice(0, 48)}_${attachedAudioUrl.length}` : '',
       pr: creationSpeedMode === 'turbo' ? 'turbo' : provider,
@@ -2431,9 +2555,7 @@ export async function generateAiVideoScript(
     !isTurboMode &&
     (isRandomReq ||
       (prelimDomain !== 'creative' &&
-        prelimDomain !== 'animation-3d' &&
-        (!attachedImageDataUrl ||
-          /bản tin|thời sự|tin tức|chiến sự|giá vàng|chứng khoán|iphone|khoa học|lịch sử/i.test(prompt))));
+        prelimDomain !== 'animation-3d'));
 
   let research: TopicResearchPayload = {
     query: coreSubject,
@@ -2482,7 +2604,7 @@ export async function generateAiVideoScript(
     aspectRatio,
     resolvedDurationSec / 60,
     platformFormatLabel,
-    Boolean(attachedImageDataUrl)
+    attachedImageList.length > 0
   );
 
   let rawJson: any = null;
@@ -2492,19 +2614,25 @@ export async function generateAiVideoScript(
     ? `⚡ Đã dựng siêu tốc bám sát 100% prompt "${coreSubject}" trong <1s.`
     : '';
 
-  // 3. Gọi tới API của nhà cung cấp nếu người dùng đã gắn API Key và đang ở chế độ AI Cloud
-  if (!isTurboMode && apiKey && apiKey.trim().length > 5 && provider !== 'plugin') {
+  // 3. Gọi tới LLM API (nếu có API Key riêng) HOẶC Server Research Director (khi dùng Plugin Token như Kling AI)
+  const hasRealLlmKey = Boolean(apiKey && apiKey.trim().length > 5 && provider !== 'plugin');
+  if (!isTurboMode) {
     try {
-      onProgress?.(`Đang kết nối song song ${provName} (${model}) biên soạn kịch bản "${coreSubject}"...`, 48);
+      onProgress?.(
+        hasRealLlmKey
+          ? `Đang kết nối song song ${provName} (${model}) biên soạn kịch bản "${coreSubject}"...`
+          : `Đang kết nối Động cơ Biên kịch & Nghiên cứu Dữ liệu cho "${coreSubject}"...`,
+        48
+      );
 
-      if (provider === 'gemini') {
+      if (hasRealLlmKey && provider === 'gemini') {
         const geminiRes = await raceGeminiProxyAndDirect({
           model,
           apiKey,
           systemPrompt,
           coreSubject,
           endpointUrl,
-          attachedImageDataUrl,
+          attachedImageDataUrl: primaryAttachedImage,
           signal,
           onHedgeStart: () => {
             onProgress?.(`Đang tăng tốc kết nối trực tiếp ${provName} (${model})...`, 64);
@@ -2513,15 +2641,26 @@ export async function generateAiVideoScript(
         rawJson = geminiRes.data;
         actualModelUsed = geminiRes.actualModel;
       } else {
+        const extractedClauses = splitPromptClauses(prompt, coreSubject);
         const proxyRes = await callServerLlmProxy(
           provider,
           model,
-          apiKey,
+          hasRealLlmKey ? apiKey : '',
           systemPrompt,
           coreSubject,
           endpointUrl,
-          attachedImageDataUrl,
-          signal
+          primaryAttachedImage,
+          signal,
+          {
+            rawPrompt: prompt,
+            clauses: extractedClauses,
+            sceneCount: aspectRatio === '9:16' ? 5 : 6,
+            durationSeconds: resolvedDurationSec,
+            videoGenre,
+            domain,
+            platformFormatLabel,
+            mode: hasRealLlmKey ? 'llm' : 'studio-research',
+          }
         );
         rawJson = proxyRes.data;
         actualModelUsed = proxyRes.actualModel;
@@ -2529,7 +2668,9 @@ export async function generateAiVideoScript(
 
       if (rawJson && Array.isArray(rawJson.scenes) && rawJson.scenes.length > 0) {
         isLiveApi = true;
-        engineMessage = `Đã biên kịch trực tiếp bởi ${provName} (${actualModelUsed}) bám sát yêu cầu.`;
+        engineMessage = hasRealLlmKey
+          ? `Đã biên kịch trực tiếp bởi ${provName} (${actualModelUsed}) bám sát yêu cầu.`
+          : `Đã tổng hợp kịch bản đa nhánh bám sát yêu cầu từ dữ liệu thực tế (${actualModelUsed}).`;
       }
     } catch (err: any) {
       if (err?.name === 'AbortError' || signal?.aborted) {
@@ -2539,8 +2680,6 @@ export async function generateAiVideoScript(
       actualModelUsed = 'SYNAPES Studio Creative Engine';
       engineMessage = `Đã kích hoạt Động cơ Biên kịch Thông minh SYNAPES Studio cho "${coreSubject}".`;
     }
-  } else if (!isTurboMode) {
-    actualModelUsed = 'SYNAPES Studio Creative Engine';
   }
 
   throwIfAborted(signal);
@@ -2634,13 +2773,17 @@ export async function generateAiVideoScript(
         ? `${baseVisualPrompt}, ${skillDirectives.visualDirective}`
         : baseVisualPrompt;
 
-    const applyAttachedImageToScene =
-      Boolean(attachedImageDataUrl) && (imageMotionMode !== 'hybrid-scenes' || idx === 0);
+    const attachedImgForScene =
+      attachedImageList.length > 1
+        ? attachedImageList[idx % attachedImageList.length]
+        : attachedImageList.length === 1 && (imageMotionMode !== 'hybrid-scenes' || idx === 0)
+          ? attachedImageList[0]
+          : undefined;
 
-    const aiImageUrl = applyAttachedImageToScene
-      ? attachedImageDataUrl!
+    const aiImageUrl = attachedImgForScene
+      ? attachedImgForScene
       : sc.imageUrl ||
-      buildAiSceneImageUrl(visualPrompt, aspectRatio, idx + 1, domain, research.visuals);
+        buildAiSceneImageUrl(visualPrompt, aspectRatio, idx + 1, domain, research.visuals);
 
     const clipUrl = SCENE_VIDEO_CLIPS[idx % SCENE_VIDEO_CLIPS.length];
     const cameraMotion =
@@ -2687,9 +2830,9 @@ export async function generateAiVideoScript(
         `Cập nhật diễn biến quan trọng tiếp theo xoay quanh ${coreSubject} từ nguồn dữ liệu thực tế.`,
       visualPrompt,
       imageUrl: aiImageUrl,
-      ...(applyAttachedImageToScene && attachedImageDataUrl
+      ...(attachedImgForScene
         ? {
-          customMediaUrl: attachedImageDataUrl,
+          customMediaUrl: attachedImgForScene,
           customMediaType: 'image' as const,
         }
         : {}),
