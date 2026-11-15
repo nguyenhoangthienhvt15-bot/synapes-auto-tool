@@ -108,6 +108,12 @@ export interface DialogueLine {
   audioUrl?: string;
 }
 
+export interface SceneMetricItem {
+  label: string;
+  value: string;
+  delta?: string;
+}
+
 export interface StoryboardScene {
   id: number;
   sceneNumber: number;
@@ -118,6 +124,10 @@ export interface StoryboardScene {
   visualPrompt: string;
   clipUrl?: string;
   imageUrl?: string;
+  secondaryImageUrl?: string;
+  sourceCitation?: string;
+  sceneMetrics?: SceneMetricItem[];
+  subShotMode?: 'broll-split' | 'pip-evidence' | 'data-focus' | 'auto';
   customMediaUrl?: string;
   customMediaType?: 'image' | 'video';
   customAudioUrl?: string;

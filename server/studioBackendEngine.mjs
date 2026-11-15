@@ -463,6 +463,138 @@ export const DOMAIN_PHOTO_POOLS = {
   ],
 };
 
+// ============================================================================
+// 1B. CURATED MULTI-DOMAIN INTERNET VIDEO B-ROLL POOLS (.webm/.mp4 verified)
+// ============================================================================
+export const DOMAIN_VIDEO_BROLL_POOLS = {
+  'ai-cyber': [
+    {
+      title: 'Microchip Silicon Wafer & Semiconductor Architecture',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a5/Zoom_Into_a_Microchip.webm/Zoom_Into_a_Microchip.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons Video',
+    },
+    {
+      title: 'Semiconductor Chip Assembly at NXP Facility',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/c/cf/Ouderen_maken_chips_bij_NXP.webm/Ouderen_maken_chips_bij_NXP.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons Video',
+    },
+    {
+      title: 'Autonomous Photovoltaic Micro Robot',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/1/12/Photovoltaic_bug_mini_robot.webm/Photovoltaic_bug_mini_robot.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons Video',
+    },
+    {
+      title: 'Robotics Fire-Fighting Automated Platform',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/d/d0/The_Iris_Robot_of_the_Bureau_of_Fire_Protection.webm/The_Iris_Robot_of_the_Bureau_of_Fire_Protection.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons Video',
+    },
+  ],
+  science: [
+    {
+      title: 'Pillars of Creation — Eagle Nebula Deep Space Observation',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/f/f6/PIA25433-PillarsOfCreation-EagleNebula.webm/PIA25433-PillarsOfCreation-EagleNebula.webm.480p.vp9.webm',
+      source: 'NASA / Wikimedia Commons',
+    },
+    {
+      title: 'Hubble Space Telescope Carina Nebula Flythrough',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/1/19/Hubble_Carina_Nebula_Video.ogv/Hubble_Carina_Nebula_Video.ogv.480p.vp9.webm',
+      source: 'NASA / Wikimedia Commons',
+    },
+    {
+      title: 'Planetary Earth Flyby Rotation Sequence',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a3/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm.480p.vp9.webm',
+      source: 'NASA Galileo Archive',
+    },
+    {
+      title: 'Helix Nebula Multi-Wavelength Astronomical Visualization',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/5/58/Helix_nebula.ogg/Helix_nebula.ogg.480p.vp9.webm',
+      source: 'NASA / ESA Commons',
+    },
+  ],
+  finance: [
+    {
+      title: 'Global Financial Market Index Dynamics Visualization',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/f/f6/Dow_Jones_Sonification-_February_2008.webm/Dow_Jones_Sonification-_February_2008.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons Archive',
+    },
+    {
+      title: 'Urban Financial District Timelapse Footage',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/75/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons 4K Downscale',
+    },
+    {
+      title: 'High-Speed Cloud Server & Fintech Infrastructure',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a5/Zoom_Into_a_Microchip.webm/Zoom_Into_a_Microchip.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons Tech',
+    },
+  ],
+  news: [
+    {
+      title: 'International Policy Press Briefing & Broadcast',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/d/d9/Cynhadledd_i%27r_Wasg_Press_Conference_-_06.01.21.webm/Cynhadledd_i%27r_Wasg_Press_Conference_-_06.01.21.webm.480p.vp9.webm',
+      source: 'Public Broadcast Archive',
+    },
+    {
+      title: 'Global Metropolis Architectural Timelapse',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/75/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons Timelapse',
+    },
+    {
+      title: 'Planetary Earth Telemetry View from Orbit',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a3/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm.480p.vp9.webm',
+      source: 'NASA Earth Archive',
+    },
+  ],
+  geopolitics: [
+    {
+      title: 'Diplomatic Summit Press Briefing Footage',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/e/e7/Cynhadledd_i%27r_Wasg_Press_Conference_-_04.01.21.webm/Cynhadledd_i%27r_Wasg_Press_Conference_-_04.01.21.webm.480p.vp9.webm',
+      source: 'Public Policy Commons',
+    },
+    {
+      title: 'Global Orbital Telemetry & Geostrategic View',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a3/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm.480p.vp9.webm',
+      source: 'NASA / Wikimedia Commons',
+    },
+  ],
+  hardware: [
+    {
+      title: 'Precision Microchip Wafer Macro Zoom',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a5/Zoom_Into_a_Microchip.webm/Zoom_Into_a_Microchip.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons Hardware',
+    },
+    {
+      title: 'Cleanroom Silicon Fabrication & Assembly',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/c/cf/Ouderen_maken_chips_bij_NXP.webm/Ouderen_maken_chips_bij_NXP.webm.480p.vp9.webm',
+      source: 'NXP / Wikimedia Commons',
+    },
+  ],
+  history: [
+    {
+      title: 'Planetary History & Global Civilization Overview',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a3/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm.480p.vp9.webm',
+      source: 'Historical Orbital Archive',
+    },
+    {
+      title: 'Architectural Heritage Time-Lapse Chronicle',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/75/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons',
+    },
+  ],
+  travel: [
+    {
+      title: 'Scenic Mountain & Skyline Time-Lapse Panorama',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/75/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons 4K Timelapse',
+    },
+    {
+      title: 'Blue Marble Earth Horizon Panorama',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a3/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm.480p.vp9.webm',
+      source: 'NASA Archive',
+    },
+  ],
+};
+
 /**
  * Phân loại lĩnh vực chủ đề (Domain Classification) từ câu truy vấn Tiếng Việt / Tiếng Anh
  */
@@ -478,7 +610,23 @@ export function classifyTopicDomain(query = '') {
   }
 
   if (
-    /chiến sự|chiến tranh|quân sự|iran|israel|ukraine|nato|tên lửa|hạt nhân|biển đông|biển đỏ|biên giới|xung đột|hạm đội|tàu sân bay|không kích|cấm vận|ngoại giao|địa chính trị|lầu năm góc|trung đông|triều tiên|đài loan|war|military|missile|conflict|pentagon|navy/.test(
+    /(?<![\p{L}\p{N}])(?:bán dẫn|vi mạch|tiến trình 2nm|2nm|siêu chip|chip|trí tuệ nhân tạo|ai|chatgpt|gemini|claude|deepseek|nvidia|robot|siêu máy tính|trung tâm dữ liệu|data center|supercomputer|semiconductor|microchip|cyber|phần mềm)(?![\p{L}\p{N}])/iu.test(
+      q
+    )
+  ) {
+    return 'ai-cyber';
+  }
+
+  if (
+    /(?<![\p{L}\p{N}])(?:năng lượng hạt nhân|điện hạt nhân|lò phản ứng|smr|vũ trụ|sao hỏa|hố đen|thiên hà|nasa|spacex|khoa học|vật lý|lượng tử|y học|sinh học|dna|ung thư|sức khỏe|giấc ngủ|space|universe|mars|science|quantum|medical)(?![\p{L}\p{N}])/iu.test(
+      q
+    )
+  ) {
+    return 'science';
+  }
+
+  if (
+    /chiến sự|chiến tranh|quân sự|iran|israel|ukraine|nato|tên lửa|(?:vũ khí|đầu đạn|tên lửa|chiến tranh|thử)\s+hạt nhân|biển đông|biển đỏ|biên giới|xung đột|hạm đội|tàu sân bay|không kích|cấm vận|ngoại giao|địa chính trị|lầu năm góc|trung đông|triều tiên|đài loan|war|military|missile|conflict|pentagon|navy/.test(
       q
     )
   ) {
@@ -502,19 +650,11 @@ export function classifyTopicDomain(query = '') {
   }
 
   if (
-    /lịch sử|cổ đại|triều đại|chiến dịch|điện biên phủ|kim tự tháp|ai cập|đế chế|la mã|khảo cổ|di sản|bí ẩn|tài liệu|văn minh|history|ancient|empire|pyramid|documentary/.test(
+    /lịch sử|cổ đại|triều đại|chiến dịch|điện biên phủ|kim tự tháp|ai cập|đế chế|la mã|khảo cổ|di sản|tài liệu lịch sử|văn minh|history|ancient|empire|pyramid|documentary/.test(
       q
     )
   ) {
     return 'history';
-  }
-
-  if (
-    /vũ trụ|sao hỏa|hố đen|thiên hà|nasa|spacex|tên lửa|khoa học|vật lý|lượng tử|y học|sinh học|dna|ung thư|sức khỏe|giấc ngủ|space|universe|mars|science|quantum|medical/.test(
-      q
-    )
-  ) {
-    return 'science';
   }
 
   if (
@@ -547,10 +687,6 @@ export function classifyTopicDomain(query = '') {
     )
   ) {
     return 'hardware';
-  }
-
-  if (/ai\b|trí tuệ nhân tạo|chatgpt|gemini|claude|deepseek|robot|bán dẫn|chip|cyber|phần mềm/.test(q)) {
-    return 'ai-cyber';
   }
 
   return 'news';
@@ -680,13 +816,15 @@ export function fetchRemoteBuffer(targetUrl, redirectsLeft = 4, timeoutMs = 8500
       reject(new Error('Too many redirects'));
       return;
     }
+    const isWikiHost = /wikimedia\.org|wikipedia\.org/i.test(targetUrl);
     const client = targetUrl.startsWith('https') ? https : http;
     const req = client.get(
       targetUrl,
       {
         headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'User-Agent': isWikiHost
+            ? 'SynapesStudioBot/2.0 (https://synapes-auto-tool-web-service.onrender.com; contact@synapes.ai)'
+            : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
           Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
         },
         timeout: timeoutMs,
@@ -739,7 +877,7 @@ function fetchTextUrl(targetUrl, timeoutMs = 4200) {
       targetUrl,
       {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; SynapesNewsBot/3.0; +https://synapes.ai)',
+          'User-Agent': 'SynapesStudioBot/2.0 (https://synapes-auto-tool-web-service.onrender.com; contact@synapes.ai)',
           Accept: 'application/xml,text/xml,application/json,text/plain,*/*',
         },
         timeout: timeoutMs,
@@ -790,10 +928,14 @@ function extractSearchKeywords(rawQuery = '') {
   let cleaned = String(rawQuery || '')
     .replace(/^\/[a-z0-9-_]+:\s*/i, '')
     .replace(
-      /\b(sẽ\s+tập\s+trung\s+vào\s+việc|tập\s+trung\s+vào\s+việc|tập\s+trung\s+vào|xoay\s+quanh\s+việc|nói\s+về\s+việc|tạo|làm|xây\s+dựng|viết|dựng|bản\s+tin|thời\s+sự|tin\s+tức|video|kịch\s+bản|phân\s+tích|tình\s+hình|diễn\s+biến|toàn\s+cảnh|chi\s+tiết|mới\s+nhất|hiện\s+nay|hôm\s+nay|cũng\s+như|người\s+vợ|tảo\s+tần|bí\s+ẩn|kín\s+tiếng|về|của|cho|vào|việc|sẽ|đang)\b/gi,
+      /^(?:một\s+|1\s+)?(?:dự\s+án\s+)?(?:kịch\s+bản\s+)?(?:phim\s+tài\s+liệu(?:\s+khoa\s+học|\s+công\s+nghệ|\s+lịch\s+sử)?|phóng\s+sự|bản\s+tin(?:\s+thời\s+sự)?|chương\s+trình|video|clip)(?:\s+(?:năm\s+)?20\d\d)?\s*:?\s*/iu,
+      ''
+    )
+    .replace(
+      /(?<![\p{L}\p{N}])(?:sẽ\s+tập\s+trung\s+vào\s+việc|tập\s+trung\s+vào\s+việc|tập\s+trung\s+vào|xoay\s+quanh\s+việc|nói\s+về\s+việc|phim\s+tài\s+liệu|tài\s+liệu|tạo|làm|xây\s+dựng|viết|dựng|bản\s+tin|thời\s+sự|tin\s+tức|video|kịch\s+bản|phân\s+tích|tình\s+hình|diễn\s+biến|toàn\s+cảnh|chi\s+tiết|mới\s+nhất|hiện\s+nay|hôm\s+nay|cũng\s+như|đột\s+phá|cuộc\s+đua|cung\s+cấp|toàn\s+cầu|thế\s+hệ\s+mới|về|của|cho|vào|việc|sẽ|đang|và|với)(?![\p{L}\p{N}])/giu,
       ' '
     )
-    .replace(/["'“”\-–—()]/g, ' ')
+    .replace(/["'“”\-–—():,;]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   if (!cleaned || cleaned.length < 2) {
@@ -803,17 +945,28 @@ function extractSearchKeywords(rawQuery = '') {
 }
 
 function extractFocusedEntityQueries(rawQuery = '') {
-  const base = String(rawQuery || '').replace(/^\/[a-z0-9-_]+:\s*/i, '').trim();
+  const base = String(rawQuery || '')
+    .replace(/^\/[a-z0-9-_]+:\s*/i, '')
+    .replace(
+      /^(?:một\s+|1\s+)?(?:dự\s+án\s+)?(?:kịch\s+bản\s+)?(?:phim\s+tài\s+liệu(?:\s+khoa\s+học|\s+công\s+nghệ|\s+lịch\s+sử)?|phóng\s+sự|bản\s+tin(?:\s+thời\s+sự)?|chương\s+trình|video|clip)(?:\s+(?:năm\s+)?20\d\d)?\s*:?\s*/iu,
+      ''
+    )
+    .trim();
   const entities = [];
-  // Match multi-word Proper Nouns (e.g., Jensen Huang, Loring Huang, Nvidia) or uppercase acronyms
-  const properRegex = /\b([A-ZÀ-Ỹ][a-zà-ỹ0-9]{1,}(?:\s+[A-ZÀ-Ỹ][a-zà-ỹ0-9]{1,}){0,2})\b/g;
-  const stopProper = new Set(['Bản', 'Tin', 'Video', 'Kịch', 'Sẽ', 'Việc', 'Ông', 'Bà', 'Hơn', 'Năm', 'Người', 'Cũng']);
+  // Match true Unicode capitalized Proper Nouns (e.g., Jensen Huang, Nvidia) or uppercase acronyms (SMR, TSMC, AI)
+  const properRegex =
+    /(?<![\p{L}\p{N}])(\p{Lu}[\p{Ll}\p{N}]{1,}(?:\s+\p{Lu}[\p{Ll}\p{N}]{1,}){0,2}|[A-Z][A-Z0-9]{1,9})(?![\p{L}\p{N}])/gu;
+  const stopProper = new Set([
+    'Phim', 'Tài', 'Liệu', 'Khoa', 'Học', 'Đột', 'Phá', 'Công', 'Nghệ', 'Cuộc', 'Đua',
+    'Toàn', 'Cầu', 'Trung', 'Tâm', 'Năng', 'Lượng', 'Thế', 'Hệ', 'Mới', 'Trong', 'Kỷ', 'Nguyên',
+    'Bản', 'Tin', 'Video', 'Kịch', 'Sẽ', 'Việc', 'Ông', 'Bà', 'Hơn', 'Năm', 'Người', 'Cũng', 'Khi', 'Tại', 'Với',
+  ]);
   const foundSet = new Set();
   let m;
   while ((m = properRegex.exec(base)) !== null) {
     const phrase = m[1].trim();
     const firstWord = phrase.split(/\s+/)[0];
-    if (!stopProper.has(phrase) && !stopProper.has(firstWord) && phrase.length >= 3) {
+    if (!stopProper.has(phrase) && !stopProper.has(firstWord) && phrase.length >= 2 && !/^\d+$/.test(phrase)) {
       if (!foundSet.has(phrase.toLowerCase())) {
         foundSet.add(phrase.toLowerCase());
         entities.push(phrase);
@@ -821,14 +974,20 @@ function extractFocusedEntityQueries(rawQuery = '') {
     }
   }
   const coreKw = extractSearchKeywords(base);
+  const shortCore = coreKw.split(/\s+/).slice(0, 6).join(' ');
+  const multiWordEntities = entities.filter((e) => /\s/.test(e) || e.length >= 4);
   const queries = [];
-  if (entities.length >= 2) {
-    queries.push(`${entities[0]} ${entities[1]}`);
+  if (multiWordEntities.length >= 2) {
+    queries.push(`${multiWordEntities[0]} ${multiWordEntities[1]}`);
+  }
+  // Always put rich multi-term core query near the top unless a full multi-word person/org entity leads
+  if (shortCore && multiWordEntities.length === 0) {
+    queries.push(shortCore);
   }
   for (const ent of entities.slice(0, 3)) {
-    if (!queries.includes(ent)) queries.push(ent);
+    const enriched = ent.length <= 4 && shortCore ? `${ent} ${shortCore.split(/\s+/).slice(0, 4).join(' ')}` : ent;
+    if (!queries.includes(enriched)) queries.push(enriched);
   }
-  const shortCore = coreKw.split(/\s+/).slice(0, 6).join(' ');
   if (shortCore && !queries.includes(shortCore)) {
     queries.push(shortCore);
   }
@@ -871,7 +1030,7 @@ export async function fetchGoogleNewsRss(query) {
 
 export async function fetchWikipediaContext(query, lang = 'vi') {
   try {
-    const coreKw = extractSearchKeywords(query);
+    const coreKw = lang === 'en' ? translateQueryToEnglishKeywords(query) : extractSearchKeywords(query);
     const searchUrl = `https://${lang}.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(
       coreKw
     )}&gsrlimit=4&prop=extracts|pageimages&exintro=1&explaintext=1&exchars=550&piprop=original|thumbnail&pithumbsize=1280&format=json&origin=*`;
@@ -886,10 +1045,16 @@ export async function fetchWikipediaContext(query, lang = 'vi') {
         extracts.push(`${p.title}: ${p.extract.replace(/\s+/g, ' ').trim()}`);
       }
       const imgUrl = p?.thumbnail?.source || p?.original?.source;
-      if (imgUrl && !imgUrl.endsWith('.svg') && !imgUrl.endsWith('.tif')) {
+      const safeWikiTitle = String(p.title || coreKw);
+      if (
+        imgUrl &&
+        !/\.(svg|tif|djvu|pdf)$/i.test(imgUrl) &&
+        !NON_TOPIC_MEDIA_TITLE_REGEX.test(safeWikiTitle) &&
+        !/\.(djvu|pdf)|scan|calligraphy|manuscript|newspaper|comet|tri%E1%BB%81u|l%E1%BB%87/i.test(imgUrl)
+      ) {
         images.push({
           id: `wiki-page-${lang}-${p.pageid}`,
-          title: String(p.title || coreKw),
+          title: safeWikiTitle,
           url: imgUrl,
           proxyUrl: `/api/image-proxy?url=${encodeURIComponent(imgUrl)}`,
           source: `Wikipedia (${lang.toUpperCase()})`,
@@ -902,37 +1067,261 @@ export async function fetchWikipediaContext(query, lang = 'vi') {
   }
 }
 
-export async function searchWikimediaImages(query, limit = 8) {
+/**
+ * Ánh xạ từ khóa Tiếng Việt -> Tiếng Anh chuyên ngành (Unicode boundary chuẩn cho Tiếng Việt) để tìm nguồn ảnh/video chính xác từ Wikimedia & NASA.
+ */
+const VI_TO_EN_TOPIC_MAP = [
+  [/(?<![\p{L}\p{N}])(?:bán dẫn|vi mạch|tiến trình 2nm|wafer|quang khắc|chip)(?![\p{L}\p{N}])/iu, 'semiconductor microchip wafer'],
+  [/(?<![\p{L}\p{N}])(?:năng lượng hạt nhân|điện hạt nhân|lò phản ứng|hạt nhân sạch|smr)(?![\p{L}\p{N}])/iu, 'nuclear reactor clean energy'],
+  [/(?<![\p{L}\p{N}])(?:trung tâm dữ liệu|siêu máy tính|server|data center|supercomputer)(?![\p{L}\p{N}])/iu, 'data center supercomputer'],
+  [/(?<![\p{L}\p{N}])(?:trí tuệ nhân tạo|ai|chatgpt|gemini|deepseek)(?![\p{L}\p{N}])/iu, 'artificial intelligence'],
+  [/(?<![\p{L}\p{N}])(?:người máy|robot)(?![\p{L}\p{N}])/iu, 'robotics robot'],
+  [/(?<![\p{L}\p{N}])(?:năng lượng mặt trời|điện mặt trời)(?![\p{L}\p{N}])/iu, 'solar energy panel'],
+  [/(?<![\p{L}\p{N}])(?:điện gió|tuabin gió)(?![\p{L}\p{N}])/iu, 'wind turbine renewable energy'],
+  [/(?<![\p{L}\p{N}])(?:năng lượng xanh|năng lượng sạch|năng lượng tái tạo|cung cấp điện|lưới điện)(?![\p{L}\p{N}])/iu, 'clean energy power grid'],
+  [/(?<![\p{L}\p{N}])(?:sao hỏa|hành tinh đỏ)(?![\p{L}\p{N}])/iu, 'mars rover'],
+  [/(?<![\p{L}\p{N}])(?:vũ trụ|thiên hà|tên lửa|phi thuyền|nasa)(?![\p{L}\p{N}])/iu, 'spacecraft rocket nebula'],
+  [/(?<![\p{L}\p{N}])(?:xe điện|ô tô điện|pin)(?![\p{L}\p{N}])/iu, 'electric vehicle battery'],
+  [/(?<![\p{L}\p{N}])(?:chứng khoán|tài chính|kinh tế|ngân hàng)(?![\p{L}\p{N}])/iu, 'stock market finance'],
+  [/(?<![\p{L}\p{N}])(?:giá vàng|vàng sjc)(?![\p{L}\p{N}])/iu, 'gold bullion finance'],
+  [/(?<![\p{L}\p{N}])(?:y tế|y học|bệnh viện|tế bào|vaccine)(?![\p{L}\p{N}])/iu, 'medical laboratory'],
+  [/(?<![\p{L}\p{N}])(?:việt nam|hà nội|hồ chí minh|đà nẵng)(?![\p{L}\p{N}])/iu, 'vietnam'],
+  [/(?<![\p{L}\p{N}])(?:quân sự|tàu sân bay|hạm đội)(?![\p{L}\p{N}])/iu, 'aircraft carrier naval'],
+  [/(?<![\p{L}\p{N}])(?:lịch sử|di sản|cổ đại)(?![\p{L}\p{N}])/iu, 'ancient architecture heritage'],
+];
+
+const NON_TOPIC_MEDIA_TITLE_REGEX =
+  /screw|anchor|toy|cartoon|game|icon|logo|flag|pronunciation|spoken|wikipedia|album|song|romance|drama|meme|triều nguyễn|châu bản|tự điển|lệ làng|hương lệ|khải định|bảo đại|trung-kỳ|nam-kỳ|bắc-kỳ|htnb|tạp chí|newspaper|gazette|manuscript|calligraphy|sapèque|djvu|certificate|herbarium|specimen|streetcar|tramway|leica|comet|cheetah|viadukt|universidad/i;
+
+export function translateQueryToEnglishKeywords(rawQuery = '') {
+  const q = String(rawQuery || '').trim();
+  const terms = [];
+  for (const [regex, en] of VI_TO_EN_TOPIC_MAP) {
+    if (regex.test(q)) {
+      terms.push(en);
+    }
+  }
+  // Keep pure ASCII/English words >= 2 chars using Unicode-safe word boundaries (never split Vietnamese words like "phát")
+  const asciiMatches = q.match(/(?<![\p{L}\p{N}])[A-Za-z][A-Za-z0-9]{1,}(?![\p{L}\p{N}])/gu) || [];
+  const noiseEn = new Set(['and', 'the', 'for', 'with', 'video', 'clip', 'news', 'phim', 'nam', 'cua', 'cho', 'vao']);
+  for (const w of asciiMatches) {
+    const low = w.toLowerCase();
+    if (!noiseEn.has(low) && w.length >= 2) {
+      if (!terms.join(' ').toLowerCase().includes(low)) {
+        terms.push(w);
+      }
+    }
+  }
+  const joined = terms.slice(0, 5).join(' ').trim();
+  return joined || extractSearchKeywords(q);
+}
+
+export async function searchWikimediaImages(query, limit = 10) {
   try {
     const coreKw = extractSearchKeywords(query);
-    const apiUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(
-      coreKw + ' filetype:bitmap'
-    )}&gsrlimit=${limit}&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=1280&format=json&origin=*`;
-    const raw = await fetchTextUrl(apiUrl, 4200);
-    const json = JSON.parse(raw);
-    const pages = Object.values(json?.query?.pages || {});
-    return pages
-      .map((p) => {
-        const ii = p?.imageinfo?.[0];
-        const thumbUrl = ii?.thumburl || ii?.url;
-        if (!thumbUrl || thumbUrl.endsWith('.svg') || thumbUrl.endsWith('.gif') || thumbUrl.endsWith('.tif')) {
-          return null;
+    const enKw = translateQueryToEnglishKeywords(query);
+    const enTokens = Array.from(new Set(enKw.toLowerCase().split(/\s+/).filter((w) => w.length >= 3)));
+    const enPairs = [];
+    for (let i = 0; i < enTokens.length && enPairs.length < 3; i += 2) {
+      const pair = enTokens.slice(i, i + 2).join(' ');
+      if (pair) enPairs.push(pair);
+    }
+    const queriesToRun =
+      enPairs.length > 0 ? enPairs : [coreKw].filter((s) => s && s.length >= 2);
+    const scoredResults = [];
+    const seenUrls = new Set();
+
+    await Promise.all(
+      queriesToRun.map(async (kw) => {
+        try {
+          const apiUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(
+            kw + ' filetype:bitmap'
+          )}&gsrlimit=${Math.min(10, limit)}&prop=imageinfo&iiprop=url|mime|extmetadata&iiurlwidth=1280&format=json&origin=*`;
+          const raw = await fetchTextUrl(apiUrl, 4500);
+          const json = JSON.parse(raw);
+          const pages = Object.values(json?.query?.pages || {});
+          for (const p of pages) {
+            const ii = p?.imageinfo?.[0];
+            const thumbUrl = ii?.thumburl || ii?.url;
+            if (!thumbUrl || /\.(svg|gif|tif|djvu|pdf)$/i.test(thumbUrl)) {
+              continue;
+            }
+            const cleanImgTitle = String(p.title || '')
+              .replace(/^File:/i, '')
+              .replace(/\.[a-z0-9]+$/i, '')
+              .replace(/_/g, ' ');
+            if (NON_TOPIC_MEDIA_TITLE_REGEX.test(cleanImgTitle)) continue;
+            const lowTitle = cleanImgTitle.toLowerCase();
+            const score = enTokens.reduce((acc, tok) => acc + (lowTitle.includes(tok) ? 1 : 0), 0);
+            if (enTokens.length >= 2 && score === 0) continue;
+            if (seenUrls.has(thumbUrl)) continue;
+            seenUrls.add(thumbUrl);
+            scoredResults.push({
+              score,
+              item: {
+                id: `commons-img-${p.pageid}`,
+                title: cleanImgTitle,
+                url: thumbUrl,
+                proxyUrl: `/api/image-proxy?url=${encodeURIComponent(thumbUrl)}`,
+                source: 'Wikimedia Commons Press',
+              },
+            });
+          }
+        } catch {
+          // ignore individual query miss
         }
-        return {
-          id: `commons-${p.pageid}`,
-          title: String(p.title || '')
-            .replace(/^File:/i, '')
-            .replace(/\.[a-z0-9]+$/i, '')
-            .replace(/_/g, ' '),
-          url: thumbUrl,
-          proxyUrl: `/api/image-proxy?url=${encodeURIComponent(thumbUrl)}`,
-          source: 'Wikimedia Commons Press',
-        };
       })
-      .filter(Boolean);
+    );
+    scoredResults.sort((a, b) => b.score - a.score);
+    return scoredResults.map((entry) => entry.item).slice(0, limit);
   } catch {
     return [];
   }
+}
+
+export async function searchWikimediaVideos(query, limit = 8) {
+  try {
+    const enKw = translateQueryToEnglishKeywords(query);
+    const tokens = Array.from(new Set(enKw.toLowerCase().split(/\s+/).filter((w) => w.length >= 3)));
+    const searchPairs = [];
+    for (let i = 0; i < tokens.length && searchPairs.length < 3; i += 2) {
+      const pair = tokens.slice(i, i + 2).join(' ');
+      if (pair) searchPairs.push(`${pair} filetype:video`);
+    }
+    if (searchPairs.length === 0) {
+      searchPairs.push(`${enKw || 'technology'} filetype:video`);
+    }
+
+    const runQuery = async (gsr) => {
+      if (!gsr) return [];
+      const apiUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(
+        gsr
+      )}&gsrlimit=${Math.min(10, limit + 2)}&prop=videoinfo&viprop=url|size|mime|derivatives|thumburl&iiurlwidth=960&format=json&origin=*`;
+      const raw = await fetchTextUrl(apiUrl, 4800);
+      const json = JSON.parse(raw);
+      return Object.values(json?.query?.pages || {});
+    };
+
+    const batchPages = await Promise.all(searchPairs.map((pair) => runQuery(pair)));
+    const pages = batchPages.flat();
+
+    const tokenLower = tokens;
+    const scoredVideos = [];
+    const seen = new Set();
+    for (const p of pages) {
+      const vi = p?.videoinfo?.[0];
+      if (!vi) continue;
+      const derivs = Array.isArray(vi.derivatives) ? vi.derivatives : [];
+      const pickedDeriv =
+        derivs.find((d) => String(d.type || '').includes('webm') && Number(d.width) >= 640 && Number(d.width) <= 1280) ||
+        derivs.find((d) => String(d.type || '').includes('webm') && Number(d.width) >= 426) ||
+        derivs.find((d) => String(d.type || '').includes('webm'));
+      const rawUrl = pickedDeriv?.src || (Number(vi.size || 0) <= 24 * 1024 * 1024 && String(vi.mime || '').includes('webm') ? vi.url : '');
+      if (!rawUrl || seen.has(rawUrl)) continue;
+      seen.add(rawUrl);
+      const cleanTitle = String(p.title || '')
+        .replace(/^File:/i, '')
+        .replace(/\.[a-z0-9]+$/i, '')
+        .replace(/_/g, ' ');
+      if (NON_TOPIC_MEDIA_TITLE_REGEX.test(cleanTitle)) continue;
+      const lowTitle = cleanTitle.toLowerCase();
+      const score = tokenLower.reduce((acc, tok) => acc + (lowTitle.includes(tok) ? 1 : 0), 0);
+      if (tokenLower.length >= 2 && score === 0) continue;
+      scoredVideos.push({
+        score,
+        item: {
+          id: `commons-vid-${p.pageid}`,
+          title: cleanTitle,
+          url: rawUrl,
+          proxyUrl: `/api/video-proxy?url=${encodeURIComponent(rawUrl)}`,
+          mime: pickedDeriv?.type || 'video/webm',
+          width: Number(pickedDeriv?.width) || 854,
+          height: Number(pickedDeriv?.height) || 480,
+          source: 'Wikimedia Commons Video B-Roll',
+        },
+      });
+    }
+    scoredVideos.sort((a, b) => b.score - a.score);
+    return scoredVideos.map((entry) => entry.item).slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
+export async function searchNasaVideos(query, limit = 4) {
+  try {
+    const enKw = translateQueryToEnglishKeywords(query);
+    const searchUrl = `https://images-api.nasa.gov/search?q=${encodeURIComponent(enKw)}&media_type=video`;
+    const raw = await fetchTextUrl(searchUrl, 4000);
+    const json = JSON.parse(raw);
+    const items = (json?.collection?.items || []).slice(0, limit + 2);
+    const out = [];
+    await Promise.all(
+      items.map(async (item) => {
+        try {
+          if (!item?.href || !isSafeExternalUrl(item.href)) return;
+          const assetsRaw = await fetchTextUrl(item.href, 3500);
+          const assets = JSON.parse(assetsRaw);
+          if (!Array.isArray(assets)) return;
+          const mp4 =
+            assets.find((u) => typeof u === 'string' && u.endsWith('~medium.mp4')) ||
+            assets.find((u) => typeof u === 'string' && u.endsWith('~mobile.mp4'));
+          if (!mp4) return;
+          const httpsMp4 = mp4.replace(/^http:\/\//i, 'https://');
+          const thumb = (item.links || []).find((l) => l.rel === 'preview')?.href;
+          out.push({
+            id: `nasa-vid-${item.data?.[0]?.nasa_id || out.length}`,
+            title: String(item.data?.[0]?.title || enKw),
+            url: httpsMp4,
+            proxyUrl: `/api/video-proxy?url=${encodeURIComponent(httpsMp4)}`,
+            thumbnailUrl: thumb ? `/api/image-proxy?url=${encodeURIComponent(thumb)}` : undefined,
+            mime: 'video/mp4',
+            source: 'NASA Video Library',
+          });
+        } catch {
+          // ignore individual asset error
+        }
+      })
+    );
+    return out.slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
+export function buildLocalEditorialSvg(title = 'SYNAPES Documentary Plate', domain = 'news') {
+  const paletteByDomain = {
+    'ai-cyber': { bg1: '#07111e', bg2: '#0f172a', accent: '#38bdf8', label: 'AI & SEMICONDUCTOR TELEMETRY' },
+    science: { bg1: '#050816', bg2: '#111827', accent: '#a855f7', label: 'SCIENTIFIC RESEARCH ARCHIVE' },
+    finance: { bg1: '#041418', bg2: '#0b222a', accent: '#10b981', label: 'GLOBAL MARKETS & MACRO DATA' },
+    geopolitics: { bg1: '#180c0e', bg2: '#1f1624', accent: '#f43f5e', label: 'INTERNATIONAL BRIEFING DESK' },
+    history: { bg1: '#1a120b', bg2: '#2c1e12', accent: '#f59e0b', label: 'HISTORICAL ARCHIVE' },
+  };
+  const pal = paletteByDomain[domain] || { bg1: '#0b0f19', bg2: '#18181b', accent: '#38bdf8', label: 'EDITORIAL BROADCAST' };
+  const safeTitle = String(title || 'SYNAPES Broadcast')
+    .replace(/[<>&"']/g, ' ')
+    .slice(0, 64);
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${pal.bg1}"/>
+      <stop offset="100%" stop-color="${pal.bg2}"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M 48 0 L 0 0 0 48" fill="none" stroke="${pal.accent}" stroke-opacity="0.12" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g)"/>
+  <rect width="1280" height="720" fill="url(#grid)"/>
+  <circle cx="960" cy="240" r="220" fill="${pal.accent}" fill-opacity="0.09"/>
+  <circle cx="320" cy="520" r="180" fill="${pal.accent}" fill-opacity="0.06"/>
+  <rect x="88" y="230" width="1104" height="240" rx="20" fill="#000000" fill-opacity="0.45" stroke="${pal.accent}" stroke-opacity="0.45" stroke-width="2"/>
+  <text x="128" y="295" fill="${pal.accent}" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="3">${pal.label}</text>
+  <text x="128" y="370" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="44" font-weight="800">${safeTitle}</text>
+  <rect x="128" y="405" width="320" height="6" rx="3" fill="${pal.accent}"/>
+</svg>`;
+  return { buffer: Buffer.from(svg, 'utf8'), contentType: 'image/svg+xml; charset=utf-8' };
 }
 
 // ============================================================================
@@ -2409,16 +2798,21 @@ export async function handleStudioApiRequest(req, res) {
       const q = (parsedUrl.searchParams.get('q') || '').trim();
       const domain = classifyTopicDomain(q);
       const subQueries = extractFocusedEntityQueries(q);
+      const enKw = translateQueryToEnglishKeywords(q);
       const primaryKw = subQueries[0] || q;
-      const secondaryKw = subQueries[1] || '';
+      const secondaryKw = subQueries[1] || enKw;
 
-      const [headlines, headlines2, viWiki, enWiki, commonsImgs, commonsImgs2] = await Promise.all([
+      const [headlines, headlines2, viWiki, enWiki, commonsImgs, commonsImgs2, commonsVids, nasaVids] = await Promise.all([
         fetchGoogleNewsRss(primaryKw),
         secondaryKw ? fetchGoogleNewsRss(secondaryKw) : Promise.resolve([]),
         fetchWikipediaContext(primaryKw, 'vi'),
-        fetchWikipediaContext(primaryKw, 'en'),
-        searchWikimediaImages(primaryKw, 6),
-        secondaryKw ? searchWikimediaImages(secondaryKw, 4) : Promise.resolve([]),
+        fetchWikipediaContext(enKw || primaryKw, 'en'),
+        searchWikimediaImages(q, 10),
+        secondaryKw ? searchWikimediaImages(secondaryKw, 6) : Promise.resolve([]),
+        searchWikimediaVideos(q, 8),
+        domain === 'science' || domain === 'ai-cyber' || /mars|space|solar|energy|nasa|robot|climate/i.test(enKw)
+          ? searchNasaVideos(enKw, 4)
+          : Promise.resolve([]),
       ]);
 
       const domainPool = (DOMAIN_PHOTO_POOLS[domain] || DOMAIN_PHOTO_POOLS.news).map((item, idx) => ({
@@ -2429,6 +2823,16 @@ export async function handleStudioApiRequest(req, res) {
         source: item.source,
       }));
 
+      const domainVideoPool = (DOMAIN_VIDEO_BROLL_POOLS[domain] || DOMAIN_VIDEO_BROLL_POOLS.news || DOMAIN_VIDEO_BROLL_POOLS['ai-cyber']).map(
+        (item, idx) => ({
+          id: `domain-vid-${domain}-${idx}`,
+          title: item.title,
+          url: item.url,
+          proxyUrl: `/api/video-proxy?domain=${domain}&idx=${idx}&url=${encodeURIComponent(item.url)}`,
+          source: item.source,
+        })
+      );
+
       const seenTitles = new Set();
       const mergedHeadlines = [...headlines, ...headlines2].filter((h) => {
         const key = String(h?.title || '').toLowerCase().slice(0, 48);
@@ -2437,18 +2841,26 @@ export async function handleStudioApiRequest(req, res) {
         return true;
       });
 
-      const realVisuals = [...viWiki.images, ...enWiki.images, ...commonsImgs, ...commonsImgs2];
-      const mergedVisuals = [...realVisuals, ...domainPool];
+      const realVisuals = [...commonsImgs, ...commonsImgs2];
+      const mergedVisuals = [...realVisuals, ...domainPool, ...enWiki.images, ...viWiki.images];
+      const seenVids = new Set();
+      const mergedVideos = [...commonsVids, ...nasaVids, ...domainVideoPool].filter((v) => {
+        if (!v?.proxyUrl || seenVids.has(v.url)) return false;
+        seenVids.add(v.url);
+        return true;
+      });
 
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(
         JSON.stringify({
           query: q,
+          englishKeywords: enKw,
           entities: subQueries,
           domain,
           headlines: mergedHeadlines,
           wikiSummary: [viWiki.summary, enWiki.summary].filter(Boolean).join('\n'),
-          visuals: mergedVisuals.slice(0, 14),
+          visuals: mergedVisuals.slice(0, 18),
+          videos: mergedVideos.slice(0, 10),
         })
       );
     } catch (err) {
@@ -2460,6 +2872,7 @@ export async function handleStudioApiRequest(req, res) {
           headlines: [],
           wikiSummary: '',
           visuals: [],
+          videos: [],
           error: String(err),
         })
       );
@@ -2476,9 +2889,10 @@ export async function handleStudioApiRequest(req, res) {
       const q = (parsedUrl.searchParams.get('q') || 'Tin tức thế giới').trim();
       const domain = classifyTopicDomain(q);
 
-      const [viWiki, commonsResults] = await Promise.all([
+      const [viWiki, enWiki, commonsResults] = await Promise.all([
         fetchWikipediaContext(q, 'vi'),
-        searchWikimediaImages(q, 10),
+        fetchWikipediaContext(translateQueryToEnglishKeywords(q), 'en'),
+        searchWikimediaImages(q, 12),
       ]);
 
       const domainMatches = (DOMAIN_PHOTO_POOLS[domain] || DOMAIN_PHOTO_POOLS.news).map((item, idx) => ({
@@ -2492,7 +2906,7 @@ export async function handleStudioApiRequest(req, res) {
       // Also generate 2 custom AI Flux scene renders via Pollinations proxy
       const aiGenerated = [1, 2].map((seedOffset) => {
         const aiUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
-          `Cinematic photojournalism broadcast shot of ${q}, dramatic lighting, 8k ultra detailed`
+          `Cinematic photojournalism broadcast shot of ${translateQueryToEnglishKeywords(q)}, dramatic lighting, 8k ultra detailed`
         )}?width=1280&height=720&seed=${100 + seedOffset}&nologo=true`;
         return {
           id: `ai-gen-${seedOffset}`,
@@ -2503,7 +2917,7 @@ export async function handleStudioApiRequest(req, res) {
         };
       });
 
-      const combined = [...viWiki.images, ...commonsResults, ...aiGenerated, ...domainMatches];
+      const combined = [...commonsResults, ...viWiki.images, ...enWiki.images, ...aiGenerated, ...domainMatches];
 
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ query: q, domain, count: combined.length, images: combined }));
@@ -2515,12 +2929,56 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
+  // B2. INTERNET VIDEO B-ROLL SEARCH (/api/video-broll-search?q=...&domain=...)
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/video-broll-search') {
+    try {
+      const parsedUrl = new URL(rawUrl, 'http://localhost');
+      const q = (parsedUrl.searchParams.get('q') || 'Công nghệ toàn cầu').trim();
+      const domain = parsedUrl.searchParams.get('domain') || classifyTopicDomain(q);
+      const enKw = translateQueryToEnglishKeywords(q);
+
+      const [commonsVids, nasaVids] = await Promise.all([
+        searchWikimediaVideos(q, 8),
+        domain === 'science' || domain === 'ai-cyber' || /mars|space|solar|energy|nasa|robot/i.test(enKw)
+          ? searchNasaVideos(enKw, 4)
+          : Promise.resolve([]),
+      ]);
+
+      const domainVids = (DOMAIN_VIDEO_BROLL_POOLS[domain] || DOMAIN_VIDEO_BROLL_POOLS.news || DOMAIN_VIDEO_BROLL_POOLS['ai-cyber']).map(
+        (item, idx) => ({
+          id: `domain-vid-${domain}-${idx}`,
+          title: item.title,
+          url: item.url,
+          proxyUrl: `/api/video-proxy?domain=${domain}&idx=${idx}&url=${encodeURIComponent(item.url)}`,
+          source: item.source,
+        })
+      );
+
+      const seen = new Set();
+      const combined = [...commonsVids, ...nasaVids, ...domainVids].filter((v) => {
+        if (!v?.url || seen.has(v.url)) return false;
+        seen.add(v.url);
+        return true;
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ query: q, englishKeywords: enKw, domain, count: combined.length, videos: combined }));
+    } catch (err) {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ query: '', domain: 'news', count: 0, videos: [], error: String(err) }));
+    }
+    return true;
+  }
+
+  // --------------------------------------------------------------------------
   // C. DOMAIN-SAFE CORS IMAGE PROXY (/api/image-proxy?url=...&domain=...)
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/image-proxy') {
     try {
       const parsedUrl = new URL(rawUrl, 'http://localhost');
       const domain = parsedUrl.searchParams.get('domain') || 'news';
+      const titleHint = parsedUrl.searchParams.get('title') || 'SYNAPES Broadcast Frame';
       const idx = Math.max(0, parseInt(parsedUrl.searchParams.get('idx') || '0', 10) || 0);
       const fallbackPool = DOMAIN_PHOTO_POOLS[domain] || DOMAIN_PHOTO_POOLS.news;
       const fallbackUrl = fallbackPool[idx % fallbackPool.length].url;
@@ -2532,6 +2990,7 @@ export async function handleStudioApiRequest(req, res) {
           'Content-Type': cached.contentType,
           'Content-Length': cached.buffer.length,
           'Cache-Control': 'public, max-age=86400',
+          'Access-Control-Allow-Origin': '*',
           'X-Image-Proxy': 'cache-hit',
         });
         res.end(cached.buffer);
@@ -2543,8 +3002,12 @@ export async function handleStudioApiRequest(req, res) {
         const isPollinations = targetUrl.includes('pollinations.ai');
         fetched = await fetchRemoteBuffer(targetUrl, 4, isPollinations ? 6500 : 8000);
       } catch {
-        // Fallback strictly within the matching topic domain (NEVER iPhone unless domain === 'hardware')
-        fetched = await fetchRemoteBuffer(fallbackUrl, 4, 8000);
+        try {
+          fetched = await fetchRemoteBuffer(fallbackUrl, 4, 7000);
+        } catch {
+          // Đảm bảo không bao giờ trả về 502 làm trống khung hình Canvas
+          fetched = buildLocalEditorialSvg(titleHint, domain);
+        }
       }
 
       if (IMAGE_PROXY_CACHE.size > 90) {
@@ -2557,12 +3020,132 @@ export async function handleStudioApiRequest(req, res) {
         'Content-Type': fetched.contentType,
         'Content-Length': fetched.buffer.length,
         'Cache-Control': 'public, max-age=86400',
+        'Access-Control-Allow-Origin': '*',
         'X-Image-Proxy': 'live-fetch',
       });
       res.end(fetched.buffer);
-    } catch (err) {
-      res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ error: 'Image proxy error', details: String(err) }));
+    } catch {
+      const svgFallback = buildLocalEditorialSvg('SYNAPES Broadcast Visual', 'news');
+      res.writeHead(200, {
+        'Content-Type': svgFallback.contentType,
+        'Content-Length': svgFallback.buffer.length,
+        'Access-Control-Allow-Origin': '*',
+        'X-Image-Proxy': 'svg-fallback',
+      });
+      res.end(svgFallback.buffer);
+    }
+    return true;
+  }
+
+  // --------------------------------------------------------------------------
+  // C2. CORS-SAFE STREAMING VIDEO B-ROLL PROXY (/api/video-proxy?url=...&domain=...)
+  // Hỗ trợ Range Request (206 Partial Content) & Access-Control-Allow-Origin: *
+  // để HTML5 <video> vẽ trực tiếp vào Canvas 60fps không bị lỗi Tainted Canvas.
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/video-proxy') {
+    const parsedUrl = new URL(rawUrl, 'http://localhost');
+    const domain = parsedUrl.searchParams.get('domain') || 'ai-cyber';
+    const idx = Math.max(0, parseInt(parsedUrl.searchParams.get('idx') || '0', 10) || 0);
+    const pool = DOMAIN_VIDEO_BROLL_POOLS[domain] || DOMAIN_VIDEO_BROLL_POOLS.news || DOMAIN_VIDEO_BROLL_POOLS['ai-cyber'];
+    const fallbackUrl = pool[idx % pool.length].url;
+    const requestedUrl = parsedUrl.searchParams.get('url') || fallbackUrl;
+
+    const streamVideoUpstream = (urlToStream, redirectsLeft = 4) =>
+      new Promise((resolve, reject) => {
+        if (!isSafeExternalUrl(urlToStream)) {
+          reject(new Error('SSRF Blocked video URL'));
+          return;
+        }
+        if (redirectsLeft <= 0) {
+          reject(new Error('Too many video redirects'));
+          return;
+        }
+        const isWiki = /wikimedia\.org|wikipedia\.org/i.test(urlToStream);
+        const headers = {
+          'User-Agent': isWiki
+            ? 'SynapesStudioBot/2.0 (https://synapes-auto-tool-web-service.onrender.com; contact@synapes.ai)'
+            : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
+          Accept: 'video/webm,video/mp4,video/*,*/*;q=0.8',
+        };
+        if (req.headers.range) {
+          headers.Range = req.headers.range;
+        }
+        const client = urlToStream.startsWith('https') ? https : http;
+        const upstreamReq = client.get(urlToStream, { headers, timeout: 12000 }, (upRes) => {
+          if (upRes.statusCode && upRes.statusCode >= 300 && upRes.statusCode < 400 && upRes.headers.location) {
+            const nextUrl = new URL(upRes.headers.location, urlToStream).toString();
+            upRes.resume();
+            streamVideoUpstream(nextUrl, redirectsLeft - 1).then(resolve).catch(reject);
+            return;
+          }
+          if (!upRes.statusCode || (upRes.statusCode !== 200 && upRes.statusCode !== 206)) {
+            upRes.resume();
+            reject(new Error(`Upstream video status ${upRes.statusCode}`));
+            return;
+          }
+          const ctype = upRes.headers['content-type'] || (urlToStream.includes('.mp4') ? 'video/mp4' : 'video/webm');
+          if (!ctype.startsWith('video/') && !ctype.startsWith('application/octet-stream')) {
+            upRes.resume();
+            reject(new Error(`Invalid video MIME: ${ctype}`));
+            return;
+          }
+          const outHeaders = {
+            'Content-Type': ctype,
+            'Accept-Ranges': upRes.headers['accept-ranges'] || 'bytes',
+            'Cache-Control': 'public, max-age=86400',
+            'Access-Control-Allow-Origin': '*',
+            'Cross-Origin-Resource-Policy': 'cross-origin',
+            'X-Video-Proxy': 'live-stream',
+          };
+          if (upRes.headers['content-length']) outHeaders['Content-Length'] = upRes.headers['content-length'];
+          if (upRes.headers['content-range']) outHeaders['Content-Range'] = upRes.headers['content-range'];
+
+          if (res.headersSent || res.writableEnded || req.destroyed) {
+            upRes.resume();
+            resolve(true);
+            return;
+          }
+
+          res.writeHead(upRes.statusCode, outHeaders);
+          res.on('error', () => resolve(true));
+          upRes.pipe(res);
+          upRes.on('end', () => resolve(true));
+          upRes.on('error', () => resolve(true));
+          req.on('close', () => {
+            resolve(true);
+            try {
+              upRes.unpipe(res);
+              upRes.destroy();
+              upstreamReq.destroy();
+            } catch {
+              // ignore
+            }
+          });
+        });
+        upstreamReq.on('timeout', () => {
+          upstreamReq.destroy();
+          if (res.headersSent || req.destroyed) resolve(true);
+          else reject(new Error('Upstream video timeout'));
+        });
+        upstreamReq.on('error', (err) => {
+          if (res.headersSent || res.writableEnded || req.destroyed) resolve(true);
+          else reject(err);
+        });
+      });
+
+    try {
+      await streamVideoUpstream(requestedUrl, 4);
+    } catch {
+      if (!res.headersSent && !res.writableEnded && !req.destroyed) {
+        try {
+          await streamVideoUpstream(fallbackUrl, 4);
+        } catch {
+          if (!res.headersSent && !res.writableEnded) {
+            res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ error: 'Video proxy unavailable' }));
+          }
+        }
+      }
     }
     return true;
   }
@@ -2635,6 +3218,10 @@ export async function handleStudioApiRequest(req, res) {
           String(txt || '')
             .replace(/^\/[a-z0-9-_]+:\s*/i, '')
             .replace(
+              /^(?:một\s+|1\s+)?(?:dự\s+án\s+)?(?:kịch\s+bản\s+)?(?:phim\s+tài\s+liệu(?:\s+khoa\s+học|\s+công\s+nghệ|\s+lịch\s+sử)?|phóng\s+sự|bản\s+tin(?:\s+thời\s+sự)?|chương\s+trình|video|clip)(?:\s+(?:năm\s+)?20\d\d)?\s*:?\s*/iu,
+              ''
+            )
+            .replace(
               /^(bản\s+tin|video|clip|kịch\s+bản|nội\s+dung)\s+(này\s+)?(sẽ\s+)?(tập\s+trung\s+vào\s+việc|tập\s+trung\s+vào|xoay\s+quanh\s+việc|xoay\s+quanh|nói\s+về\s+việc|nói\s+về)\s+/i,
               ''
             )
@@ -2646,7 +3233,7 @@ export async function handleStudioApiRequest(req, res) {
           Array.isArray(clauses) && clauses.length > 0
             ? clauses.map(cleanLeadIn).filter(Boolean)
             : cleanedPrompt
-                .split(/\s*(?:cũng như|đồng thời|bên cạnh đó|ngoài ra|;\s*)\s*/i)
+                .split(/\s*(?:,\s*|cũng như|đồng thời|bên cạnh đó|ngoài ra|;\s*)\s*/i)
                 .map((s) => s.trim())
                 .filter((s) => s.length >= 8);
 
@@ -2655,15 +3242,15 @@ export async function handleStudioApiRequest(req, res) {
         const h1 = mergedHeadlines[0];
         const h2 = mergedHeadlines[1];
         const h3 = mergedHeadlines[2];
-        const ent1 = subQueries[0] || c1.split(/\s+/).slice(0, 4).join(' ');
+        const ent1 = subQueries[0] || c1.split(/\s+/).slice(0, 5).join(' ');
         const ent2 = subQueries[1] || ent1;
 
-        const targetScenes = Math.max(4, Math.min(8, Number(reqSceneCount) || 6));
+        const targetScenes = Math.max(4, Math.min(10, Number(reqSceneCount) || 6));
         const totalSec = Math.max(24, Number(reqDurSec) || 60);
         const basePerScene = Math.max(5, Math.round(totalSec / targetScenes));
 
         const cleanTitle = c2
-          ? `${ent1}: ${c1.slice(0, 52)} & Câu Chuyện ${c2.split(/\s*-\s*/)[0].trim().slice(0, 46)}`
+          ? `${c1.slice(0, 56)} & ${c2.split(/\s*-\s*/)[0].trim().slice(0, 48)}`
           : `Tiêu Điểm: ${c1.slice(0, 82)}`;
 
         const blueprintScenes = [
@@ -2674,7 +3261,7 @@ export async function handleStudioApiRequest(req, res) {
             voiceover: h1
               ? `Kính chào quý vị đang theo dõi bản tin đặc biệt hôm nay. Tâm điểm giới công nghệ và tài chính toàn cầu đang hướng về ${c1}. Theo nguồn tin từ ${h1.source}, ${h1.title}.`
               : `Kính chào quý vị đang theo dõi bản tin đặc biệt hôm nay. Đáng chú ý nhất lúc này là diễn biến liên quan đến ${c1} — một bước ngoặt chiến lược đang thu hút sự quan tâm sát sao của giới đầu tư và toàn ngành.`,
-            visualPrompt: `Editorial documentary photograph focusing on ${ent1}, clean natural lighting, 35mm journalism lens, sharp portrait and environment detail, 8k`,
+            visualPrompt: `Editorial documentary photograph focusing on ${ent1}, clean natural lighting, 35mm journalism lens, sharp detail, 8k`,
             cameraMotion: 'dolly-in',
             lightingStyle: 'studio-clean',
             sfx: 'Broadcast Opening Chime',
@@ -2685,9 +3272,9 @@ export async function handleStudioApiRequest(req, res) {
             headline: `02. BỐI CẢNH CHIẾN LƯỢC & DI SẢN ${ent1.toUpperCase().slice(0, 24)}`,
             durationSec: basePerScene,
             voiceover: wikiFacts[0]
-              ? `Nhìn lại chặng đường phát triển vừa qua: ${wikiFacts[0]} Chính vì vị thế dẫn dắt sâu rộng đó, bài toán chuyển giao thế hệ lãnh đạo và định hướng tương lai trở thành phép thử mang tính lịch sử.`
-              : `Trải qua nhiều thập kỷ xây dựng từ những ngày đầu khởi nghiệp, ${ent1} đã vươn mình thành trụ cột không thể thay thế. Do vậy, mọi phương án chuẩn bị nhân sự kế cận đều đòi hỏi tầm nhìn dài hạn và sự kế thừa trọn vẹn bản sắc công nghệ lõi.`,
-            visualPrompt: `Editorial corporate campus and leadership conference scene featuring ${ent1}, authentic candid photojournalism, 50mm lens, 8k`,
+              ? `Nhìn lại chặng đường phát triển vừa qua: ${wikiFacts[0]} Chính vì vị thế dẫn dắt sâu rộng đó, bài toán chuyển dịch cấu trúc và định hướng tương lai trở thành phép thử mang tính lịch sử.`
+              : `Trải qua nhiều năm xây dựng nền tảng từ những ngày đầu tiên, ${ent1} đã vươn mình thành trụ cột không thể thay thế, mở ra chuỗi giá trị mới cho toàn hệ sinh thái toàn cầu.`,
+            visualPrompt: `Editorial industrial campus and strategic briefing featuring ${ent1}, authentic photojournalism, 50mm lens, 8k`,
             cameraMotion: 'pan-right',
             lightingStyle: 'volumetric',
             sfx: 'Soft Documentary Pulse',
@@ -2696,28 +3283,28 @@ export async function handleStudioApiRequest(req, res) {
           {
             sceneNumber: 3,
             headline: c2
-              ? `03. GÓC KHUẤT ĐỜI TƯ: ${c2.split(/\s*-\s*/)[0].trim().toUpperCase().slice(0, 42)}`
-              : `03. CHÂN DUNG & NHỮNG GIÁ TRỊ PHÍA SAU`,
+              ? `03. KHÍA CẠNH ĐỘT PHÁ: ${c2.split(/\s*-\s*/)[0].trim().toUpperCase().slice(0, 42)}`
+              : `03. CẤU TRÚC LÕI & NHỮNG GIÁ TRỊ PHÍA SAU`,
             durationSec: basePerScene,
             voiceover: c2
-              ? `Bên cạnh hào quang thương trường, công chúng cũng đặc biệt tò mò về ${c2}. Dù xuất hiện tại những sự kiện trọng đại, nhân vật này luôn giữ phong thái giản dị, kín tiếng trước truyền thông suốt hàng thập kỷ.`
+              ? `Không dừng ở bề nổi, bức tranh toàn cảnh còn ghi nhận động lực mạnh mẽ từ ${c2}. Những dữ kiện đối chiếu từ thực tế cho thấy tác động dây chuyền đang lan tỏa sang nhiều lĩnh vực trọng yếu.`
               : h2
-                ? `Một góc nhìn khác ít được nhắc tới là những con người đứng sau hậu trường. Theo ${h2.source}, ${h2.title}, cho thấy giá trị bền vững phía sau mọi quyết định lớn.`
-                : `Đằng sau những cột mốc lịch sử luôn có bóng dáng của sự đồng hành thầm lặng và kỷ luật bền bỉ suốt nhiều năm liền, tách biệt hoàn toàn khỏi sự ồn ào của giới truyền thông đại chúng.`,
-            visualPrompt: `Quiet intimate documentary portrait atmosphere representing ${c2 || ent2}, warm golden hour natural light, 85mm editorial lens, 8k`,
+                ? `Một góc nhìn khác ít được nhắc tới là những nền tảng kỹ thuật đằng sau. Theo ${h2.source}, ${h2.title}, minh chứng cho sự dịch chuyển thực chất phía sau mọi quyết định lớn.`
+                : `Đằng sau những cột mốc ấn tượng luôn là hệ thống hạ tầng vận hành đồng bộ và kỷ luật tối ưu công nghệ bền bỉ suốt nhiều năm liền.`,
+            visualPrompt: `Close-up precision engineering and documentary field research representing ${c2 || ent2}, natural editorial light, 85mm lens, 8k`,
             cameraMotion: 'orbit',
             lightingStyle: 'golden-hour',
-            sfx: 'Warm Acoustic Piano Swell',
+            sfx: 'Warm Documentary Swell',
             transition: 'dissolve',
           },
           {
             sceneNumber: 4,
-            headline: c2 ? `04. HÀNH TRÌNH ĐỒNG HÀNH BỀN BỈ HƠN 4 THẬP KỶ` : `04. PHÂN TÍCH CHUYÊN SÂU & DỮ KIỆN THỰC TẾ`,
+            headline: `04. PHÂN TÍCH DỮ LIỆU THỰC TẾ & TĂNG TRƯỞNG`,
             durationSec: basePerScene,
             voiceover: h2
-              ? `Trong bức tranh tổng thể đó, ${h2.title} (${h2.source}). Sự gắn bó âm thầm và nền tảng gia đình vững chắc chính là điểm tựa tinh thần hiếm có, giúp người đứng đầu giữ được bản lĩnh qua nhiều giai đoạn thăng trầm của thị trường.`
-              : `Từ phòng thí nghiệm đại học thuở hàn vi cho đến vị thế đế chế toàn cầu hôm nay, sự tảo tần và thấu hiểu phía sau hậu trường đã trở thành điểm tựa tinh thần đặc biệt, hiếm thấy giữa thế giới công nghệ đầy biến động.`,
-            visualPrompt: `Historic university engineering lab and timeless partnership documentary still life related to ${ent2}, soft chiaroscuro lighting, 8k`,
+              ? `Theo cập nhật mới nhất từ ${h2.source}: ${h2.title}. Các chỉ số đo lường quy mô cho thấy tốc độ mở rộng thực tế đang vượt qua nhiều dự báo thận trọng trước đây.`
+              : `Nhìn vào đồ thị tăng trưởng thực tế qua từng giai đoạn, tỷ trọng ứng dụng công nghệ mới đã tăng trưởng bứt phá, tạo biên độ lợi thế cạnh tranh rõ rệt trên quy mô quốc tế.`,
+            visualPrompt: `High-resolution industrial operations center and global data infrastructure related to ${ent2}, clean contrast, 8k`,
             cameraMotion: 'pan-left',
             lightingStyle: 'rembrandt',
             sfx: 'Subtle Film Transition',
@@ -2725,12 +3312,12 @@ export async function handleStudioApiRequest(req, res) {
           },
           {
             sceneNumber: 5,
-            headline: `05. CHUYỂN GIAO QUYỀN LỰC & DẤU ẤN KẾ THỪA`,
+            headline: `05. HẠ TẦNG CÔNG NGHỆ & CHUYỂN DỊCH ĐỔI MỚI`,
             durationSec: basePerScene,
-            voiceover: h3
-              ? `Giới quan sát nhận định thêm qua thông tin từ ${h3.source}: ${h3.title}. Cuộc chuyển giao tương lai không chỉ tìm kiếm một nhà quản trị giỏi chuyên môn, mà còn cần người tiếp nối văn hóa kỷ luật và tinh thần đổi mới không ngừng.`
-              : `Với cấu trúc tổ chức ngày càng đồ sộ và tốc độ đổi mới từng ngày của kỷ nguyên AI, việc chuẩn bị lớp lãnh đạo kế nhiệm song hành cùng các hoạt động thiện nguyện thầm lặng của gia đình đang định hình chương tiếp theo rất đáng chờ đợi.`,
-            visualPrompt: `Modern AI semiconductor supercomputer architecture and forward-looking executive boardroom visual, clean editorial 8k`,
+            voiceover: wikiFacts[1]
+              ? `Dữ kiện từ bách khoa toàn thư ghi nhận: ${wikiFacts[1]} Đây là bước đệm trực tiếp thúc đẩy làn sóng đầu tư hạ tầng quy mô lớn trên toàn cầu.`
+              : `Với cấu trúc hệ sinh thái ngày càng tinh vi, bài toán kết hợp giữa hiệu năng xử lý, chi phí vận hành và tính bền vững dài hạn đang định hình chuẩn mực cạnh tranh mới.`,
+            visualPrompt: `Modern next-generation laboratory and automated hardware facility in action, crisp photojournalism, 8k`,
             cameraMotion: 'crane-up',
             lightingStyle: 'studio-clean',
             sfx: 'Crisp News Transition',
@@ -2738,10 +3325,34 @@ export async function handleStudioApiRequest(req, res) {
           },
           {
             sceneNumber: 6,
-            headline: `06. KẾT LUẬN & GÓC NHÌN TỪ KHÁN GIẢ`,
-            durationSec: Math.max(5, totalSec - basePerScene * 5),
-            voiceover: `Khép lại tiêu điểm hôm nay, câu chuyện về ${c1}${c2 ? ` và nét kín tiếng đáng trân trọng của ${c2.split(/\s*-\s*/)[0].trim()}` : ''} nhắc chúng ta rằng đằng sau mọi đế chế lớn luôn là tầm nhìn dài hạn và sự bền bỉ thầm lặng. Quý vị có suy nghĩ gì về câu chuyện này? Hãy để lại bình luận nhé!`,
-            visualPrompt: `Dignified documentary closing frame featuring ${ent1}, slow dolly out shot, balanced warm contrast, 8k`,
+            headline: `06. ĐỘNG LỰC QUỐC TẾ & CẠNH TRANH ĐỊA CHIẾN LƯỢC`,
+            durationSec: basePerScene,
+            voiceover: h3
+              ? `Giới quan sát quốc tế lưu ý qua báo cáo từ ${h3.source}: ${h3.title}. Cuộc đua giành vị thế dẫn dắt không chỉ nằm ở nguồn vốn, mà còn là năng lực làm chủ chuỗi cung ứng lõi.`
+              : `Trên bàn cờ kinh tế toàn cầu, các trung tâm công nghệ lớn đều đang tăng tốc hoàn thiện hành lang pháp lý và hạ tầng để đón đầu chu kỳ tăng trưởng kế tiếp.`,
+            visualPrompt: `International summit and global metropolitan skyline at twilight, documentary wide shot, 8k`,
+            cameraMotion: 'fpv-zoom',
+            lightingStyle: 'volumetric',
+            sfx: 'Deep Cinematic Boom',
+            transition: 'dissolve',
+          },
+          {
+            sceneNumber: 7,
+            headline: `07. TÁC ĐỘNG DÀI HẠN & CƠ HỘI CHUYỂN HÓA`,
+            durationSec: basePerScene,
+            voiceover: `Nhìn về trung và dài hạn, sự hội tụ giữa ${c1} và làn sóng ứng dụng thực tiễn sẽ mở ra hàng loạt cơ hội mới cho doanh nghiệp lẫn người lao động biết nắm bắt xu thế sớm.`,
+            visualPrompt: `Scientists and engineers collaborating inside modern innovation lab backdrop, candid editorial film frame, 8k`,
+            cameraMotion: 'pan-right',
+            lightingStyle: 'golden-hour',
+            sfx: 'Inspiring Ambient Chord',
+            transition: 'dissolve',
+          },
+          {
+            sceneNumber: 8,
+            headline: `08. KẾT LUẬN & GÓC NHÌN TỪ KHÁN GIẢ`,
+            durationSec: Math.max(5, totalSec - basePerScene * Math.min(targetScenes - 1, 7)),
+            voiceover: `Khép lại tiêu điểm hôm nay, câu chuyện về ${c1}${c2 ? ` cùng bước chuyển mình của ${c2.split(/\s*-\s*/)[0].trim()}` : ''} khẳng định một chân lý rõ ràng: đổi mới thực chất luôn bắt nguồn từ tầm nhìn dài hạn và dữ liệu chuẩn xác. Quý vị đánh giá ra sao về xu hướng này? Hãy chia sẻ góc nhìn bên dưới nhé!`,
+            visualPrompt: `Dignified documentary closing panorama featuring ${ent1}, slow dolly out shot, balanced warm contrast, 8k`,
             cameraMotion: 'dolly-out',
             lightingStyle: 'studio-clean',
             sfx: 'Clean Editorial Finale',
@@ -2837,11 +3448,11 @@ export async function handleStudioApiRequest(req, res) {
                 contents: [{ parts: geminiParts }],
                 generationConfig: {
                   temperature: 0.65,
-                  maxOutputTokens: 2500,
+                  maxOutputTokens: 6500,
                   responseMimeType: 'application/json',
                 },
               },
-              9000
+              14000
             );
 
             // Retry without responseMimeType if preview/experimental model rejects JSON mode
@@ -2853,10 +3464,10 @@ export async function handleStudioApiRequest(req, res) {
                   contents: [{ parts: geminiParts }],
                   generationConfig: {
                     temperature: 0.65,
-                    maxOutputTokens: 2500,
+                    maxOutputTokens: 6500,
                   },
                 },
-                9000
+                14000
               );
             }
 
@@ -2890,12 +3501,12 @@ export async function handleStudioApiRequest(req, res) {
           },
           {
             model: model || 'claude-3-7-sonnet-20250219',
-            max_tokens: 2500,
+            max_tokens: 6000,
             temperature: 0.65,
             system: systemPrompt,
             messages: [{ role: 'user', content: userPrompt }],
           },
-          9000
+          14000
         );
         if (resp.status === 200) {
           const parsed = JSON.parse(resp.text);
@@ -2931,7 +3542,7 @@ export async function handleStudioApiRequest(req, res) {
           { role: 'user', content: userContent },
         ],
         temperature: 0.65,
-        max_tokens: 2500,
+        max_tokens: 6000,
       };
       if (provider !== 'grok') {
         payload.response_format = { type: 'json_object' };
@@ -2940,7 +3551,7 @@ export async function handleStudioApiRequest(req, res) {
         `${base}/chat/completions`,
         { Authorization: `Bearer ${cleanKey}` },
         payload,
-        9000
+        14000
       );
       if (resp.status === 200) {
         const parsed = JSON.parse(resp.text);
