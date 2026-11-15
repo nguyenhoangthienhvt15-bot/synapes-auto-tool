@@ -111,9 +111,12 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   // File upload ref for custom B-roll media
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Image preloading cache per scene ID
+  // Image & Video B-roll preloading caches per scene ID
   const loadedImagesRef = useRef<Record<number, HTMLImageElement>>({});
+  const loadedSecondaryImagesRef = useRef<Record<number, HTMLImageElement>>({});
+  const loadedVideosRef = useRef<Record<number, HTMLVideoElement>>({});
   const [loadedCount, setLoadedCount] = useState<number>(0);
+  const [loadedVideosCount, setLoadedVideosCount] = useState<number>(0);
   const [regenVersion, setRegenVersion] = useState<number>(0);
 
   // Real Video Export state
@@ -168,6 +171,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   const isMutedRef = useRef<boolean>(isMuted);
   const playbackSpeedRef = useRef<number>(playbackSpeed);
   const totalDurationRef = useRef<number>(totalDuration);
+  const scenesRef = useRef<StoryboardScene[]>(scenes);
   const drawCinemaCanvasRef = useRef<(clockSec: number, overrideTimeSec?: number) => void>(() => {});
   const masterAudioElementRef = useRef<HTMLAudioElement | null>(null);
   const masterAudioUrl =
@@ -191,6 +195,10 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     totalDurationRef.current = totalDuration;
   }, [totalDuration]);
 
+  useEffect(() => {
+    scenesRef.current = scenes;
+  }, [scenes]);
+
   const seekToTime = useCallback((newTimeSec: number) => {
     const clamped = Math.max(0, Math.min(totalDurationRef.current || 48, newTimeSec));
     currentTimeRef.current = clamped;
@@ -201,8 +209,24 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         masterAudioElementRef.current.currentTime = clamped;
       } catch { }
     }
+    const scIdx = scenes.findIndex((s) => clamped >= s.startSec && clamped < s.endSec);
+    const activeSc = scenes[scIdx !== -1 ? scIdx : clamped >= (totalDurationRef.current || 0) ? Math.max(0, scenes.length - 1) : 0];
+    Object.entries(loadedVideosRef.current).forEach(([idStr, vid]) => {
+      if (!vid) return;
+      if (activeSc && Number(idStr) === activeSc.id && vid.readyState >= 2) {
+        const dur = vid.duration && isFinite(vid.duration) && vid.duration > 0.5 ? vid.duration : 12;
+        const targetVidSec = Math.max(0, clamped - activeSc.startSec) % dur;
+        try {
+          if (Math.abs(vid.currentTime - targetVidSec) > 0.15) {
+            vid.currentTime = targetVidSec;
+          }
+        } catch { }
+      } else if (!vid.paused) {
+        try { vid.pause(); } catch { }
+      }
+    });
     drawCinemaCanvasRef.current(performance.now() / 1000, clamped);
-  }, []);
+  }, [scenes]);
 
   // Web Audio Studio Synthesizer Ref (BGM + Voice Formant + SFX)
   const synthRef = useRef<StudioAudioSynthesizer | null>(null);
@@ -230,11 +254,25 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   const currentSceneIndex = getCurrentSceneIndex(currentTime);
   const currentScene: StoryboardScene | undefined = scenes[currentSceneIndex] || scenes[0];
 
-  // Preload Real Internet Images via CORS-Safe Proxy (Phân tách 100% theo lĩnh vực dự án)
+  // Preload Real Internet Images & Moving Video B-Roll via CORS-Safe Proxies
   useEffect(() => {
     let isMounted = true;
     loadedImagesRef.current = {};
+    loadedSecondaryImagesRef.current = {};
+
+    Object.values(loadedVideosRef.current).forEach((v) => {
+      try {
+        v.pause();
+        v.removeAttribute('src');
+        v.load();
+      } catch {}
+    });
+    loadedVideosRef.current = {};
+
     setLoadedCount(0);
+    setLoadedVideosCount(0);
+    const countedImgIds = new Set<number>();
+    const countedVidIds = new Set<number>();
 
     const domainPhotos =
       CLIENT_DOMAIN_PHOTO_POOLS[effectiveDomain] || CLIENT_DOMAIN_PHOTO_POOLS.news;
@@ -242,6 +280,50 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       (u, poolIdx) =>
         `/api/image-proxy?domain=${effectiveDomain}&idx=${poolIdx}&url=${encodeURIComponent(u)}`
     );
+
+    const markImgLoaded = (scId: number, loadedImg: HTMLImageElement) => {
+      if (!isMounted) return;
+      loadedImagesRef.current[scId] = loadedImg;
+      if (!countedImgIds.has(scId)) {
+        countedImgIds.add(scId);
+        setLoadedCount(countedImgIds.size);
+      }
+      drawCinemaCanvasRef.current(performance.now() / 1000, currentTimeRef.current);
+    };
+
+    const loadCorsImage = (rawUrl: string, idx: number, onReady: (imgEl: HTMLImageElement) => void, allowCuratedFallback = true) => {
+      const proxied =
+        rawUrl.startsWith('http://') || rawUrl.startsWith('https://')
+          ? `/api/image-proxy?domain=${effectiveDomain}&idx=${idx}&url=${encodeURIComponent(rawUrl)}`
+          : rawUrl;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = proxied;
+      img.onload = () => onReady(img);
+      img.onerror = () => {
+        if (!isMounted || !allowCuratedFallback) return;
+        const fb = new Image();
+        fb.crossOrigin = 'anonymous';
+        fb.src = curatedPool[idx % curatedPool.length];
+        fb.onload = () => onReady(fb);
+        fb.onerror = () => {
+          if (!isMounted) return;
+          const directPhoto = new Image();
+          directPhoto.crossOrigin = 'anonymous';
+          let directSrc = domainPhotos[idx % domainPhotos.length];
+          if (rawUrl.startsWith('https://')) {
+            directSrc = rawUrl;
+          } else if (rawUrl.includes('url=')) {
+            try {
+              const uParam = new URL(rawUrl, window.location.origin).searchParams.get('url');
+              if (uParam && uParam.startsWith('https://')) directSrc = uParam;
+            } catch {}
+          }
+          directPhoto.src = directSrc;
+          directPhoto.onload = () => onReady(directPhoto);
+        };
+      };
+    };
 
     scenes.forEach((sc, idx) => {
       const rawSource =
@@ -254,61 +336,94 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           effectiveDomain
         );
 
-      // Route external http/https URLs through /api/image-proxy so Canvas is never CORS-tainted
-      const mediaSource =
-        rawSource.startsWith('http://') || rawSource.startsWith('https://')
-          ? `/api/image-proxy?domain=${effectiveDomain}&idx=${idx}&url=${encodeURIComponent(rawSource)}`
-          : rawSource;
+      loadCorsImage(rawSource, idx, (imgEl) => markImgLoaded(sc.id, imgEl), true);
 
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = mediaSource;
-
-      img.onload = () => {
-        if (!isMounted) return;
-        loadedImagesRef.current[sc.id] = img;
-        setLoadedCount((c) => Math.min(scenes.length, c + 1));
-        drawCinemaCanvasRef.current(performance.now() / 1000, currentTimeRef.current);
-      };
-
-      img.onerror = () => {
-        if (!isMounted) return;
-        const fb = new Image();
-        fb.crossOrigin = 'anonymous';
-        fb.src = curatedPool[idx % curatedPool.length];
-        fb.onload = () => {
+      // Preload distinct secondary evidence photo for Beat 2 Split/PiP
+      const secSource =
+        sc.secondaryImageUrl ||
+        curatedPool[(idx + Math.max(1, Math.floor(curatedPool.length / 2))) % curatedPool.length];
+      loadCorsImage(
+        secSource,
+        idx + 5,
+        (secEl) => {
           if (!isMounted) return;
-          loadedImagesRef.current[sc.id] = fb;
-          setLoadedCount((c) => Math.min(scenes.length, c + 1));
+          loadedSecondaryImagesRef.current[sc.id] = secEl;
+        },
+        false
+      );
+
+      // Preload live streaming B-Roll Video via CORS-safe /api/video-proxy
+      const rawVideoSrc =
+        sc.customMediaType === 'video' && sc.customMediaUrl
+          ? sc.customMediaUrl
+          : sc.clipUrl || `/api/video-proxy?domain=${encodeURIComponent(effectiveDomain)}&idx=${idx}`;
+      if (rawVideoSrc && !sc.customMediaUrl) {
+        const videoProxySrc =
+          rawVideoSrc.startsWith('http://') || rawVideoSrc.startsWith('https://')
+            ? `/api/video-proxy?domain=${encodeURIComponent(effectiveDomain)}&idx=${idx}&url=${encodeURIComponent(rawVideoSrc)}`
+            : rawVideoSrc;
+
+        const vid = document.createElement('video');
+        vid.crossOrigin = 'anonymous';
+        vid.muted = true;
+        vid.loop = true;
+        vid.playsInline = true;
+        vid.preload = 'auto';
+
+        let triedPoolFallback = false;
+        const onVideoReady = () => {
+          if (!isMounted) return;
+          loadedVideosRef.current[sc.id] = vid;
+          if (!countedVidIds.has(sc.id)) {
+            countedVidIds.add(sc.id);
+            setLoadedVideosCount(countedVidIds.size);
+          }
           drawCinemaCanvasRef.current(performance.now() / 1000, currentTimeRef.current);
         };
-        fb.onerror = () => {
-          if (!isMounted) return;
-          // Static-host fallback (e.g. Render Static Site without /api/image-proxy): load CORS-enabled HTTPS photo directly
-          const directPhoto = new Image();
-          directPhoto.crossOrigin = 'anonymous';
-          let directSrc = domainPhotos[idx % domainPhotos.length];
-          if (rawSource.startsWith('https://')) {
-            directSrc = rawSource;
-          } else if (rawSource.includes('url=')) {
-            try {
-              const uParam = new URL(rawSource, window.location.origin).searchParams.get('url');
-              if (uParam && uParam.startsWith('https://')) directSrc = uParam;
-            } catch {}
+
+        vid.addEventListener('loadeddata', onVideoReady);
+        vid.addEventListener('canplay', onVideoReady);
+        vid.addEventListener('error', () => {
+          if (!isMounted || triedPoolFallback) return;
+          triedPoolFallback = true;
+          const fallbackSrc = `/api/video-proxy?domain=${encodeURIComponent(effectiveDomain)}&idx=${idx}`;
+          if (vid.src && !vid.src.endsWith(fallbackSrc)) {
+            vid.src = fallbackSrc;
+            vid.load();
           }
-          directPhoto.src = directSrc;
-          directPhoto.onload = () => {
-            if (!isMounted) return;
-            loadedImagesRef.current[sc.id] = directPhoto;
-            setLoadedCount((c) => Math.min(scenes.length, c + 1));
-            drawCinemaCanvasRef.current(performance.now() / 1000, currentTimeRef.current);
-          };
-        };
-      };
+        });
+
+        vid.src = videoProxySrc;
+        vid.load();
+      } else if (sc.customMediaType === 'video' && sc.customMediaUrl) {
+        const customVid = document.createElement('video');
+        customVid.crossOrigin = 'anonymous';
+        customVid.muted = true;
+        customVid.loop = true;
+        customVid.playsInline = true;
+        customVid.preload = 'auto';
+        customVid.addEventListener('loadeddata', () => {
+          if (!isMounted) return;
+          loadedVideosRef.current[sc.id] = customVid;
+          if (!countedVidIds.has(sc.id)) {
+            countedVidIds.add(sc.id);
+            setLoadedVideosCount(countedVidIds.size);
+          }
+        });
+        customVid.src = sc.customMediaUrl;
+        customVid.load();
+      }
     });
 
     return () => {
       isMounted = false;
+      Object.values(loadedVideosRef.current).forEach((v) => {
+        try {
+          v.pause();
+          v.removeAttribute('src');
+          v.load();
+        } catch {}
+      });
     };
   }, [project.id, scenes, aspectRatio, regenVersion, effectiveDomain]);
 
@@ -599,6 +714,41 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         setCurrentTime(next);
       }
 
+      // Sync active scene HTMLVideoElement playback & seek during RAF / Export
+      const liveScenes = scenesRef.current || [];
+      const tCur = currentTimeRef.current;
+      const scIdx = liveScenes.findIndex((s) => tCur >= s.startSec && tCur < s.endSec);
+      const activeSc =
+        liveScenes[scIdx !== -1 ? scIdx : tCur >= (totalDurationRef.current || 0) ? Math.max(0, liveScenes.length - 1) : 0];
+      Object.entries(loadedVideosRef.current).forEach(([idStr, vid]) => {
+        if (!vid) return;
+        const isCurrent = Boolean(activeSc && Number(idStr) === activeSc.id);
+        if (!isCurrent) {
+          if (!vid.paused) {
+            try { vid.pause(); } catch {}
+          }
+          return;
+        }
+        if (vid.readyState >= 2) {
+          const targetRate = Math.max(0.5, Math.min(4, playbackSpeedRef.current || 1));
+          if (Math.abs((vid.playbackRate || 1) - targetRate) > 0.05) {
+            try { vid.playbackRate = targetRate; } catch {}
+          }
+          if (isPlayingRef.current) {
+            const vDur = vid.duration && isFinite(vid.duration) && vid.duration > 0.5 ? vid.duration : 12;
+            const targetVTime = Math.max(0, tCur - activeSc.startSec) % vDur;
+            if (Math.abs(vid.currentTime - targetVTime) > 0.55) {
+              try { vid.currentTime = targetVTime; } catch {}
+            }
+            if (vid.paused) {
+              vid.play().catch(() => {});
+            }
+          } else if (!vid.paused) {
+            try { vid.pause(); } catch {}
+          }
+        }
+      });
+
       drawCinemaCanvasRef.current(now / 1000, currentTimeRef.current);
       animId = requestAnimationFrame(renderFrame);
     };
@@ -621,17 +771,26 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         isMutedRef.current = muted;
         setIsMuted(muted);
       },
-      getState: () => ({
-        currentTime: currentTimeRef.current,
-        totalDuration: totalDurationRef.current,
-        currentSceneIndex: getCurrentSceneIndex(currentTimeRef.current),
-        loadedImagesCount: Object.keys(loadedImagesRef.current).length,
-        isPlaying: isPlayingRef.current,
-        isMuted: isMutedRef.current,
-        hasMasterAudio: Boolean(masterAudioUrl),
-        masterAudioPaused: masterAudioElementRef.current ? masterAudioElementRef.current.paused : true,
-        audioState: synthRef.current?.getDebugAudioState(),
-      }),
+      getState: () => {
+        const scIdx = getCurrentSceneIndex(currentTimeRef.current);
+        const curSc = scenesRef.current?.[scIdx];
+        const curVid = curSc ? loadedVideosRef.current[curSc.id] : undefined;
+        return {
+          currentTime: currentTimeRef.current,
+          totalDuration: totalDurationRef.current,
+          currentSceneIndex: scIdx,
+          loadedImagesCount: Object.keys(loadedImagesRef.current).length,
+          loadedSecondaryImagesCount: Object.keys(loadedSecondaryImagesRef.current).length,
+          loadedVideosCount: Object.keys(loadedVideosRef.current).length,
+          hasActiveVideoFrame: Boolean(curVid && curVid.readyState >= 2 && curVid.videoWidth > 0),
+          activeVideoTime: curVid ? Number((curVid.currentTime || 0).toFixed(2)) : 0,
+          isPlaying: isPlayingRef.current,
+          isMuted: isMutedRef.current,
+          hasMasterAudio: Boolean(masterAudioUrl),
+          masterAudioPaused: masterAudioElementRef.current ? masterAudioElementRef.current.paused : true,
+          audioState: synthRef.current?.getDebugAudioState(),
+        };
+      },
     };
   }, [seekToTime, getCurrentSceneIndex, stopAllActiveAudio, masterAudioUrl]);
 
@@ -904,6 +1063,48 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     }, 'image/png');
   };
 
+  // Helper: Draw cover-fit HTMLImageElement or HTMLVideoElement inside optional destination rectangle
+  const drawCoverMedia = (
+    ctx: CanvasRenderingContext2D,
+    media: HTMLImageElement | HTMLVideoElement,
+    W: number,
+    H: number,
+    destX = 0,
+    destY = 0,
+    destW = W,
+    destH = H
+  ) => {
+    const srcW =
+      media instanceof HTMLVideoElement ? media.videoWidth : media.naturalWidth;
+    const srcH =
+      media instanceof HTMLVideoElement ? media.videoHeight : media.naturalHeight;
+    if (!srcW || !srcH || destW <= 0 || destH <= 0) return;
+
+    const mediaRatio = srcW / srcH;
+    const boxRatio = destW / destH;
+    let drawW = destW;
+    let drawH = destH;
+    let offsetX = destX;
+    let offsetY = destY;
+
+    if (mediaRatio > boxRatio) {
+      drawH = destH;
+      drawW = destH * mediaRatio;
+      offsetX = destX - (drawW - destW) / 2;
+    } else {
+      drawW = destW;
+      drawH = destW / mediaRatio;
+      offsetY = destY - (drawH - destH) / 2;
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(destX, destY, destW, destH);
+    ctx.clip();
+    ctx.drawImage(media, offsetX, offsetY, drawW, drawH);
+    ctx.restore();
+  };
+
   // Helper: Draw cover-fit image on canvas
   const drawCoverImage = (
     ctx: CanvasRenderingContext2D,
@@ -911,24 +1112,236 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     W: number,
     H: number
   ) => {
-    const imgRatio = img.naturalWidth / img.naturalHeight;
-    const canvasRatio = W / H;
-    let drawW = W;
-    let drawH = H;
-    let offsetX = 0;
-    let offsetY = 0;
+    drawCoverMedia(ctx, img, W, H, 0, 0, W, H);
+  };
 
-    if (imgRatio > canvasRatio) {
-      drawH = H;
-      drawW = H * imgRatio;
-      offsetX = -(drawW - W) / 2;
+  // Helper 1 (Inside Camera Transform): Draw live moving <video> B-roll or HD <img> backdrop with cross-dissolve
+  const drawPrimaryMediaBackdrop = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    progress: number,
+    sceneElapsed: number,
+    vid: HTMLVideoElement | undefined,
+    img: HTMLImageElement | undefined,
+    prevImg: HTMLImageElement | undefined,
+    secImg: HTMLImageElement | undefined
+  ) => {
+    const hasVideo = Boolean(vid && vid.readyState >= 2 && vid.videoWidth > 0);
+    const hasPrimaryImg = Boolean(img && img.complete && img.naturalWidth > 0);
+    const hasSecImg = Boolean(secImg && secImg.complete && secImg.naturalWidth > 0);
+    const primaryMedia: HTMLVideoElement | HTMLImageElement | undefined = hasVideo
+      ? vid
+      : hasPrimaryImg
+        ? img
+        : hasSecImg
+          ? secImg
+          : undefined;
+
+    if (!primaryMedia) return false;
+
+    if (sceneElapsed < 0.48 && prevImg && prevImg.complete && prevImg.naturalWidth > 0) {
+      const blend = sceneElapsed / 0.48;
+      ctx.globalAlpha = 1.0;
+      drawCoverMedia(ctx, prevImg, W, H);
+      ctx.globalAlpha = blend;
+      drawCoverMedia(ctx, primaryMedia, W, H);
+      ctx.globalAlpha = 1.0;
+    } else if (progress >= 0.78 && !hasVideo && hasSecImg && hasPrimaryImg) {
+      // Beat 3 photographic alternate focus shot when video isn't playing
+      const beat3T = Math.min(1, (progress - 0.78) / 0.14);
+      ctx.globalAlpha = 1.0;
+      drawCoverMedia(ctx, primaryMedia, W, H);
+      ctx.globalAlpha = beat3T * 0.65;
+      drawCoverMedia(ctx, secImg!, W, H);
+      ctx.globalAlpha = 1.0;
     } else {
-      drawW = W;
-      drawH = W / imgRatio;
-      offsetY = -(drawH - H) / 2;
+      ctx.globalAlpha = 1.0;
+      drawCoverMedia(ctx, primaryMedia, W, H);
     }
 
-    ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
+    return true;
+  };
+
+  // Helper 2 (1:1 Screen Coordinates): Beat 2 Split/PiP Evidence + Animated Telemetry Data Chart + Source Citation
+  const drawMultiShotOverlayCards = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    scene: StoryboardScene,
+    progress: number,
+    clockSec: number,
+    vid: HTMLVideoElement | undefined,
+    img: HTMLImageElement | undefined,
+    secImg: HTMLImageElement | undefined
+  ) => {
+    const hasVideo = Boolean(vid && vid.readyState >= 2 && vid.videoWidth > 0);
+    const hasPrimaryImg = Boolean(img && img.complete && img.naturalWidth > 0);
+    const hasSecImg = Boolean(secImg && secImg.complete && secImg.naturalWidth > 0);
+    const primaryMedia: HTMLVideoElement | HTMLImageElement | undefined = hasVideo
+      ? vid
+      : hasPrimaryImg
+        ? img
+        : undefined;
+    if (!primaryMedia && !hasSecImg) return;
+
+    const beat2Start = 0.42;
+    const beat3Start = 0.78;
+    const isBeat1 = progress < beat2Start;
+    const isBeat2 = progress >= beat2Start && progress < beat3Start;
+    const isBeat3 = progress >= beat3Start;
+    const citation = scene.sourceCitation || 'Google News & Wikimedia Commons';
+
+    // Beat 2: Right-side Frosted Glass Split/PiP Frame + Animated Data Bars
+    if (isBeat2) {
+      const enterT = Math.min(1, (progress - beat2Start) / 0.1);
+      const exitT = progress > beat3Start - 0.06 ? Math.max(0, (beat3Start - progress) / 0.06) : 1;
+      const panelAlpha = Math.min(enterT, exitT);
+      const isPortrait = W < H;
+
+      ctx.save();
+      ctx.globalAlpha = 0.95 * panelAlpha;
+
+      const cardW = isPortrait ? W * 0.86 : W * 0.35;
+      const cardH = isPortrait ? H * 0.34 : H * 0.62;
+      const slideOffsetX = isPortrait ? 0 : (1 - enterT) * 44;
+      const cardX = isPortrait ? (W - cardW) / 2 : W - cardW - W * 0.032 + slideOffsetX;
+      const cardY = isPortrait ? H * 0.13 : H * 0.16;
+
+      ctx.fillStyle = 'rgba(9, 11, 18, 0.88)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.24)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(cardX, cardY, cardW, cardH, 16);
+      ctx.fill();
+      ctx.stroke();
+
+      const insetPad = 12;
+      const insetW = cardW - insetPad * 2;
+      const insetH = cardH * 0.47;
+      const evidenceMedia = hasSecImg ? secImg! : hasPrimaryImg ? img! : primaryMedia!;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(cardX + insetPad, cardY + insetPad, insetW, insetH, 10);
+      ctx.clip();
+      const slowPanScale = 1.05 + ((progress - beat2Start) / 0.36) * 0.08;
+      const pCx = cardX + insetPad + insetW / 2;
+      const pCy = cardY + insetPad + insetH / 2;
+      ctx.translate(pCx, pCy);
+      ctx.scale(slowPanScale, slowPanScale);
+      ctx.translate(-pCx, -pCy);
+      drawCoverMedia(ctx, evidenceMedia, W, H, cardX + insetPad, cardY + insetPad, insetW, insetH);
+      ctx.restore();
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+      ctx.beginPath();
+      ctx.roundRect(cardX + insetPad + 8, cardY + insetPad + 8, Math.min(insetW - 16, 224), 22, 6);
+      ctx.fill();
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 10px "Inter", system-ui, sans-serif';
+      ctx.fillText(`ĐỐI CHỨNG • ${citation.slice(0, 22).toUpperCase()}`, cardX + insetPad + 16, cardY + insetPad + 23);
+
+      const metrics =
+        scene.sceneMetrics && scene.sceneMetrics.length > 0
+          ? scene.sceneMetrics
+          : [
+              { label: 'CHỈ SỐ TĂNG TRƯỞNG', value: '88%', delta: '+14.2%' },
+              { label: 'ĐỘ TIN CẬY TƯ LIỆU', value: 'LIVE', delta: 'VERIFIED' },
+              { label: 'MỨC ĐỘ TÁC ĐỘNG', value: '92/100', delta: 'CAO' },
+            ];
+
+      const chartStartY = cardY + insetPad + insetH + 18;
+      const barAnim = Math.min(1, (progress - beat2Start) / 0.16);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText('DỮ LIỆU PHÂN TÍCH THỜI GIAN THỰC', cardX + insetPad, chartStartY);
+
+      metrics.slice(0, 3).forEach((m, mIdx) => {
+        const rowY = chartStartY + 14 + mIdx * (isPortrait ? 30 : 40);
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '600 11px "Inter", system-ui, sans-serif';
+        ctx.fillText(String(m.label || '').slice(0, 20), cardX + insetPad, rowY + 10);
+
+        ctx.fillStyle = '#facc15';
+        ctx.font = 'bold 11px monospace';
+        const valStr = String(m.value || '');
+        const deltaStr = m.delta ? ` (${m.delta})` : '';
+        ctx.fillText(`${valStr}${deltaStr}`.slice(0, 21), cardX + insetPad + insetW * 0.5, rowY + 10);
+
+        const trackY = rowY + 16;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.beginPath();
+        ctx.roundRect(cardX + insetPad, trackY, insetW, 7, 3.5);
+        ctx.fill();
+
+        const targetPct = 0.58 + ((mIdx * 17 + Math.round(clockSec * 2)) % 36) / 100;
+        const barColors = ['#38bdf8', '#10b981', '#f59e0b'];
+        ctx.fillStyle = barColors[mIdx % barColors.length];
+        ctx.beginPath();
+        ctx.roundRect(cardX + insetPad, trackY, Math.max(16, insetW * Math.min(0.95, targetPct) * barAnim), 7, 3.5);
+        ctx.fill();
+      });
+
+      ctx.restore();
+    }
+
+    // Beat 3: Secondary Multi-Angle Inset + Optical Transition Shimmer
+    if (isBeat3) {
+      const beat3T = Math.min(1, (progress - beat3Start) / 0.1);
+      ctx.save();
+      ctx.globalAlpha = 0.92 * beat3T;
+      if (hasSecImg && hasVideo) {
+        const pipW = W * 0.22;
+        const pipH = pipW * 0.58;
+        const px = W - pipW - W * 0.032;
+        const py = H * 0.16;
+        ctx.fillStyle = 'rgba(9, 11, 18, 0.85)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(px - 4, py - 4, pipW + 8, pipH + 8, 12);
+        ctx.fill();
+        ctx.stroke();
+        drawCoverMedia(ctx, secImg!, W, H, px, py, pipW, pipH);
+      }
+      if (progress > 0.93) {
+        const flashAlpha = ((progress - 0.93) / 0.07) * 0.22;
+        ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha.toFixed(3)})`;
+        ctx.fillRect(0, 0, W, H);
+      }
+      ctx.restore();
+    }
+
+    // Top-Left Source Citation & Multi-Shot Beat Badge (crisp 1:1 coords)
+    ctx.save();
+    const beatTag = isBeat1
+      ? hasVideo
+        ? 'BEAT 1/3 • LIVE B-ROLL'
+        : 'BEAT 1/3 • TOÀN CẢNH'
+      : isBeat2
+        ? 'BEAT 2/3 • ĐỐI CHỨNG & DATA'
+        : 'BEAT 3/3 • TRỌNG TÂM';
+    const badgeTxt = `${beatTag}  |  NGUỒN: ${citation.slice(0, 26)}`;
+    ctx.font = 'bold 10.5px monospace';
+    const badgeW = Math.min(W * 0.62, ctx.measureText(badgeTxt).width + 28);
+    ctx.fillStyle = 'rgba(9, 11, 18, 0.74)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(W * 0.026, H * 0.032, badgeW, 24, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = hasVideo ? '#22c55e' : '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(W * 0.026 + 12, H * 0.032 + 12, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillText(badgeTxt, W * 0.026 + 21, H * 0.032 + 15.5);
+    ctx.restore();
   };
 
   // Dynamic Context Callout Card (Top-Right HUD — tự động thích ứng theo đúng Chủ đề & Thể loại dự án)
@@ -2147,8 +2560,10 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     ctx.scale(scale, scale);
     ctx.translate(-W / 2, -H / 2);
 
-    // 3. Render Visual Layer based on Genre & Visual Render Mode
+    // 3. Render Visual Layer based on Genre & Visual Render Mode (Moving <video> B-Roll + HD Internet Photos)
+    const vid = loadedVideosRef.current[scene.id];
     const img = loadedImagesRef.current[scene.id];
+    const secImg = loadedSecondaryImagesRef.current[scene.id];
     const prevScene = activeIdx > 0 ? scenes[activeIdx - 1] : null;
     const prevImg = prevScene ? loadedImagesRef.current[prevScene.id] : null;
 
@@ -2165,20 +2580,19 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       isHardwareKeynoteProject &&
       (visualRenderMode === 'hybrid-3d' || visualRenderMode === 'auto-genre');
 
-    if (img && img.complete && img.naturalWidth > 0) {
-      // Smooth Cross-Dissolve from previous scene image during first 0.55s
-      if (sceneElapsed < 0.55 && prevImg && prevImg.complete && prevImg.naturalWidth > 0) {
-        const blend = sceneElapsed / 0.55;
-        ctx.globalAlpha = 1.0;
-        drawCoverImage(ctx, prevImg, W, H);
-        ctx.globalAlpha = blend;
-        drawCoverImage(ctx, img, W, H);
-        ctx.globalAlpha = 1.0;
-      } else {
-        ctx.globalAlpha = 1.0;
-        drawCoverImage(ctx, img, W, H);
-      }
+    const backdropDrawn = drawPrimaryMediaBackdrop(
+      ctx,
+      W,
+      H,
+      progress,
+      sceneElapsed,
+      vid,
+      img,
+      prevImg || undefined,
+      secImg
+    );
 
+    if (backdropDrawn) {
       // Chỉ phủ đồ họa 3D linh kiện Apple khi dự án thực sự là phần cứng Apple Keynote!
       if (allowHardware3dOverlays) {
         const isExplodedScene =
@@ -2237,6 +2651,16 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     }
 
     ctx.restore();
+
+    // 3B. Multi-Shot Beat 2 Split/PiP Evidence + Animated Telemetry Data Chart + Source Citation (1:1 Screen Coords)
+    if (
+      backdropDrawn &&
+      !is3dAnimationProject &&
+      !allowHardware3dOverlays &&
+      visualRenderMode !== 'clean-photo'
+    ) {
+      drawMultiShotOverlayCards(ctx, W, H, scene, progress, clockSec, vid, img, secImg);
+    }
 
     // 4. Color Grading LUT Overlay
     drawColorGradeLut(ctx, W, H, activeLut);
@@ -4018,9 +4442,18 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         setExportProgress(100);
         setExportStatusText('Xuất bản thành công! Đang tải file về máy...');
 
+        const filename = `${project.code || 'SYNAPES'}_${project.title.slice(0, 24).replace(/\s+/g, '_')}_Master_HD.webm`;
+        (window as any).__SYNAPES_LAST_EXPORT = {
+          filename,
+          sizeBytes: blob.size,
+          mimeType,
+          durationSec: targetDurationSec,
+          completedAt: new Date().toISOString(),
+        };
+
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${project.code || 'SYNAPES'}_${project.title.slice(0, 24).replace(/\s+/g, '_')}_Master_HD.webm`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -4131,8 +4564,20 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           )}
         </div>
 
-        {/* Right Tools: Export Video */}
-        <div className="flex items-center gap-2">
+        {/* Right Tools: Media Telemetry + Export Video */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div
+            data-testid="player-media-telemetry"
+            className="px-2.5 py-1 rounded-lg bg-zinc-800/90 border border-white/10 text-[10.5px] font-mono text-zinc-300 flex items-center gap-2"
+            title="Tình trạng luồng Video B-Roll & Ảnh HD trực tuyến đã nạp"
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${loadedVideosCount > 0 ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+            <span>{scenes.length} cảnh</span>
+            <span className="text-zinc-600">•</span>
+            <span className="text-emerald-300">{loadedVideosCount}/{scenes.length} B-Roll Video</span>
+            <span className="text-zinc-600">•</span>
+            <span className="text-sky-300">{loadedCount}/{scenes.length} Ảnh HD</span>
+          </div>
 
           {/* Export Video Master Button */}
           <button
@@ -4160,14 +4605,14 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           onClick={() => setIsPlaying((p) => !p)}
         />
 
-        {/* Big tactile Play button when paused */}
+        {/* Big tactile Play button when paused (no blur so paused canvas & PiP charts stay razor-sharp) */}
         {!isPlaying && (
           <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center cursor-pointer"
+            className="absolute inset-0 bg-black/10 flex items-center justify-center cursor-pointer"
             onClick={() => setIsPlaying(true)}
           >
-            <div className="w-16 h-16 rounded-full bg-white text-zinc-900 flex items-center justify-center shadow-2xl transition hover:scale-110 active:scale-95">
-              <Play className="w-7 h-7 ml-1 fill-zinc-900 text-zinc-900" />
+            <div className="w-14 h-14 rounded-full bg-white/90 text-zinc-900 flex items-center justify-center shadow-xl transition hover:scale-110 active:scale-95">
+              <Play className="w-6 h-6 ml-0.5 fill-zinc-900 text-zinc-900" />
             </div>
           </div>
         )}

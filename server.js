@@ -584,6 +584,14 @@ server.listen(PORT, HOST, () => {
   console.log(`Environment: ${process.env.NODE_ENV || 'production'}`);
 });
 
+process.on('uncaughtException', (err) => {
+  console.error('[SYNAPES Server UncaughtException]', err?.stack || err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[SYNAPES Server UnhandledRejection]', reason);
+});
+
 process.on('SIGTERM', () => {
   console.log('Received SIGTERM, closing Web Service server...');
   server.close(() => process.exit(0));

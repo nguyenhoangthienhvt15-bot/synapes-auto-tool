@@ -44,470 +44,973 @@ interface CalendarViewProps {
 
 type ViewMode = 'month' | 'week' | 'queue';
 
-// Bảng tra 12 Tranh Dân Gian Đông Hồ theo 12 tháng — chuẩn màu khoáng vật & xoáy Âm Dương cổ truyền
+// Bảng tra 12 Tranh Dân Gian Đông Hồ theo 12 tháng — chuẩn mực khắc ván gỗ thị & giấy điệp truyền thống
 interface DongHoZodiacMeta {
   month: number;
   key: 'rat' | 'ox' | 'tiger' | 'cat' | 'dragon' | 'snake' | 'horse' | 'goat' | 'monkey' | 'rooster' | 'dog' | 'pig';
   chiName: string;
   paintingTitle: string;
+  hanNom: [string, string];
+  paperTone: 'hoe-gold' | 'diep-cream';
+  craftNote: string;
   primaryPigment: string;
   secondaryPigment: string;
   accentPigment: string;
 }
 
 const ZODIAC_BY_MONTH: readonly DongHoZodiacMeta[] = [
-  { month: 1, key: 'rat', chiName: 'Tý', paintingTitle: 'Đám Cưới Chuột', primaryPigment: '#B43222', secondaryPigment: '#295769', accentPigment: '#DFA12A' },
-  { month: 2, key: 'ox', chiName: 'Sửu', paintingTitle: 'Mục Đồng Thổi Sáo', primaryPigment: '#36322F', secondaryPigment: '#3D6C4A', accentPigment: '#DFA12A' },
-  { month: 3, key: 'tiger', chiName: 'Dần', paintingTitle: 'Ngũ Hổ Thần Tướng', primaryPigment: '#DFA12A', secondaryPigment: '#B43222', accentPigment: '#295769' },
-  { month: 4, key: 'cat', chiName: 'Mão', paintingTitle: 'Mèo Ngoạm Cá', primaryPigment: '#DC8C27', secondaryPigment: '#B43222', accentPigment: '#295769' },
-  { month: 5, key: 'dragon', chiName: 'Thìn', paintingTitle: 'Long Chầu Nhật', primaryPigment: '#295769', secondaryPigment: '#DFA12A', accentPigment: '#B43222' },
-  { month: 6, key: 'snake', chiName: 'Tỵ', paintingTitle: 'Linh Xà Khắc Mộc', primaryPigment: '#3D6C4A', secondaryPigment: '#DFA12A', accentPigment: '#B43222' },
-  { month: 7, key: 'horse', chiName: 'Ngọ', paintingTitle: 'Xích Thố Vinh Quy', primaryPigment: '#A93221', secondaryPigment: '#DFA12A', accentPigment: '#295769' },
-  { month: 8, key: 'goat', chiName: 'Mùi', paintingTitle: 'Tam Dương Khai Thái', primaryPigment: '#EFE7D4', secondaryPigment: '#B43222', accentPigment: '#3D6C4A' },
-  { month: 9, key: 'monkey', chiName: 'Thân', paintingTitle: 'Hầu Vương Dâng Đào', primaryPigment: '#B66328', secondaryPigment: '#C73828', accentPigment: '#3D6C4A' },
-  { month: 10, key: 'rooster', chiName: 'Dậu', paintingTitle: 'Gà Đại Cát', primaryPigment: '#DFA12A', secondaryPigment: '#B43222', accentPigment: '#295769' },
-  { month: 11, key: 'dog', chiName: 'Tuất', paintingTitle: 'Khuyển Vàng Giữ Lộc', primaryPigment: '#D19329', secondaryPigment: '#B43222', accentPigment: '#295769' },
-  { month: 12, key: 'pig', chiName: 'Hợi', paintingTitle: 'Lợn Đàn Âm Dương', primaryPigment: '#DF8B72', secondaryPigment: '#B43222', accentPigment: '#3D6C4A' },
+  {
+    month: 1,
+    key: 'rat',
+    chiName: 'Tý',
+    paintingTitle: 'Đám Cưới Chuột',
+    hanNom: ['鼠', '婚'],
+    paperTone: 'hoe-gold',
+    craftNote: 'Nét khắc ván gỗ thị, chuột quan đội mũ cánh chuồn áo bào đỏ son thổi kèn lọng rước kiệu.',
+    primaryPigment: '#8D281B',
+    secondaryPigment: '#2B5834',
+    accentPigment: '#E1AD36',
+  },
+  {
+    month: 2,
+    key: 'ox',
+    chiName: 'Sửu',
+    paintingTitle: 'Mục Đồng Thổi Sáo',
+    hanNom: ['牧', '童'],
+    paperTone: 'diep-cream',
+    craftNote: 'Trâu mộng khắc nét răng lược, mục đồng vấn khăn áo nâu son ngồi lưng trâu thổi sáo trúc trên gò cỏ.',
+    primaryPigment: '#322C27',
+    secondaryPigment: '#2B5834',
+    accentPigment: '#E1AD36',
+  },
+  {
+    month: 3,
+    key: 'tiger',
+    chiName: 'Dần',
+    paintingTitle: 'Ngũ Hổ Thần Tướng',
+    hanNom: ['五', '虎'],
+    paperTone: 'hoe-gold',
+    craftNote: 'Hoàng Hổ uy nghi trán chữ Vương, thân điểm hoa văn gấm lục giác, vân mây cuộn & bùa hộ mệnh.',
+    primaryPigment: '#E1AD36',
+    secondaryPigment: '#8D281B',
+    accentPigment: '#2B5834',
+  },
+  {
+    month: 4,
+    key: 'cat',
+    chiName: 'Mão',
+    paintingTitle: 'Mèo Ngoạm Cá',
+    hanNom: ['吉', '貓'],
+    paperTone: 'diep-cream',
+    craftNote: 'Mèo vàng hoa hòe bờm khắc răng lược, cổ đeo yếm vân khánh ngoạm cá chép vây khắc gân.',
+    primaryPigment: '#D99B2B',
+    secondaryPigment: '#8D281B',
+    accentPigment: '#2B5834',
+  },
+  {
+    month: 5,
+    key: 'dragon',
+    chiName: 'Thìn',
+    paintingTitle: 'Long Chầu Nhật',
+    hanNom: ['飛', '龍'],
+    paperTone: 'hoe-gold',
+    craftNote: 'Thanh Long vảy gấm chầu nhật ngọc rực lửa đỏ son giữa cụm mây cuộn ngũ sắc Đông Hồ.',
+    primaryPigment: '#2B5834',
+    secondaryPigment: '#8D281B',
+    accentPigment: '#E1AD36',
+  },
+  {
+    month: 6,
+    key: 'snake',
+    chiName: 'Tỵ',
+    paintingTitle: 'Linh Xà Khắc Mộc',
+    hanNom: ['靈', '蛇'],
+    paperTone: 'diep-cream',
+    craftNote: 'Linh xà cuộn chữ S vảy hoa thị lục giác bên khóm trúc & hoa sen đỏ trên nền điệp vỏ sò.',
+    primaryPigment: '#2B5834',
+    secondaryPigment: '#E1AD36',
+    accentPigment: '#8D281B',
+  },
+  {
+    month: 7,
+    key: 'horse',
+    chiName: 'Ngọ',
+    paintingTitle: 'Thánh Gióng Vinh Quy',
+    hanNom: ['榮', '歸'],
+    paperTone: 'diep-cream',
+    craftNote: 'Bạch mã phi nước đại bờm khắc răng lược, yên gấm lục giác hoa thị, mây lửa son & khóm tre ngà.',
+    primaryPigment: '#8D281B',
+    secondaryPigment: '#2B5834',
+    accentPigment: '#E1AD36',
+  },
+  {
+    month: 8,
+    key: 'goat',
+    chiName: 'Mùi',
+    paintingTitle: 'Tam Dương Khai Thái',
+    hanNom: ['三', '陽'],
+    paperTone: 'hoe-gold',
+    craftNote: 'Dê trắng vỏ điệp sừng xoắn thong dong trên gò đất đỏ-xanh, lông ức khắc răng lược song song.',
+    primaryPigment: '#F4EFE0',
+    secondaryPigment: '#8D281B',
+    accentPigment: '#2B5834',
+  },
+  {
+    month: 9,
+    key: 'monkey',
+    chiName: 'Thân',
+    paintingTitle: 'Hầu Vương Dâng Đào',
+    hanNom: ['獻', '壽'],
+    paperTone: 'hoe-gold',
+    craftNote: 'Linh hầu áo bào yếm vân khánh gấm hoa thị nâng trái đào tiên đỏ son & lá xanh chàm.',
+    primaryPigment: '#B96428',
+    secondaryPigment: '#8D281B',
+    accentPigment: '#2B5834',
+  },
+  {
+    month: 10,
+    key: 'rooster',
+    chiName: 'Dậu',
+    paintingTitle: 'Gà Đại Cát Hoa Hồng',
+    hanNom: ['大', '吉'],
+    paperTone: 'hoe-gold',
+    craftNote: 'Gà trống mào cờ son đất, bộ lông cánh & đuôi tam sắc xếp lớp răng lược bên búp sen hồng.',
+    primaryPigment: '#E1AD36',
+    secondaryPigment: '#8D281B',
+    accentPigment: '#2B5834',
+  },
+  {
+    month: 11,
+    key: 'dog',
+    chiName: 'Tuất',
+    paintingTitle: 'Khuyển Vàng Phú Quý',
+    hanNom: ['富', '貴'],
+    paperTone: 'diep-cream',
+    craftNote: 'Khuyển vàng hoa hòe đeo yếm vân khánh ngũ sắc ngồi vững trên gò cỏ, lông bụng khắc răng lược.',
+    primaryPigment: '#D99B2B',
+    secondaryPigment: '#8D281B',
+    accentPigment: '#2B5834',
+  },
+  {
+    month: 12,
+    key: 'pig',
+    chiName: 'Hợi',
+    paintingTitle: 'Lợn Đàn Âm Dương',
+    hanNom: ['陰', '陽'],
+    paperTone: 'hoe-gold',
+    craftNote: 'Kiệt tác Lợn Đàn Đông Hồ — thân hồng đất điểm 2 xoáy Âm Dương, lông ức răng lược bên khóm lá ráy.',
+    primaryPigment: '#D98B72',
+    secondaryPigment: '#8D281B',
+    accentPigment: '#2B5834',
+  },
 ];
 
 /**
- * Họa tiết Xoáy Âm Dương đặc trưng trên thân con vật trong Tranh Dân Gian Đông Hồ.
+ * Họa tiết Xoáy Âm Dương khắc ván gỗ đặc trưng trên thân con vật trong Tranh Dân Gian Đông Hồ.
  */
 const DongHoYinYangSwirl: React.FC<{ cx: number; cy: number; r?: number; ink?: string; light?: string }> = ({
   cx,
   cy,
-  r = 9,
-  ink = '#1A1613',
-  light = '#FBF5E6',
+  r = 10,
+  ink = '#171310',
+  light = '#F6F1E2',
 }) => (
   <g transform={`translate(${cx}, ${cy})`}>
-    <circle r={r} fill={light} stroke={ink} strokeWidth="1.5" />
+    <circle r={r} fill={light} stroke={ink} strokeWidth="2.1" />
     <path
       d={`M 0 ${-r} A ${r} ${r} 0 0 1 0 ${r} A ${r / 2} ${r / 2} 0 0 1 0 0 A ${r / 2} ${r / 2} 0 0 0 0 ${-r} Z`}
       fill={ink}
     />
-    <circle cx={0} cy={-r / 2} r={Math.max(1.2, r * 0.17)} fill={light} />
-    <circle cx={0} cy={r / 2} r={Math.max(1.2, r * 0.17)} fill={ink} />
+    <circle cx={0} cy={-r / 2} r={Math.max(1.4, r * 0.19)} fill={light} />
+    <circle cx={0} cy={r / 2} r={Math.max(1.4, r * 0.19)} fill={ink} />
   </g>
 );
 
 /**
- * Khung Tranh Khắc Gỗ Dân Gian Đông Hồ — Giấy Điệp Vàng Ấm, Viền Khắc Mộc,
- * Triện Son Cổ Truyền và 12 Bức Họa Con Giáp Tĩnh Ở Góc Trên Bên Trái Lịch Biểu.
+ * Gò đất khoáng vật son/lục & cụm cỏ 5 nhánh khắc mộc (đặc trưng bức Vinh Quy Bái Tổ).
  */
-const DongHoZodiacPainting: React.FC<{ zodiac: DongHoZodiacMeta }> = ({ zodiac }) => {
-  const INK = '#191512';
-  const DIEP_PAPER = '#F3E4C3';
-  const DIEP_CREAM = '#FAF3E1';
-  const SON = '#A92A1E';
-  const HOE = '#DE9D24';
-  const CHAM = '#275466';
-  const LUC = '#386847';
-  const uid = `dh-${zodiac.key}-${zodiac.month}`;
+const DongHoEarthyMoundBase: React.FC<{ ink: string; son: string; luc: string; diep: string }> = ({
+  ink,
+  son,
+  luc,
+  diep,
+}) => (
+  <g>
+    {/* Nền gò đất son & xanh lục */}
+    <path
+      d="M34 139 Q56 127 78 139 Q98 131 118 139 Q142 126 168 139 L186 139"
+      fill="none"
+      stroke={ink}
+      strokeWidth="2.2"
+      strokeLinecap="round"
+    />
+    <path d="M40 139 Q58 128 77 139 Z" fill={son} stroke={ink} strokeWidth="1.9" strokeLinejoin="round" />
+    <path d="M126 139 Q146 127 167 139 Z" fill={luc} stroke={ink} strokeWidth="1.9" strokeLinejoin="round" />
+    {/* Cụm cỏ khắc gỗ 5 ngọn */}
+    <path
+      d="M90 138 L83 128 M92 138 L89 125 M94 138 L94 123 M96 138 L100 126 M98 138 L106 130"
+      stroke={ink}
+      strokeWidth="1.7"
+      strokeLinecap="round"
+    />
+    <path
+      d="M113 138 L108 129 M115 138 L113 127 M117 138 L118 126 M119 138 L124 129"
+      stroke={ink}
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    />
+    {/* Đóa hoa đất nhỏ */}
+    <circle cx="102" cy="136" r="2.1" fill={diep} stroke={ink} strokeWidth="1.3" />
+    <circle cx="107" cy="135" r="2.3" fill={son} stroke={ink} strokeWidth="1.3" />
+  </g>
+);
+
+/**
+ * Bức Tranh Khắc Gỗ Dân Gian Đông Hồ chuẩn mực — tái hiện trọn vẹn chất liệu Giấy Điệp chổi lá thông,
+ * bảng màu khoáng vật tự nhiên (Son đất #8D281B, Lục chàm #2B5834, Hoa hòe #E1AD36, Trắng điệp #F6F1E2),
+ * nét khắc răng lược song song, gấm hoa thị lục giác, gò cỏ & chữ Hán-Nôm khắc mộc.
+ */
+export const DongHoZodiacPainting: React.FC<{
+  zodiac: DongHoZodiacMeta;
+  large?: boolean;
+  onClick?: () => void;
+}> = ({ zodiac, large = false, onClick }) => {
+  const INK = '#171310';
+  const DIEP_WHITE = '#F5EFE0';
+  const SON = '#8D281B';
+  const HOE = '#E1AD36';
+  const LUC = '#2B5834';
+  const TERRA = '#E4B395';
+  const isHoeBg = zodiac.paperTone === 'hoe-gold';
+  const uid = `dh-${zodiac.key}-${zodiac.month}-${large ? 'lg' : 'sm'}`;
 
   return (
     <div
-      className="relative flex-shrink-0 rounded-lg overflow-hidden border border-[#7E2319]/40 shadow-sm bg-[#F3E4C3]"
-      style={{ width: 126, height: 88 }}
-      title={`${zodiac.paintingTitle} — Tranh Dân Gian Đông Hồ`}
-      data-testid="dong-ho-zodiac-emblem"
+      onClick={onClick}
+      className={`relative flex-shrink-0 overflow-hidden select-none transition-transform ${
+        large ? 'w-full max-w-[460px] rounded-md shadow-xl' : 'rounded-sm shadow-sm hover:scale-[1.03] cursor-pointer'
+      }`}
+      style={
+        large
+          ? { aspectRatio: '220 / 156', backgroundColor: isHoeBg ? '#DFC252' : '#ECE6D4' }
+          : { width: 172, height: 122, backgroundColor: isHoeBg ? '#DFC252' : '#ECE6D4' }
+      }
+      title={`${zodiac.paintingTitle} (${zodiac.hanNom.join('')}) — Nhấn để phóng to Triển lãm 12 Tranh Đông Hồ`}
+      data-testid={large ? 'dong-ho-zodiac-large' : 'dong-ho-zodiac-emblem'}
       data-zodiac-key={zodiac.key}
       data-zodiac-month={zodiac.month}
     >
       <svg
-        viewBox="0 0 168 118"
+        viewBox="0 0 220 156"
         className="w-full h-full block"
         role="img"
         aria-label={`Tranh dân gian Đông Hồ: ${zodiac.paintingTitle}`}
       >
         <defs>
-          {/* Chất liệu giấy điệp ánh vỏ sò & vệt chổi lá thông */}
+          {/* Giấy Dó quét Hồ Điệp / Hoa Hòe */}
           <linearGradient id={`${uid}-paper`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#F6E9CB" />
-            <stop offset="55%" stopColor="#F1DFAF" />
-            <stop offset="100%" stopColor="#E6CF9B" />
+            {isHoeBg ? (
+              <>
+                <stop offset="0%" stopColor="#E4C85E" />
+                <stop offset="50%" stopColor="#D8B949" />
+                <stop offset="100%" stopColor="#CCA83B" />
+              </>
+            ) : (
+              <>
+                <stop offset="0%" stopColor="#F2ECE0" />
+                <stop offset="55%" stopColor="#EAE3D2" />
+                <stop offset="100%" stopColor="#DED4BE" />
+              </>
+            )}
           </linearGradient>
-          <pattern id={`${uid}-brush`} width="24" height="6" patternUnits="userSpaceOnUse">
-            <line x1="0" y1="1.5" x2="24" y2="1.2" stroke="#E5CE9A" strokeWidth="0.7" opacity="0.55" />
-            <line x1="2" y1="4.5" x2="22" y2="4.7" stroke="#FDF8EC" strokeWidth="0.6" opacity="0.65" />
-            <circle cx="7" cy="2.8" r="0.45" fill="#FFFDF7" opacity="0.8" />
-            <circle cx="19" cy="5.2" r="0.4" fill="#FFFDF7" opacity="0.75" />
+
+          {/* Kết cấu vệt chổi lá thông quét ngang nổi gân + lấp lánh vỏ sò điệp */}
+          <pattern id={`${uid}-diep-brush`} width="72" height="10" patternUnits="userSpaceOnUse">
+            <line
+              x1="0"
+              y1="2"
+              x2="72"
+              y2="1.7"
+              stroke={isHoeBg ? '#C6A334' : '#D5C9AE'}
+              strokeWidth="0.95"
+              opacity="0.72"
+            />
+            <line
+              x1="4"
+              y1="5.1"
+              x2="70"
+              y2="5.4"
+              stroke={isHoeBg ? '#F2DC83' : '#FBF8EF'}
+              strokeWidth="0.85"
+              opacity="0.68"
+            />
+            <line
+              x1="0"
+              y1="8.3"
+              x2="72"
+              y2="8.0"
+              stroke={isHoeBg ? '#BE9B2F' : '#CFC3A6'}
+              strokeWidth="0.65"
+              opacity="0.6"
+            />
+            <circle cx="14" cy="3.4" r="0.55" fill="#FFFDF6" opacity="0.85" />
+            <circle cx="38" cy="6.8" r="0.65" fill="#FFFDF6" opacity="0.78" />
+            <circle cx="59" cy="2.6" r="0.45" fill="#FFFDF6" opacity="0.82" />
+            <circle cx="26" cy="8.9" r="0.45" fill="#FFFDF6" opacity="0.7" />
           </pattern>
+
+          {/* Họa tiết Gấm Hoa Thị Lục Giác (như yên ngựa Thánh Gióng) */}
+          <pattern id={`${uid}-brocade`} width="14" height="14" patternUnits="userSpaceOnUse">
+            <rect width="14" height="14" fill={HOE} />
+            <polygon
+              points="7,0.8 13,4.2 13,9.8 7,13.2 1,9.8 1,4.2"
+              fill="none"
+              stroke={INK}
+              strokeWidth="1.05"
+            />
+            <circle cx="7" cy="7" r="2.2" fill={SON} stroke={INK} strokeWidth="0.6" />
+            <circle cx="7" cy="7" r="0.8" fill={DIEP_WHITE} />
+          </pattern>
+
+          {/* Bộ lọc nét khắc bản gỗ thị mộc mạc (nhẹ vừa đủ sắc nét) */}
+          <filter id={`${uid}-woodcut`} x="-4%" y="-4%" width="108%" height="108%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.085" numOctaves="2" seed={zodiac.month * 7} result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.75" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
         </defs>
 
-        {/* Lớp nền Giấy Điệp */}
-        <rect x="0" y="0" width="168" height="118" fill={`url(#${uid}-paper)`} />
-        <rect x="0" y="0" width="168" height="118" fill={`url(#${uid}-brush)`} />
+        {/* 1. LỚP NỀN GIẤY ĐIỆP CHỔI LÁ THÔNG */}
+        <rect x="0" y="0" width="220" height="156" fill={`url(#${uid}-paper)`} />
+        <rect x="0" y="0" width="220" height="156" fill={`url(#${uid}-diep-brush)`} />
 
-        {/* Họa tiết góc mây cổ / hoa thị 4 góc khung gỗ */}
-        <path d="M8 22 Q8 8 22 8 M160 22 Q160 8 146 8 M8 96 Q8 110 22 110 M160 96 Q160 110 146 110" stroke={SON} strokeWidth="2.2" fill="none" />
-        <rect x="5" y="5" width="158" height="108" rx="3" fill="none" stroke={INK} strokeWidth="2.4" />
-        <rect x="9" y="9" width="150" height="100" rx="2" fill="none" stroke={SON} strokeWidth="1.2" strokeDasharray="16 2" />
+        {/* 2. KHUNG VIỀN MỰC TÀU KHẮC VÁN GỖ THỦ CÔNG (như Vinh Quy Bái Tổ) */}
+        <path
+          d="M 8 8 Q 110 7.2 212 8.5 Q 213 78 211.5 147.5 Q 110 148.8 7.5 147 Q 6.8 78 8 8 Z"
+          fill="none"
+          stroke={INK}
+          strokeWidth="2.4"
+          strokeLinejoin="round"
+          filter={`url(#${uid}-woodcut)`}
+        />
 
-        {/* Nền cụm mây khánh & lá trúc dân gian phía sau */}
-        <path d="M18 96 Q44 88 84 93 Q125 98 150 91" stroke={LUC} strokeWidth="1.8" fill="none" opacity="0.65" />
-        <path d="M22 28 C27 21, 37 21, 41 27 C46 24, 52 28, 49 33 C40 34, 29 33, 22 28 Z" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.4" opacity="0.85" />
-        <path d="M114 23 C120 17, 130 18, 133 23 C138 22, 142 26, 138 30 L114 29 Z" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.3" opacity="0.75" />
-
-        {/* TRIỆN SON ĐÔNG HỒ GÓC PHẢI TRÊN */}
-        <g transform="translate(136, 15)">
-          <rect x="0" y="0" width="18" height="26" rx="1.5" fill={SON} stroke={INK} strokeWidth="1" />
-          <text x="9" y="11" textAnchor="middle" fontSize="6.8" fontWeight="800" fill={DIEP_CREAM} fontFamily="serif">
-            {zodiac.chiName.toUpperCase()}
+        {/* 3. CHỮ HÁN-NÔM KHẮC MỘC TRỰC TIẾP TRÊN GIẤY ĐIỆP & TRIỆN ĐÔNG HỒ */}
+        <g transform="translate(26, 20)" filter={`url(#${uid}-woodcut)`}>
+          <text
+            x="0"
+            y="14"
+            fontSize="16"
+            fontWeight="900"
+            fill={INK}
+            fontFamily="'Noto Serif', 'PMingLiU', 'SimSun', serif"
+            opacity="0.92"
+          >
+            {zodiac.hanNom[0]}
           </text>
-          <line x1="3" y1="14" x2="15" y2="14" stroke={DIEP_CREAM} strokeWidth="0.7" opacity="0.8" />
-          <text x="9" y="22" textAnchor="middle" fontSize="5.2" fontWeight="700" fill={DIEP_CREAM} fontFamily="serif">
-            Đ.HỒ
+          <text
+            x="0"
+            y="32"
+            fontSize="16"
+            fontWeight="900"
+            fill={INK}
+            fontFamily="'Noto Serif', 'PMingLiU', 'SimSun', serif"
+            opacity="0.92"
+          >
+            {zodiac.hanNom[1]}
           </text>
         </g>
 
-        {/* =============== ĐỒ HỌA KHẮC GỖ 12 CON GIÁP ĐÔNG HỒ =============== */}
-        {zodiac.key === 'rat' && (
-          /* THÁNG 1: ĐÁM CƯỚI CHUỘT — Chuột quan cưỡi kiệu thổi kèn đội mũ cánh chuồn */
-          <g>
-            {/* Đuôi uốn lượn khắc mộc */}
-            <path d="M40 76 C22 72, 18 52, 29 45 C36 40, 41 47, 36 52" stroke={INK} strokeWidth="3.2" fill="none" strokeLinecap="round" />
-            {/* Thân áo bào đỏ son */}
-            <path d="M42 78 C42 56, 62 46, 86 48 C102 50, 108 64, 104 78 L98 92 L46 92 Z" fill={SON} stroke={INK} strokeWidth="2.8" strokeLinejoin="round" />
-            {/* Yếm hoa vàng & Xoáy Âm Dương */}
-            <path d="M58 51 Q76 62 94 52 L90 66 Q76 74 60 66 Z" fill={HOE} stroke={INK} strokeWidth="2" />
-            <DongHoYinYangSwirl cx={62} cy={74} r={8} ink={INK} light={DIEP_CREAM} />
-            {/* Tai chuột tròn kép & Đầu */}
-            <circle cx="90" cy="34" r="10.5" fill={DIEP_CREAM} stroke={INK} strokeWidth="2.6" />
-            <circle cx="90" cy="34" r="5.2" fill="#DF8B72" stroke={INK} strokeWidth="1.5" />
-            <path d="M84 42 C92 32, 118 34, 128 48 C118 55, 96 57, 84 49 Z" fill={DIEP_CREAM} stroke={INK} strokeWidth="2.6" strokeLinejoin="round" />
-            {/* Mũ cánh chuồn xanh chàm */}
-            <path d="M84 36 L98 25 L110 35 Z" fill={CHAM} stroke={INK} strokeWidth="2.2" strokeLinejoin="round" />
-            <path d="M77 32 C69 27, 68 35, 79 36" fill={CHAM} stroke={INK} strokeWidth="1.8" />
-            {/* Kèn đồng / Hoa cúc cầm tay */}
-            <path d="M111 58 L138 45 L142 54 L112 63 Z" fill={HOE} stroke={INK} strokeWidth="2" strokeLinejoin="round" />
-            {/* Mắt khắc mộc & Ria */}
-            <ellipse cx="107" cy="43" rx="3.2" ry="2.2" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.8" />
-            <circle cx="108" cy="43" r="1.4" fill={INK} />
-            <circle cx="127" cy="47.5" r="2.8" fill={SON} stroke={INK} strokeWidth="1.8" />
-            <path d="M122 51 L136 53 M121 54 L134 59" stroke={INK} strokeWidth="1.6" strokeLinecap="round" />
-            {/* Chân bước nhịp nhàng */}
-            <path d="M56 92 L50 100 L59 100 M88 92 L95 100 L103 100" stroke={INK} strokeWidth="2.6" strokeLinecap="round" fill="none" />
-          </g>
-        )}
+        {/* Triện đỏ khắc ván góc phải trên */}
+        <g transform="translate(187, 15)" filter={`url(#${uid}-woodcut)`}>
+          <rect x="0" y="0" width="16" height="24" fill={SON} stroke={INK} strokeWidth="0.9" opacity="0.9" />
+          <text x="8" y="10.5" textAnchor="middle" fontSize="6.5" fontWeight="800" fill={DIEP_WHITE} fontFamily="serif">
+            {zodiac.chiName.toUpperCase()}
+          </text>
+          <line x1="2.5" y1="13" x2="13.5" y2="13" stroke={DIEP_WHITE} strokeWidth="0.6" opacity="0.85" />
+          <text x="8" y="21" textAnchor="middle" fontSize="5.4" fontWeight="700" fill={DIEP_WHITE} fontFamily="serif">
+            東湖
+          </text>
+        </g>
 
-        {zodiac.key === 'ox' && (
-          /* THÁNG 2: MỤC ĐỒNG THỔI SÁO / TRÂU MỘNG ĐÔNG HỒ */
-          <g>
-            {/* Đuôi vắt */}
-            <path d="M36 56 C26 60, 26 78, 32 86" stroke={INK} strokeWidth="2.8" fill="none" strokeLinecap="round" />
-            <path d="M32 86 C28 92, 35 94, 36 86 Z" fill={INK} />
-            {/* Bốn chân trâu vững chãi */}
-            <path d="M46 78 L42 99 L49 99 L54 79 M62 79 L60 99 L67 99 L70 79 M92 78 L90 99 L97 99 L100 78 M108 77 L111 99 L118 99 L115 76" fill="#46403C" stroke={INK} strokeWidth="2.4" strokeLinejoin="round" />
-            {/* Thân trâu vạm vỡ */}
-            <path d="M35 58 C37 42, 62 39, 90 42 C108 44, 120 49, 122 65 C120 79, 102 82, 76 81 C50 81, 34 74, 35 58 Z" fill="#4E4843" stroke={INK} strokeWidth="2.8" />
-            {/* Bụng vằn sáng vỏ điệp & Xoáy Âm Dương */}
-            <path d="M48 74 Q76 80 105 74" stroke={DIEP_CREAM} strokeWidth="2.2" fill="none" />
-            <DongHoYinYangSwirl cx={62} cy={59} r={9.5} ink={INK} light={DIEP_PAPER} />
-            {/* Đứa trẻ mục đồng đội nón lá thổi sáo trên lưng trâu */}
-            <path d="M71 42 L85 42 L83 28 L73 28 Z" fill={SON} stroke={INK} strokeWidth="2" />
-            <circle cx="78" cy="23" r="5.5" fill={DIEP_CREAM} stroke={INK} strokeWidth="2" />
-            <path d="M68 20 L78 12 L88 20 Z" fill={HOE} stroke={INK} strokeWidth="2" strokeLinejoin="round" />
-            <line x1="78" y1="25" x2="96" y2="27" stroke={LUC} strokeWidth="2.4" strokeLinecap="round" />
-            {/* Đầu trâu & Sừng cong bán nguyệt */}
-            <path d="M112 46 C122 38, 138 44, 143 58 C142 66, 130 69, 118 65 Z" fill="#46403C" stroke={INK} strokeWidth="2.6" />
-            <path d="M116 42 C106 27, 117 18, 126 24 C120 26, 118 33, 122 40 Z" fill={DIEP_CREAM} stroke={INK} strokeWidth="2.4" />
-            <path d="M126 42 C133 27, 147 26, 147 36 C141 33, 135 37, 132 45 Z" fill={DIEP_CREAM} stroke={INK} strokeWidth="2.4" />
-            {/* Khuyên mũi vàng đồng */}
-            <circle cx="139" cy="64" r="4" fill="none" stroke={HOE} strokeWidth="2.2" />
-            <ellipse cx="127" cy="51" rx="3" ry="2.1" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.6" />
-            <circle cx="127.8" cy="51" r="1.2" fill={INK} />
-          </g>
-        )}
+        {/* 4. GÒ ĐẤT SON/LỤC & BỤI CỎ KHẮC MỘC CHÂN TRANH */}
+        <DongHoEarthyMoundBase ink={INK} son={SON} luc={LUC} diep={DIEP_WHITE} />
 
-        {zodiac.key === 'tiger' && (
-          /* THÁNG 3: NGŨ HỔ ĐÔNG HỒ — Hoàng Hổ uy nghi trán chữ Vương */
-          <g>
-            {/* Đuôi vồng gợn sóng */}
-            <path d="M36 76 C18 72, 16 42, 34 38 C43 36, 46 46, 39 50" stroke={INK} strokeWidth="5.2" fill="none" strokeLinecap="round" />
-            <path d="M36 76 C18 72, 16 42, 34 38 C43 36, 46 46, 39 50" stroke={HOE} strokeWidth="2.8" fill="none" strokeLinecap="round" />
-            {/* Thân hổ chầu vàng hoa hòe */}
-            <path d="M37 78 C37 54, 58 44, 86 45 C106 46, 114 60, 112 78 L108 98 L98 98 L96 81 L58 81 L54 98 L43 98 Z" fill={HOE} stroke={INK} strokeWidth="2.8" strokeLinejoin="round" />
-            {/* Vằn hổ khắc gỗ đen tuyền */}
-            <path d="M52 49 C56 56, 51 64, 56 71 M66 47 C70 55, 64 64, 70 72 M80 48 C83 56, 78 65, 83 72" stroke={INK} strokeWidth="2.8" strokeLinecap="round" fill="none" />
-            <DongHoYinYangSwirl cx={67} cy={63} r={7.5} ink={SON} light={DIEP_CREAM} />
-            {/* Bờm ức trắng vỏ điệp & yếm đỏ */}
-            <path d="M98 48 C110 52, 116 64, 108 74 C98 76, 94 64, 98 48 Z" fill={DIEP_CREAM} stroke={INK} strokeWidth="2.2" />
-            {/* Đầu Hổ uy nghi nhìn thẳng chéo */}
-            <circle cx="116" cy="42" r="17" fill={HOE} stroke={INK} strokeWidth="2.8" />
-            <path d="M101 29 L98 20 L108 26 Z M131 29 L134 20 L124 26 Z" fill={SON} stroke={INK} strokeWidth="2.2" />
-            {/* Chữ Vương 王 trên trán */}
-            <path d="M111 29 H121 M112 33 H120 M111 37 H121 M116 29 V37" stroke={INK} strokeWidth="1.9" strokeLinecap="round" />
-            {/* Mắt hổ xếch & má ria */}
-            <path d="M105 40 Q109 37 113 40 Q109 43 105 40 Z M119 40 Q123 37 127 40 Q123 43 119 40 Z" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.8" />
-            <circle cx="109" cy="40" r="1.4" fill={INK} />
-            <circle cx="123" cy="40" r="1.4" fill={INK} />
-            <ellipse cx="116" cy="48" rx="6.5" ry="4.5" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.8" />
-            <polygon points="113,46 119,46 116,49.5" fill={SON} />
-            <path d="M102 47 L93 45 M102 50 L93 52 M130 47 L139 45 M130 50 L139 52" stroke={INK} strokeWidth="1.6" strokeLinecap="round" />
-            {/* Móng vuốt trước */}
-            <path d="M114 78 L126 98 L112 98 L108 82" fill={HOE} stroke={INK} strokeWidth="2.6" strokeLinejoin="round" />
-          </g>
-        )}
+        {/* 5. CHỦ THỂ 12 LINH THÚ KHẮC GỖ ĐÔNG HỒ (ĐẦY ĐỦ RĂNG LƯỢC, GẤM LỤC GIÁC, VÂN KHÁNH, SEN ĐỎ) */}
+        <g filter={`url(#${uid}-woodcut)`}>
+          {zodiac.key === 'rat' && (
+            /* THÁNG 1: ĐÁM CƯỚI CHUỘT — Chuột quan áo bào gấm, mũ cánh chuồn, thổi kèn trước cờ lọng */
+            <g>
+              {/* Ngọn cờ lễ rước phấp phới (kiểu Vinh Quy Bái Tổ) */}
+              <line x1="56" y1="133" x2="51" y2="28" stroke={INK} strokeWidth="2.3" />
+              <path
+                d="M51 28 C34 26, 23 31, 20 55 C34 58, 46 57, 52 51 Z"
+                fill={SON}
+                stroke={INK}
+                strokeWidth="2.4"
+                strokeLinejoin="round"
+              />
+              <rect x="27" y="34" width="17" height="14" fill="none" stroke={DIEP_WHITE} strokeWidth="1.5" />
+              <path d="M22 30 L14 25 M21 37 L13 35 M20 44 L12 45 M21 51 L15 55" stroke={INK} strokeWidth="1.9" strokeLinecap="round" />
 
-        {zodiac.key === 'cat' && (
-          /* THÁNG 4: MÈO VÀNG NGOẠM CÁ CHÉP ĐÔNG HỒ */
-          <g>
-            {/* Đuôi mèo cuộn thanh thoát */}
-            <path d="M40 82 C20 82, 22 50, 38 48 C46 47, 47 56, 40 58" stroke={INK} strokeWidth="5.4" fill="none" strokeLinecap="round" />
-            <path d="M40 82 C20 82, 22 50, 38 48 C46 47, 47 56, 40 58" stroke="#DE9D24" strokeWidth="2.8" fill="none" strokeLinecap="round" />
-            {/* Thân mèo ngồi */}
-            <path d="M42 88 C40 60, 56 46, 78 48 C94 50, 100 68, 96 88 L88 98 L48 98 Z" fill="#E39729" stroke={INK} strokeWidth="2.8" />
-            <ellipse cx="74" cy="76" rx="13" ry="15" fill={DIEP_CREAM} stroke={INK} strokeWidth="2" />
-            <DongHoYinYangSwirl cx={56} cy={68} r={8} ink={INK} light={DIEP_CREAM} />
-            {/* Vòng cổ đỏ & chuông vàng */}
-            <path d="M58 51 Q76 58 94 49" stroke={SON} strokeWidth="4" fill="none" strokeLinecap="round" />
-            <circle cx="76" cy="56" r="4" fill={HOE} stroke={INK} strokeWidth="1.8" />
-            {/* Đầu mèo & tai nhọn */}
-            <path d="M62 29 L56 14 L72 23 Z M92 29 L98 14 L82 23 Z" fill="#E39729" stroke={INK} strokeWidth="2.4" strokeLinejoin="round" />
-            <path d="M63 26 L60 18 L68 23 Z M91 26 L94 18 L86 23 Z" fill={SON} />
-            <circle cx="77" cy="36" r="15" fill="#E39729" stroke={INK} strokeWidth="2.8" />
-            {/* Mắt mèo hạnh nhân */}
-            <ellipse cx="71" cy="34" rx="3.4" ry="2.6" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.8" />
-            <ellipse cx="83" cy="34" rx="3.4" ry="2.6" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.8" />
-            <line x1="71" y1="32" x2="71" y2="36" stroke={INK} strokeWidth="1.8" strokeLinecap="round" />
-            <line x1="83" y1="32" x2="83" y2="36" stroke={INK} strokeWidth="1.8" strokeLinecap="round" />
-            {/* Chú Cá Chép xanh chàm ngoạm ở miệng mèo */}
-            <path d="M77 42 C94 38, 114 43, 126 52 C113 58, 92 56, 77 46 Z" fill={CHAM} stroke={INK} strokeWidth="2.2" />
-            <polygon points="124,52 135,44 133,59" fill={SON} stroke={INK} strokeWidth="2" />
-            <path d="M95 44 Q98 48 95 52 M103 44 Q106 48 103 52 M111 45 Q114 49 111 53" stroke={DIEP_CREAM} strokeWidth="1.4" fill="none" />
-          </g>
-        )}
+              {/* Đuôi chuột dài uốn cong khắc răng lược */}
+              <path d="M62 110 C42 112, 34 86, 46 74 C52 68, 59 73, 54 79" stroke={INK} strokeWidth="3.8" fill="none" strokeLinecap="round" />
+              {/* Áo bào đỏ son viền gấm lục giác */}
+              <path
+                d="M62 114 C60 80, 82 65, 114 67 C134 69, 144 86, 138 114 L128 134 L72 134 Z"
+                fill={SON}
+                stroke={INK}
+                strokeWidth="3"
+                strokeLinejoin="round"
+              />
+              {/* Dải yếm gấm hoa thị lục giác & vân khánh */}
+              <path d="M80 71 Q104 83 128 71 L122 93 Q104 103 86 93 Z" fill={`url(#${uid}-brocade)`} stroke={INK} strokeWidth="2.2" />
+              {/* Khắc răng lược gấu áo */}
+              <path
+                d="M77 129 V134 M83 129 V134 M89 129 V134 M95 129 V134 M101 129 V134 M107 129 V134 M113 129 V134 M119 129 V134"
+                stroke={DIEP_WHITE}
+                strokeWidth="1.6"
+              />
+              <DongHoYinYangSwirl cx={92} cy={109} r={9} ink={INK} light={DIEP_WHITE} />
 
-        {zodiac.key === 'dragon' && (
-          /* THÁNG 5: LONG CHẦU NHẬT — Rồng Xanh Chàm uốn lượn bên Nhật Nguyệt đỏ son */
-          <g>
-            {/* Viên Nhật Ngọc đỏ son bốc hỏa */}
-            <circle cx="118" cy="36" r="10.5" fill={SON} stroke={INK} strokeWidth="2.4" />
-            <circle cx="118" cy="36" r="5" fill={HOE} />
-            <path d="M113 24 Q118 16 123 24" stroke={SON} strokeWidth="2.2" fill="none" />
-            {/* Thân rồng chữ S khắc gỗ */}
-            <path
-              d="M25 84 C32 62, 55 58, 62 72 C70 86, 94 84, 100 66 C104 54, 88 46, 86 35"
-              stroke={INK}
-              strokeWidth="14"
-              fill="none"
-              strokeLinecap="round"
-            />
-            <path
-              d="M25 84 C32 62, 55 58, 62 72 C70 86, 94 84, 100 66 C104 54, 88 46, 86 35"
-              stroke={CHAM}
-              strokeWidth="9.5"
-              fill="none"
-              strokeLinecap="round"
-            />
-            {/* Đường sống lưng vây vàng hoa hòe */}
-            <path
-              d="M23 76 L29 66 L36 69 L42 58 L50 62 L58 55 L64 66 L73 74 L82 77 L91 71 L98 60"
-              stroke={HOE}
-              strokeWidth="2.6"
-              fill="none"
-              strokeLinejoin="round"
-            />
-            {/* Đầu rồng thần uy nghi */}
-            <path d="M68 28 C76 19, 98 20, 104 33 L96 42 L72 40 Z" fill={CHAM} stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
-            <path d="M74 22 C66 13, 58 17, 63 23 M80 21 C76 11, 70 13, 73 20" stroke={HOE} strokeWidth="2.5" strokeLinecap="round" fill="none" />
-            <path d="M101 30 Q109 28 112 24" stroke={SON} strokeWidth="2" fill="none" strokeLinecap="round" />
-            <circle cx="88" cy="29" r="2.6" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.5" />
-            <circle cx="88.6" cy="29" r="1.2" fill={INK} />
-            <DongHoYinYangSwirl cx={46} cy={70} r={6.5} ink={INK} light={DIEP_CREAM} />
-          </g>
-        )}
+              {/* Tai chuột kép & Đầu */}
+              <circle cx="114" cy="43" r="13.5" fill={DIEP_WHITE} stroke={INK} strokeWidth="2.8" />
+              <circle cx="114" cy="43" r="6.8" fill={TERRA} stroke={INK} strokeWidth="1.6" />
+              <path
+                d="M107 52 C118 38, 152 40, 168 58 C154 68, 124 72, 107 62 Z"
+                fill={DIEP_WHITE}
+                stroke={INK}
+                strokeWidth="2.8"
+                strokeLinejoin="round"
+              />
+              {/* Nét khắc răng lược dưới cằm chuột */}
+              <path d="M116 64 L118 68 M122 65 L124 69 M128 65 L130 69 M134 65 L136 69 M140 64 L142 68" stroke={INK} strokeWidth="1.5" />
+              {/* Mũ cánh chuồn xanh lục */}
+              <path d="M110 43 L127 26 L142 42 Z" fill={LUC} stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
+              <path d="M101 37 C89 31, 88 41, 104 42" fill={LUC} stroke={INK} strokeWidth="2" />
+              {/* Kèn đồng lễ cưới */}
+              <path d="M138 79 L186 58 L192 73 L140 87 Z" fill={HOE} stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
+              {/* Mắt, mũi son & ria khắc mộc */}
+              <ellipse cx="137" cy="52" rx="4.2" ry="2.8" fill={DIEP_WHITE} stroke={INK} strokeWidth="2" />
+              <circle cx="138" cy="52" r="1.7" fill={INK} />
+              <circle cx="166" cy="57" r="3.5" fill={SON} stroke={INK} strokeWidth="2" />
+              <path d="M159 61 L176 62 M158 65 L174 71" stroke={INK} strokeWidth="1.8" strokeLinecap="round" />
+              {/* Chân bước */}
+              <path d="M84 134 L76 140 L89 140 M116 134 L126 140 L137 140" stroke={INK} strokeWidth="2.8" strokeLinecap="round" fill="none" />
+            </g>
+          )}
 
-        {zodiac.key === 'snake' && (
-          /* THÁNG 6: LINH XÀ KHẮC MỘC — Rắn cuộn hình chữ S bên khóm trúc xanh */
-          <g>
-            {/* Khóm trúc dân gian */}
-            <path d="M116 96 V40 M124 96 V52" stroke={LUC} strokeWidth="2.4" />
-            <ellipse cx="109" cy="54" rx="6" ry="2.2" transform="rotate(-20 109 54)" fill={LUC} stroke={INK} strokeWidth="1" />
-            <ellipse cx="129" cy="46" rx="6" ry="2.2" transform="rotate(20 129 46)" fill={LUC} stroke={INK} strokeWidth="1" />
-            {/* Thân rắn cuộn nhịp nhàng */}
-            <path
-              d="M32 84 C32 64, 98 70, 96 86 C94 98, 44 96, 46 80 C48 62, 86 58, 84 42 C82 32, 62 32, 62 42"
-              stroke={INK}
-              strokeWidth="12.5"
-              fill="none"
-              strokeLinecap="round"
-            />
-            <path
-              d="M32 84 C32 64, 98 70, 96 86 C94 98, 44 96, 46 80 C48 62, 86 58, 84 42 C82 32, 62 32, 62 42"
-              stroke={LUC}
-              strokeWidth="8.2"
-              fill="none"
-              strokeLinecap="round"
-            />
-            {/* Hoa văn vảy kim cương vàng-son */}
-            <path d="M40 84 L48 79 L56 85 M64 89 L73 85 L82 90 M54 71 L64 67 L73 72" stroke={HOE} strokeWidth="2.2" fill="none" />
-            {/* Đầu rắn thần có mào */}
-            <path d="M52 38 C52 28, 70 28, 74 39 C70 46, 56 46, 52 38 Z" fill={LUC} stroke={INK} strokeWidth="2.4" />
-            <path d="M62 29 L67 21 L70 30" fill={SON} stroke={INK} strokeWidth="1.6" />
-            <circle cx="58" cy="36" r="2.2" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.4" />
-            <circle cx="57.8" cy="36" r="1" fill={INK} />
-            <path d="M51 40 L42 42 L39 39 M42 42 L39 45" stroke={SON} strokeWidth="1.8" strokeLinecap="round" fill="none" />
-            <DongHoYinYangSwirl cx={70} cy={83} r={6.5} ink={INK} light={DIEP_CREAM} />
-          </g>
-        )}
+          {zodiac.key === 'ox' && (
+            /* THÁNG 2: MỤC ĐỒNG THỔI SÁO — Trâu mộng khắc răng lược, em bé áo nâu son cưỡi lưng thổi sáo */
+            <g>
+              {/* Mây vàng Đông Hồ */}
+              <path d="M22 44 C30 33, 47 34, 52 42 C60 39, 67 45, 62 51 L22 50 Z" fill={HOE} stroke={INK} strokeWidth="2.1" />
+              {/* Bốn chân trâu khắc gân */}
+              <path
+                d="M58 104 L52 138 L61 138 L68 106 M78 106 L75 138 L85 138 L88 106 M124 104 L121 138 L131 138 L134 104 M144 102 L149 138 L159 138 L154 101"
+                fill="#403B37"
+                stroke={INK}
+                strokeWidth="2.6"
+                strokeLinejoin="round"
+              />
+              {/* Đuôi trâu */}
+              <path d="M44 76 C30 82, 30 109, 39 119" stroke={INK} strokeWidth="3.2" fill="none" strokeLinecap="round" />
+              <path d="M39 119 C34 127, 44 129, 44 119 Z" fill={INK} />
+              {/* Thân trâu đồ sộ */}
+              <path
+                d="M42 80 C44 58, 78 53, 118 57 C142 60, 158 66, 160 87 C157 107, 134 111, 98 110 C64 110, 41 100, 42 80 Z"
+                fill="#4E4843"
+                stroke={INK}
+                strokeWidth="3.1"
+              />
+              {/* Nét khắc răng lược song song dọc ức & bụng trâu (kiểu Em bé ôm vịt) */}
+              <path
+                d="M56 105 L58 112 M62 106 L64 113 M68 107 L70 114 M74 108 L76 115 M80 108 L82 115 M86 108 L88 115 M92 108 L94 115 M98 108 L100 115 M104 108 L106 115 M110 108 L112 115 M116 107 L118 114"
+                stroke={DIEP_WHITE}
+                strokeWidth="1.7"
+              />
+              <DongHoYinYangSwirl cx={82} cy={83} r={11.5} ink={INK} light={DIEP_WHITE} />
 
-        {zodiac.key === 'horse' && (
-          /* THÁNG 7: XÍCH THỐ VINH QUY — Ngựa đỏ son tung vó bờm sóng */
-          <g>
-            {/* Đuôi ngựa đen tung bay */}
-            <path d="M36 58 C20 55, 16 74, 24 88 C29 76, 31 68, 38 66 Z" fill={INK} stroke={INK} strokeWidth="2" />
-            {/* Bốn chân tung vó */}
-            <path d="M45 74 L35 98 L41 99 L52 76 M58 75 L56 99 L63 99 L65 75 M94 74 L112 91 L108 97 L87 77 M100 68 L124 76 L122 83 L96 74" fill={SON} stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
-            {/* Thân ngựa đỏ son & yên gấm hoa hòe */}
-            <path d="M36 60 C38 46, 65 44, 92 46 C106 48, 112 62, 102 74 C82 78, 52 78, 36 60 Z" fill={SON} stroke={INK} strokeWidth="2.8" />
-            <path d="M58 46 L86 46 L82 63 L62 63 Z" fill={HOE} stroke={INK} strokeWidth="2.2" strokeLinejoin="round" />
-            <path d="M62 49 H82 L80 59 H64 Z" fill={CHAM} stroke={INK} strokeWidth="1.4" />
-            <DongHoYinYangSwirl cx={49} cy={60} r={7.5} ink={INK} light={DIEP_CREAM} />
-            {/* Cổ ngựa vươn cao & Bờm khắc sóng */}
-            <path d="M88 48 L104 26 L122 30 L108 58 Z" fill={SON} stroke={INK} strokeWidth="2.6" strokeLinejoin="round" />
-            <path d="M88 44 Q91 34 97 35 Q96 27 104 26 L98 46 Z" fill={INK} />
-            {/* Đầu ngựa & Dây cương vàng */}
-            <path d="M104 26 L112 16 L116 25 L133 34 L128 42 L111 38 Z" fill={SON} stroke={INK} strokeWidth="2.6" strokeLinejoin="round" />
-            <path d="M116 28 L128 38 M112 37 L96 47" stroke={HOE} strokeWidth="2" />
-            <circle cx="116" cy="29" r="2.2" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.5" />
-            <circle cx="116.5" cy="29" r="1.1" fill={INK} />
-          </g>
-        )}
+              {/* Đứa trẻ mục đồng (mặt hồng đất nét Đông Hồ như Em bé ôm vịt) */}
+              <path d="M95 57 L116 57 L113 38 L97 38 Z" fill={SON} stroke={INK} strokeWidth="2.4" />
+              <path d="M97 41 Q105 46 113 41" stroke={LUC} strokeWidth="3.2" fill="none" />
+              <circle cx="105" cy="30" r="8.5" fill={TERRA} stroke={INK} strokeWidth="2.4" />
+              <path d="M100 28 H103 M107 28 H110 M103 33 Q105 35 108 33" stroke={INK} strokeWidth="1.5" strokeLinecap="round" fill="none" />
+              {/* Nón lá vàng hoa hòe */}
+              <path d="M91 25 L105 13 L119 25 Z" fill={HOE} stroke={INK} strokeWidth="2.3" strokeLinejoin="round" />
+              {/* Ống sáo trúc xanh lá chàm */}
+              <line x1="104" y1="32" x2="132" y2="35" stroke={LUC} strokeWidth="3" strokeLinecap="round" />
 
-        {zodiac.key === 'goat' && (
-          /* THÁNG 8: TAM DƯƠNG KHAI THÁI — Dê trắng vỏ điệp sừng xoắn thong dong */
-          <g>
-            {/* Chân dê mảnh khỏe */}
-            <path d="M48 76 L44 98 M60 76 L58 98 M90 76 L92 98 M102 76 L106 98" stroke={INK} strokeWidth="3.6" strokeLinecap="round" />
-            {/* Thân dê trắng vỏ điệp viền mây */}
-            <path d="M40 64 C40 46, 62 43, 94 46 C108 48, 114 60, 108 74 C92 80, 56 80, 40 64 Z" fill={DIEP_CREAM} stroke={INK} strokeWidth="2.8" />
-            <DongHoYinYangSwirl cx={64} cy={61} r={8.5} ink={SON} light={DIEP_PAPER} />
-            {/* Đuôi dê nhỏ */}
-            <path d="M40 58 C32 54, 31 62, 39 64" fill={DIEP_CREAM} stroke={INK} strokeWidth="2.2" />
-            {/* Cổ & Đầu dê vươn cao với cặp sừng xoắn */}
-            <path d="M94 49 L106 28 L129 36 L124 46 L105 56 Z" fill={DIEP_CREAM} stroke={INK} strokeWidth="2.6" strokeLinejoin="round" />
-            <path d="M107 28 C100 14, 84 16, 86 27 C88 22, 98 21, 102 30" fill={HOE} stroke={INK} strokeWidth="2.4" strokeLinejoin="round" />
-            <path d="M113 28 C113 14, 128 15, 126 26" fill="none" stroke={INK} strokeWidth="2.8" strokeLinecap="round" />
-            {/* Chòm râu dê & Lạc đỏ */}
-            <path d="M122 46 C125 56, 119 60, 117 52 Z" fill={HOE} stroke={INK} strokeWidth="1.8" />
-            <path d="M95 50 Q103 55 110 50" stroke={SON} strokeWidth="3.2" fill="none" />
-            <circle cx="116" cy="36" r="2.2" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.6" />
-            <circle cx="116.5" cy="36" r="1" fill={INK} />
-          </g>
-        )}
+              {/* Đầu trâu & Cặp sừng bán nguyệt khắc vân */}
+              <path d="M148 63 C162 52, 184 60, 190 78 C189 89, 173 94, 156 88 Z" fill="#46403B" stroke={INK} strokeWidth="2.8" />
+              <path
+                d="M153 57 C140 36, 155 24, 167 32 C159 35, 156 44, 161 54 Z"
+                fill={DIEP_WHITE}
+                stroke={INK}
+                strokeWidth="2.6"
+              />
+              <path
+                d="M167 57 C177 36, 196 35, 196 49 C188 45, 180 50, 175 61 Z"
+                fill={DIEP_WHITE}
+                stroke={INK}
+                strokeWidth="2.6"
+              />
+              {/* Khắc răng lược trên sừng & mặt trâu */}
+              <path d="M150 48 H157 M151 42 H158 M185 41 L191 45 M182 47 L188 51" stroke={INK} strokeWidth="1.4" />
+              <circle cx="186" cy="86" r="5" fill="none" stroke={HOE} strokeWidth="2.6" />
+              <ellipse cx="169" cy="69" rx="4.2" ry="2.8" fill={DIEP_WHITE} stroke={INK} strokeWidth="1.8" />
+              <circle cx="170" cy="69" r="1.6" fill={INK} />
+            </g>
+          )}
 
-        {zodiac.key === 'monkey' && (
-          /* THÁNG 9: HẦU VƯƠNG DÂNG ĐÀO TIÊN — Chú Khỉ nâng Đào Tiên đỏ ửng */
-          <g>
-            {/* Đuôi uốn cong dài */}
-            <path d="M48 80 C25 78, 22 44, 38 40 C47 38, 48 48, 41 50" stroke={INK} strokeWidth="4.8" fill="none" strokeLinecap="round" />
-            <path d="M48 80 C25 78, 22 44, 38 40 C47 38, 48 48, 41 50" stroke="#BA6727" strokeWidth="2.4" fill="none" strokeLinecap="round" />
-            {/* Thân khỉ ngồi gập gối */}
-            <path d="M48 82 C46 58, 62 46, 82 50 C96 54, 100 72, 92 88 L46 94 Z" fill="#BA6727" stroke={INK} strokeWidth="2.8" />
-            <DongHoYinYangSwirl cx={63} cy={70} r={7.5} ink={INK} light={DIEP_CREAM} />
-            {/* Đầu khỉ lanh lợi & hai tai lớn truyền thống */}
-            <circle cx="59" cy="34" r="6.5" fill="#BA6727" stroke={INK} strokeWidth="2.2" />
-            <circle cx="59" cy="34" r="3.4" fill="#F2BE8D" />
-            <circle cx="93" cy="34" r="6.5" fill="#BA6727" stroke={INK} strokeWidth="2.2" />
-            <circle cx="93" cy="34" r="3.4" fill="#F2BE8D" />
-            <circle cx="76" cy="35" r="14.5" fill="#BA6727" stroke={INK} strokeWidth="2.8" />
-            <path d="M64 33 C64 25, 88 25, 88 33 C89 44, 63 44, 64 33 Z" fill="#F5D7A8" stroke={INK} strokeWidth="1.8" />
-            <circle cx="71" cy="33" r="2" fill={INK} />
-            <circle cx="81" cy="33" r="2" fill={INK} />
-            <circle cx="67" cy="38" r="2.2" fill={SON} opacity="0.65" />
-            <circle cx="85" cy="38" r="2.2" fill={SON} opacity="0.65" />
-            <path d="M72 41 Q76 44 80 41" stroke={INK} strokeWidth="1.8" fill="none" strokeLinecap="round" />
-            {/* Hai tay dâng Trái Đào Tiên Đỏ Thắm & Lá Xanh Chàm */}
-            <path d="M90 58 Q104 62 110 56" stroke="#BA6727" strokeWidth="6.5" strokeLinecap="round" fill="none" />
-            <path d="M90 58 Q104 62 110 56" stroke={INK} strokeWidth="2.2" strokeLinecap="round" fill="none" />
-            <path d="M108 58 C104 42, 118 33, 124 29 C129 36, 138 46, 132 58 C126 67, 112 67, 108 58 Z" fill={SON} stroke={INK} strokeWidth="2.4" />
-            <path d="M111 56 C110 47, 118 40, 124 35 C125 45, 121 56, 111 56 Z" fill={HOE} opacity="0.7" />
-            <path d="M114 63 Q106 72 102 64 Q108 59 114 63 Z M126 63 Q136 72 138 63 Q131 58 126 63 Z" fill={LUC} stroke={INK} strokeWidth="1.6" />
-          </g>
-        )}
+          {zodiac.key === 'tiger' && (
+            /* THÁNG 3: NGŨ HỔ THẦN TƯỚNG — Hoàng Hổ uy nghi gấm lục giác, vân lửa son, răng lược ức */
+            <g>
+              {/* Ngọn lửa & Mây cuộn son đỏ bên hổ (phong cách Thánh Gióng) */}
+              <path d="M174 96 C192 92, 198 72, 184 58 C186 70, 176 74, 172 64 C168 78, 160 88, 174 96 Z" fill={SON} stroke={INK} strokeWidth="2.2" />
+              {/* Đuôi hổ uốn cong khắc vằn */}
+              <path d="M46 108 C22 103, 18 62, 42 56 C55 53, 59 67, 49 72" stroke={INK} strokeWidth="7" fill="none" strokeLinecap="round" />
+              <path d="M46 108 C22 103, 18 62, 42 56 C55 53, 59 67, 49 72" stroke={HOE} strokeWidth="4" fill="none" strokeLinecap="round" />
 
-        {zodiac.key === 'rooster' && (
-          /* THÁNG 10: GÀ ĐẠI CÁT — Tranh Đông Hồ Kinh Điển (Mào cờ đỏ, đuôi 5 màu khoáng) */
-          <g>
-            {/* Bộ lông đuôi cong vút đa sắc khoáng Đông Hồ */}
-            <path d="M58 60 C34 42, 22 52, 24 72 C32 58, 44 56, 56 66 Z" fill={CHAM} stroke={INK} strokeWidth="2.4" />
-            <path d="M62 56 C38 30, 20 35, 19 54 C30 43, 44 45, 58 60 Z" fill={LUC} stroke={INK} strokeWidth="2.4" />
-            <path d="M66 54 C46 20, 26 20, 22 36 C36 28, 50 35, 62 56 Z" fill={SON} stroke={INK} strokeWidth="2.4" />
-            {/* Chân gà vàng đứng hiên ngang */}
-            <path d="M74 80 L70 98 M64 98 H78 M92 80 L94 98 M87 98 H101" stroke={HOE} strokeWidth="3.5" strokeLinecap="round" />
-            <path d="M74 80 L70 98 M64 98 H78 M92 80 L94 98 M87 98 H101" stroke={INK} strokeWidth="1.5" strokeLinecap="round" />
-            {/* Thân gà vạm vỡ & cánh gấm */}
-            <path d="M54 62 C56 46, 86 42, 102 54 C112 64, 102 84, 78 84 C60 84, 52 74, 54 62 Z" fill={HOE} stroke={INK} strokeWidth="2.8" />
-            <path d="M62 60 C72 54, 88 58, 92 70 C80 76, 66 74, 62 60 Z" fill={SON} stroke={INK} strokeWidth="2.2" />
-            <DongHoYinYangSwirl cx={78} cy={65} r={6.5} ink={INK} light={DIEP_CREAM} />
-            {/* Cổ & Đầu gà trống vươn cao */}
-            <path d="M88 52 C92 34, 102 28, 114 32 C116 42, 106 54, 98 58 Z" fill={DIEP_CREAM} stroke={INK} strokeWidth="2.6" />
-            {/* Mào cờ đỏ son 5 răng cưa & tích gà */}
-            <path d="M97 31 L95 19 L102 24 L106 16 L110 24 L116 19 L114 31 Z" fill={SON} stroke={INK} strokeWidth="2.2" strokeLinejoin="round" />
-            <path d="M111 40 C114 48, 106 50, 106 42 Z" fill={SON} stroke={INK} strokeWidth="1.8" />
-            {/* Mỏ vàng cứng */}
-            <polygon points="114,33 128,36 114,40" fill={HOE} stroke={INK} strokeWidth="2" strokeLinejoin="round" />
-            <circle cx="107" cy="34" r="2.2" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.5" />
-            <circle cx="107.6" cy="34" r="1.1" fill={INK} />
-          </g>
-        )}
+              {/* Thân hổ chầu bọc giáp gấm hoa hòe */}
+              <path
+                d="M46 112 C46 78, 74 63, 114 64 C142 66, 154 84, 150 112 L144 136 L130 136 L127 115 L76 115 L70 136 L55 136 Z"
+                fill={HOE}
+                stroke={INK}
+                strokeWidth="3.1"
+                strokeLinejoin="round"
+              />
+              {/* Đệm yên gấm hoa thị lục giác trên lưng hổ */}
+              <path d="M74 65 L122 65 L117 92 L79 92 Z" fill={`url(#${uid}-brocade)`} stroke={INK} strokeWidth="2.2" />
+              {/* Vằn hổ & răng lược bụng */}
+              <path d="M58 76 C63 86, 56 97, 63 106 M132 75 C137 85, 130 96, 136 106" stroke={INK} strokeWidth="3.2" strokeLinecap="round" fill="none" />
+              <path
+                d="M80 115 L81 122 M86 115 L87 122 M92 115 L93 122 M98 115 L99 122 M104 115 L105 122 M110 115 L111 122 M116 115 L117 122 M122 115 L123 122"
+                stroke={INK}
+                strokeWidth="1.6"
+              />
+              <DongHoYinYangSwirl cx={97} cy={101} r={9} ink={SON} light={DIEP_WHITE} />
 
-        {zodiac.key === 'dog' && (
-          /* THÁNG 11: KHUYỂN VÀNG GIỮ LỘC — Chó vàng ngồi canh nhà cổ đeo lục lạc đỏ */
-          <g>
-            {/* Đuôi lá đề cong */}
-            <path d="M46 78 C32 72, 30 54, 42 52 C48 52, 49 60, 44 63" fill={HOE} stroke={INK} strokeWidth="2.6" />
-            {/* Thân chó vàng ngồi chầu */}
-            <path d="M48 86 C46 62, 62 46, 86 48 C100 50, 104 68, 100 88 L98 98 L88 98 L87 82 L64 82 L62 98 L48 98 Z" fill={HOE} stroke={INK} strokeWidth="2.8" strokeLinejoin="round" />
-            <DongHoYinYangSwirl cx={67} cy={67} r={8} ink={SON} light={DIEP_CREAM} />
-            {/* Cổ đeo vòng đỏ & Lục lạc đồng */}
-            <path d="M74 49 Q88 56 101 48" stroke={SON} strokeWidth="4.2" fill="none" strokeLinecap="round" />
-            <circle cx="90" cy="54" r="4.2" fill={DIEP_CREAM} stroke={INK} strokeWidth="2" />
-            {/* Đầu chó & tai vểnh */}
-            <path d="M76 28 L72 13 L86 23 Z M100 28 L108 14 L106 29 Z" fill={SON} stroke={INK} strokeWidth="2.2" strokeLinejoin="round" />
-            <path d="M74 36 C74 23, 104 22, 110 34 C118 35, 120 44, 110 47 C96 50, 74 47, 74 36 Z" fill={HOE} stroke={INK} strokeWidth="2.8" />
-            <circle cx="115" cy="38" r="3.2" fill={INK} />
-            <circle cx="92" cy="34" r="2.6" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.6" />
-            <circle cx="92.8" cy="34" r="1.2" fill={INK} />
-          </g>
-        )}
+              {/* Bờm ức trắng vỏ điệp khắc răng lược */}
+              <path d="M132 68 C148 74, 156 90, 145 103 C131 106, 126 89, 132 68 Z" fill={DIEP_WHITE} stroke={INK} strokeWidth="2.5" />
+              <path d="M136 74 H143 M137 80 H145 M137 86 H146 M136 92 H144" stroke={INK} strokeWidth="1.5" />
 
-        {zodiac.key === 'pig' && (
-          /* THÁNG 12: LỢN ĐÀN ÂM DƯƠNG — Kiệt Tác Kinh Điển Làng Đông Hồ */
-          <g>
-            {/* Đuôi xoắn ốc nhỏ */}
-            <path d="M36 60 C27 57, 26 47, 33 47 C38 47, 38 53, 33 54" stroke={INK} strokeWidth="2.4" fill="none" strokeLinecap="round" />
-            {/* Bốn chân ngắn mập mạp */}
-            <path d="M46 78 L44 96 L53 96 L56 80 M68 80 L67 96 L76 96 L77 81 M94 80 L94 96 L103 96 L104 80 M112 76 L115 95 L123 95 L120 74" fill="#E99A7E" stroke={INK} strokeWidth="2.6" strokeLinejoin="round" />
-            {/* Thân lợn mũm mĩm màu hồng sỏi đồi */}
-            <path d="M35 60 C35 38, 66 34, 104 37 C124 39, 134 50, 130 68 C126 83, 100 84, 72 83 C46 83, 35 74, 35 60 Z" fill="#E99A7E" stroke={INK} strokeWidth="2.8" />
-            {/* HAI XOÁY ÂM DƯƠNG KINH ĐIỂN TRÊN THÂN LỢN ĐÔNG HỒ */}
-            <DongHoYinYangSwirl cx={56} cy={59} r={10.5} ink={INK} light={DIEP_CREAM} />
-            <DongHoYinYangSwirl cx={89} cy={58} r={9.5} ink={SON} light={DIEP_CREAM} />
-            {/* Bờm lưng xanh/vàng đặc trưng */}
-            <path d="M58 37 Q70 30 82 36 Q93 31 104 37" stroke={LUC} strokeWidth="3.2" fill="none" strokeLinecap="round" />
-            {/* Tai to rủ xuống che má & 2 chấm trắng điệp trên trán */}
-            <path d="M104 42 C96 48, 96 63, 108 60 C114 57, 113 45, 104 42 Z" fill={SON} stroke={INK} strokeWidth="2.4" />
-            <circle cx="115" cy="44" r="2.2" fill={DIEP_CREAM} />
-            <circle cx="121" cy="45" r="1.8" fill={DIEP_CREAM} />
-            {/* Mắt cười & Mõm hếch duyên dáng */}
-            <ellipse cx="120" cy="54" rx="3.4" ry="2.5" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.8" />
-            <circle cx="121" cy="54" r="1.3" fill={INK} />
-            <ellipse cx="136" cy="58" rx="4.5" ry="6.2" transform="rotate(-12 136 58)" fill="#DFA12A" stroke={INK} strokeWidth="2.4" />
-            <circle cx="135" cy="56" r="1.1" fill={INK} />
-            <circle cx="137.5" cy="59.5" r="1.1" fill={INK} />
-            {/* Bông lá ráy xanh góc dưới */}
-            <path d="M134 94 Q146 76 154 88 Q144 98 134 94 Z" fill={LUC} stroke={INK} strokeWidth="1.8" />
-          </g>
-        )}
+              {/* Đầu Hổ uy nghi trán chữ Vương 王 */}
+              <circle cx="154" cy="59" r="23" fill={HOE} stroke={INK} strokeWidth="3.1" />
+              <path d="M134 42 L130 29 L144 37 Z M174 42 L178 29 L164 37 Z" fill={SON} stroke={INK} strokeWidth="2.5" />
+              <path d="M147 41 H161 M148 46.5 H160 M147 52 H161 M154 41 V52" stroke={INK} strokeWidth="2.2" strokeLinecap="round" />
+              {/* Mắt xếch khắc mộc */}
+              <path d="M139 56 Q145 52 150 56 Q145 60 139 56 Z M158 56 Q164 52 169 56 Q164 60 158 56 Z" fill={DIEP_WHITE} stroke={INK} strokeWidth="2" />
+              <circle cx="144.5" cy="56" r="1.8" fill={INK} />
+              <circle cx="163.5" cy="56" r="1.8" fill={INK} />
+              <ellipse cx="154" cy="67" rx="8.5" ry="5.8" fill={DIEP_WHITE} stroke={INK} strokeWidth="2" />
+              <polygon points="150,64 158,64 154,69" fill={SON} />
+              <path d="M135 66 L122 63 M135 70 L122 73 M173 66 L186 63 M173 70 L186 73" stroke={INK} strokeWidth="1.8" strokeLinecap="round" />
+              <path d="M150 112 L166 137 L148 137 L143 116" fill={HOE} stroke={INK} strokeWidth="2.8" strokeLinejoin="round" />
+            </g>
+          )}
 
-        {/* Khung dải tên tác phẩm dân gian phía dưới tranh */}
-        <rect x="18" y="99" width="132" height="12" rx="2" fill={DIEP_CREAM} stroke={INK} strokeWidth="1.2" opacity="0.92" />
-        <text x="84" y="107.6" textAnchor="middle" fontSize="7.4" fontWeight="700" fill={SON} fontFamily="serif" letterSpacing="0.5">
-          {zodiac.paintingTitle.toUpperCase()}
-        </text>
+          {zodiac.key === 'cat' && (
+            /* THÁNG 4: MÈO NGOẠM CÁ — Yếm vân khánh lục giác, cá chép khắc vây răng lược, hoa sen đỏ */
+            <g>
+              {/* Đóa sen đỏ bên trái (phong cách Phú Quý) */}
+              <path d="M40 128 C34 106, 46 92, 54 88 C61 95, 67 109, 59 124 Z" fill={SON} stroke={INK} strokeWidth="2.3" />
+              <path d="M46 119 L49 95 M52 119 L54 92 M57 119 L59 99" stroke={DIEP_WHITE} strokeWidth="1.4" />
+              <path d="M48 130 C32 126, 26 114, 34 109 C44 109, 52 119, 48 130 Z" fill={LUC} stroke={INK} strokeWidth="2" />
+
+              {/* Đuôi mèo cuộn */}
+              <path d="M56 116 C32 116, 35 74, 56 71 C66 70, 67 82, 58 84" stroke={INK} strokeWidth="7" fill="none" strokeLinecap="round" />
+              <path d="M56 116 C32 116, 35 74, 56 71 C66 70, 67 82, 58 84" stroke="#D99B2B" strokeWidth="4" fill="none" strokeLinecap="round" />
+
+              {/* Thân mèo ngồi vững chãi */}
+              <path
+                d="M60 124 C57 86, 79 67, 108 69 C130 72, 138 97, 132 124 L121 138 L68 138 Z"
+                fill="#D99B2B"
+                stroke={INK}
+                strokeWidth="3.1"
+              />
+              {/* Bụng điệp khắc răng lược */}
+              <ellipse cx="103" cy="108" rx="17" ry="20" fill={DIEP_WHITE} stroke={INK} strokeWidth="2.2" />
+              <path d="M90 100 L85 101 M89 106 L84 107 M90 112 L85 113 M116 100 L121 101 M117 106 L122 107 M116 112 L121 113" stroke={INK} strokeWidth="1.5" />
+              <DongHoYinYangSwirl cx={80} cy={98} r={9.5} ink={INK} light={DIEP_WHITE} />
+
+              {/* Vòng cổ vân khánh đỏ-lục (kiểu Em bé ôm vịt) */}
+              <path d="M81 71 Q106 83 130 70 L124 81 Q106 89 87 81 Z" fill={SON} stroke={INK} strokeWidth="2.1" />
+              <path d="M92 78 C95 83, 101 83, 104 78 C108 83, 114 83, 117 78" stroke={DIEP_WHITE} strokeWidth="1.8" fill="none" />
+              <circle cx="106" cy="83" r="4.5" fill={HOE} stroke={INK} strokeWidth="2" />
+
+              {/* Đầu mèo & Tai */}
+              <path d="M86 43 L78 21 L99 35 Z M126 43 L134 21 L113 35 Z" fill="#D99B2B" stroke={INK} strokeWidth="2.7" strokeLinejoin="round" />
+              <path d="M87 38 L83 27 L94 34 Z M125 38 L129 27 L118 34 Z" fill={SON} />
+              <circle cx="106" cy="52" r="20" fill="#D99B2B" stroke={INK} strokeWidth="3.1" />
+              <ellipse cx="98" cy="49" rx="4.5" ry="3.4" fill={DIEP_WHITE} stroke={INK} strokeWidth="2" />
+              <ellipse cx="114" cy="49" rx="4.5" ry="3.4" fill={DIEP_WHITE} stroke={INK} strokeWidth="2" />
+              <line x1="98" y1="46.5" x2="98" y2="51.5" stroke={INK} strokeWidth="2.1" strokeLinecap="round" />
+              <line x1="114" y1="46.5" x2="114" y2="51.5" stroke={INK} strokeWidth="2.1" strokeLinecap="round" />
+
+              {/* Cá chép xanh lục khắc vây răng lược ngoạm ngang miệng */}
+              <path d="M107 60 C130 53, 158 60, 174 73 C156 81, 128 79, 107 65 Z" fill={LUC} stroke={INK} strokeWidth="2.6" />
+              <polygon points="171,73 186,61 183,83" fill={SON} stroke={INK} strokeWidth="2.3" />
+              <path d="M132 62 Q136 67 132 72 M141 62 Q145 67 141 72 M150 63 Q154 68 150 73 M175 69 L183 66 M175 73 L184 73 M175 77 L182 79" stroke={DIEP_WHITE} strokeWidth="1.6" fill="none" />
+            </g>
+          )}
+
+          {zodiac.key === 'dragon' && (
+            /* THÁNG 5: LONG CHẦU NHẬT — Thanh Long vảy gấm chầu Nhật Ngọc rực lửa son & mây ngũ sắc */
+            <g>
+              {/* Nhật Ngọc đỏ son bốc lửa (kiểu mây lửa Thánh Gióng) */}
+              <circle cx="164" cy="47" r="14" fill={SON} stroke={INK} strokeWidth="2.8" />
+              <circle cx="164" cy="47" r="6.5" fill={HOE} />
+              <path d="M156 31 C160 19, 170 20, 172 31 C180 26, 188 34, 179 40" stroke={SON} strokeWidth="3.2" fill="none" strokeLinecap="round" />
+
+              {/* Thân rồng chữ S khắc gỗ */}
+              <path
+                d="M32 117 C42 87, 74 82, 84 101 C95 120, 128 117, 136 92 C142 75, 119 64, 116 49"
+                stroke={INK}
+                strokeWidth="20"
+                fill="none"
+                strokeLinecap="round"
+              />
+              <path
+                d="M32 117 C42 87, 74 82, 84 101 C95 120, 128 117, 136 92 C142 75, 119 64, 116 49"
+                stroke={LUC}
+                strokeWidth="13.5"
+                fill="none"
+                strokeLinecap="round"
+              />
+              {/* Bụng rồng đốt trắng điệp & gấm vảy */}
+              <path
+                d="M35 121 C45 92, 73 88, 82 105 C92 123, 125 121, 133 96"
+                stroke={DIEP_WHITE}
+                strokeWidth="3.2"
+                strokeDasharray="3 4"
+                fill="none"
+              />
+              {/* Sống lưng vây lửa vàng hoa hòe */}
+              <path
+                d="M30 104 L38 90 L47 95 L56 80 L67 86 L77 77 L86 92 L98 103 L111 106 L123 98 L133 84"
+                stroke={HOE}
+                strokeWidth="3.2"
+                fill="none"
+                strokeLinejoin="round"
+              />
+              {/* Đầu rồng thần uy nghi */}
+              <path d="M92 39 C103 27, 134 28, 142 46 L131 58 L97 56 Z" fill={LUC} stroke={INK} strokeWidth="2.8" strokeLinejoin="round" />
+              <path d="M100 31 C89 19, 78 24, 85 32 M109 29 C103 16, 95 19, 99 28" stroke={HOE} strokeWidth="3" strokeLinecap="round" fill="none" />
+              <path d="M138 42 Q148 39 153 33" stroke={SON} strokeWidth="2.6" fill="none" strokeLinecap="round" />
+              <circle cx="119" cy="40" r="3.4" fill={DIEP_WHITE} stroke={INK} strokeWidth="1.8" />
+              <circle cx="119.8" cy="40" r="1.6" fill={INK} />
+              <DongHoYinYangSwirl cx={62} cy={97} r={8.5} ink={INK} light={DIEP_WHITE} />
+              {/* Cụm mây ngũ sắc dưới rồng */}
+              <path d="M148 122 C156 108, 174 109, 179 119 C187 116, 195 123, 190 129 L146 129 Z" fill={HOE} stroke={INK} strokeWidth="2.2" />
+            </g>
+          )}
+
+          {zodiac.key === 'snake' && (
+            /* THÁNG 6: LINH XÀ KHẮC MỘC — Rắn cuộn chữ S gấm hoa thị bên khóm trúc & hoa sen son */
+            <g>
+              {/* Khóm trúc & sen đỏ */}
+              <path d="M158 134 V56 M168 134 V72" stroke={LUC} strokeWidth="3.4" />
+              <path d="M155 74 H161 M165 92 H171 M155 108 H161" stroke={INK} strokeWidth="1.8" />
+              <ellipse cx="147" cy="76" rx="8.5" ry="3.1" transform="rotate(-22 147 76)" fill={LUC} stroke={INK} strokeWidth="1.4" />
+              <ellipse cx="177" cy="64" rx="8.5" ry="3.1" transform="rotate(20 177 64)" fill={LUC} stroke={INK} strokeWidth="1.4" />
+              <path d="M170 57 C165 44, 176 36, 181 33 C186 38, 192 48, 184 58 Z" fill={SON} stroke={INK} strokeWidth="2.1" />
+              <path d="M175 54 L177 38 M180 54 L182 40" stroke={DIEP_WHITE} strokeWidth="1.2" />
+
+              {/* Thân rắn cuộn nhịp nhàng */}
+              <path
+                d="M44 117 C44 89, 134 97, 131 119 C129 135, 61 132, 63 110 C66 86, 118 81, 115 59 C112 44, 84 44, 84 59"
+                stroke={INK}
+                strokeWidth="18"
+                fill="none"
+                strokeLinecap="round"
+              />
+              <path
+                d="M44 117 C44 89, 134 97, 131 119 C129 135, 61 132, 63 110 C66 86, 118 81, 115 59 C112 44, 84 44, 84 59"
+                stroke={LUC}
+                strokeWidth="11.5"
+                fill="none"
+                strokeLinecap="round"
+              />
+              {/* Hoa văn vảy lục giác vàng hoa hòe */}
+              <path d="M55 117 L66 110 L76 118 M88 124 L100 118 L111 125 M74 99 L87 93 L99 100" stroke={HOE} strokeWidth="2.8" fill="none" />
+              {/* Đầu rắn có mào đỏ */}
+              <path d="M71 53 C71 39, 96 39, 101 55 C95 65, 76 65, 71 53 Z" fill={LUC} stroke={INK} strokeWidth="2.8" />
+              <path d="M84 41 L92 29 L96 42" fill={SON} stroke={INK} strokeWidth="2.1" />
+              <circle cx="80" cy="51" r="2.9" fill={DIEP_WHITE} stroke={INK} strokeWidth="1.6" />
+              <circle cx="79.5" cy="51" r="1.4" fill={INK} />
+              <path d="M69 56 L56 59 L52 54 M56 59 L52 63" stroke={SON} strokeWidth="2.3" strokeLinecap="round" fill="none" />
+              <DongHoYinYangSwirl cx={96} cy={115} r={8.5} ink={INK} light={DIEP_WHITE} />
+            </g>
+          )}
+
+          {zodiac.key === 'horse' && (
+            /* THÁNG 7: THÁNH GIÓNG VINH QUY — Bạch mã phi nước đại, yên gấm lục giác hoa thị, khóm tre & mây lửa son */
+            <g>
+              {/* Mây ngũ sắc góc trái & lửa son bên phải (y như tranh mẫu 1 Thánh Gióng!) */}
+              <path d="M18 134 C25 119, 44 118, 49 128 C58 124, 66 130, 62 137 L18 137 Z" fill={LUC} stroke={INK} strokeWidth="2" />
+              <path d="M180 86 C195 79, 200 62, 189 48 C191 60, 182 65, 178 55 C173 68, 166 78, 180 86 Z" fill={SON} stroke={INK} strokeWidth="2.1" />
+              <path d="M150 38 C156 26, 174 26, 178 36 C185 33, 190 40, 184 45 L150 45 Z" fill={SON} stroke={INK} strokeWidth="2" />
+              {/* Khóm tre vàng nhổ gốc phía sau */}
+              <path d="M52 46 L112 72" stroke={HOE} strokeWidth="4.6" strokeLinecap="round" />
+              <path d="M52 46 L112 72" stroke={INK} strokeWidth="1.6" strokeLinecap="round" strokeDasharray="10 3" />
+              <path d="M52 46 L42 39 M52 46 L41 46 M52 46 L45 53" stroke={INK} strokeWidth="1.6" strokeLinecap="round" />
+              <ellipse cx="88" cy="49" rx="7" ry="2.3" transform="rotate(-28 88 49)" fill={LUC} stroke={INK} strokeWidth="1.1" />
+              <ellipse cx="97" cy="56" rx="7" ry="2.3" transform="rotate(-18 97 56)" fill={LUC} stroke={INK} strokeWidth="1.1" />
+
+              {/* Đuôi ngựa xanh chàm khắc sóng */}
+              <path d="M62 79 C42 69, 39 54, 48 45 C56 58, 61 69, 67 76 Z" fill={LUC} stroke={INK} strokeWidth="2.4" />
+              <path d="M52 54 Q57 63 63 72" stroke={DIEP_WHITE} strokeWidth="1.4" fill="none" />
+
+              {/* Bốn chân bạch mã tung vó */}
+              <path
+                d="M68 97 L46 123 L53 128 L77 101 M136 93 L169 102 L168 109 L133 101 M141 102 L166 119 L161 126 L133 109"
+                fill={DIEP_WHITE}
+                stroke={INK}
+                strokeWidth="2.5"
+                strokeLinejoin="round"
+              />
+
+              {/* Thân Bạch Mã vỏ điệp */}
+              <path
+                d="M62 84 C65 67, 98 65, 132 69 C149 72, 155 88, 143 103 C118 109, 82 109, 62 84 Z"
+                fill={DIEP_WHITE}
+                stroke={INK}
+                strokeWidth="2.9"
+              />
+              {/* Cổ & Đầu Bạch Mã vươn cao, bờm khắc răng lược song song */}
+              <path d="M126 70 L138 44 L158 49 L144 82 Z" fill={DIEP_WHITE} stroke={INK} strokeWidth="2.7" strokeLinejoin="round" />
+              <path d="M124 66 L133 48 M128 60 L119 60 M131 54 L122 54 M134 48 L125 48" stroke={INK} strokeWidth="2.1" strokeLinecap="round" />
+              <path d="M138 44 L148 34 L152 43 L172 56 L166 66 L146 61 Z" fill={DIEP_WHITE} stroke={INK} strokeWidth="2.7" strokeLinejoin="round" />
+              <circle cx="151" cy="49" r="2.7" fill={DIEP_WHITE} stroke={INK} strokeWidth="1.7" />
+              <circle cx="151.6" cy="49" r="1.3" fill={INK} />
+
+              {/* Tấm lót yên gấm lục giác hoa thị & tua khắc răng lược (trung tâm bức Thánh Gióng!) */}
+              <circle cx="107" cy="95" r="17" fill={INK} />
+              <circle cx="107" cy="95" r="13.5" fill={`url(#${uid}-brocade)`} stroke={LUC} strokeWidth="2.2" />
+              {/* Tua yên ngựa răng lược buông xuống */}
+              <path d="M88 108 L83 122 M93 109 L88 123 M98 110 L93 124 M103 111 L98 125 M108 111 L103 125" stroke={INK} strokeWidth="1.9" strokeLinecap="round" />
+
+              {/* Vòng cổ vân khánh đen điểm trắng trên ức ngựa */}
+              <path d="M131 75 Q143 82 152 75 L150 85 Q141 90 130 84 Z" fill={INK} />
+              <circle cx="135" cy="80" r="1.6" fill={DIEP_WHITE} />
+              <circle cx="141" cy="82" r="1.6" fill={DIEP_WHITE} />
+              <circle cx="147" cy="80" r="1.6" fill={DIEP_WHITE} />
+
+              {/* Tướng quân áo lục giáp son cưỡi ngựa */}
+              <path d="M96 69 L92 43 L115 41 L118 69 Z" fill={LUC} stroke={INK} strokeWidth="2.4" />
+              <path d="M98 49 Q107 58 115 49 L114 63 Q106 67 99 63 Z" fill={SON} stroke={INK} strokeWidth="1.9" />
+              <circle cx="106" cy="31" r="8.5" fill={DIEP_WHITE} stroke={INK} strokeWidth="2.3" />
+              <path d="M99 27 Q107 20 115 27" stroke={INK} strokeWidth="3.2" fill="none" />
+              <circle cx="109" cy="31" r="1.4" fill={INK} />
+            </g>
+          )}
+
+          {zodiac.key === 'goat' && (
+            /* THÁNG 8: TAM DƯƠNG KHAI THÁI — Dê trắng vỏ điệp sừng xoắn, lông ức & bụng khắc răng lược */
+            <g>
+              {/* Chân dê mảnh khỏe */}
+              <path d="M64 104 L59 136 M81 104 L78 136 M121 104 L124 136 M137 104 L142 136" stroke={INK} strokeWidth="4.4" strokeLinecap="round" />
+              {/* Thân dê trắng vỏ điệp */}
+              <path
+                d="M54 88 C54 63, 84 59, 127 63 C146 66, 154 83, 146 102 C125 110, 76 110, 54 88 Z"
+                fill={DIEP_WHITE}
+                stroke={INK}
+                strokeWidth="3.1"
+              />
+              {/* Nét khắc răng lược dọc lông bụng & lưng dê */}
+              <path
+                d="M66 102 L67 109 M73 104 L74 111 M80 105 L81 112 M87 106 L88 113 M94 106 L95 113 M101 106 L102 113 M108 106 L109 113 M115 105 L116 112 M122 104 L123 111"
+                stroke={INK}
+                strokeWidth="1.7"
+              />
+              <DongHoYinYangSwirl cx={87} cy={84} r={10.5} ink={SON} light={DIEP_WHITE} />
+              {/* Đuôi dê nhỏ */}
+              <path d="M54 80 C43 74, 42 86, 53 88" fill={DIEP_WHITE} stroke={INK} strokeWidth="2.6" />
+              {/* Cổ đeo vòng đỏ & Đầu dê sừng xoắn */}
+              <path d="M126 67 L142 38 L173 50 L166 64 L141 77 Z" fill={DIEP_WHITE} stroke={INK} strokeWidth="2.9" strokeLinejoin="round" />
+              <path d="M144 38 C134 19, 113 22, 116 37 C118 30, 132 29, 137 41" fill={HOE} stroke={INK} strokeWidth="2.7" strokeLinejoin="round" />
+              <path d="M152 38 C152 19, 172 20, 170 35" fill="none" stroke={INK} strokeWidth="3.3" strokeLinecap="round" />
+              {/* Râu dê khắc răng lược & Vòng cổ vân khánh */}
+              <path d="M162 63 C166 77, 158 83, 155 72 Z" fill={HOE} stroke={INK} strokeWidth="2.1" />
+              <path d="M127 68 Q138 75 148 68" stroke={SON} strokeWidth="4.5" fill="none" />
+              <circle cx="155" cy="50" r="2.9" fill={DIEP_WHITE} stroke={INK} strokeWidth="1.8" />
+              <circle cx="155.8" cy="50" r="1.4" fill={INK} />
+            </g>
+          )}
+
+          {zodiac.key === 'monkey' && (
+            /* THÁNG 9: HẦU VƯƠNG DÂNG ĐÀO — Yếm gấm lục giác, đào tiên son đỏ & lá lục */
+            <g>
+              {/* Đuôi uốn cong */}
+              <path d="M64 111 C34 108, 30 62, 52 57 C64 54, 65 68, 56 71" stroke={INK} strokeWidth="6.4" fill="none" strokeLinecap="round" />
+              <path d="M64 111 C34 108, 30 62, 52 57 C64 54, 65 68, 56 71" stroke="#B96428" strokeWidth="3.3" fill="none" strokeLinecap="round" />
+              {/* Thân khỉ ngồi gập gối */}
+              <path
+                d="M64 115 C62 82, 84 65, 111 71 C130 76, 135 101, 124 123 L62 132 Z"
+                fill="#B96428"
+                stroke={INK}
+                strokeWidth="3.1"
+              />
+              {/* Áo yếm gấm lục giác & Xoáy Âm Dương */}
+              <path d="M76 74 Q94 86 114 75 L110 95 Q94 102 79 95 Z" fill={`url(#${uid}-brocade)`} stroke={INK} strokeWidth="2" />
+              <DongHoYinYangSwirl cx={85} cy={104} r={9} ink={INK} light={DIEP_WHITE} />
+              {/* Khắc răng lược lông khỉ dọc đùi & tay */}
+              <path d="M67 125 L70 131 M73 125 L76 131 M79 124 L82 130 M85 123 L88 129 M91 122 L94 128" stroke={DIEP_WHITE} strokeWidth="1.6" />
+
+              {/* Đầu khỉ & Hai tai lớn */}
+              <circle cx="80" cy="49" r="8.5" fill="#B96428" stroke={INK} strokeWidth="2.5" />
+              <circle cx="80" cy="49" r="4.5" fill={TERRA} />
+              <circle cx="126" cy="49" r="8.5" fill="#B96428" stroke={INK} strokeWidth="2.5" />
+              <circle cx="126" cy="49" r="4.5" fill={TERRA} />
+              <circle cx="103" cy="50" r="19.5" fill="#B96428" stroke={INK} strokeWidth="3.1" />
+              <path d="M87 48 C87 37, 119 37, 119 48 C120 63, 86 63, 87 48 Z" fill={TERRA} stroke={INK} strokeWidth="2" />
+              <circle cx="96" cy="48" r="2.5" fill={INK} />
+              <circle cx="110" cy="48" r="2.5" fill={INK} />
+              <path d="M97 58 Q103 62 109 58" stroke={INK} strokeWidth="2" fill="none" strokeLinecap="round" />
+
+              {/* Tay dâng Đào Tiên Đỏ Thắm & Lá Xanh Chàm */}
+              <path d="M122 83 Q142 88 150 80" stroke="#B96428" strokeWidth="8.5" strokeLinecap="round" fill="none" />
+              <path d="M122 83 Q142 88 150 80" stroke={INK} strokeWidth="2.8" strokeLinecap="round" fill="none" />
+              <path
+                d="M148 82 C142 60, 161 48, 169 42 C176 52, 188 66, 180 82 C172 95, 153 95, 148 82 Z"
+                fill={SON}
+                stroke={INK}
+                strokeWidth="2.8"
+              />
+              <path d="M153 79 C151 67, 161 57, 169 51 C170 64, 165 79, 153 79 Z" fill={HOE} opacity="0.78" />
+              <path d="M156 89 Q145 101 139 90 Q148 83 156 89 Z M172 89 Q186 101 189 88 Q179 81 172 89 Z" fill={LUC} stroke={INK} strokeWidth="2" />
+            </g>
+          )}
+
+          {zodiac.key === 'rooster' && (
+            /* THÁNG 10: GÀ ĐẠI CÁT HOA HỒNG — Lông đuôi & cánh 3 tầng màu khoáng + răng lược song song (giống cánh vịt Phú Quý!) */
+            <g>
+              {/* Bộ lông đuôi tam sắc khắc răng lược */}
+              <path d="M81 86 C48 61, 31 75, 34 103 C45 84, 62 81, 78 95 Z" fill={LUC} stroke={INK} strokeWidth="2.7" />
+              <path d="M86 80 C53 45, 29 51, 27 77 C42 62, 62 65, 81 86 Z" fill={HOE} stroke={INK} strokeWidth="2.7" />
+              <path d="M91 77 C64 31, 37 31, 31 53 C51 42, 70 51, 86 80 Z" fill={SON} stroke={INK} strokeWidth="2.7" />
+
+              {/* Chân gà cựa nhọn vàng hoa hòe */}
+              <path d="M102 113 L97 137 M88 137 H107 M126 113 L129 137 M120 137 H139" stroke={HOE} strokeWidth="4.6" strokeLinecap="round" />
+              <path d="M102 113 L97 137 M88 137 H107 M126 113 L129 137 M120 137 H139" stroke={INK} strokeWidth="1.9" strokeLinecap="round" />
+
+              {/* Thân gà trắng vỏ điệp / vàng hoa hòe & răng lược ngực */}
+              <path
+                d="M75 88 C78 66, 118 61, 140 77 C154 91, 140 119, 108 119 C83 119, 72 105, 75 88 Z"
+                fill={DIEP_WHITE}
+                stroke={INK}
+                strokeWidth="3.1"
+              />
+              {/* Nét khắc răng lược chạy viền bụng gà (như bụng vịt bức Phú Quý) */}
+              <path
+                d="M84 112 L86 118 M91 114 L93 119 M98 115 L100 120 M105 115 L107 120 M112 115 L114 120 M119 114 L121 119 M126 112 L128 118 M133 108 L135 114"
+                stroke={INK}
+                strokeWidth="1.7"
+              />
+              {/* Cánh gà 3 tầng lông vũ (son đỏ + lục chàm + hoa hòe — giống hệt cánh vịt Phú Quý!) */}
+              <path d="M88 85 C102 78, 124 83, 130 98 C114 106, 94 103, 88 85 Z" fill={SON} stroke={INK} strokeWidth="2.4" />
+              <path d="M96 86 C108 82, 122 86, 127 96 L98 95 Z" fill={LUC} stroke={INK} strokeWidth="1.7" />
+              <path d="M101 91 C111 89, 120 92, 124 98 L102 99 Z" fill={HOE} stroke={INK} strokeWidth="1.5" />
+              <DongHoYinYangSwirl cx={106} cy={95} r={7.5} ink={INK} light={DIEP_WHITE} />
+
+              {/* Cổ & Đầu gà trống vươn cao */}
+              <path d="M121 75 C127 50, 141 42, 157 48 C160 61, 146 78, 135 83 Z" fill={HOE} stroke={INK} strokeWidth="2.9" />
+              <path d="M127 65 L122 65 M129 60 L124 60 M131 55 L126 55" stroke={INK} strokeWidth="1.6" />
+              {/* Mào cờ son 5 răng cưa & tích gà */}
+              <path d="M134 46 L131 30 L141 37 L146 26 L151 37 L160 30 L157 46 Z" fill={SON} stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
+              <path d="M153 59 C157 69, 146 72, 146 61 Z" fill={SON} stroke={INK} strokeWidth="2.1" />
+              <polygon points="157,49 175,53 157,58" fill={HOE} stroke={INK} strokeWidth="2.3" strokeLinejoin="round" />
+              <circle cx="147" cy="50" r="2.9" fill={DIEP_WHITE} stroke={INK} strokeWidth="1.7" />
+              <circle cx="147.8" cy="50" r="1.4" fill={INK} />
+
+              {/* Đóa hoa hồng / búp sen góc phải dưới */}
+              <path d="M164 134 C160 118, 171 108, 178 104 C184 111, 189 122, 181 134 Z" fill={SON} stroke={INK} strokeWidth="2.1" />
+              <path d="M170 128 L174 110 M176 128 L179 111" stroke={DIEP_WHITE} strokeWidth="1.3" />
+            </g>
+          )}
+
+          {zodiac.key === 'dog' && (
+            /* THÁNG 11: KHUYỂN VÀNG PHÚ QUÝ — Chó vàng cổ đeo yếm vân khánh ngũ sắc, răng lược bụng */
+            <g>
+              {/* Đuôi lá đề cong */}
+              <path d="M64 109 C45 101, 42 77, 58 74 C66 74, 68 85, 61 89" fill={HOE} stroke={INK} strokeWidth="2.9" />
+              {/* Thân chó vàng ngồi chầu */}
+              <path
+                d="M66 120 C64 88, 86 67, 118 69 C137 72, 143 96, 137 123 L134 137 L121 137 L120 115 L88 115 L85 137 L66 137 Z"
+                fill={HOE}
+                stroke={INK}
+                strokeWidth="3.1"
+                strokeLinejoin="round"
+              />
+              {/* Răng lược khắc viền ức & chân */}
+              <path d="M128 84 L134 83 M130 90 L136 89 M131 96 L137 95 M131 102 L137 101 M92 115 V121 M98 115 V121 M104 115 V121 M110 115 V121 M116 115 V121" stroke={INK} strokeWidth="1.6" />
+              <DongHoYinYangSwirl cx={92} cy={95} r={10} ink={SON} light={DIEP_WHITE} />
+
+              {/* Yếm cổ vân khánh đỏ-lục & chuông vàng */}
+              <path d="M102 70 Q120 82 138 69 L134 80 Q119 88 105 80 Z" fill={SON} stroke={INK} strokeWidth="2.2" />
+              <path d="M108 77 Q114 82 120 78 Q126 82 132 77" stroke={DIEP_WHITE} strokeWidth="1.8" fill="none" />
+              <circle cx="122" cy="83" r="5" fill={DIEP_WHITE} stroke={INK} strokeWidth="2.2" />
+
+              {/* Đầu chó & Tai vểnh */}
+              <path d="M104 42 L99 22 L118 35 Z M137 42 L148 23 L145 43 Z" fill={SON} stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
+              <path
+                d="M102 52 C102 35, 142 33, 151 50 C162 51, 164 63, 151 67 C132 71, 102 67, 102 52 Z"
+                fill={HOE}
+                stroke={INK}
+                strokeWidth="3.1"
+              />
+              <circle cx="157" cy="55" r="4" fill={INK} />
+              <circle cx="126" cy="50" r="3.4" fill={DIEP_WHITE} stroke={INK} strokeWidth="1.8" />
+              <circle cx="127" cy="50" r="1.6" fill={INK} />
+            </g>
+          )}
+
+          {zodiac.key === 'pig' && (
+            /* THÁNG 12: LỢN ĐÀN ÂM DƯƠNG — Kiệt tác kinh điển, 2 xoáy Âm Dương, lông răng lược & lá ráy */
+            <g>
+              {/* Đuôi xoắn ốc */}
+              <path d="M51 85 C39 81, 38 67, 47 67 C54 67, 54 75, 47 77" stroke={INK} strokeWidth="2.9" fill="none" strokeLinecap="round" />
+              {/* Bốn chân ngắn mập mạp */}
+              <path
+                d="M65 110 L62 136 L74 136 L78 113 M95 113 L94 136 L106 136 L107 114 M130 113 L130 136 L142 136 L144 113 M155 107 L159 135 L170 135 L166 104"
+                fill="#E7997E"
+                stroke={INK}
+                strokeWidth="2.9"
+                strokeLinejoin="round"
+              />
+              {/* Thân lợn hồng sỏi đồi */}
+              <path
+                d="M50 85 C50 55, 92 50, 144 54 C171 57, 185 72, 180 96 C174 117, 139 118, 100 117 C65 117, 50 104, 50 85 Z"
+                fill="#E7997E"
+                stroke={INK}
+                strokeWidth="3.2"
+              />
+              {/* HAI XOÁY ÂM DƯƠNG ĐẶC TRƯNG ĐÔNG HỒ */}
+              <DongHoYinYangSwirl cx={79} cy={83} r={13} ink={INK} light={DIEP_WHITE} />
+              <DongHoYinYangSwirl cx={123} cy={82} r={12} ink={SON} light={DIEP_WHITE} />
+              {/* Nét khắc răng lược dưới bụng & đùi lợn (đặc trưng Lợn Đàn Đông Hồ) */}
+              <path
+                d="M66 111 L68 117 M73 113 L75 119 M80 114 L82 120 M87 114 L89 120 M94 114 L96 120 M101 114 L103 120 M108 114 L110 120 M115 114 L117 120 M122 114 L124 120"
+                stroke={DIEP_WHITE}
+                strokeWidth="1.8"
+              />
+              {/* Bờm lưng xanh lục chàm */}
+              <path d="M81 53 Q97 44 114 52 Q129 45 144 54" stroke={LUC} strokeWidth="4.2" fill="none" strokeLinecap="round" />
+              {/* Tai to rủ xuống màu đỏ son & 2 chấm trắng vỏ điệp */}
+              <path d="M144 61 C133 69, 133 89, 149 85 C158 81, 156 65, 144 61 Z" fill={SON} stroke={INK} strokeWidth="2.8" />
+              <circle cx="159" cy="64" r="2.8" fill={DIEP_WHITE} />
+              <circle cx="167" cy="65" r="2.3" fill={DIEP_WHITE} />
+              {/* Mắt cười & Mõm vàng hoa hòe */}
+              <ellipse cx="165" cy="77" rx="4.4" ry="3.2" fill={DIEP_WHITE} stroke={INK} strokeWidth="2.1" />
+              <circle cx="166" cy="77" r="1.7" fill={INK} />
+              <ellipse cx="187" cy="82" rx="5.8" ry="8.2" transform="rotate(-12 187 82)" fill={HOE} stroke={INK} strokeWidth="2.7" />
+              <circle cx="185.5" cy="79.5" r="1.4" fill={INK} />
+              <circle cx="189" cy="84" r="1.4" fill={INK} />
+              {/* Bông lá ráy xanh lục góc phải dưới */}
+              <path d="M174 134 Q188 107 202 122 Q188 139 174 134 Z" fill={LUC} stroke={INK} strokeWidth="2.2" />
+              <path d="M178 130 L195 122" stroke={DIEP_WHITE} strokeWidth="1.4" />
+            </g>
+          )}
+        </g>
       </svg>
     </div>
   );
@@ -566,6 +1069,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [scheduleDate, setScheduleDate] = useState<string>('2026-11-08');
   const [scheduleTime, setScheduleTime] = useState<string>('19:30');
+
+  // Triển lãm phóng to 12 Bức Tranh Khắc Gỗ Dân Gian Đông Hồ
+  const [showZodiacMuseumModal, setShowZodiacMuseumModal] = useState<boolean>(false);
+  const [activeMuseumMonth, setActiveMuseumMonth] = useState<number | null>(null);
 
   // Thông báo toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -752,7 +1259,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           )}
 
           {/* Bức Tranh Khắc Gỗ Đông Hồ 12 Con Giáp đứng yên cố định ở góc trên bên trái */}
-          <DongHoZodiacPainting zodiac={currentZodiac} />
+          <DongHoZodiacPainting
+            zodiac={currentZodiac}
+            onClick={() => {
+              setActiveMuseumMonth(currentZodiac.month);
+              setShowZodiacMuseumModal(true);
+            }}
+          />
 
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -760,6 +1273,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <CalendarIcon className="w-4 h-4 text-[#8B261D]" />
                 <span>Lịch Phát Sóng Video</span>
               </h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMuseumMonth(currentZodiac.month);
+                  setShowZodiacMuseumModal(true);
+                }}
+                className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#F5EFE0] text-[#8D281B] border border-[#8D281B]/25 hover:bg-[#E4C85E]/40 transition cursor-pointer"
+                data-testid="open-dong-ho-museum-btn"
+              >
+                Tháng {currentZodiac.month} ({currentZodiac.chiName}): {currentZodiac.paintingTitle}
+              </button>
             </div>
             <p className="text-zinc-500 text-xs mt-1">
               Quản lý lịch xuất bản theo ngày/giờ riêng cho từng video trên YouTube, TikTok và Facebook
@@ -1422,6 +1946,90 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 >
                   Lưu Lịch Phát Sóng
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL TRIỂN LÃM 12 TRANH DÂN GIAN ĐÔNG HỒ PHÓNG ĐẠI CHẤT LƯỢNG CAO */}
+      {showZodiacMuseumModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs p-4 animate-fade-in"
+          onClick={() => setShowZodiacMuseumModal(false)}
+          data-testid="dong-ho-museum-modal"
+        >
+          <div
+            className="w-full max-w-4xl bg-[#FAF6EC] border border-[#8D281B]/30 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-3.5 border-b border-black/10 flex items-center justify-between bg-[#F3E9D2]">
+              <div>
+                <h3 className="text-sm sm:text-base font-bold text-[#171310]">
+                  Bộ Sưu Tập 12 Bức Tranh Khắc Gỗ Dân Gian Đông Hồ
+                </h3>
+                <p className="text-xs text-[#6E5A45]">
+                  Chất liệu Giấy Điệp quét chổi lá thông & bảng màu khoáng vật tự nhiên (Sỏi son, Lá chàm, Hoa hòe, Vỏ sò điệp)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowZodiacMuseumModal(false)}
+                className="p-1.5 rounded-lg hover:bg-black/10 text-[#171310] cursor-pointer"
+                aria-label="Đóng triển lãm"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-5">
+              {(() => {
+                const selectedZ =
+                  ZODIAC_BY_MONTH.find((z) => z.month === (activeMuseumMonth || currentZodiac.month)) || currentZodiac;
+                return (
+                  <div className="flex flex-col md:flex-row items-center gap-6 p-4 rounded-xl bg-white/80 border border-[#8D281B]/15 shadow-xs">
+                    <DongHoZodiacPainting zodiac={selectedZ} large />
+                    <div className="flex-1 space-y-3 text-left">
+                      <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#8D281B]/10 text-[#8D281B] text-xs font-bold">
+                        <span>Tháng {selectedZ.month} • Địa Chi: {selectedZ.chiName}</span>
+                        <span>• {selectedZ.hanNom.join('')}</span>
+                      </div>
+                      <h4 className="text-xl font-bold text-[#171310]">{selectedZ.paintingTitle}</h4>
+                      <p className="text-sm text-zinc-700 leading-relaxed">{selectedZ.craftNote}</p>
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="text-xs font-medium text-zinc-500">Sắc khoáng chủ đạo:</span>
+                        <span className="w-4 h-4 rounded-full border border-black/20" style={{ backgroundColor: selectedZ.primaryPigment }} title="Màu chính" />
+                        <span className="w-4 h-4 rounded-full border border-black/20" style={{ backgroundColor: selectedZ.secondaryPigment }} title="Màu phụ" />
+                        <span className="w-4 h-4 rounded-full border border-black/20" style={{ backgroundColor: selectedZ.accentPigment }} title="Màu điểm" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Lưới thu nhỏ 12 con giáp để chọn xem nhanh */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {ZODIAC_BY_MONTH.map((z) => {
+                  const isActive = z.month === (activeMuseumMonth || currentZodiac.month);
+                  return (
+                    <button
+                      key={z.key}
+                      type="button"
+                      onClick={() => setActiveMuseumMonth(z.month)}
+                      className={`p-2 rounded-xl border text-left transition cursor-pointer flex flex-col items-center gap-1.5 ${
+                        isActive
+                          ? 'bg-white border-[#8D281B] ring-2 ring-[#8D281B]/30 shadow-sm'
+                          : 'bg-white/60 border-black/10 hover:bg-white'
+                      }`}
+                    >
+                      <DongHoZodiacPainting zodiac={z} />
+                      <div className="w-full flex items-center justify-between px-1">
+                        <span className="text-[11px] font-bold text-[#171310] truncate">{z.paintingTitle}</span>
+                        <span className="text-[10px] font-mono text-[#8D281B] font-semibold">T{z.month}</span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
