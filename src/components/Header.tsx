@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserAccount, ContractCategory } from '../types';
 import {
   Bell, KeyRound, LogOut, BookOpen, Film,
-  PanelLeftClose, PanelLeftOpen, Lock, AudioLines
+  PanelLeftClose, PanelLeftOpen, Lock, AudioLines, CloudDownload
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -16,6 +16,7 @@ interface HeaderProps {
   onOpenChangePass: () => void;
   onOpenLogin?: () => void;
   onOpenRegister?: () => void;
+  onCloudBackup?: () => void;
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
 }
@@ -31,6 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenChangePass,
   onOpenLogin,
   onOpenRegister,
+  onCloudBackup,
   isSidebarCollapsed = false,
   onToggleSidebar,
 }) => {
@@ -76,20 +78,20 @@ export const Header: React.FC<HeaderProps> = ({
   }, [onToggleSidebar]);
 
   return (
-    <header className="h-13 px-4 sm:px-6 bg-[#FFFFFF] border-b border-zinc-200/80 flex items-center justify-between sticky top-0 z-40 select-none">
-      {/* Left: Brand, Sidebar Toggle & Studio Breadcrumb */}
+    <header className="h-14 px-4 sm:px-6 bg-[#FDFCF9]/95 backdrop-blur-md border-b border-black/[0.08] flex items-center justify-between sticky top-0 z-40 select-none">
+      {/* Left: Brand, Sidebar Toggle & Studio Lockup */}
       <div className="flex items-center gap-2.5">
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
-            className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-950 hover:bg-zinc-100 transition cursor-pointer flex items-center justify-center mr-1"
+            className="p-1.5 rounded-lg text-zinc-500 hover:text-[#141413] hover:bg-[#F1EEE7] transition cursor-pointer flex items-center justify-center mr-0.5"
             title={isSidebarCollapsed ? "Mở rộng thanh điều hướng (Ctrl+B)" : "Thu gọn thanh điều hướng (Ctrl+B)"}
             aria-label="Toggle sidebar"
           >
             {isSidebarCollapsed ? (
-              <PanelLeftOpen className="w-4 h-4 text-zinc-700" />
+              <PanelLeftOpen className="w-4 h-4 text-[#141413]" />
             ) : (
-              <PanelLeftClose className="w-4 h-4 text-zinc-700" />
+              <PanelLeftClose className="w-4 h-4 text-[#141413]" />
             )}
           </button>
         )}
@@ -102,54 +104,57 @@ export const Header: React.FC<HeaderProps> = ({
             requestAnimationFrame(() => setIsLogoAnimating(true));
             setTimeout(() => setIsLogoAnimating(false), 6100);
           }}
-          className={`flex items-center gap-2.5 text-left group cursor-pointer px-1.5 py-0.5 rounded-lg transition ${
+          className={`flex items-center gap-2.5 text-left group cursor-pointer px-2 py-1 rounded-xl hover:bg-[#F4F1EA]/70 transition ${
             isLogoAnimating ? 'synapes-brand-anim' : ''
           }`}
-          title="SYNAPES Video Studio (Nhấp đúp để phát lại hiệu ứng logo)"
+          data-testid="synapes-brand-lockup"
+          title="SYNAPES Studio — Nhấp đúp để phát hiệu ứng thương hiệu"
         >
           <span className="synapes-rgb-sweep" aria-hidden="true" />
-          <div className="synapes-logo-box w-7 h-7 rounded-md bg-zinc-900 border border-zinc-900/10 flex items-center justify-center p-0.5 overflow-hidden shadow-2xs flex-shrink-0">
+          <div className="synapes-logo-box relative w-8 h-8 rounded-lg bg-[#141413] border border-[#141413]/20 flex items-center justify-center p-0.5 overflow-hidden shadow-xs flex-shrink-0">
             <img
               src="/logo.jpg"
-              alt="SYNAPES"
-              className="w-full h-full object-cover rounded-xs"
+              alt="SYNAPES Studio"
+              className="w-full h-full object-cover rounded-[5px]"
             />
           </div>
 
-          <div className="flex items-center gap-1.5 select-none">
-            <span className="font-bold text-zinc-950 text-[13px] tracking-tight inline-flex">
-              {'SYNAPES'.split('').map((ch, idx) => (
-                <span
-                  key={`syn-${idx}`}
-                  className="synapes-char"
-                  style={{ '--char-idx': idx } as React.CSSProperties}
-                >
-                  {ch}
-                </span>
-              ))}
-            </span>
-            <span
-              className="text-zinc-300 font-light synapes-char"
-              style={{ '--char-idx': 7 } as React.CSSProperties}
-            >
-              /
-            </span>
-            <span className="text-[11px] font-medium text-zinc-600 inline-flex">
-              {'Studio'.split('').map((ch, idx) => (
-                <span
-                  key={`st-${idx}`}
-                  className="synapes-char"
-                  style={{ '--char-idx': 8 + idx } as React.CSSProperties}
-                >
-                  {ch}
-                </span>
-              ))}
+          <div className="flex flex-col leading-none select-none">
+            <div className="flex items-center gap-1.5">
+              <span className="font-display font-extrabold text-[#141413] text-[14.5px] tracking-[0.04em] inline-flex">
+                {'SYNAPES'.split('').map((ch, idx) => (
+                  <span
+                    key={`syn-${idx}`}
+                    className="synapes-char"
+                    style={{ '--char-idx': idx } as React.CSSProperties}
+                  >
+                    {ch}
+                  </span>
+                ))}
+              </span>
+              <span
+                className="px-1.5 py-0.5 rounded-md bg-[#141413] text-[#FAF8F4] text-[9px] font-mono font-bold tracking-[0.14em] uppercase inline-flex items-center shadow-2xs"
+                style={{ '--char-idx': 7 } as React.CSSProperties}
+              >
+                {'STUDIO'.split('').map((ch, idx) => (
+                  <span
+                    key={`st-${idx}`}
+                    className="synapes-char"
+                    style={{ '--char-idx': 8 + idx } as React.CSSProperties}
+                  >
+                    {ch}
+                  </span>
+                ))}
+              </span>
+            </div>
+            <span className="hidden sm:block text-[9.5px] font-medium text-[#6B6A64] tracking-tight mt-0.5">
+              AI Video & Voiceover Production
             </span>
           </div>
         </button>
 
         {/* Live System Indicator */}
-        <div className="hidden xl:flex items-center gap-1.5 pl-2.5 border-l border-zinc-200 text-[11px] text-zinc-500 font-mono whitespace-nowrap flex-shrink-0">
+        <div className="hidden xl:flex items-center gap-1.5 pl-2.5 border-l border-black/[0.08] text-[11px] text-zinc-500 font-mono whitespace-nowrap flex-shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
           <span>{currentTime || '00:00'}</span>
         </div>
@@ -269,8 +274,20 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* User Account Capsule */}
         {currentUser && currentUser.isLoggedIn ? (
-          <div className="flex items-center gap-1.5 pl-2 border-l border-zinc-200">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100 border border-zinc-200/80 text-zinc-800">
+          <div className="flex items-center gap-1.5 pl-2 border-l border-black/[0.08]">
+            {onCloudBackup && (
+              <button
+                onClick={onCloudBackup}
+                data-testid="header-cloud-backup-btn"
+                className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50/90 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 text-[10.5px] font-semibold transition cursor-pointer"
+                title="Sao lưu & tải file dự phòng toàn bộ dự án, kênh & cấu hình cá nhân"
+              >
+                <CloudDownload className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Sao Lưu</span>
+              </button>
+            )}
+
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#F4F1EA] border border-black/[0.08] text-[#141413]">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
               <span className="text-[11px] font-mono font-semibold tracking-tight">
                 {currentUser.code}

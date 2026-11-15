@@ -9,6 +9,15 @@ import {
   INITIAL_PROJECTS,
 } from '../data/mockData';
 
+export interface UserPersonalizationPrefs {
+  defaultAspectRatio?: '16:9' | '9:16';
+  defaultPlatform?: 'youtube' | 'tiktok' | 'facebook';
+  preferredVoiceGender?: 'male' | 'female';
+  autoCloudBackup?: boolean;
+  lastServerBackupAt?: string;
+  lastBackupChecksum?: string;
+}
+
 export interface UserProfileData {
   code: string;
   name: string;
@@ -18,6 +27,7 @@ export interface UserProfileData {
   driveEmail: string;
   driveConnected: boolean;
   projects: Project[];
+  preferences?: UserPersonalizationPrefs;
 }
 
 const ACTIVE_SESSION_KEY = 'synapes_active_user_session';
@@ -236,8 +246,112 @@ export function getUserProfile(
 }
 
 /**
- * Lưu hồ sơ người dùng
+ * Lưu hồ sơ người dùng vào LocalStorage + tự động đồng bộ sao lưu lên máy chủ (Cloud Backup)
  */
+const syncTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+export async function syncUserProfileToServer(
+  code: string,
+  explicitData?: UserProfileData
+): Promise<{ success: boolean; updatedAt?: string; sha256Checksum?: string; error?: string }> {
+  const codeClean = (code || '').trim().toUpperCase();
+  if (!codeClean) return { success: false, error: 'Missing user code' };
+  const payload = explicitData || getUserProfile(codeClean);
+  try {
+    const resp = await fetch('/api/user/profile-backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userCode: codeClean, profile: payload }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (resp.ok && data?.success) {
+      try {
+        const storageKey = `${USER_DATA_PREFIX}${codeClean}`;
+        const raw = localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed: UserProfileData = JSON.parse(raw);
+          parsed.preferences = {
+            ...(parsed.preferences || {}),
+            lastServerBackupAt: data.updatedAt,
+            lastBackupChecksum: data.sha256Checksum,
+          };
+          localStorage.setItem(storageKey, JSON.stringify(parsed));
+        }
+      } catch {
+        // ignore localStorage metadata write error
+      }
+      return {
+        success: true,
+        updatedAt: data.updatedAt,
+        sha256Checksum: data.sha256Checksum,
+      };
+    }
+    return { success: false, error: data?.error || `HTTP ${resp.status}` };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
+export async function restoreUserProfileFromServer(
+  code: string
+): Promise<{ success: boolean; profile?: UserProfileData; checksumValid?: boolean; updatedAt?: string; error?: string }> {
+  const codeClean = (code || '').trim().toUpperCase();
+  if (!codeClean) return { success: false, error: 'Thiếu mã tài khoản.' };
+  try {
+    const resp = await fetch(`/api/user/profile-backup?code=${encodeURIComponent(codeClean)}`);
+    const data = await resp.json().catch(() => ({}));
+    if (resp.ok && data?.success && data.profile) {
+      const storageKey = `${USER_DATA_PREFIX}${codeClean}`;
+      const merged: UserProfileData = {
+        ...getUserProfile(codeClean),
+        ...data.profile,
+        code: codeClean,
+        preferences: {
+          ...(data.profile.preferences || {}),
+          lastServerBackupAt: data.updatedAt,
+          lastBackupChecksum: data.sha256Checksum,
+        },
+      };
+      localStorage.setItem(storageKey, JSON.stringify(merged));
+      return {
+        success: true,
+        profile: merged,
+        checksumValid: Boolean(data.checksumValid),
+        updatedAt: data.updatedAt,
+      };
+    }
+    return { success: false, error: data?.error || 'Không tìm thấy bản sao lưu máy chủ.' };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
+export function exportUserProfileBackupFile(code: string): boolean {
+  const codeClean = (code || '').trim().toUpperCase();
+  if (!codeClean) return false;
+  try {
+    const profile = getUserProfile(codeClean);
+    const exportObj = {
+      schema: 'SYNAPES_STUDIO_BACKUP_V2',
+      exportedAt: new Date().toISOString(),
+      userCode: codeClean,
+      profile,
+    };
+    const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `SYNAPES_Backup_${codeClean}_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function saveUserProfile(
   code: string,
   data: Partial<UserProfileData>
@@ -254,6 +368,15 @@ export function saveUserProfile(
       code: codeClean,
     };
     localStorage.setItem(storageKey, JSON.stringify(updated));
+
+    const prevTimer = syncTimers.get(codeClean);
+    if (prevTimer) clearTimeout(prevTimer);
+    syncTimers.set(
+      codeClean,
+      setTimeout(() => {
+        void syncUserProfileToServer(codeClean, updated);
+      }, 650)
+    );
   } catch (err) {
     console.warn(`Could not save user profile for ${codeClean}`, err);
   }

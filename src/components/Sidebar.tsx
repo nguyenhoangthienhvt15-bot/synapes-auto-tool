@@ -4,13 +4,16 @@ import {
   HardDrive, Cpu, BookOpen, ChevronDown,
   PanelLeftClose, PanelLeftOpen, Layers, Lock, AudioLines
 } from 'lucide-react';
-import { ContractCategory } from '../types';
+import { ContractCategory, Project, ConnectedChannelAccount } from '../types';
 import { MiniPeakHoursAreaChart } from './MiniPeakHoursAreaChart';
 import { ProviderBrandLogo } from './AiProviderDropdown';
 
 interface SidebarProps {
   activeView: string;
   pendingCount: number;
+  userCode?: string;
+  projects?: Project[];
+  channels?: ConnectedChannelAccount[];
   onSelectView: (view: string) => void;
   onOpenCreateModal: () => void;
   onSelectAiProvider?: (provider: string) => void;
@@ -23,6 +26,9 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   activeView,
   pendingCount,
+  userCode = '',
+  projects = [],
+  channels = [],
   onSelectView,
   onOpenCreateModal,
   onSelectAiProvider,
@@ -31,14 +37,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed = false,
   onToggleCollapse,
 }) => {
-  const [isAiModuleOpen, setIsAiModuleOpen] = useState(true);
+  const [isAiModuleOpen, setIsAiModuleOpen] = useState(false);
 
   // ---------------------------------------------------------------------------
   // COMPACT SLIDING DOCK MODE (When sidebar is collapsed: w-14 / 56px)
   // ---------------------------------------------------------------------------
   if (isCollapsed) {
     return (
-      <aside className="w-14 bg-[#FFFFFF] border-r border-zinc-200/80 py-3 px-2 flex flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.25rem)] select-none transition-all duration-200 ease-in-out">
+      <aside className="w-14 bg-[#FDFCF9] border-r border-black/[0.08] py-3 px-2 flex flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.5rem)] select-none transition-all duration-200 ease-in-out">
         <div className="flex flex-col items-center gap-2">
           {/* New Project Quick Trigger */}
           <button
@@ -174,13 +180,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // FULL EXPANDED CRAFT SIDEBAR MODE (w-60 / 240px)
   // ---------------------------------------------------------------------------
   return (
-    <aside className="w-60 bg-[#FFFFFF] border-r border-zinc-200/80 p-3.5 flex flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.25rem)] overflow-y-auto select-none scrollbar-none transition-all duration-200 ease-in-out">
-      <div className="space-y-4">
+    <aside className="w-60 bg-[#FDFCF9] border-r border-black/[0.08] p-3 flex flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.5rem)] overflow-y-auto select-none scrollbar-none transition-all duration-200 ease-in-out">
+      <div className="space-y-3">
 
         {/* Primary Action Button */}
         <button
           onClick={onOpenCreateModal}
-          className="w-full py-2.5 px-3 rounded-lg bg-zinc-950 hover:bg-zinc-800 text-white font-medium text-xs shadow-2xs flex items-center justify-center gap-2 transition active:scale-[0.99] cursor-pointer"
+          className="w-full py-2 px-3 rounded-xl bg-[#141413] hover:bg-black text-[#FAF8F4] font-semibold text-xs shadow-xs flex items-center justify-center gap-2 transition active:scale-[0.99] cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>Dự Án Video Mới</span>
@@ -431,9 +437,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       </div>
 
-      {/* Peak Hours Area Chart & Collapse Action */}
-      <div className="pt-3 border-t border-zinc-200/60 space-y-2">
-        <MiniPeakHoursAreaChart />
+      {/* Live Platform Traffic Area Chart & Collapse Action */}
+      <div className="pt-3 border-t border-black/[0.06] space-y-2">
+        <MiniPeakHoursAreaChart
+          userCode={userCode}
+          projects={projects}
+          channels={channels}
+        />
 
         {onToggleCollapse && (
           <button

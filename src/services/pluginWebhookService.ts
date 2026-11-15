@@ -150,26 +150,32 @@ export async function dispatchScriptToPluginEngine(
     signal?.addEventListener('abort', onExternalAbort, { once: true });
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await fetch('/api/plugin/dispatch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${pluginToken}`,
         },
-        body: JSON.stringify(webhookPayload),
+        body: JSON.stringify({
+          provider: pluginBrand,
+          endpoint,
+          apiKey: pluginToken,
+          payload: webhookPayload,
+        }),
         signal: controller.signal,
       });
 
       if (response.ok) {
         const json = await response.json();
-        remoteSuccess = true;
-        remoteVideoUrl = json.video_url || json.url || json.data?.url || '';
+        if (json?.dispatched) {
+          remoteSuccess = true;
+          remoteVideoUrl = json.data?.video_url || json.data?.url || json.data?.data?.url || '';
+        }
       }
     } catch (netErr) {
       if (signal?.aborted) {
         throw new DOMException('Người dùng đã hủy tác vụ khởi tạo dự án.', 'AbortError');
       }
-      console.warn('Plugin webhook call notice (falling back to studio renderer):', netErr);
+      console.warn('Plugin proxy notice (falling back to studio renderer):', netErr);
     } finally {
       clearTimeout(timeoutId);
       signal?.removeEventListener('abort', onExternalAbort);

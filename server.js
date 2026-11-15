@@ -337,6 +337,13 @@ const server = http.createServer(async (req, res) => {
   const rawUrl = req.url || '/';
   const cleanUrl = rawUrl.split('?')[0].split('#')[0];
 
+  // Bổ sung HTTP Security Headers chuẩn an ninh mạng cho toàn bộ phản hồi
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), usb=()');
+
   // Kiểm tra danh sách đen IP (Anti-DevTools & Threat Enforcer)
   // Ngoại lệ duy nhất: Cho phép gọi /api/security/unlock để xác thực Master Key ([REDACTED_BY_P0_AUDIT]) giải phóng IP
   const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
