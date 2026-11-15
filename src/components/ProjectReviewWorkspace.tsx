@@ -28,6 +28,7 @@ interface ProjectReviewWorkspaceProps {
   onOpenStitcherStudio: (project: Project) => void;
   onBackToList?: () => void;
   onDeleteProject?: (projectId: string) => void;
+  onNavigateView?: (view: string) => void;
 }
 
 export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
@@ -36,6 +37,7 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
   onOpenStitcherStudio,
   onBackToList,
   onDeleteProject,
+  onNavigateView,
 }) => {
   const [activeTab, setActiveTab] = useState<'storyboard' | 'metadata'>('storyboard');
   const [activeSceneId, setActiveSceneId] = useState<number | null>(
@@ -1151,25 +1153,40 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
 
             {isPublishComplete && (
               <div className="pt-3 border-t border-black/[0.06] flex flex-col gap-2">
-                <div className="flex items-center justify-center gap-2">
-                  <a
-                    href="https://youtube.com"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn-secondary text-xs flex items-center gap-1"
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPublishingModalOpen(false);
+                      onNavigateView?.('social-channels');
+                    }}
+                    className="btn-secondary text-xs flex items-center gap-1 cursor-pointer"
                   >
-                    <span>YouTube</span>
-                    <ExternalLink className="w-3 h-3 text-zinc-400" />
-                  </a>
-                  <a
-                    href="https://drive.google.com"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn-secondary text-xs flex items-center gap-1"
+                    <span>Kênh Đã Xuất Bản</span>
+                    <ExternalLink className="w-3 h-3 text-zinc-500" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPublishingModalOpen(false);
+                      onNavigateView?.('calendar');
+                    }}
+                    className="btn-secondary text-xs flex items-center gap-1 cursor-pointer"
                   >
-                    <span>Drive Backup</span>
-                    <ExternalLink className="w-3 h-3 text-zinc-400" />
-                  </a>
+                    <span>Xem Lịch Phát Sóng</span>
+                    <Clock className="w-3 h-3 text-zinc-500" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPublishingModalOpen(false);
+                      onNavigateView?.('drive-backup');
+                    }}
+                    className="btn-secondary text-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Kho Drive Archive</span>
+                    <ExternalLink className="w-3 h-3 text-zinc-500" />
+                  </button>
                 </div>
 
                 <button
