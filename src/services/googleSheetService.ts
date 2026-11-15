@@ -527,14 +527,16 @@ export async function discoverWebhookUrlFromSheet(sheetId: string = GOOGLE_SHEET
   const gids = [GOOGLE_SHEET_GID_USERS, GOOGLE_SHEET_GID_ACCOUNTS];
   for (const gid of gids) {
     try {
-      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&gid=${gid}&_t=${Date.now()}`;
-      const res = await fetchWithTimeout(url, { method: 'GET', cache: 'no-store' }, 1800);
+      const url = `/api/sheet-gviz?sheetId=${encodeURIComponent(sheetId)}&gid=${encodeURIComponent(gid)}&_t=${Date.now()}`;
+      const res = await fetchWithTimeout(url, { method: 'GET', cache: 'no-store' }, 2500);
       if (res.ok) {
-        const text = await res.text();
-        const found = extractWebhookUrlFromRawText(text);
-        if (found) {
-          flushPendingWebhookQueue(found).catch(() => { });
-          return found;
+        const payload = await res.json();
+        if (payload?.ok && typeof payload.text === 'string' && payload.text) {
+          const found = extractWebhookUrlFromRawText(payload.text);
+          if (found) {
+            flushPendingWebhookQueue(found).catch(() => { });
+            return found;
+          }
         }
       }
     } catch {
@@ -1585,67 +1587,23 @@ function extractGvizJson(rawText: string): any {
 async function fetchGvizByGid(sheetId: string, gid: string): Promise<any | null> {
   const timestamp = Date.now();
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&gid=${gid}&_t=${timestamp}`;
+    const url = `/api/sheet-gviz?sheetId=${encodeURIComponent(sheetId)}&gid=${encodeURIComponent(gid)}&_t=${timestamp}`;
     const res = await fetchWithTimeout(url, { method: 'GET', cache: 'no-store' }, 4000);
-    if (res.status === 401 || res.status === 403) {
-      // Bảng tính đã được chuyển quyền sang "Hạn chế (Chỉ mình tôi)" — an toàn tuyệt đối
-      return null;
-    }
     if (res.ok) {
-      const text = await res.text();
-      if (text.trimStart().startsWith('<')) {
-        // Google trả về trang HTML đăng nhập/hạn chế quyền — bỏ qua JSONP fallback để không kẹt mạng
+      const payload = await res.json();
+      if (payload?.restricted || !payload?.ok || !payload?.text) {
+        // Bảng tính đặt quyền Hạn chế (Chỉ mình tôi) — bỏ qua gọi trực tiếp từ trình duyệt để không gây lỗi CORS/CSP
         return null;
       }
+      const text = String(payload.text);
       extractWebhookUrlFromRawText(text);
       const json = extractGvizJson(text);
       if (json) return json;
     }
   } catch {
-    // Chuyển sang JSONP fallback
+    // ignore when offline
   }
-
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return null;
-  }
-
-  return new Promise((resolve) => {
-    const callbackName = `__gviz_cb_${gid}_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-    const script = document.createElement('script');
-
-    const cleanup = () => {
-      clearTimeout(timeout);
-      try {
-        if (script.parentNode) script.parentNode.removeChild(script);
-        delete (window as any)[callbackName];
-      } catch {
-        // ignore
-      }
-    };
-
-    const timeout = setTimeout(() => {
-      cleanup();
-      resolve(null);
-    }, 4000);
-
-    (window as any)[callbackName] = (resp: any) => {
-      cleanup();
-      try {
-        extractWebhookUrlFromRawText(JSON.stringify(resp));
-      } catch {
-        // ignore
-      }
-      resolve(resp);
-    };
-
-    script.onerror = () => {
-      cleanup();
-      resolve(null);
-    };
-
-    script.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json;responseHandler:${callbackName}&gid=${gid}&_t=${timestamp}`;
-    document.head.appendChild(script);
-  });
+  return null;
 }
 
 /**

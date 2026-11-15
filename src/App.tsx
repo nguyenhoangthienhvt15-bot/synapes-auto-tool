@@ -597,11 +597,11 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#FFFFFF] text-zinc-950 flex flex-col font-sans select-none">
-      {/* Toast Notification (Refined Minimal Floating Pill) */}
+      {/* Toast Notification (Bottom-Right so it never overlaps the Header Navigation) */}
       {toastNotification && (
-        <div className="fixed top-4 right-4 z-50 bg-zinc-950 text-white px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2.5 border border-zinc-800 animate-in fade-in slide-in-from-top-2 text-xs font-medium">
+        <div className="fixed bottom-5 right-5 z-50 bg-zinc-950 text-white px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2.5 border border-zinc-800 animate-in fade-in slide-in-from-bottom-2 text-xs font-medium max-w-md">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-          <span>{toastNotification}</span>
+          <span className="truncate">{toastNotification}</span>
         </div>
       )}
 

@@ -3910,7 +3910,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
         setTimeout(() => {
           setShowExportModal(false);
-        }, 1800);
+        }, 250);
       };
 
       // Set playback to start & apply speed multiplier

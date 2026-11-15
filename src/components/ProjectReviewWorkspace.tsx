@@ -661,35 +661,35 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                         : 'bg-zinc-50/70 border-black/[0.05] hover:border-black/[0.14]'
                         }`}
                     >
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-mono font-bold ${isCurrentScene
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs">
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                          <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-mono font-bold flex-shrink-0 ${isCurrentScene
                             ? 'bg-indigo-600 text-white'
                             : 'bg-white border border-black/[0.08] text-zinc-700'
                             }`}>
                             {scene.sceneNumber}
                           </span>
-                          <span className="text-zinc-900 font-semibold text-[11px]">
+                          <span className="text-zinc-900 font-semibold text-[11px] truncate max-w-[180px]" title={scene.headline || `Cảnh ${scene.sceneNumber}`}>
                             {scene.headline || `Cảnh ${scene.sceneNumber}`}
                           </span>
                           {scene.cameraMotion && (
-                            <span className="px-1.5 py-0.2 rounded bg-indigo-100/80 text-indigo-700 font-mono text-[9px] uppercase">
+                            <span className="px-1.5 py-0.2 rounded bg-indigo-100/80 text-indigo-700 font-mono text-[9px] uppercase whitespace-nowrap flex-shrink-0">
                               🎥 {scene.cameraMotion}
                             </span>
                           )}
                           {scene.customMediaUrl && (
-                            <span className="px-1.5 py-0.2 rounded bg-cyan-100 text-cyan-800 font-mono text-[9px]">
+                            <span className="px-1.5 py-0.2 rounded bg-cyan-100 text-cyan-800 font-mono text-[9px] whitespace-nowrap flex-shrink-0">
                               B-Roll riêng
                             </span>
                           )}
                           {scene.customAudioUrl && (
-                            <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 font-mono text-[9px] flex items-center gap-1 font-bold">
+                            <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 font-mono text-[9px] flex items-center gap-1 font-bold whitespace-nowrap flex-shrink-0">
                               <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse"></span>
                               Thu âm mic
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 flex-shrink-0">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -698,13 +698,13 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                               setVoiceStudioTargetSceneId(scene.id);
                               setIsLiveDubbingOpen(true);
                             }}
-                            className={`px-1.5 py-0.5 rounded border text-[9px] font-mono flex items-center gap-0.5 transition cursor-pointer ${scene.customAudioUrl
+                            className={`px-1.5 py-0.5 rounded border text-[9px] font-mono flex items-center gap-0.5 transition cursor-pointer whitespace-nowrap flex-shrink-0 ${scene.customAudioUrl
                                 ? 'bg-rose-50 text-rose-700 border-rose-300 font-bold'
                                 : 'bg-white hover:bg-rose-50 text-zinc-600 hover:text-rose-600 border-black/[0.06]'
                               }`}
                             title="Mở cửa sổ thứ 3 vừa xem video vừa thu âm trực tiếp cho cảnh này"
                           >
-                            <Mic className="w-2.5 h-2.5" />
+                            <Mic className="w-2.5 h-2.5 flex-shrink-0" />
                             <span>{scene.customAudioUrl ? 'Thu Lại' : 'Thu Mic'}</span>
                           </button>
                           <button
@@ -714,10 +714,10 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                               setVoiceStudioTargetSceneId(scene.id);
                               setIsVoiceStudioOpen(true);
                             }}
-                            className="px-1.5 py-0.5 rounded bg-white hover:bg-indigo-50 text-indigo-600 border border-black/[0.06] text-[9px] font-mono flex items-center gap-0.5 transition cursor-pointer"
+                            className="px-1.5 py-0.5 rounded bg-white hover:bg-indigo-50 text-indigo-600 border border-black/[0.06] text-[9px] font-mono flex items-center gap-0.5 transition cursor-pointer whitespace-nowrap flex-shrink-0"
                             title="Tùy chỉnh giọng đọc riêng cho cảnh này"
                           >
-                            <Sparkles className="w-2.5 h-2.5" />
+                            <Sparkles className="w-2.5 h-2.5 flex-shrink-0" />
                             <span>Giọng AI</span>
                           </button>
                           <button
@@ -726,13 +726,13 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                               e.stopPropagation();
                               handleRegenerateSceneVisual(scene.id);
                             }}
-                            className="px-1.5 py-0.5 rounded bg-white hover:bg-indigo-50 text-zinc-600 hover:text-indigo-600 border border-black/[0.06] text-[9px] font-mono flex items-center gap-1 transition cursor-pointer"
+                            className="px-1.5 py-0.5 rounded bg-white hover:bg-indigo-50 text-zinc-600 hover:text-indigo-600 border border-black/[0.06] text-[9px] font-mono flex items-center gap-1 transition cursor-pointer whitespace-nowrap flex-shrink-0"
                             title="Tạo lại khung hình AI mới cho cảnh này"
                           >
-                            <RefreshCw className="w-2.5 h-2.5" />
+                            <RefreshCw className="w-2.5 h-2.5 flex-shrink-0" />
                             <span>Render lại ảnh</span>
                           </button>
-                          <span className="font-mono text-zinc-500 text-[10px] bg-white px-1.5 py-0.2 rounded border border-black/[0.04]">
+                          <span className="font-mono text-zinc-500 text-[10px] bg-white px-1.5 py-0.2 rounded border border-black/[0.04] whitespace-nowrap flex-shrink-0">
                             {scene.timeRange}
                           </span>
                         </div>
