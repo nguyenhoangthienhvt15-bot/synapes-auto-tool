@@ -176,7 +176,14 @@ export interface Project {
     name: string;
     voiceName: string;
     audioUrl?: string;
+    isCustomMasterAudio?: boolean;
   };
+  customAudioUrl?: string;
+  attachedImages?: Array<{
+    name: string;
+    size: number;
+    dataUrl: string;
+  }>;
   characterActors?: CharacterActor[];
   dialogueMode?: boolean;
   storyboard: StoryboardScene[];

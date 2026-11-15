@@ -3,7 +3,7 @@ import {
   Project, UserAccount, EngineerSheetRow, Skill, AIProviderConfig, ConnectedChannelAccount
 } from './types';
 import {
-  INITIAL_SHEET_ROWS, INITIAL_SKILLS, MCP_VIDEO_SERVERS
+  INITIAL_SHEET_ROWS, INITIAL_SKILLS
 } from './data/mockData';
 import {
   fetchGoogleSheetLive, getCachedSheetRows, cacheSheetRows, getLastSyncTime,
@@ -63,9 +63,6 @@ const VoiceStudioLabsView = lazyWithRetry(() =>
 );
 const UserGuideView = lazyWithRetry(() =>
   import('./components/UserGuideView').then((m) => ({ default: m.UserGuideView }))
-);
-const McpVideoToolsHub = lazyWithRetry(() =>
-  import('./components/McpVideoToolsHub').then((m) => ({ default: m.McpVideoToolsHub }))
 );
 const AiEngineSettingsView = lazyWithRetry(() =>
   import('./components/AiEngineSettingsView').then((m) => ({ default: m.AiEngineSettingsView }))
@@ -744,31 +741,6 @@ export function App() {
                 onDeleteSkill={(id) => {
                   setSkills(skills.filter((s) => s.id !== id));
                   showToast('Đã xóa skill.');
-                }}
-              />
-            )}
-
-            {/* VIEW: KHỐI MCP SERVERS & CÔNG CỤ DỰNG VIDEO CHUYÊN NGHIỆP */}
-            {activeView === 'mcp-tools' && (
-              <McpVideoToolsHub
-                servers={MCP_VIDEO_SERVERS}
-                onBack={() => setActiveView('pending-approval')}
-                onApplyPromptToProject={(promptText) => {
-                  showToast('Đã áp dụng câu lệnh góc máy điện ảnh Hollywood!');
-                  if (selectedProject) {
-                    const updatedStoryboard = selectedProject.storyboard.map((s, idx) =>
-                      idx === 0 ? { ...s, visualPrompt: promptText } : s
-                    );
-                    const updated = {
-                      ...selectedProject,
-                      storyboard: updatedStoryboard,
-                    };
-                    setSelectedProject(updated);
-                    setProjects(projects.map((p) => (p.id === updated.id ? updated : p)));
-                    setActiveView('review');
-                  } else {
-                    setIsCreateModalOpen(true);
-                  }
                 }}
               />
             )}

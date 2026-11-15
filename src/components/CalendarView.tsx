@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Project } from '../types';
 import {
   Calendar as CalendarIcon,
+  CalendarCheck2,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -13,11 +14,7 @@ import {
   X,
   Check,
   Edit3,
-  CalendarCheck2,
   Trash2,
-  ExternalLink,
-  Flame,
-  Zap,
 } from 'lucide-react';
 
 const YoutubeIcon: React.FC<{ className?: string }> = ({ className = "w-3.5 h-3.5" }) => (
@@ -47,30 +44,107 @@ interface CalendarViewProps {
 
 type ViewMode = 'month' | 'week' | 'queue';
 
-// Các mốc giờ vàng tiêu chuẩn của hệ sinh thái
+// Danh sách 12 Con Giáp theo từng tháng (1 -> 12) cho hoạt ảnh trên Lịch Phát Sóng
+const ZODIAC_BY_MONTH = [
+  { month: 1, key: 'rat', label: 'Tý (Chuột)', body: '#CBD5E1', ear: '#FDA4AF', belly: '#F8FAFC', accent: '#64748B' },
+  { month: 2, key: 'ox', label: 'Sửu (Trâu)', body: '#8D6E63', ear: '#FEF3C7', belly: '#D7CCC8', accent: '#4E342E' },
+  { month: 3, key: 'tiger', label: 'Dần (Hổ)', body: '#F59E0B', ear: '#FEF3C7', belly: '#FEF3C7', accent: '#78350F' },
+  { month: 4, key: 'cat', label: 'Mão (Mèo)', body: '#FDBA74', ear: '#FECDD3', belly: '#FFF7ED', accent: '#9A3412' },
+  { month: 5, key: 'dragon', label: 'Thìn (Rồng)', body: '#10B981', ear: '#FBBF24', belly: '#D1FAE5', accent: '#047857' },
+  { month: 6, key: 'snake', label: 'Tỵ (Rắn)', body: '#34D399', ear: '#A7F3D0', belly: '#ECFDF5', accent: '#065F46' },
+  { month: 7, key: 'horse', label: 'Ngọ (Ngựa)', body: '#B45309', ear: '#FDE68A', belly: '#FEF3C7', accent: '#451A03' },
+  { month: 8, key: 'goat', label: 'Mùi (Dê)', body: '#F1F5F9', ear: '#FDE68A', belly: '#FFFFFF', accent: '#94A3B8' },
+  { month: 9, key: 'monkey', label: 'Thân (Khỉ)', body: '#D97706', ear: '#FDE68A', belly: '#FEF3C7', accent: '#78350F' },
+  { month: 10, key: 'rooster', label: 'Dậu (Gà)', body: '#FACC15', ear: '#EF4444', belly: '#FEF9C3', accent: '#B45309' },
+  { month: 11, key: 'dog', label: 'Tuất (Chó)', body: '#EAB308', ear: '#92400E', belly: '#FEF9C3', accent: '#713F12' },
+  { month: 12, key: 'pig', label: 'Hợi (Heo)', body: '#F9A8D4', ear: '#F472B6', belly: '#FCE7F3', accent: '#9D174D' },
+] as const;
+
+const ZodiacMiniSvg: React.FC<{
+  zodiac: (typeof ZODIAC_BY_MONTH)[number];
+  stride: number;
+  peeking?: boolean;
+}> = ({ zodiac, stride, peeking }) => {
+  const legA = peeking ? 0 : Math.round(stride * 3.2);
+  const legB = peeking ? 0 : Math.round(-stride * 3.2);
+  return (
+    <svg width="34" height="30" viewBox="0 0 36 32" fill="none" className="drop-shadow-xs">
+      {/* Ears / Horns / Comb */}
+      {zodiac.key === 'ox' || zodiac.key === 'dragon' || zodiac.key === 'goat' ? (
+        <>
+          <path d="M9 10 C6 5, 10 3, 13 8" stroke={zodiac.ear} strokeWidth="2.4" strokeLinecap="round" fill="none" />
+          <path d="M27 10 C30 5, 26 3, 23 8" stroke={zodiac.ear} strokeWidth="2.4" strokeLinecap="round" fill="none" />
+        </>
+      ) : zodiac.key === 'rooster' ? (
+        <path d="M13 7 Q16 2 18 6 Q21 2 23 7 Z" fill={zodiac.ear} />
+      ) : (
+        <>
+          <circle cx="10.5" cy="9" r="4.2" fill={zodiac.body} stroke={zodiac.accent} strokeWidth="1.2" />
+          <circle cx="10.5" cy="9" r="2.1" fill={zodiac.ear} />
+          <circle cx="25.5" cy="9" r="4.2" fill={zodiac.body} stroke={zodiac.accent} strokeWidth="1.2" />
+          <circle cx="25.5" cy="9" r="2.1" fill={zodiac.ear} />
+        </>
+      )}
+
+      {/* Chibi Round Body & Legs */}
+      <ellipse cx="18" cy="21" rx="8.5" ry="6.2" fill={zodiac.body} stroke={zodiac.accent} strokeWidth="1.2" />
+      <ellipse cx="18" cy="21.8" rx="4.5" ry="3.6" fill={zodiac.belly} />
+      <line x1="13.5" y1="26" x2={13.5 + legA} y2="30" stroke={zodiac.accent} strokeWidth="2.2" strokeLinecap="round" />
+      <line x1="22.5" y1="26" x2={22.5 + legB} y2="30" stroke={zodiac.accent} strokeWidth="2.2" strokeLinecap="round" />
+
+      {/* Cute Chibi Head */}
+      <circle cx="18" cy="14" r="7.5" fill={zodiac.body} stroke={zodiac.accent} strokeWidth="1.2" />
+      {/* Tiger Stripes */}
+      {zodiac.key === 'tiger' && (
+        <>
+          <path d="M16 7.5 V10 M18 7 V10.5 M20 7.5 V10" stroke="#78350F" strokeWidth="1.2" strokeLinecap="round" />
+        </>
+      )}
+      {/* Eyes */}
+      <circle cx="15.3" cy="13.2" r="1.2" fill="#0F172A" />
+      <circle cx="20.7" cy="13.2" r="1.2" fill="#0F172A" />
+      <circle cx="15.7" cy="12.8" r="0.4" fill="#FFFFFF" />
+      <circle cx="21.1" cy="12.8" r="0.4" fill="#FFFFFF" />
+      {/* Cheeks */}
+      <circle cx="13" cy="15.2" r="1.1" fill="#FDA4AF" opacity="0.7" />
+      <circle cx="23" cy="15.2" r="1.1" fill="#FDA4AF" opacity="0.7" />
+      {/* Snout / Beak */}
+      {zodiac.key === 'rooster' ? (
+        <polygon points="16.5,14.5 19.5,14.5 18,17.2" fill="#F97316" />
+      ) : zodiac.key === 'pig' ? (
+        <ellipse cx="18" cy="15.5" rx="2.6" ry="1.8" fill="#F472B6" />
+      ) : (
+        <ellipse cx="18" cy="15.3" rx="2.2" ry="1.4" fill={zodiac.belly} />
+      )}
+      <circle cx="18" cy="14.9" r="0.8" fill={zodiac.accent} />
+    </svg>
+  );
+};
+
+// Các mốc giờ gợi ý tiêu chuẩn của hệ sinh thái (tương thích kiểm thử)
 export const GOLDEN_TIME_PRESETS = [
   {
     id: 'yt-peak',
     platform: 'youtube',
     time: '19:30',
     label: 'YouTube (19:30 - Tối)',
-    description: 'Khung giờ vàng xem trên TV & PC, tập trung khán giả xem video dài 5–10 phút.',
+    description: 'Khung giờ tối phổ biến cho khán giả xem trên TV & PC.',
     color: 'border-red-200 bg-red-50 text-red-700',
   },
   {
     id: 'tt-lunch',
     platform: 'tiktok',
     time: '12:00',
-    label: 'TikTok Nghỉ Trưa (12:00)',
-    description: 'Giờ ăn trưa của giới trẻ và dân văn phòng, tỷ lệ click anchor link cao.',
+    label: 'TikTok Trưa (12:00)',
+    description: 'Khung giờ nghỉ trưa có lượt lướt video ngắn cao.',
     color: 'border-cyan-200 bg-cyan-50 text-cyan-800',
   },
   {
     id: 'tt-evening',
     platform: 'tiktok',
-    time: '20:15',
-    label: 'TikTok Giải Trí (20:15)',
-    description: 'Thời điểm lướt video ngắn trước khi đi ngủ, độ tương tác và chia sẻ mạnh.',
+    time: '18:00',
+    label: 'Chiều Tối (18:00)',
+    description: 'Khung giờ tan tầm kết nối đồng đều các kênh.',
     color: 'border-zinc-300 bg-zinc-900 text-white',
   },
   {
@@ -78,7 +152,7 @@ export const GOLDEN_TIME_PRESETS = [
     platform: 'facebook',
     time: '20:30',
     label: 'Facebook Reels (20:30)',
-    description: 'Khung giờ sinh hoạt gia đình, lượng tương tác thảo luận cộng đồng đạt đỉnh.',
+    description: 'Khung giờ buổi tối thuận lợi cho thảo luận cộng đồng.',
     color: 'border-blue-200 bg-blue-50 text-blue-700',
   },
 ];
@@ -91,6 +165,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 10, 8)); // Tháng 11 năm 2026
+  const [platformFilter, setPlatformFilter] = useState<'all' | 'youtube' | 'tiktok' | 'facebook'>('all');
+  const [zodiacReplayCount, setZodiacReplayCount] = useState<number>(0);
+  const [mascotAnim, setMascotAnim] = useState<{
+    phase: 'peek' | 'run' | 'puff' | 'idle';
+    xPct: number;
+    hopY: number;
+    stride: number;
+    puffScale: number;
+    puffOpacity: number;
+  }>({
+    phase: 'peek',
+    xPct: 3,
+    hopY: 0,
+    stride: 0,
+    puffScale: 0.6,
+    puffOpacity: 0,
+  });
 
   // State mở rộng xem cho từng ngày
   const [selectedDayModal, setSelectedDayModal] = useState<Date | null>(null);
@@ -138,10 +229,73 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
     return projects.filter((p) => {
       const parsed = parseProjectDate(p);
-      if (!parsed) return false;
-      return parsed.dateStr === key;
+      if (!parsed || parsed.dateStr !== key) return false;
+      if (platformFilter !== 'all' && !p.targetChannels.includes(platformFilter)) return false;
+      return true;
     });
   };
+
+  // Hoạt ảnh Linh Vật 12 Con Giáp chạy ngang Thứ Hai -> Chủ Nhật mỗi khi vào/đổi tháng
+  useEffect(() => {
+    if (viewMode !== 'month') {
+      setMascotAnim((prev) => ({ ...prev, phase: 'idle' }));
+      return;
+    }
+
+    let rafId = 0;
+    const startTs = performance.now();
+    const TOTAL_MS = 5200;
+
+    const tick = (now: number) => {
+      const elapsed = now - startTs;
+      if (elapsed < 800) {
+        const u = elapsed / 800;
+        setMascotAnim({
+          phase: 'peek',
+          xPct: 1.5 + u * 4.5,
+          hopY: Math.sin(u * Math.PI) * 2,
+          stride: 0,
+          puffScale: 0.6,
+          puffOpacity: 0,
+        });
+      } else if (elapsed < 4200) {
+        const u = (elapsed - 800) / 3400;
+        const osc = Math.sin(u * Math.PI * 10);
+        setMascotAnim({
+          phase: 'run',
+          xPct: 6 + u * 84,
+          hopY: Math.abs(osc) * 5,
+          stride: osc,
+          puffScale: 0.6,
+          puffOpacity: 0,
+        });
+      } else if (elapsed < TOTAL_MS) {
+        const v = (elapsed - 4200) / 1000;
+        setMascotAnim({
+          phase: 'puff',
+          xPct: 90,
+          hopY: 0,
+          stride: 0,
+          puffScale: 0.6 + v * 0.9,
+          puffOpacity: Math.max(0, 1 - Math.pow(v, 1.4)),
+        });
+      } else {
+        setMascotAnim({
+          phase: 'idle',
+          xPct: 90,
+          hopY: 0,
+          stride: 0,
+          puffScale: 1.4,
+          puffOpacity: 0,
+        });
+        return;
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [currentDate, viewMode, zodiacReplayCount]);
 
   // Mở modal đặt lịch cho project
   const handleOpenScheduleModal = (proj: Project, defaultDate?: Date) => {
@@ -182,32 +336,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     showToast(`Đã lưu lịch phát sóng cho dự án: "${editingProject.title.slice(0, 30)}..." lúc ${scheduleTime} ngày ${formattedDate}`);
   };
 
-  // Áp dụng nhanh gợi ý Goldtime từ hệ thống
+  // Áp dụng nhanh gợi ý mốc giờ từ hệ thống
   const handleApplyGoldtimePreset = (preset: typeof GOLDEN_TIME_PRESETS[0]) => {
     setScheduleTime(preset.time);
-    showToast(`Đã áp dụng gợi ý Giờ Vàng: ${preset.label}`);
-  };
-
-  // Tự động phân bổ Giờ Vàng tối ưu theo Kênh của dự án
-  const handleAutoAssignGoldtime = (proj: Project) => {
-    let optimalTime = '19:30';
-    if (proj.targetChannels.includes('tiktok') && proj.aspectRatio === '9:16') {
-      optimalTime = '12:00';
-    } else if (proj.targetChannels.includes('facebook')) {
-      optimalTime = '20:30';
-    } else {
-      optimalTime = '19:30';
-    }
-
-    const todayStr = '08/11/2026';
-    const updated: Project = {
-      ...proj,
-      status: 'scheduled',
-      scheduledTime: `${optimalTime}, ${todayStr} (Khung giờ vàng đề xuất)`,
-    };
-
-    onUpdateProject?.(updated);
-    showToast(`⚡ Đã tự động phân bổ vào Giờ Vàng tối ưu (${optimalTime}) cho ${proj.targetChannels.join(', ')}`);
+    showToast(`Đã áp dụng mốc giờ: ${preset.label}`);
   };
 
   // Hủy hẹn giờ
@@ -275,10 +407,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   // Khung thời gian tuần
   const timeBlocks = [
     { id: 'morning', label: 'Buổi Sáng', timeRange: '08:00 – 11:30', isGold: false },
-    { id: 'noon', label: 'Buổi Trưa (🌟 Goldtime TikTok)', timeRange: '11:30 – 13:30', isGold: true, goldPlatform: 'tiktok' },
+    { id: 'noon', label: 'Buổi Trưa', timeRange: '11:30 – 13:30', isGold: false },
     { id: 'afternoon', label: 'Buổi Chiều', timeRange: '14:00 – 18:00', isGold: false },
-    { id: 'evening', label: 'Buổi Tối (🌟 Goldtime YouTube & FB)', timeRange: '18:00 – 22:30', isGold: true, goldPlatform: 'youtube' },
+    { id: 'evening', label: 'Buổi Tối', timeRange: '18:00 – 22:30', isGold: false },
   ];
+  const currentZodiac = ZODIAC_BY_MONTH[month % 12];
 
   return (
     <div className="space-y-4 animate-fade-in select-none">
@@ -308,14 +441,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <CalendarIcon className="w-4 h-4" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-zinc-950 tracking-tight">Lịch Xuất Bản & Khung Giờ Phát Sóng</h2>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-mono font-semibold">
-                Goldtime AI
-              </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base font-bold text-zinc-950 tracking-tight">Lịch Phát Sóng Video</h2>
+              <button
+                type="button"
+                onClick={() => setZodiacReplayCount((c) => c + 1)}
+                className="px-2 py-0.5 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-black/[0.08] text-[10px] font-mono font-semibold transition cursor-pointer"
+                title="Nhấn để xem lại hoạt ảnh 12 Con Giáp theo tháng"
+                data-testid="zodiac-replay-btn"
+              >
+                Tháng {month + 1} • Con {currentZodiac.label}
+              </button>
             </div>
             <p className="text-zinc-500 text-xs mt-0.5">
-              Tùy chỉnh lịch phát sóng thủ công hoặc tự động điều phối theo khung giờ vàng tương tác cao của YouTube, TikTok, Facebook
+              Quản lý lịch xuất bản theo ngày/giờ riêng cho từng video trên YouTube, TikTok và Facebook
             </p>
           </div>
         </div>
@@ -380,57 +519,138 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
       </div>
 
-      {/* Golden Hours Matrix Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="studio-card p-4 space-y-2 border-l-4 border-l-red-500 bg-linear-to-br from-red-50/20 to-transparent">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-zinc-950 flex items-center gap-2">
-              <YoutubeIcon className="w-4 h-4 text-red-600" />
-              <span>YouTube Video (16:9)</span>
-            </span>
-            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-red-100 text-red-800 border border-red-200">
-              18:00 – 20:30 (Đỉnh: 19:30)
-            </span>
-          </div>
-          <p className="text-zinc-600 text-[11px] leading-relaxed">
-            Khung giờ xem TV & PC cao điểm. Đẩy mạnh đề xuất video định dạng dài 5–10 phút trọn vẹn và đạt doanh thu AdSense cao.
-          </p>
+      {/* Compact Platform Filter Chips */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setPlatformFilter('all')}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer ${
+              platformFilter === 'all'
+                ? 'bg-zinc-950 text-white border-zinc-950'
+                : 'bg-white text-zinc-700 border-black/[0.1] hover:bg-zinc-50'
+            }`}
+          >
+            Tất cả nền tảng
+          </button>
+          <button
+            type="button"
+            onClick={() => setPlatformFilter('youtube')}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer flex items-center gap-1.5 ${
+              platformFilter === 'youtube'
+                ? 'bg-red-50 text-red-700 border-red-300'
+                : 'bg-white text-zinc-700 border-black/[0.1] hover:bg-zinc-50'
+            }`}
+          >
+            <YoutubeIcon className="w-3.5 h-3.5 text-red-600" />
+            <span>YouTube</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setPlatformFilter('tiktok')}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer flex items-center gap-1.5 ${
+              platformFilter === 'tiktok'
+                ? 'bg-zinc-900 text-white border-zinc-950'
+                : 'bg-white text-zinc-700 border-black/[0.1] hover:bg-zinc-50'
+            }`}
+          >
+            <TiktokIcon className="w-3.5 h-3.5" />
+            <span>TikTok</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setPlatformFilter('facebook')}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer flex items-center gap-1.5 ${
+              platformFilter === 'facebook'
+                ? 'bg-blue-50 text-blue-700 border-blue-300'
+                : 'bg-white text-zinc-700 border-black/[0.1] hover:bg-zinc-50'
+            }`}
+          >
+            <FacebookIcon className="w-3.5 h-3.5 text-blue-600" />
+            <span>Facebook</span>
+          </button>
         </div>
-
-        <div className="studio-card p-4 space-y-2 border-l-4 border-l-zinc-950 bg-linear-to-br from-zinc-100/40 to-transparent">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-zinc-950 flex items-center gap-2">
-              <TiktokIcon className="w-4 h-4 text-zinc-950" />
-              <span>TikTok Shorts (9:16)</span>
-            </span>
-            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-zinc-900 text-white border border-zinc-800">
-              11:30 – 13:00 & 20:15
-            </span>
-          </div>
-          <p className="text-zinc-600 text-[11px] leading-relaxed">
-            Giờ nghỉ trưa và lướt ban đêm tập trung học sinh, sinh viên, nhân viên văn phòng. Thuật toán phân phối nhanh, tỉ lệ click bio cao.
-          </p>
-        </div>
-
-        <div className="studio-card p-4 space-y-2 border-l-4 border-l-blue-500 bg-linear-to-br from-blue-50/20 to-transparent">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-zinc-950 flex items-center gap-2">
-              <FacebookIcon className="w-4 h-4 text-blue-600" />
-              <span>Facebook Reels</span>
-            </span>
-            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
-              20:00 – 22:30 (Đỉnh: 20:30)
-            </span>
-          </div>
-          <p className="text-zinc-600 text-[11px] leading-relaxed">
-            Khung giờ sinh hoạt gia đình trên thiết bị di động, lượng tương tác thảo luận, bình luận và chia sẻ cộng đồng đạt đỉnh.
-          </p>
-        </div>
+        <span className="text-[11px] font-mono text-zinc-400">
+          Nhấn vào từng ô ngày hoặc video để chỉnh ngày/giờ phát sóng riêng
+        </span>
       </div>
 
       {/* VIEW 1: LỊCH THÁNG (MONTH CALENDAR GRID) */}
       {viewMode === 'month' && (
         <div className="studio-card overflow-hidden">
+          {/* Dải Hoạt Ảnh Linh Vật 12 Con Giáp chạy ngang Thứ Hai -> Chủ Nhật */}
+          <div
+            className="relative h-10 bg-linear-to-r from-zinc-50/90 via-white to-zinc-50/90 border-b border-black/[0.06] overflow-hidden flex items-center justify-between px-3"
+            data-testid="zodiac-mascot-track"
+            data-phase={mascotAnim.phase}
+          >
+            <span className="text-[10px] font-mono text-zinc-400">
+              Linh vật Tháng {month + 1}: <strong className="text-zinc-600">{currentZodiac.label}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => setZodiacReplayCount((c) => c + 1)}
+              className="text-[10px] font-mono text-zinc-500 hover:text-zinc-900 underline cursor-pointer z-10"
+            >
+              Chạy lại
+            </button>
+
+            {mascotAnim.phase !== 'idle' && (
+              <div
+                className="pointer-events-none absolute top-1 bottom-0 flex items-end"
+                style={{
+                  left: `${mascotAnim.xPct}%`,
+                  transform: `translate(-50%, ${-mascotAnim.hopY}px)`,
+                }}
+              >
+                {mascotAnim.phase === 'puff' ? (
+                  <div
+                    className="relative flex items-center justify-center"
+                    style={{
+                      transform: `scale(${mascotAnim.puffScale})`,
+                      opacity: mascotAnim.puffOpacity,
+                    }}
+                    data-testid="zodiac-smoke-puff"
+                  >
+                    <svg width="56" height="34" viewBox="0 0 60 36" fill="none">
+                      <circle cx="20" cy="20" r="10" fill="#E4E4E7" stroke="#A1A1AA" strokeWidth="1.2" />
+                      <circle cx="31" cy="14" r="12" fill="#F4F4F5" stroke="#A1A1AA" strokeWidth="1.2" />
+                      <circle cx="42" cy="20" r="9.5" fill="#E4E4E7" stroke="#A1A1AA" strokeWidth="1.2" />
+                      <circle cx="28" cy="24" r="8" fill="#FAFAFA" />
+                      <path d="M9 12 L5 8 M51 11 L56 8 M31 2 V0" stroke="#71717A" strokeWidth="1.5" strokeLinecap="round" />
+                      <text x="30" y="21" textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#52525B" fontFamily="monospace">
+                        POOF!
+                      </text>
+                    </svg>
+                  </div>
+                ) : (
+                  <div
+                    className="flex items-center gap-1"
+                    style={{
+                      transform:
+                        mascotAnim.phase === 'peek'
+                          ? 'rotate(-8deg) scale(0.95)'
+                          : 'rotate(0deg) scale(1)',
+                    }}
+                    data-testid="zodiac-mascot-sprite"
+                  >
+                    {mascotAnim.phase === 'run' && (
+                      <div className="flex gap-1 opacity-55 mr-0.5 mb-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-300" />
+                        <span className="w-1 h-1 rounded-full bg-zinc-300 mt-0.5" />
+                      </div>
+                    )}
+                    <ZodiacMiniSvg
+                      zodiac={currentZodiac}
+                      stride={mascotAnim.stride}
+                      peeking={mascotAnim.phase === 'peek'}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Calendar Header Row */}
           <div className="grid grid-cols-7 border-b border-black/[0.08] bg-zinc-50/70 text-center text-xs font-bold font-mono text-zinc-600 py-2.5">
             <div>Thứ Hai</div>
@@ -570,11 +790,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             {timeBlocks.map((block) => (
               <div key={block.id} className="grid grid-cols-8 divide-x divide-black/[0.06] min-h-24">
                 {/* Block Label */}
-                <div
-                  className={`p-2.5 flex flex-col justify-center text-left ${
-                    block.isGold ? 'bg-amber-50/40 border-l-4 border-l-amber-500' : 'bg-zinc-50/50'
-                  }`}
-                >
+                <div className="p-2.5 flex flex-col justify-center text-left bg-zinc-50/50">
                   <div className="text-xs font-bold text-zinc-900 leading-tight">{block.label}</div>
                   <div className="text-[10px] font-mono text-zinc-500 mt-0.5">{block.timeRange}</div>
                 </div>
@@ -586,9 +802,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     <div
                       key={i}
                       onClick={() => setSelectedDayModal(d)}
-                      className={`p-1.5 flex flex-col gap-1 transition cursor-pointer hover:bg-zinc-50 ${
-                        block.isGold ? 'bg-amber-50/10' : 'bg-white'
-                      }`}
+                      className="p-1.5 flex flex-col gap-1 transition cursor-pointer hover:bg-zinc-50 bg-white"
                     >
                       {dayProjs.map((p) => (
                         <div
@@ -669,26 +883,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Button Gán Nhanh Giờ Vàng */}
-                  <button
-                    type="button"
-                    onClick={() => handleAutoAssignGoldtime(proj)}
-                    className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-medium flex items-center gap-1 transition cursor-pointer shadow-2xs"
-                    title="Tự động gán giờ vàng tối ưu cho kênh"
-                  >
-                    <Zap className="w-3 h-3 text-amber-600" />
-                    <span>Giờ Vàng</span>
-                  </button>
-
-                  {/* Button Chỉnh Sửa Giờ Thủ Công */}
+                  {/* Button Chỉnh Sửa Lịch Phát Sóng */}
                   <button
                     type="button"
                     onClick={() => handleOpenScheduleModal(proj)}
                     className="btn-secondary px-2.5 py-1 text-[11px] flex items-center gap-1 cursor-pointer"
-                    title="Tùy chỉnh lịch phát sóng thủ công"
+                    title="Tùy chỉnh ngày giờ phát sóng riêng"
                   >
                     <Edit3 className="w-3 h-3" />
-                    <span>Đổi Giờ</span>
+                    <span>Đổi Giờ Hẹn</span>
                   </button>
                 </div>
               </div>
@@ -833,7 +1036,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
       )}
 
-      {/* MODAL 2: TÙY CHỈNH LỊCH PHÁT SÓNG (THỦ CÔNG HOẶC GỢI Ý GOLDTIME) */}
+      {/* MODAL 2: TÙY CHỈNH LỊCH PHÁT SÓNG RIÊNG CHO TỪNG VIDEO */}
       {editingProject && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
           <div className="studio-card w-full max-w-lg bg-white shadow-2xl rounded-2xl overflow-hidden flex flex-col animate-slide-up">
@@ -881,12 +1084,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 />
               </div>
 
-              {/* 2. GỢI Ý GOLDTIME (GIỜ VÀNG HỆ THỐNG) */}
+              {/* 2. KHUNG GIỜ GỢI Ý NHANH */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    <span>2. Gợi Ý Khung Giờ Vàng (Goldtime) Đạt Đỉnh Tương Tác</span>
+                    <Sparkles className="w-3.5 h-3.5 text-zinc-700" />
+                    <span>2. Mốc Giờ Phát Sóng Phổ Biến</span>
                   </label>
                   <span className="text-[10px] font-mono text-zinc-500">1-Click Chọn</span>
                 </div>

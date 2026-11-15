@@ -6,9 +6,6 @@ import { lazyWithRetry } from '../utils/lazyWithRetry';
 const VoiceStudioModal = lazyWithRetry(() =>
   import('./VoiceStudioModal').then((m) => ({ default: m.VoiceStudioModal }))
 );
-const LiveDubbingStudioModal = lazyWithRetry(() =>
-  import('./LiveDubbingStudioModal').then((m) => ({ default: m.LiveDubbingStudioModal }))
-);
 const KeyboardShortcutsModal = lazyWithRetry(() =>
   import('./KeyboardShortcutsModal').then((m) => ({ default: m.KeyboardShortcutsModal }))
 );
@@ -22,7 +19,7 @@ import {
   Volume2, CheckCircle2, Clock,
   Edit3, Film, ExternalLink, Smartphone, Monitor,
   Link2, Sparkles, X, Check, Camera, RefreshCw,
-  Mic, Keyboard, Plus, Scissors, Trash2, Copy, MonitorPlay, Download
+  Mic, Keyboard, Plus, Scissors, Trash2, Copy, Download
 } from 'lucide-react';
 
 interface ProjectReviewWorkspaceProps {
@@ -51,11 +48,13 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
   const [editingScenePromptId, setEditingScenePromptId] = useState<number | null>(null);
   const [editingPromptText, setEditingPromptText] = useState('');
 
-  // Voice Studio, Live Dubbing (3rd Window), & Keyboard Shortcuts Modals
+  // Voice Studio, Per-Video Schedule Picker & Keyboard Shortcuts Modals
   const [isVoiceStudioOpen, setIsVoiceStudioOpen] = useState(false);
-  const [isLiveDubbingOpen, setIsLiveDubbingOpen] = useState(false);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [voiceStudioTargetSceneId, setVoiceStudioTargetSceneId] = useState<number | null>(null);
+  const [showSchedulePickerModal, setShowSchedulePickerModal] = useState(false);
+  const [schedulePickDate, setSchedulePickDate] = useState('2026-11-15');
+  const [schedulePickTime, setSchedulePickTime] = useState('20:00');
 
   // Publishing progress modal
   const [isPublishingModalOpen, setIsPublishingModalOpen] = useState(false);
@@ -81,14 +80,16 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
     language,
     speed,
     pitch,
-    updatedText,
+    masterAudioDataUrl,
+    masterAudioLabel,
     applyToAll,
   }: {
     voiceId: string;
     language: VoiceLanguage;
     speed: number;
     pitch: number;
-    updatedText?: string;
+    masterAudioDataUrl?: string;
+    masterAudioLabel?: string;
     applyToAll: boolean;
   }) => {
     const targetSceneId = voiceStudioTargetSceneId || activeSceneId;
@@ -101,7 +102,7 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
           voiceLanguage: language,
           voiceSpeed: speed,
           voicePitch: pitch,
-          voiceover: !applyToAll && updatedText && s.id === targetSceneId ? updatedText : s.voiceover,
+          ...(masterAudioDataUrl ? { customAudioUrl: undefined, isCustomRecorded: false } : {}),
         };
       }
       return s;
@@ -109,37 +110,24 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
 
     onUpdateProject({
       ...project,
+      customAudioUrl: masterAudioDataUrl || undefined,
       voiceoverTrack: {
-        name: `Voice AI (${voiceId})`,
+        name: masterAudioLabel || `Voice Master (${voiceId})`,
         voiceName: voiceId,
+        audioUrl: masterAudioDataUrl || undefined,
+        isCustomMasterAudio: Boolean(masterAudioDataUrl),
       },
       storyboard: updated,
     });
-  };
 
-  const handleSaveLiveRecordedVoice = (
-    sceneId: number,
-    audioBlobUrl: string,
-    durationSec: number,
-    updatedText: string
-  ) => {
-    const updated = project.storyboard.map((s) => {
-      if (s.id === sceneId) {
-        return {
-          ...s,
-          customAudioUrl: audioBlobUrl,
-          customAudioDurationSec: durationSec,
-          isCustomRecorded: true,
-          voiceover: updatedText || s.voiceover,
-        };
+    // Đồng bộ Player phát lại ngay từ đầu với Track Master mới
+    setTimeout(() => {
+      const p = (window as any).__SYNAPES_PLAYER;
+      if (p) {
+        p.seekTo?.(0);
+        p.setPlaying?.(true);
       }
-      return s;
-    });
-
-    onUpdateProject({
-      ...project,
-      storyboard: updated,
-    });
+    }, 80);
   };
 
   const projDomain = classifyTopicDomainClient(
@@ -182,20 +170,30 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
     setActiveSceneId(newId);
   };
 
-  const handleStartPublishing = (isGoldenHour: boolean = false) => {
+  const handleStartPublishing = (
+    isScheduled: boolean = false,
+    pickedDateStr?: string,
+    pickedTimeStr?: string
+  ) => {
+    const dStr = pickedDateStr || schedulePickDate || '2026-11-15';
+    const tStr = pickedTimeStr || schedulePickTime || '20:00';
+    const parts = dStr.split('-');
+    const formattedDate = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dStr;
+    const scheduledLabel = `${tStr}, ${formattedDate} (Lịch phát sóng)`;
+
     setIsPublishingModalOpen(true);
     setPublishProgress(100);
     setPublishStepText(
-      isGoldenHour
-        ? 'Đã lập lịch xuất bản tự động vào khung giờ vàng (19:30)!'
-        : 'Đã hoàn tất xác thực OAuth 2.0 và lưu trữ xuất bản đa nền tảng!'
+      isScheduled
+        ? `Đã duyệt hẹn giờ xuất bản vào lúc ${tStr} ngày ${formattedDate} và đồng bộ sang Lịch Phát Sóng!`
+        : 'Đã duyệt xuất bản ngay và đồng bộ trạng thái hoàn tất!'
     );
     setIsPublishComplete(true);
 
     const updated: Project = {
       ...project,
-      status: isGoldenHour ? 'scheduled' : 'published',
-      scheduledTime: isGoldenHour ? (project.scheduledTime || '19:30 - Tối nay (Khung giờ vàng)') : undefined,
+      status: isScheduled ? 'scheduled' : 'published',
+      scheduledTime: isScheduled ? scheduledLabel : undefined,
       driveBackupUrl:
         project.driveBackupUrl ||
         `https://drive.google.com/drive/folders/SYNAPES_Drive_${project.code || project.id}`,
@@ -439,20 +437,22 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
               <span>Yêu Cầu Sửa Lại</span>
             </button>
             <button
-              onClick={() => handleStartPublishing(true)}
+              onClick={() => setShowSchedulePickerModal(true)}
               className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-              title="Hẹn giờ phát sóng vào khung giờ vàng tương tác cao"
+              title="Chọn ngày và giờ đăng riêng cho video này"
+              data-testid="btn-schedule-publish-top"
             >
-              <Clock className="w-3.5 h-3.5 text-amber-400" />
-              <span>Lên Lịch Giờ Vàng</span>
+              <Clock className="w-3.5 h-3.5 text-sky-400" />
+              <span>Duyệt Hẹn Giờ Đăng</span>
             </button>
             <button
               onClick={() => handleStartPublishing(false)}
               className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
               title="Duyệt sản phẩm và xuất bản ngay"
+              data-testid="btn-publish-now-top"
             >
               <CheckCircle2 className="w-4 h-4 text-white" />
-              <span>PHÊ DUYỆT & ĐĂNG NGAY</span>
+              <span>Duyệt Đăng Ngay</span>
             </button>
           </div>
         </div>
@@ -520,10 +520,6 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                 setVoiceStudioTargetSceneId(activeSceneId || project.storyboard[0]?.id || 1);
                 setIsVoiceStudioOpen(true);
               }}
-              onOpenLiveDubbingModal={() => {
-                setVoiceStudioTargetSceneId(activeSceneId || project.storyboard[0]?.id || 1);
-                setIsLiveDubbingOpen(true);
-              }}
               onOpenStitcherStudio={() => onOpenStitcherStudio(project)}
               onOpenShortcutsModal={() => setIsShortcutsModalOpen(true)}
             />
@@ -535,8 +531,17 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                   <Volume2 className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <div className="text-zinc-900 font-semibold">{project.musicTrack.name}</div>
-                  <div className="text-[10px] text-zinc-400 font-mono">Bản quyền thương mại • {project.musicTrack.license}</div>
+                  <div className="text-zinc-900 font-semibold flex items-center gap-2">
+                    <span>{project.voiceoverTrack?.name || project.musicTrack.name}</span>
+                    {project.customAudioUrl && (
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-mono text-[9px] font-bold">
+                        Master Audio Toàn Video
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-zinc-400 font-mono">
+                    Nhạc nền: {project.musicTrack.name} • {project.musicTrack.license}
+                  </div>
                 </div>
               </div>
 
@@ -565,12 +570,13 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                   <span>Sửa kịch bản</span>
                 </button>
                 <button
-                  onClick={() => handleStartPublishing(true)}
-                  className="px-3 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-medium border border-black/[0.06] transition flex items-center gap-1.5 cursor-pointer"
-                  title="Hẹn giờ tự động đăng vào khung giờ vàng 19:30"
+                  onClick={() => setShowSchedulePickerModal(true)}
+                  className="px-3 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-semibold border border-black/[0.06] transition flex items-center gap-1.5 cursor-pointer"
+                  title="Chọn ngày và giờ phát sóng riêng cho video này"
+                  data-testid="btn-schedule-publish-bottom"
                 >
-                  <Clock className="w-3.5 h-3.5 text-zinc-500" />
-                  <span>Đăng Giờ Vàng (19:30)</span>
+                  <Clock className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Duyệt Hẹn Giờ Đăng</span>
                 </button>
               </div>
 
@@ -578,9 +584,10 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
               <button
                 onClick={() => handleStartPublishing(false)}
                 className="btn-primary cursor-pointer"
+                data-testid="btn-publish-now-bottom"
               >
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>PHÊ DUYỆT & ĐĂNG NGAY</span>
+                <span>Duyệt Đăng Ngay</span>
               </button>
             </div>
 
@@ -690,36 +697,6 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                           )}
                         </div>
                         <div className="flex items-center gap-1 flex-shrink-0">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveSceneId(scene.id);
-                              setVoiceStudioTargetSceneId(scene.id);
-                              setIsLiveDubbingOpen(true);
-                            }}
-                            className={`px-1.5 py-0.5 rounded border text-[9px] font-mono flex items-center gap-0.5 transition cursor-pointer whitespace-nowrap flex-shrink-0 ${scene.customAudioUrl
-                                ? 'bg-rose-50 text-rose-700 border-rose-300 font-bold'
-                                : 'bg-white hover:bg-rose-50 text-zinc-600 hover:text-rose-600 border-black/[0.06]'
-                              }`}
-                            title="Mở cửa sổ thứ 3 vừa xem video vừa thu âm trực tiếp cho cảnh này"
-                          >
-                            <Mic className="w-2.5 h-2.5 flex-shrink-0" />
-                            <span>{scene.customAudioUrl ? 'Thu Lại' : 'Thu Mic'}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setVoiceStudioTargetSceneId(scene.id);
-                              setIsVoiceStudioOpen(true);
-                            }}
-                            className="px-1.5 py-0.5 rounded bg-white hover:bg-indigo-50 text-indigo-600 border border-black/[0.06] text-[9px] font-mono flex items-center gap-0.5 transition cursor-pointer whitespace-nowrap flex-shrink-0"
-                            title="Tùy chỉnh giọng đọc riêng cho cảnh này"
-                          >
-                            <Sparkles className="w-2.5 h-2.5 flex-shrink-0" />
-                            <span>Giọng AI</span>
-                          </button>
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1354,12 +1331,13 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
         </div>
       )}
 
-      {/* PHÒNG THU LỒNG TIẾNG AI MODAL (Lazy Suspended) */}
+      {/* PHÒNG THU GIỌNG TOÀN VIDEO MODAL (Lazy Suspended) */}
       {isVoiceStudioOpen && (
         <Suspense fallback={null}>
           <VoiceStudioModal
             isOpen={isVoiceStudioOpen}
             onClose={() => setIsVoiceStudioOpen(false)}
+            project={project}
             activeVoiceId={
               project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voiceId ||
               project.voiceoverTrack?.voiceName
@@ -1379,27 +1357,105 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
             currentSceneVoiceover={
               project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId))?.voiceover || ''
             }
-            onOpenLiveDubbingModal={() => setIsLiveDubbingOpen(true)}
+            existingMasterAudioUrl={
+              project.customAudioUrl || project.voiceoverTrack?.audioUrl || ''
+            }
             onApplyVoice={handleApplyVoiceSettings}
           />
         </Suspense>
       )}
 
-      {/* CỬA SỔ THỨ 3: PHÒNG THU ÂM TRỰC TIẾP LIVE DUBBING STUDIO (Lazy Suspended) */}
-      {isLiveDubbingOpen && (
-        <Suspense fallback={null}>
-          <LiveDubbingStudioModal
-            isOpen={isLiveDubbingOpen}
-            onClose={() => setIsLiveDubbingOpen(false)}
-            project={project}
-            scene={
-              project.storyboard.find((s) => s.id === (voiceStudioTargetSceneId || activeSceneId)) ||
-              project.storyboard[0]
-            }
-            aspectRatio={aspectRatio}
-            onSaveRecordedVoice={handleSaveLiveRecordedVoice}
-          />
-        </Suspense>
+      {/* MODAL CHỌN NGÀY & GIỜ HẸN ĐĂNG RIÊNG CHO VIDEO NÀY */}
+      {showSchedulePickerModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
+          onClick={(e) => e.target === e.currentTarget && setShowSchedulePickerModal(false)}
+          data-testid="project-schedule-modal"
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-black/10 overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-black/[0.08] bg-zinc-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-sky-600" />
+                <h3 className="text-sm font-bold text-zinc-950">Duyệt Hẹn Giờ Đăng Video</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSchedulePickerModal(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-800 hover:bg-zinc-200 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4 text-xs">
+              <div className="p-3 rounded-xl bg-zinc-50 border border-black/[0.06] text-zinc-700">
+                <div className="font-bold text-zinc-950 truncate">{project.title}</div>
+                <div className="text-[11px] text-zinc-500 mt-0.5">
+                  Lịch hẹn này sẽ đồng bộ trực tiếp lên trang <strong>Lịch Phát Sóng</strong> theo ngày/giờ bạn chọn.
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-zinc-800 mb-1">Ngày phát sóng</label>
+                  <input
+                    type="date"
+                    value={schedulePickDate}
+                    onChange={(e) => setSchedulePickDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-black/15 font-mono text-zinc-900 bg-white"
+                    data-testid="input-schedule-date"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-zinc-800 mb-1">Giờ phát sóng</label>
+                  <input
+                    type="time"
+                    value={schedulePickTime}
+                    onChange={(e) => setSchedulePickTime(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-black/15 font-mono text-zinc-900 bg-white"
+                    data-testid="input-schedule-time"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-mono text-zinc-500 mr-1">Chọn nhanh:</span>
+                {['09:00', '12:00', '18:00', '20:00', '20:30'].map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setSchedulePickTime(t)}
+                    className={`px-2 py-1 rounded-md text-[10px] font-mono font-bold border transition cursor-pointer ${
+                      schedulePickTime === t
+                        ? 'bg-zinc-950 text-white border-zinc-950'
+                        : 'bg-zinc-100 text-zinc-700 border-zinc-200 hover:bg-zinc-200'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t border-black/[0.08] bg-zinc-50 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowSchedulePickerModal(false)}
+                className="btn-secondary text-xs cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSchedulePickerModal(false);
+                  handleStartPublishing(true, schedulePickDate, schedulePickTime);
+                }}
+                className="btn-primary text-xs cursor-pointer"
+                data-testid="btn-confirm-schedule-publish"
+              >
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Xác Nhận Duyệt Hẹn Giờ Đăng</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* BẢNG TRA CỨU PHÍM TẮT NLE (Lazy Suspended) */}

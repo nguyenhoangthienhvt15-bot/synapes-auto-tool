@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Plus, Film, Clock, Calendar, Folder, Share2,
-  HardDrive, Cpu, BookOpen, ChevronDown, Terminal,
+  HardDrive, Cpu, BookOpen, ChevronDown,
   PanelLeftClose, PanelLeftOpen, Layers, Lock, AudioLines
 } from 'lucide-react';
 import { ContractCategory } from '../types';
@@ -126,21 +126,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ? 'bg-zinc-100 text-zinc-950 font-bold border border-zinc-300'
                 : 'text-zinc-500 hover:text-zinc-950 hover:bg-zinc-50'
             }`}
-            title="Lịch Phát Sóng (Goldtime)"
+            title="Lịch Phát Sóng"
           >
             <Calendar className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={() => onSelectView('mcp-tools')}
-            className={`w-10 h-10 rounded-lg flex items-center justify-center transition cursor-pointer ${
-              activeView === 'mcp-tools'
-                ? 'bg-zinc-100 text-zinc-950 font-bold border border-zinc-300'
-                : 'text-zinc-500 hover:text-zinc-950 hover:bg-zinc-50'
-            }`}
-            title="Khối MCP Servers & Video Tools"
-          >
-            <Terminal className="w-4 h-4" />
           </button>
 
           <button
@@ -205,14 +193,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <div className="space-y-0.5">
             <button
-              onClick={onOpenCreateModal}
-              className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs font-normal text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100 transition text-left cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5 text-zinc-400" />
-              <span>Tạo kịch bản từ Prompt</span>
-            </button>
-
-            <button
               onClick={() => onSelectView('video-cloner')}
               className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition text-left cursor-pointer ${
                 activeView === 'video-cloner'
@@ -272,24 +252,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span>Kho Skills & Prompts</span>
               </div>
             </button>
-
-            <button
-              onClick={() => onSelectView('mcp-tools')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition text-left cursor-pointer ${
-                activeView === 'mcp-tools'
-                  ? 'bg-zinc-100 text-zinc-950 font-semibold'
-                  : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100'
-              }`}
-              title="Khối MCP Server & Bộ công cụ dựng video AI chuyên nghiệp"
-            >
-              <div className="flex items-center gap-2.5">
-                <Terminal className="w-3.5 h-3.5 text-zinc-700" />
-                <span>Khối MCP & Video Tools</span>
-              </div>
-              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-medium bg-zinc-100 text-zinc-600 border border-zinc-200">
-                9 Repos
-              </span>
-            </button>
           </div>
         </div>
 
@@ -342,7 +304,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="flex items-center gap-2.5">
                 <Calendar className="w-3.5 h-3.5 text-zinc-500" />
-                <span>Lịch Phát Sóng (Goldtime)</span>
+                <span>Lịch Phát Sóng</span>
               </div>
             </button>
           </div>
