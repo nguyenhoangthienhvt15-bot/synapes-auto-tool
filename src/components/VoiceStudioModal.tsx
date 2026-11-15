@@ -348,11 +348,6 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-bold text-zinc-950 text-xs">{voice.name}</span>
-                        {voice.isRecommended && (
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                            Khuyên dùng
-                          </span>
-                        )}
                       </div>
                       <div className="text-[10px] text-indigo-600 font-semibold mt-0.5 font-mono">
                         {voice.toneTag}

@@ -1098,15 +1098,15 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                   {activePolicyTab === 'disclaimer' && (
                     <div>
                       <h4 className="font-bold text-zinc-950 text-xs uppercase mb-1.5">
-                        ĐIỀU 5: QUYỀN MIỄN TRỪ TRÁCH NHIỆM & QUẢN TRỊ RỦI RO
+                        ĐIỀU 5: QUYỀN MIỄN TRỪ TRÁCH NHIỆM, TÍNH CHÍNH THỐNG API & QUẢN TRỊ RỦI RO
                       </h4>
-                      <p><b>5.1. Quyền miễn trừ của Bên Bán:</b> Bên Bán được miễn trừ toàn bộ trách nhiệm dân sự và hình sự liên đới trong các trường hợp:</p>
+                      <p><b>5.1. Tính chính thống, tính hợp pháp & Quyền miễn trừ của Bên Bán:</b> Mọi dữ liệu và API tích hợp phải đảm bảo tính chính thống và tính hợp pháp theo quy định của nhà phát triển và pháp luật hiện hành. Bên Bán (Bên A) được miễn trừ hoàn toàn mọi trách nhiệm dân sự, hình sự, kỹ thuật và bồi thường thiệt hại trong các trường hợp:</p>
                       <ul className="list-disc pl-5 space-y-1 text-zinc-600">
-                        <li>Khách Hàng (Bên B) tự ý sử dụng các khóa API lậu, key trôi nổi không rõ nguồn gốc gây khóa dịch vụ hoặc thất thoát dữ liệu.</li>
-                        <li>Khách Hàng sử dụng các hình ảnh, âm thanh, video hoặc nhãn hiệu có bản quyền của bên thứ ba mà chưa được cấp phép sở hữu.</li>
+                        <li>Người dùng / Khách Hàng (Bên B) sử dụng API không chính thống từ nhà phát triển, API bẻ khóa, endpoint trung gian trái phép, khóa API lậu hoặc key trôi nổi không rõ nguồn gốc gây khóa dịch vụ, gián đoạn, rò rỉ hoặc các vấn đề phát sinh tương tự.</li>
+                        <li>Khách Hàng sử dụng các dữ liệu, hình ảnh, âm thanh, video hoặc nhãn hiệu có bản quyền của bên thứ ba mà chưa đảm bảo tính hợp pháp và chưa được cấp phép sở hữu.</li>
                         <li>Khách Hàng vi phạm chính sách cộng đồng, pháp luật an ninh mạng hoặc các điều cấm của Nhà nước.</li>
                       </ul>
-                      <p className="mt-1.5"><b>5.2. Trách nhiệm của Bên Mua:</b> Bên B hoàn toàn chịu trách nhiệm trước pháp luật về toàn bộ nội dung xuất bản và tài nguyên sử dụng trên hệ thống.</p>
+                      <p className="mt-1.5"><b>5.2. Trách nhiệm của Bên Mua:</b> Bên B cam kết tự chịu hoàn toàn trách nhiệm trước pháp luật về tính chính thống của API, tính hợp pháp của dữ liệu đầu vào, toàn bộ nội dung xuất bản và tài nguyên sử dụng trên hệ thống.</p>
                     </div>
                   )}
                 </div>

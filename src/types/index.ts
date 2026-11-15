@@ -302,6 +302,20 @@ export interface AIProviderConfig {
     name: string;
     endpointUrl: string;
     apiToken: string;
+    model?: string;
+    availableModels?: Array<{
+      id: string;
+      name: string;
+      tag: string;
+      description?: string;
+      inputTokenLimit?: number;
+      outputTokenLimit?: number;
+      isLiveFromKey: boolean;
+      isRecommended?: boolean;
+      category?: 'flagship' | 'fast' | 'reasoning' | 'standard';
+      brand?: string;
+    }>;
+    modelsScannedAt?: string;
     inputMapping: string;
     outputMapping: string;
     timeoutSeconds: number;

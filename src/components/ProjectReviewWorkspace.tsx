@@ -30,6 +30,7 @@ interface ProjectReviewWorkspaceProps {
   onUpdateProject: (updated: Project) => void;
   onOpenStitcherStudio: (project: Project) => void;
   onBackToList?: () => void;
+  onDeleteProject?: (projectId: string) => void;
 }
 
 export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
@@ -37,6 +38,7 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
   onUpdateProject,
   onOpenStitcherStudio,
   onBackToList,
+  onDeleteProject,
 }) => {
   const [activeTab, setActiveTab] = useState<'storyboard' | 'metadata'>('storyboard');
   const [activeSceneId, setActiveSceneId] = useState<number | null>(
@@ -194,7 +196,9 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
       ...project,
       status: isGoldenHour ? 'scheduled' : 'published',
       scheduledTime: isGoldenHour ? (project.scheduledTime || '19:30 - Tối nay (Khung giờ vàng)') : undefined,
-      driveBackupUrl: 'https://drive.google.com/drive/folders/AutoVideo_Backup_VIP001',
+      driveBackupUrl:
+        project.driveBackupUrl ||
+        `https://drive.google.com/drive/folders/SYNAPES_Drive_${project.code || project.id}`,
       publishedUrls: {
         youtube: 'https://youtube.com/watch?v=sample_ai_video',
         tiktok: 'https://tiktok.com/@creator/video/sample_ai_short',
@@ -364,14 +368,37 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
           </div>
         </div>
 
-        {/* Cửa sổ 2: Trình Ghép Nối Clip 5-10 phút */}
-        <button
-          onClick={() => onOpenStitcherStudio(project)}
-          className="btn-secondary cursor-pointer"
-        >
-          <Film className="w-3.5 h-3.5 text-zinc-600" />
-          <span>Ghép Nối Clip (5–10 phút)</span>
-        </button>
+        {/* Cửa sổ 2: Trình Ghép Nối Clip 5-10 phút & Xóa dự án */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => onOpenStitcherStudio(project)}
+            className="btn-secondary cursor-pointer"
+          >
+            <Film className="w-3.5 h-3.5 text-zinc-600" />
+            <span>Ghép Nối Clip (5–10 phút)</span>
+          </button>
+
+          {onDeleteProject && (
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Bạn có chắc muốn xóa dự án "${project.title}" (${project.code}) khỏi danh sách?`
+                  )
+                ) {
+                  onDeleteProject(project.id);
+                }
+              }}
+              className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+              title="Xóa dự án này khỏi SYNAPES Studio"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Xóa Dự Án</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Pending Approval Inspection Banner (Bàn làm việc Chờ Duyệt) */}
@@ -497,6 +524,7 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                 setVoiceStudioTargetSceneId(activeSceneId || project.storyboard[0]?.id || 1);
                 setIsLiveDubbingOpen(true);
               }}
+              onOpenStitcherStudio={() => onOpenStitcherStudio(project)}
               onOpenShortcutsModal={() => setIsShortcutsModalOpen(true)}
             />
 
