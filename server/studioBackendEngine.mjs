@@ -1090,19 +1090,145 @@ function _sendWsTextFrame(socket, str) {
   socket.write(Buffer.concat([header, mask, masked]));
 }
 
-async function synthesizeEdgeNeuralTts(text, voiceName, ratePct = '+0%', pitchHz = '+0Hz') {
+function _normalizeEdgeProsodyParam(rawVal, unit, minVal, maxVal) {
+  const cleaned = String(rawVal || '').trim().replace(/\s+/g, '');
+  const match = cleaned.match(/^([+-]?\d+(?:\.\d+)?)/);
+  if (!match) return `+0${unit}`;
+  const num = Math.max(minVal, Math.min(maxVal, Math.round(Number(match[1]))));
+  return `${num >= 0 ? '+' : ''}${num}${unit}`;
+}
+
+function _formatEdgeTimestamp() {
+  return new Date().toUTCString().replace('GMT', 'GMT+0000 (Coordinated Universal Time)');
+}
+
+function _buildEdgeSsmlMessages(reqId, text, voiceName, ratePct, pitchHz) {
+  const ts = _formatEdgeTimestamp();
+  const safeRate = _normalizeEdgeProsodyParam(ratePct, '%', -50, 80);
+  const safePitch = _normalizeEdgeProsodyParam(pitchHz, 'Hz', -65, 65);
+  const configMsg =
+    `X-Timestamp:${ts}\r\n` +
+    `Content-Type:application/json; charset=utf-8\r\n` +
+    `Path:speech.config\r\n\r\n` +
+    JSON.stringify({
+      context: {
+        synthesis: {
+          audio: {
+            metadataoptions: { sentenceBoundaryEnabled: 'false', wordBoundaryEnabled: 'false' },
+            outputFormat: 'audio-24khz-48kbitrate-mono-mp3',
+          },
+        },
+      },
+    });
+  const escapedText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const langCode = voiceName.startsWith('en') ? 'en-US' : 'vi-VN';
+  const ssml =
+    `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${langCode}'>` +
+    `<voice name='${voiceName}'>` +
+    `<prosody pitch='${safePitch}' rate='${safeRate}' volume='+0%'>${escapedText}</prosody>` +
+    `</voice></speak>`;
+  const ssmlMsg =
+    `X-RequestId:${reqId}\r\n` +
+    `Content-Type:application/ssml+xml\r\n` +
+    `X-Timestamp:${ts}\r\n` +
+    `Path:ssml\r\n\r\n` +
+    ssml;
+  return { configMsg, ssmlMsg };
+}
+
+async function _synthesizeEdgeNeuralNativeWsAttempt(text, voiceName, ratePct, pitchHz) {
+  if (typeof globalThis.WebSocket !== 'function') {
+    throw new Error('Native WebSocket unavailable');
+  }
+  return new Promise((resolve, reject) => {
+    const reqId = crypto.randomUUID().replace(/-/g, '');
+    const secMsGec = generateSecMsGec();
+    const muid = crypto.randomBytes(16).toString('hex').toUpperCase();
+    const url = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&Sec-MS-GEC=${secMsGec}&Sec-MS-GEC-Version=2-143.0.3650.75&ConnectionId=${reqId}`;
+
+    let ws;
+    try {
+      ws = new globalThis.WebSocket(url, {
+        headers: {
+          Cookie: `muid=${muid};`,
+          Origin: 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0',
+        },
+      });
+    } catch (initErr) {
+      return reject(initErr);
+    }
+
+    const audioChunks = [];
+    let settled = false;
+    const finish = (err, data) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (err && audioChunks.length > 0) return resolve(Buffer.concat(audioChunks));
+      if (err) reject(err);
+      else resolve(data);
+    };
+
+    const timeout = setTimeout(() => {
+      try { ws.close(); } catch { }
+      finish(new Error('Edge TTS native WS timeout'));
+    }, 8500);
+
+    ws.binaryType = 'arraybuffer';
+    ws.onopen = () => {
+      const { configMsg, ssmlMsg } = _buildEdgeSsmlMessages(reqId, text, voiceName, ratePct, pitchHz);
+      ws.send(configMsg);
+      ws.send(ssmlMsg);
+    };
+    ws.onmessage = (ev) => {
+      if (typeof ev.data === 'string') {
+        if (ev.data.includes('Path:turn.end')) {
+          try { ws.close(); } catch { }
+          if (audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
+          else finish(new Error('Empty Edge TTS buffer'));
+        }
+      } else {
+        const frameData = Buffer.from(ev.data);
+        if (frameData.length > 2) {
+          const headerLen = frameData.readUInt16BE(0);
+          if (frameData.length > 2 + headerLen) {
+            const headerStr = frameData.subarray(2, 2 + headerLen).toString('utf8');
+            if (headerStr.includes('Path:audio')) {
+              audioChunks.push(frameData.subarray(2 + headerLen));
+            }
+          }
+        }
+      }
+    };
+    ws.onerror = (ev) => finish(new Error(ev?.message || 'Edge TTS native WS error'));
+    ws.onclose = (ev) => {
+      if (!settled) {
+        if (audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
+        else finish(new Error(`Edge TTS native WS closed (${ev?.code || 'unknown'})`));
+      }
+    };
+  });
+}
+
+async function _synthesizeEdgeNeuralRawHttpAttempt(text, voiceName, ratePct, pitchHz, preferredFamily = 0) {
   return new Promise((resolve, reject) => {
     const reqId = crypto.randomUUID().replace(/-/g, '');
     const secMsGec = generateSecMsGec();
     const muid = crypto.randomBytes(16).toString('hex').toUpperCase();
     const pathUrl = `/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&Sec-MS-GEC=${secMsGec}&Sec-MS-GEC-Version=2-143.0.3650.75&ConnectionId=${reqId}`;
     const wsKey = crypto.randomBytes(16).toString('base64');
+    const agent = new https.Agent({ keepAlive: false, maxCachedSessions: 0 });
+    const audioChunks = [];
 
     let settled = false;
     const finish = (err, data) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
+      try { agent.destroy(); } catch { }
+      if (err && audioChunks.length > 0) return resolve(Buffer.concat(audioChunks));
       if (err) reject(err);
       else resolve(data);
     };
@@ -1110,8 +1236,10 @@ async function synthesizeEdgeNeuralTts(text, voiceName, ratePct = '+0%', pitchHz
     const req = https.request({
       hostname: 'speech.platform.bing.com',
       port: 443,
+      ...(preferredFamily ? { family: preferredFamily } : {}),
       path: pathUrl,
       method: 'GET',
+      agent,
       headers: {
         Connection: 'Upgrade',
         Upgrade: 'websocket',
@@ -1129,7 +1257,7 @@ async function synthesizeEdgeNeuralTts(text, voiceName, ratePct = '+0%', pitchHz
     const timeout = setTimeout(() => {
       try { req.destroy(); } catch { }
       finish(new Error('Edge TTS v2 timeout'));
-    }, 8500);
+    }, 10500);
 
     req.on('error', (err) => finish(err));
     req.on('response', (res) => {
@@ -1137,9 +1265,9 @@ async function synthesizeEdgeNeuralTts(text, voiceName, ratePct = '+0%', pitchHz
       finish(new Error(`Edge TTS HTTP ${res.statusCode}`));
     });
 
-    req.on('upgrade', (_res, socket) => {
-      const audioChunks = [];
-      let rxBuf = Buffer.alloc(0);
+    req.on('upgrade', (_res, socket, head) => {
+      socket.setNoDelay(true);
+      let rxBuf = head && head.length ? Buffer.from(head) : Buffer.alloc(0);
 
       socket.on('error', (err) => finish(err));
       socket.on('close', () => {
@@ -1172,7 +1300,7 @@ async function synthesizeEdgeNeuralTts(text, voiceName, ratePct = '+0%', pitchHz
           if (opcode === 0x01) {
             const txt = frameData.toString('utf8');
             if (txt.includes('Path:turn.end')) {
-              try { socket.destroy(); } catch { }
+              try { socket.end(); socket.destroy(); } catch { }
               if (audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
               else finish(new Error('Empty Edge TTS buffer'));
               return;
@@ -1194,41 +1322,43 @@ async function synthesizeEdgeNeuralTts(text, voiceName, ratePct = '+0%', pitchHz
         }
       });
 
-      const configMsg =
-        `X-Timestamp:${new Date().toString()}\r\n` +
-        `Content-Type:application/json; charset=utf-8\r\n` +
-        `Path:speech.config\r\n\r\n` +
-        JSON.stringify({
-          context: {
-            synthesis: {
-              audio: {
-                metadataoptions: { sentenceBoundaryEnabled: 'false', wordBoundaryEnabled: 'false' },
-                outputFormat: 'audio-24khz-48kbitrate-mono-mp3',
-              },
-            },
-          },
-        });
+      const { configMsg, ssmlMsg } = _buildEdgeSsmlMessages(reqId, text, voiceName, ratePct, pitchHz);
       _sendWsTextFrame(socket, configMsg);
-
-      const escapedText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const langCode = voiceName.startsWith('en') ? 'en-US' : 'vi-VN';
-      const ssml =
-        `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${langCode}'>` +
-        `<voice name='${voiceName}'>` +
-        `<prosody pitch='${pitchHz}' rate='${ratePct}' volume='+0%'>${escapedText}</prosody>` +
-        `</voice></speak>`;
-
-      const ssmlMsg =
-        `X-RequestId:${reqId}\r\n` +
-        `Content-Type:application/ssml+xml\r\n` +
-        `X-Timestamp:${new Date().toString()}Z\r\n` +
-        `Path:ssml\r\n\r\n` +
-        ssml;
       _sendWsTextFrame(socket, ssmlMsg);
     });
 
     req.end();
   });
+}
+
+async function synthesizeEdgeNeuralTts(text, voiceName, ratePct = '+0%', pitchHz = '+0Hz') {
+  const attempts = [
+    { rate: ratePct, pitch: pitchHz, mode: 'raw', family: 6 },
+    { rate: ratePct, pitch: pitchHz, mode: 'raw', family: 6 },
+    { rate: ratePct, pitch: pitchHz, mode: 'native', family: 0 },
+    { rate: '+0%', pitch: '+0Hz', mode: 'raw', family: 4 },
+  ];
+  let lastErr = null;
+  let ipv6Unsupported = false;
+  for (let i = 0; i < attempts.length; i++) {
+    const cfg = attempts[i];
+    if (cfg.family === 6 && ipv6Unsupported) continue;
+    try {
+      const buf =
+        cfg.mode === 'native'
+          ? await _synthesizeEdgeNeuralNativeWsAttempt(text, voiceName, cfg.rate, cfg.pitch)
+          : await _synthesizeEdgeNeuralRawHttpAttempt(text, voiceName, cfg.rate, cfg.pitch, cfg.family);
+      if (buf && buf.length > 100) return buf;
+    } catch (err) {
+      lastErr = err;
+      const code = String(err?.code || '');
+      if (cfg.family === 6 && (code === 'ENETUNREACH' || code === 'EAFNOSUPPORT' || code === 'EHOSTUNREACH')) {
+        ipv6Unsupported = true;
+      }
+      await new Promise((r) => setTimeout(r, 90));
+    }
+  }
+  throw lastErr || new Error('Edge Neural TTS v2 failed after retries');
 }
 
 function fetchGoogleNeuralTtsMp3(text, lang = 'vi') {
@@ -2590,8 +2720,8 @@ export async function handleStudioApiRequest(req, res) {
       const voice =
         parsedUrl.searchParams.get('voice') ||
         (lang.startsWith('en') ? 'en-US-GuyNeural' : 'vi-VN-NamMinhNeural');
-      const ratePct = parsedUrl.searchParams.get('rate') || '+0%';
-      const pitchHz = parsedUrl.searchParams.get('pitch') || '+0Hz';
+      const ratePct = _normalizeEdgeProsodyParam(parsedUrl.searchParams.get('rate') || '+0%', '%', -50, 80);
+      const pitchHz = _normalizeEdgeProsodyParam(parsedUrl.searchParams.get('pitch') || '+0Hz', 'Hz', -65, 65);
       const openaiKey = parsedUrl.searchParams.get('openaiKey') || '';
       const openaiVoice = parsedUrl.searchParams.get('openaiVoice') || 'onyx';
 
@@ -2626,6 +2756,8 @@ export async function handleStudioApiRequest(req, res) {
         'Content-Length': mp3Buffer.length,
         'X-TTS-Engine': engineUsed,
         'X-TTS-Voice': voice,
+        'X-TTS-Pitch': pitchHz,
+        'X-TTS-Rate': ratePct,
         'Cache-Control': 'public, max-age=3600',
       });
       res.end(mp3Buffer);

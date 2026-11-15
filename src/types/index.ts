@@ -59,6 +59,19 @@ export interface VoiceProfile {
   dspDetuneCents?: number;
   formantEq?: VoiceFormantEQ;
   acousticSignature?: string;
+  referenceBiometrics?: {
+    fundamentalHz: number;
+    pitchStdHz: number;
+    pitchRangeSemitones: number;
+    f0Contour5Pt: number[];
+    inferredGender: 'Nam' | 'Nữ' | 'Trung tính';
+    formantsHz: [number, number, number, number];
+    h1H2Db: number;
+    cepstralEnvelopeDb: number[];
+    spectralEnvelopeDb: number[];
+    warmthDb: number;
+    recommendedRate: number;
+  };
 }
 
 export type ColorGradeLut = 'teal-orange' | 'cyberpunk' | 'studio-clean' | 'vintage-film' | 'monochrome' | 'apple-keynote' | 'none';
