@@ -454,12 +454,12 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
           4.2. <b>Quyền tác giả nội dung:</b> Bên B là chủ sở hữu quyền tác giả duy nhất và toàn vẹn 100% đối với mọi kịch bản và video xuất bản. Bên A không đòi hỏi bất kỳ quyền sở hữu thương mại hay phân chia doanh thu nào từ sản phẩm của Bên B.
         </p>
 
-        <div class="section-title">Điều 5. Quyền miễn trừ trách nhiệm & quản trị rủi ro</div>
+        <div class="section-title">Điều 5. Quyền miễn trừ trách nhiệm, tính chính thống API & quản trị rủi ro</div>
         <p>
-          5.1. <b>Quyền miễn trừ của Bên A:</b> Bên A được miễn trừ hoàn toàn mọi trách nhiệm pháp lý, bồi thường thiệt hại hoặc tranh chấp phát sinh trong trường hợp Bên B tự ý sử dụng khóa API lậu, key không rõ nguồn gốc, hoặc tự ý sử dụng hình ảnh, âm thanh, video có bản quyền của bên thứ ba mà chưa được cấp phép.
+          5.1. <b>Tính chính thống, hợp pháp & Quyền miễn trừ của Bên A:</b> Bên B cam kết chỉ kết nối các API chính thống và nguồn dữ liệu hợp pháp theo đúng quy định của nhà phát triển và pháp luật. Bên A được miễn trừ hoàn toàn mọi trách nhiệm dân sự, hình sự, kỹ thuật, bồi thường thiệt hại hoặc tranh chấp phát sinh trong trường hợp Người dùng (Bên B) sử dụng API không chính thống từ nhà phát triển, khóa API lậu/trôi nổi không rõ nguồn gốc hoặc các vấn đề phát sinh tương tự; hoặc tự ý sử dụng dữ liệu, hình ảnh, âm thanh, video có bản quyền của bên thứ ba mà chưa được cấp phép hợp pháp.
         </p>
         <p>
-          5.2. <b>Trách nhiệm của Bên B:</b> Bên B cam kết tự chịu hoàn toàn trách nhiệm trước pháp luật về tính chân thực, bản quyền tài nguyên và sự tuân thủ các quy định pháp luật an ninh mạng đối với các sản phẩm do mình tạo lập và xuất bản.
+          5.2. <b>Trách nhiệm của Bên B:</b> Bên B hoàn toàn chịu trách nhiệm trước pháp luật về tính chính thống của khóa API kết nối, tính chân thực và hợp pháp của dữ liệu, bản quyền tài nguyên cũng như sự tuân thủ các quy định pháp luật an ninh mạng đối với mọi sản phẩm do mình tạo lập và xuất bản.
         </p>
 
         <!-- Khung tóm tắt thanh toán & QR chuyển khoản -->

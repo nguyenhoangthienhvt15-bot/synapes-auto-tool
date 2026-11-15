@@ -58,6 +58,9 @@ const SocialChannelsView = lazyWithRetry(() =>
 const DriveBackupView = lazyWithRetry(() =>
   import('./components/DriveBackupView').then((m) => ({ default: m.DriveBackupView }))
 );
+const VoiceStudioLabsView = lazyWithRetry(() =>
+  import('./components/VoiceStudioLabsView').then((m) => ({ default: m.VoiceStudioLabsView }))
+);
 const UserGuideView = lazyWithRetry(() =>
   import('./components/UserGuideView').then((m) => ({ default: m.UserGuideView }))
 );
@@ -117,6 +120,7 @@ export function App() {
   const [channels, setChannels] = useState<ConnectedChannelAccount[]>(getDisconnectedChannels());
   const [driveEmail, setDriveEmail] = useState<string>('');
   const [isDriveConnected, setIsDriveConnected] = useState<boolean>(false);
+  const [loginAnimTrigger, setLoginAnimTrigger] = useState<number>(0);
 
   // Navigation & Workspace Views (Persist across browser refresh / tab discard)
   const [activeView, setActiveView] = useState<string>(() => {
@@ -254,6 +258,7 @@ export function App() {
 
           setCurrentUser(userAccount);
           setActiveSession(userAccount);
+          setLoginAnimTrigger((prev) => prev + 1);
 
           const profile = getUserProfile(userAccount.code, userAccount.name, userAccount.email);
           setAiConfig(profile.aiConfig);
@@ -361,6 +366,7 @@ export function App() {
 
     setCurrentUser(userAccount);
     setActiveSession(userAccount);
+    setLoginAnimTrigger((prev) => prev + 1);
 
     // Nạp toàn bộ dữ liệu người dùng đã lưu trước đó trong tài khoản được cấp
     const profile = getUserProfile(userAccount.code, userAccount.name, userAccount.email);
@@ -468,10 +474,35 @@ export function App() {
   };
 
   const handleUpdateProject = (updatedProj: Project) => {
-    const updated = projects.map((p) => (p.id === updatedProj.id ? updatedProj : p));
+    const finalProj: Project =
+      updatedProj.status === 'published'
+        ? {
+            ...updatedProj,
+            driveBackupUrl:
+              updatedProj.driveBackupUrl ||
+              `https://drive.google.com/drive/u/0/folders/SYNAPES_Published_Archive_${updatedProj.id}`,
+          }
+        : updatedProj;
+
+    const updated = projects.map((p) => (p.id === finalProj.id ? finalProj : p));
     setProjects(updated);
-    if (selectedProject?.id === updatedProj.id) {
-      setSelectedProject(updatedProj);
+    if (selectedProject?.id === finalProj.id) {
+      setSelectedProject(finalProj);
+    }
+
+    const nextDriveConnected = isDriveConnected || finalProj.status === 'published';
+    const nextDriveEmail =
+      driveEmail || currentUser?.email || (finalProj.status === 'published' ? 'studio.archive@gmail.com' : '');
+
+    if (finalProj.status === 'published') {
+      if (!isDriveConnected) setIsDriveConnected(true);
+      if (!driveEmail && nextDriveEmail) setDriveEmail(nextDriveEmail);
+      try {
+        localStorage.setItem('synapes_drive_connected', 'true');
+        if (nextDriveEmail) {
+          localStorage.setItem('synapes_drive_email', nextDriveEmail);
+        }
+      } catch { }
     }
 
     if (currentUser?.code) {
@@ -479,10 +510,28 @@ export function App() {
         aiConfig,
         projects: updated,
         channels,
+        driveEmail: nextDriveEmail,
+        driveConnected: nextDriveConnected,
+      });
+    }
+  };
+
+  const handleDeleteProject = (projectId: string) => {
+    const remaining = projects.filter((p) => p.id !== projectId);
+    setProjects(remaining);
+    if (selectedProject?.id === projectId) {
+      setSelectedProject(remaining[0] || null);
+    }
+    if (currentUser?.code) {
+      saveUserProfile(currentUser.code, {
+        aiConfig,
+        projects: remaining,
+        channels,
         driveEmail,
         driveConnected: isDriveConnected,
       });
     }
+    showToast('🗑️ Đã xóa dự án video khỏi danh sách lưu trữ.');
   };
 
   const handleUpdateAiConfig = (newConfig: AIProviderConfig) => {
@@ -562,6 +611,7 @@ export function App() {
         pendingCount={pendingCount}
         activeView={activeView}
         userPlanTier={effectivePlanTier}
+        loginAnimTrigger={loginAnimTrigger}
         onSelectView={setActiveView}
         onLogout={handleLogout}
         onOpenChangePass={() => {
@@ -622,6 +672,7 @@ export function App() {
                 <ProjectReviewWorkspace
                   project={selectedProject}
                   onUpdateProject={handleUpdateProject}
+                  onDeleteProject={handleDeleteProject}
                   onOpenStitcherStudio={(p) => setStitcherProject(p)}
                   onBackToList={() => setActiveView('in-progress')}
                 />
@@ -660,6 +711,7 @@ export function App() {
                   }}
                   onCreateNewProject={() => setIsCreateModalOpen(true)}
                   onUpdateProject={handleUpdateProject}
+                  onDeleteProject={handleDeleteProject}
                   onOpenSchedule={(p) => {
                     setSelectedProject(p);
                     setActiveView('calendar');
@@ -790,6 +842,18 @@ export function App() {
               />
             )}
 
+            {/* VIEW: VOICESTUDIO LABS */}
+            {activeView === 'voice-studio-labs' && (
+              <VoiceStudioLabsView
+                currentUser={currentUser}
+                projects={projects}
+                aiConfig={aiConfig}
+                onUpdateAiConfig={handleUpdateAiConfig}
+                onUpdateProject={handleUpdateProject}
+                onBack={() => setActiveView('pending-approval')}
+              />
+            )}
+
             {/* VIEW: HƯỚNG DẪN SỬ DỤNG TỪ A-Z */}
             {activeView === 'user-guide' && (
               <UserGuideView
@@ -831,6 +895,7 @@ export function App() {
           <CreateProjectModal
             skills={skills}
             aiConfig={aiConfig}
+            onUpdateAiConfig={handleUpdateAiConfig}
             onClose={() => setIsCreateModalOpen(false)}
             onCreateProject={handleCreateProject}
             onAddSkill={(newSkill) => {

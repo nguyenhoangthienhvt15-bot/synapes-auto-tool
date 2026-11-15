@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Plus, Film, Clock, Calendar, Folder, Share2,
   HardDrive, Cpu, BookOpen, ChevronDown, Terminal,
-  PanelLeftClose, PanelLeftOpen, Layers, Lock
+  PanelLeftClose, PanelLeftOpen, Layers, Lock, AudioLines
 } from 'lucide-react';
 import { ContractCategory } from '../types';
 import { MiniPeakHoursAreaChart } from './MiniPeakHoursAreaChart';
@@ -101,6 +101,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }`}
             >
               ULTRA
+            </span>
+          </button>
+
+          <button
+            onClick={() => onSelectView('voice-studio-labs')}
+            className={`w-10 h-10 rounded-lg flex items-center justify-center transition cursor-pointer relative ${
+              activeView === 'voice-studio-labs'
+                ? 'bg-zinc-100 text-zinc-950 font-bold border border-zinc-300'
+                : 'text-zinc-500 hover:text-zinc-950 hover:bg-zinc-50'
+            }`}
+            title="VoiceStudio LABS • Nhân bản giọng, Thiết kế giọng, Lồng tiếng & Whisper"
+          >
+            <AudioLines className="w-4 h-4" />
+            <span className="absolute -top-1 -right-1 px-1 rounded text-[6.5px] font-mono font-bold bg-emerald-600 text-white border border-emerald-700">
+              LABS
             </span>
           </button>
 
@@ -223,6 +238,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 {userPlanTier !== 'enterprise' && <Lock className="w-2.5 h-2.5" />}
                 <span>ULTRA</span>
+              </span>
+            </button>
+
+            <button
+              onClick={() => onSelectView('voice-studio-labs')}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition text-left cursor-pointer ${
+                activeView === 'voice-studio-labs'
+                  ? 'bg-zinc-100 text-zinc-950 font-semibold'
+                  : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100'
+              }`}
+              title="VoiceStudio LABS — Nhân bản giọng, Thiết kế giọng, Lồng tiếng đa ngôn ngữ & Whisper"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <AudioLines className="w-3.5 h-3.5 text-emerald-700 flex-shrink-0" />
+                <span className="truncate">VoiceStudio</span>
+              </div>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-emerald-600 text-white flex-shrink-0">
+                LABS
               </span>
             </button>
 

@@ -175,7 +175,7 @@ export const PROVIDERS: ProviderMeta[] = [
     defaultEndpoint: 'https://api.openai.com/v1',
     defaultModel: 'gpt-4o',
     models: [
-      { id: 'gpt-4o', name: 'GPT-4o (Omni)', tag: 'Mạnh mẽ nhất • Đa phương thức • Khuyên dùng' },
+      { id: 'gpt-4o', name: 'GPT-4o (Omni)', tag: 'Mạnh mẽ • Đa phương thức' },
       { id: 'gpt-4o-mini', name: 'GPT-4o Mini', tag: 'Nhanh nhẹn • Chi phí cực thấp' },
       { id: 'o3-mini', name: 'o3-mini', tag: 'Suy luận tốc độ cao thế hệ mới 2026' },
       { id: 'o1', name: 'o1 (Reasoning)', tag: 'Tư duy logic kịch bản chiều sâu' },
@@ -195,7 +195,7 @@ export const PROVIDERS: ProviderMeta[] = [
     defaultEndpoint: 'https://api.anthropic.com/v1',
     defaultModel: 'claude-3-7-sonnet-20250219',
     models: [
-      { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet', tag: 'Mới nhất 2026 • Hybrid Reasoning • Khuyên dùng' },
+      { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet', tag: 'Mới nhất 2026 • Hybrid Reasoning' },
       { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', tag: 'Độ mượt mà câu chữ cao nhất' },
       { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', tag: 'Siêu tốc cho kịch bản ngắn' },
     ],
@@ -213,7 +213,7 @@ export const PROVIDERS: ProviderMeta[] = [
     defaultEndpoint: 'https://api.deepseek.com/v1',
     defaultModel: 'deepseek-chat',
     models: [
-      { id: 'deepseek-chat', name: 'DeepSeek-V3 (Chat)', tag: 'Tốc độ cao • Văn phong tự nhiên • Khuyên dùng' },
+      { id: 'deepseek-chat', name: 'DeepSeek-V3 (Chat)', tag: 'Tốc độ cao • Văn phong tự nhiên' },
       { id: 'deepseek-reasoner', name: 'DeepSeek-R1 (Reasoning)', tag: 'Mô hình suy luận từng bước (Chain-of-Thought)' },
     ],
     keyPrefix: 'sk-',
@@ -230,7 +230,7 @@ export const PROVIDERS: ProviderMeta[] = [
     defaultEndpoint: 'https://api.x.ai/v1',
     defaultModel: 'grok-2',
     models: [
-      { id: 'grok-2', name: 'Grok 2', tag: 'Cập nhật tin tức trực tiếp từ X • Khuyên dùng' },
+      { id: 'grok-2', name: 'Grok 2', tag: 'Cập nhật tin tức trực tiếp từ X' },
       { id: 'grok-2-mini', name: 'Grok 2 Mini', tag: 'Nhẹ & Tốc độ' },
       { id: 'grok-beta', name: 'Grok 3 (Beta)', tag: 'Thế hệ tiếp theo' },
     ],
@@ -423,7 +423,7 @@ function buildGeminiTag(id: string, inputTokens?: number, desc?: string): string
   if (lower.includes('2.5') || lower.includes('flash-thinking')) {
     parts.push('Thế hệ mới nhất 2026');
   } else if (lower.includes('2.0-flash')) {
-    parts.push('Siêu tốc • Khuyên dùng');
+    parts.push('Tốc độ cao');
   } else if (lower.includes('2.0-pro') || lower.includes('pro-exp')) {
     parts.push('Suy luận kịch bản chuyên sâu');
   } else if (lower.includes('1.5-pro')) {
@@ -646,7 +646,7 @@ export async function discoverModelsFromKey(
           !lower.includes('vision-preview')
         ) {
           let tag = 'Mô hình OpenAI';
-          if (lower === 'gpt-4o') tag = 'Mạnh mẽ nhất • Đa phương thức • Khuyên dùng';
+          if (lower === 'gpt-4o') tag = 'Đa phương thức hiệu năng cao';
           else if (lower === 'gpt-4o-mini') tag = 'Siêu tốc • Tối ưu chi phí';
           else if (lower.startsWith('o3-mini')) tag = 'Suy luận tốc độ cao thế hệ mới';
           else if (lower.startsWith('o1')) tag = 'Tư duy logic kịch bản chiều sâu';
@@ -709,7 +709,7 @@ export async function discoverModelsFromKey(
           const id = String(m.id || '');
           const displayName = m.display_name || id;
           let tag = 'Mô hình Claude';
-          if (id.includes('3-7-sonnet')) tag = 'Mới nhất 2026 • Hybrid Reasoning • Khuyên dùng';
+          if (id.includes('3-7-sonnet')) tag = 'Mới nhất 2026 • Hybrid Reasoning';
           else if (id.includes('3-5-sonnet')) tag = 'Văn phong kịch bản tự nhiên hàng đầu';
           else if (id.includes('3-5-haiku')) tag = 'Siêu tốc cho kịch bản ngắn';
           else if (id.includes('3-opus')) tag = 'Sáng tạo ngôn từ chiều sâu';
@@ -740,7 +740,7 @@ export async function discoverModelsFromKey(
         {
           id: 'claude-3-7-sonnet-20250219',
           name: 'Claude 3.7 Sonnet',
-          tag: 'Thế hệ mới nhất 2026 • Hybrid Reasoning • Khuyên dùng',
+          tag: 'Thế hệ mới nhất 2026 • Hybrid Reasoning',
           isLiveFromKey: true,
           isRecommended: true,
         },
@@ -800,7 +800,7 @@ export async function discoverModelsFromKey(
         for (const m of rawList) {
           const id = String(m.id || '');
           let tag = 'Mô hình DeepSeek';
-          if (id === 'deepseek-chat') tag = 'DeepSeek-V3 • Siêu tốc • Văn phong tự nhiên • Khuyên dùng';
+          if (id === 'deepseek-chat') tag = 'DeepSeek-V3 • Siêu tốc • Văn phong tự nhiên';
           else if (id === 'deepseek-reasoner') tag = 'DeepSeek-R1 • Suy luận chuỗi tư duy (Chain-of-Thought)';
 
           filtered.push({
@@ -827,7 +827,7 @@ export async function discoverModelsFromKey(
         {
           id: 'deepseek-chat',
           name: 'DeepSeek-V3 (Chat)',
-          tag: 'Bản nâng cấp V3 • Siêu tốc • Tự nhiên • Khuyên dùng',
+          tag: 'Bản nâng cấp V3 • Siêu tốc • Tự nhiên',
           isLiveFromKey: true,
           isRecommended: true,
         },
@@ -875,7 +875,7 @@ export async function discoverModelsFromKey(
         for (const m of rawList) {
           const id = String(m.id || '');
           let tag = 'Mô hình Grok';
-          if (id === 'grok-2') tag = 'Grok 2 • Cập nhật dữ liệu thời sự X trực tiếp • Khuyên dùng';
+          if (id === 'grok-2') tag = 'Grok 2 • Cập nhật dữ liệu thời sự X trực tiếp';
           else if (id.includes('mini')) tag = 'Grok 2 Mini • Nhẹ & tốc độ cao';
           else if (id.includes('beta') || id.includes('3')) tag = 'Grok 3 (Beta) • Thế hệ tiếp theo';
 
@@ -902,7 +902,7 @@ export async function discoverModelsFromKey(
         {
           id: 'grok-2',
           name: 'Grok 2',
-          tag: 'Cập nhật tin tức X thời gian thực • Khuyên dùng',
+          tag: 'Cập nhật tin tức X thời gian thực',
           isLiveFromKey: true,
           isRecommended: true,
         },

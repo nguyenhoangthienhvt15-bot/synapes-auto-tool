@@ -21,7 +21,9 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
   onOpenLogin,
   onBack,
 }) => {
-  const publishedProjects = projects.filter((p) => p.driveBackupUrl);
+  const publishedProjects = projects.filter(
+    (p) => Boolean(p.driveBackupUrl) || p.status === 'published'
+  );
 
   const [driveEmail, setDriveEmail] = useState<string>(() => {
     if (propsDriveEmail !== undefined) return propsDriveEmail;

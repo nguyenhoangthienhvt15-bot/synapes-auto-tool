@@ -482,11 +482,6 @@ export const AiModelDropdown: React.FC<AiModelDropdownProps> = ({
           <div className="text-left min-w-0">
             <div className="font-bold text-zinc-950 truncate flex items-center gap-1.5">
               <span>{currentModel.name}</span>
-              {currentModel.isRecommended && (
-                <span className="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-mono font-semibold">
-                  Khuyên dùng
-                </span>
-              )}
             </div>
             <div className="text-[10px] text-zinc-500 truncate">{currentModel.tag || currentModel.id}</div>
           </div>
@@ -522,11 +517,6 @@ export const AiModelDropdown: React.FC<AiModelDropdownProps> = ({
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-zinc-950 flex items-center gap-1.5 truncate">
                       <span>{m.name}</span>
-                      {m.isRecommended && (
-                        <span className="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-mono">
-                          Top
-                        </span>
-                      )}
                     </div>
                     <div className="text-[10px] text-zinc-500 truncate">
                       {m.tag || m.id}

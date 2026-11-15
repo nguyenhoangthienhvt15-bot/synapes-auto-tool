@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Eye,
+  Trash2,
 } from 'lucide-react';
 
 const YoutubeIcon: React.FC<{ className?: string }> = ({ className = "w-3.5 h-3.5" }) => (
@@ -45,6 +46,7 @@ interface ProjectsListViewProps {
   onSelectProject: (p: Project) => void;
   onCreateNewProject: () => void;
   onUpdateProject?: (updated: Project) => void;
+  onDeleteProject?: (projectId: string) => void;
   onOpenSchedule?: (p: Project) => void;
 }
 
@@ -56,8 +58,40 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
   projects,
   onSelectProject,
   onCreateNewProject,
+  onUpdateProject,
+  onDeleteProject,
   onOpenSchedule,
 }) => {
+  const handleToggleProjectChannel = (
+    proj: Project,
+    channel: 'youtube' | 'tiktok' | 'facebook',
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+    if (!onUpdateProject) return;
+    const exists = proj.targetChannels.includes(channel);
+    const nextChannels: Project['targetChannels'] = exists
+      ? proj.targetChannels.length > 1
+        ? proj.targetChannels.filter((c) => c !== channel)
+        : [channel]
+      : [...proj.targetChannels, channel];
+    const primary = nextChannels[0];
+    const nextFormat: Project['platformFormat'] =
+      primary === 'tiktok'
+        ? 'tiktok-viral-9-16'
+        : primary === 'facebook'
+          ? proj.aspectRatio === '16:9'
+            ? 'facebook-watch-16-9'
+            : 'facebook-reels-9-16'
+          : proj.aspectRatio === '9:16'
+            ? 'youtube-shorts-9-16'
+            : 'youtube-long-16-9';
+    onUpdateProject({
+      ...proj,
+      targetChannels: nextChannels,
+      platformFormat: nextFormat,
+    });
+  };
   // Bộ lọc
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -444,6 +478,63 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
                             ? 'Đã lên lịch'
                             : 'Chờ duyệt'}
                       </span>
+                    </div>
+
+                    {/* Quick Platform Selector & Delete Row */}
+                    <div
+                      className="pt-1.5 flex items-center justify-between gap-1.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center gap-1">
+                        {(
+                          [
+                            { id: 'tiktok', label: 'TikTok' },
+                            { id: 'facebook', label: 'Facebook' },
+                            { id: 'youtube', label: 'YouTube' },
+                          ] as const
+                        ).map((ch) => {
+                          const active = proj.targetChannels.includes(ch.id);
+                          return (
+                            <button
+                              key={ch.id}
+                              type="button"
+                              onClick={(e) => handleToggleProjectChannel(proj, ch.id, e)}
+                              className={`px-1.5 py-0.5 rounded text-[9.5px] font-semibold border transition cursor-pointer ${
+                                active
+                                  ? ch.id === 'youtube'
+                                    ? 'bg-red-600 text-white border-red-700'
+                                    : ch.id === 'tiktok'
+                                      ? 'bg-zinc-900 text-cyan-300 border-zinc-950'
+                                      : 'bg-blue-600 text-white border-blue-700'
+                                  : 'bg-zinc-50 text-zinc-500 border-black/[0.08] hover:text-zinc-900'
+                              }`}
+                              title={`Bật/Tắt đăng lên ${ch.label}`}
+                            >
+                              {ch.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {onDeleteProject && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (
+                              window.confirm(
+                                `Xác nhận xóa dự án "${proj.title}" (${proj.code})?`
+                              )
+                            ) {
+                              onDeleteProject(proj.id);
+                            }
+                          }}
+                          className="p-1 rounded-md text-zinc-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                          title="Xóa dự án này"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

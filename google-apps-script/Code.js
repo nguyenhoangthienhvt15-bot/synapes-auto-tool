@@ -2306,7 +2306,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
     '<p>3.1. Căn cứ Luật Sở hữu trí tuệ và Công ước Berne: Bên B là chủ sở hữu quyền tác giả duy nhất và toàn vẹn 100% đối với toàn bộ kịch bản và video thành phẩm được tạo ra từ hệ thống.</p>' +
     '<div class="section">Điều 4. Thời hạn hợp đồng, cam kết bảo hành và Miễn trừ trách nhiệm</div>' +
     '<p>4.1. Thời hạn và giá trị hợp đồng có tính chất vĩnh viễn. Bên A cam kết bảo hành và cung cấp giải pháp kỹ thuật toàn thời gian, đảm bảo tính chính thống và vận hành ổn định của hệ thống.</p>' +
-    '<p>4.2. Quyền miễn trừ trách nhiệm và rủi ro: Bên B tự quản lý các khóa kết nối API bên thứ ba, tự chịu trách nhiệm về tính hợp pháp của âm thanh, hình ảnh và nội dung do Bên B chủ động tải lên hoặc xuất bản theo quy định pháp luật.</p>' +
+    '<p>4.2. Tính chính thống API, hợp pháp dữ liệu và Quyền miễn trừ trách nhiệm: Bên B cam kết chỉ sử dụng API chính thống từ nhà phát triển và nguồn dữ liệu hợp pháp. Bên A được miễn trừ hoàn toàn mọi trách nhiệm pháp lý, kỹ thuật và bồi thường thiệt hại nếu Người dùng (Bên B) sử dụng API không chính thống từ nhà phát triển, khóa API không rõ nguồn gốc hoặc phát sinh sự cố tương tự; Bên B tự chịu trách nhiệm trước pháp luật về tính hợp pháp của âm thanh, hình ảnh và nội dung xuất bản.</p>' +
     '<div class="section">Điều 5. Hiệu lực hợp đồng</div>' +
     '<p>5.1. Hợp đồng điện tử này có giá trị pháp lý tương đương hợp đồng giấy theo Điều 13 và Điều 34 Luật Giao dịch điện tử số 20/2023/QH15.</p>' +
     '<table class="sign-table"><tr>' +

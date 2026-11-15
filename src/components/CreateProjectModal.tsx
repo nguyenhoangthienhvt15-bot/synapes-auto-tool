@@ -33,11 +33,9 @@ import {
   Layers,
   ArrowRight,
   Eye,
-  Zap,
-  Brain,
   Clock,
   Mic,
-  Wand2,
+  Plug,
 } from 'lucide-react';
 import {
   PROVIDERS,
@@ -52,7 +50,6 @@ import {
 } from '../services/aiModelDiscoveryService';
 import {
   generateAiVideoScript,
-  enhanceDirectorPrompt,
   GeneratedScriptResult,
 } from '../services/aiScriptGeneratorService';
 import { dispatchScriptToPluginEngine } from '../services/pluginWebhookService';
@@ -64,6 +61,7 @@ interface CreateProjectModalProps {
   onClose: () => void;
   onCreateProject: (project: Project) => void;
   onOpenAiSettings?: (provider?: AIProviderId) => void;
+  onUpdateAiConfig?: (config: AIProviderConfig) => void;
   onAddSkill?: (newSkill: Skill) => void;
 }
 
@@ -197,14 +195,7 @@ async function compressImageToDataUrl(file: File): Promise<string> {
   });
 }
 
-const DURATION_CHIPS = [
-  { sec: 15, label: '15s' },
-  { sec: 30, label: '30s' },
-  { sec: 60, label: '60s' },
-  { sec: 180, label: '3 phút' },
-  { sec: 300, label: '5 phút' },
-  { sec: 480, label: '8 phút' },
-];
+const MAX_VIDEO_DURATION_SEC = 120;
 
 const STUDIO_VOICE_OPTIONS = [
   { id: '', label: 'Tự động theo thể loại Video' },
@@ -223,34 +214,6 @@ const CAMERA_MOTION_OPTIONS: { id: StoryboardScene['cameraMotion']; label: strin
   { id: 'crane-up', label: 'Crane-Up (Nâng góc cao)' },
   { id: 'pan-left', label: 'Pan-Left (Lia trái)' },
   { id: 'dolly-out', label: 'Dolly-Out (Lùi toàn cảnh)' },
-];
-
-const QUICK_PROMPT_CHIPS = [
-  {
-    label: '🦆 3 chú vịt trong hồ sen',
-    prompt:
-      'Từ hình ảnh 3 chú vịt con lông vàng bơi trong hồ sen nắng sớm\n1. Toàn cảnh 3 chú vịt tung tăng rẽ sóng mặt hồ hoa sen nở rộ.\n2. Cận cảnh 1 chú vịt tò mò rỉa cánh, giọt nước lấp lánh dưới nắng.\n3. Cả 3 chú vịt nối đuôi nhau bơi về phía ánh hoàng hôn rực rỡ.',
-  },
-  {
-    label: '🐰 Hoạt hình 3D Thỏ Con Bị Ốm',
-    prompt:
-      'Phim hoạt hình 3D đối thoại: Thỏ Con bị ốm đến gặp Bác sĩ Gấu và bạn Cừu Bông ở phòng khám rừng xanh',
-  },
-  {
-    label: '☕ Review quán cà phê chill',
-    prompt:
-      'Review tiệm cà phê rang xay thủ công phong cách tối giản buổi sáng nắng ấm\n1. Mở đầu bằng tách espresso rót chậm hương thơm lan tỏa.\n2. Góc bàn gỗ tràn ngập ánh nắng xuyên qua khung cửa kính.\n3. Barista pha pour-over nghệ thuật và lời mời ghé thưởng thức.',
-  },
-  {
-    label: '📱 Keynote Công nghệ AI',
-    prompt:
-      'Giới thiệu hệ sinh thái Chip AI thế hệ mới chuẩn điện ảnh Apple Keynote với hiệu ứng bóc tách vi xử lý silicon',
-  },
-  {
-    label: '🌅 Du lịch & Kể chuyện điện ảnh',
-    prompt:
-      'Hành trình khám phá bình minh trên bờ biển hoang sơ với flycam toàn cảnh, sóng vỗ bờ cát vàng và thông điệp sống chậm đầy cảm hứng',
-  },
 ];
 
 function recalculatePreviewTimeline(scenes: StoryboardScene[]): StoryboardScene[] {
@@ -280,6 +243,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   onClose,
   onCreateProject,
   onOpenAiSettings,
+  onUpdateAiConfig,
   onAddSkill,
 }) => {
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
@@ -289,12 +253,35 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [hoveredSkill, setHoveredSkill] = useState<Skill | null>(null);
   const [promptText, setPromptText] = useState('');
-  const [targetDurationMin, setTargetDurationMin] = useState<number>(3);
-  const [targetDurationSec, setTargetDurationSec] = useState<number>(180);
+  const [durationMinutes, setDurationMinutes] = useState<number>(1);
+  const [durationSeconds, setDurationSeconds] = useState<number>(0);
+  const targetDurationSec = Math.min(
+    MAX_VIDEO_DURATION_SEC,
+    Math.max(10, durationMinutes * 60 + durationSeconds)
+  );
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('');
   const [imageMotionMode, setImageMotionMode] = useState<'consistent-anchor' | 'hybrid-scenes'>(
     'consistent-anchor'
   );
+
+  const handleDurationMinutesChange = (rawVal: string) => {
+    const parsed = parseInt(rawVal || '0', 10);
+    const clampedMin = Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(2, parsed));
+    setDurationMinutes(clampedMin);
+    if (clampedMin >= 2) {
+      setDurationSeconds(0);
+    }
+  };
+
+  const handleDurationSecondsChange = (rawVal: string) => {
+    const parsed = parseInt(rawVal || '0', 10);
+    const clampedSec = Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(59, parsed));
+    if (durationMinutes >= 2) {
+      setDurationSeconds(0);
+    } else {
+      setDurationSeconds(clampedSec);
+    }
+  };
 
   // Tách riêng đính kèm Hình ảnh (Data URL đa phương thức) và Tệp Âm thanh (Object URL)
   const [attachedImage, setAttachedImage] = useState<{
@@ -349,11 +336,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   });
 
   const isCurrentKeyConfigured = isProviderKeyConfigured(selectedProvider, aiConfig);
-  const [creationSpeedMode, setCreationSpeedMode] = useState<'turbo' | 'cloud'>(() =>
-    isProviderKeyConfigured(selectedProvider, aiConfig) ? 'cloud' : 'turbo'
-  );
+  const creationSpeedMode = 'cloud' as const;
 
-  // Cơ chế tạo video qua công cụ Plugin: Ý tưởng -> Model AI gợi ý kịch bản -> Gửi sang Plugin -> Chuyển về Chờ Duyệt
+  // Cơ chế tạo video qua công cụ Plugin (BẮT BUỘC KẾT NỐI): Ý tưởng -> Model AI gợi ý kịch bản -> Gửi sang Plugin -> Chuyển về Chờ Duyệt
   const [workflowStep, setWorkflowStep] = useState<'input' | 'script_preview'>('input');
   const [selectedPluginTool, setSelectedPluginTool] = useState<string>(() => {
     if (aiConfig.plugin?.endpointUrl) {
@@ -363,6 +348,94 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     }
     return 'kling';
   });
+  const [inlinePluginToken, setInlinePluginToken] = useState<string>(
+    () => aiConfig.plugin?.apiToken || ''
+  );
+  const activePluginPreset =
+    PLUGIN_PRESETS.find((p) => p.id === selectedPluginTool) || PLUGIN_PRESETS[0];
+  const effectivePluginToken = (aiConfig.plugin?.apiToken || inlinePluginToken || '').trim();
+  const effectivePluginEndpoint = (
+    (selectedPluginTool === 'custom'
+      ? aiConfig.plugin?.endpointUrl
+      : activePluginPreset?.endpointUrl || aiConfig.plugin?.endpointUrl) || ''
+  ).trim();
+  const isPluginConnected =
+    effectivePluginToken.length > 5 && effectivePluginEndpoint.length > 0;
+
+  const [pluginModelsList, setPluginModelsList] = useState<DiscoveredModel[]>(() =>
+    getProviderModels('plugin', aiConfig)
+  );
+  const [selectedPluginModel, setSelectedPluginModel] = useState<string>(
+    () => aiConfig.plugin?.model || getProviderModels('plugin', aiConfig)[0]?.id || ''
+  );
+  const [isScanningPluginModels, setIsScanningPluginModels] = useState(false);
+  const [pluginStatusMessage, setPluginStatusMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (aiConfig.plugin?.apiToken && aiConfig.plugin.apiToken !== inlinePluginToken) {
+      setInlinePluginToken(aiConfig.plugin.apiToken);
+    }
+  }, [aiConfig.plugin?.apiToken]);
+
+  const handleScanPluginModels = async (tokenOverride?: string, endpointOverride?: string) => {
+    const tokenToUse = (tokenOverride ?? effectivePluginToken).trim();
+    const endpointToUse = (endpointOverride ?? effectivePluginEndpoint).trim();
+    if (tokenToUse.length <= 5 || !endpointToUse) {
+      setPluginStatusMessage('Vui lòng nhập Token Plugin và Endpoint hợp lệ trước khi quét Model.');
+      return;
+    }
+    setIsScanningPluginModels(true);
+    setPluginStatusMessage(`Đang quét danh sách Model khả dụng trong Plugin (${activePluginPreset.name})...`);
+    try {
+      const res = await discoverModelsFromKey('plugin', tokenToUse, endpointToUse);
+      if (res.success && res.models.length > 0) {
+        setPluginModelsList(res.models);
+        const preferred =
+          aiConfig.plugin?.model && res.models.some((m) => m.id === aiConfig.plugin?.model)
+            ? aiConfig.plugin.model
+            : res.models[0].id;
+        setSelectedPluginModel(preferred);
+        setPluginStatusMessage(`Đã đọc ${res.models.length} Model bên trong Plugin.`);
+        if (onUpdateAiConfig) {
+          onUpdateAiConfig({
+            ...aiConfig,
+            plugin: {
+              ...aiConfig.plugin,
+              endpointUrl: endpointToUse,
+              apiToken: tokenToUse,
+              model: preferred,
+              availableModels: res.models,
+              modelsScannedAt: new Date().toISOString(),
+            },
+          });
+        }
+      } else {
+        setPluginStatusMessage(res.message || 'Không đọc được danh sách Model trong Plugin.');
+      }
+    } catch (err: any) {
+      setPluginStatusMessage(err?.message || 'Lỗi kết nối Plugin khi đọc Model.');
+    } finally {
+      setIsScanningPluginModels(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isPluginConnected) {
+      const cached = aiConfig.plugin?.availableModels;
+      if (cached && cached.length > 0) {
+        setPluginModelsList(cached);
+        setSelectedPluginModel(
+          aiConfig.plugin?.model && cached.some((m) => m.id === aiConfig.plugin?.model)
+            ? aiConfig.plugin.model
+            : cached[0].id
+        );
+      } else {
+        handleScanPluginModels();
+      }
+    } else {
+      setPluginModelsList(getProviderModels('plugin', aiConfig));
+    }
+  }, [isPluginConnected, selectedPluginTool]);
   const [suggestedScript, setSuggestedScript] = useState<GeneratedScriptResult | null>(null);
   const [previewScenes, setPreviewScenes] = useState<StoryboardScene[]>([]);
   const [isSuggestingScript, setIsSuggestingScript] = useState(false);
@@ -523,23 +596,17 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     onClose();
   };
 
-  const handleEnhancePrompt = () => {
-    const current = promptText.trim();
-    if (!current) return;
-    const enhanced = enhanceDirectorPrompt(
-      current,
-      selectedPlatformPreset?.title,
-      Boolean(attachedImage?.dataUrl)
-    );
-    setPromptText(enhanced);
-    setSuggestedScript(null);
-    setPreviewScenes([]);
-  };
-
   // Bước 2: Model AI gợi ý kịch bản
   const handleSuggestScript = async () => {
     const finalPrompt = promptText.trim();
     if (!finalPrompt) return;
+
+    if (!isPluginConnected) {
+      setKeyErrorNotice(
+        'Bắt buộc phải kết nối Plugin tạo video (API Token & Endpoint) trước khi tạo kịch bản hoặc khởi tạo video.'
+      );
+      return;
+    }
 
     abortControllerRef.current?.abort();
     const controller = new AbortController();
@@ -548,9 +615,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     setIsSuggestingScript(true);
     setIsGenerating(true);
     setGenerationStep(
-      creationSpeedMode === 'turbo'
-        ? `⚡ Siêu tốc: Đang bóc tách trực tiếp prompt thành kịch bản...`
-        : `Model AI (${selectedModel}) đang phân tích đề tài & gợi ý kịch bản phân cảnh...`
+      `Model AI (${selectedModel}) & Plugin (${selectedPluginModel || activePluginPreset.name}) đang phân tích đề tài & gợi ý kịch bản...`
     );
     setGenerationPercent(20);
     setKeyErrorNotice(null);
@@ -565,7 +630,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         skills: allSkills,
         aspectRatio,
         platformFormat: selectedPlatformFormat,
-        platformFormatLabel: `${selectedPlatformPreset.title} (${selectedPlatformPreset.resolution})`,
+        platformFormatLabel: `${selectedPlatformPreset.title} • ${selectedPlatformPreset.resolution}`,
         targetDurationMin: Math.max(0.25, targetDurationSec / 60),
         targetDurationSec,
         preferredVoiceId: selectedVoiceId || undefined,
@@ -672,6 +737,13 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     const finalPrompt = promptText.trim();
     if (!finalPrompt) return;
 
+    if (!isPluginConnected) {
+      setKeyErrorNotice(
+        'Bắt buộc phải kết nối Plugin tạo video (API Token & Endpoint) trước khi gửi tạo dự án.'
+      );
+      return;
+    }
+
     abortControllerRef.current?.abort();
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -685,9 +757,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       // Nếu chưa chạy gợi ý trước đó, tạo kịch bản ngay
       if (!scriptToDispatch) {
         setGenerationStep(
-          creationSpeedMode === 'turbo'
-            ? `⚡ Siêu tốc: Đang bóc tách kịch bản chuẩn prompt...`
-            : `Model AI (${selectedModel}) đang khởi tạo kịch bản phân cảnh...`
+          `Model AI (${selectedModel}) & Plugin (${selectedPluginModel || activePluginPreset.name}) đang khởi tạo kịch bản...`
         );
         setGenerationPercent(18);
 
@@ -700,8 +770,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           skills: allSkills,
           aspectRatio,
           platformFormat: selectedPlatformFormat,
-          platformFormatLabel: `${selectedPlatformPreset.title} (${selectedPlatformPreset.resolution})`,
-          targetDurationMin: Math.max(0.25, targetDurationSec / 60),
+          platformFormatLabel: `${selectedPlatformPreset.title} • ${selectedPlatformPreset.resolution}`,
+          targetDurationMin: Math.max(0.17, targetDurationSec / 60),
           targetDurationSec,
           preferredVoiceId: selectedVoiceId || undefined,
           creationSpeedMode,
@@ -742,22 +812,19 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
       const provMeta = PROVIDERS.find((p) => p.id === selectedProvider);
       const pluginPreset = PLUGIN_PRESETS.find((p) => p.id === selectedPluginTool) || PLUGIN_PRESETS[0];
-      const pluginEndpoint =
-        selectedPluginTool === 'custom'
-          ? aiConfig.plugin?.endpointUrl || pluginPreset.endpointUrl
-          : pluginPreset.endpointUrl;
-      const pluginToken = aiConfig.plugin?.apiToken;
+      const pluginEndpoint = effectivePluginEndpoint || pluginPreset.endpointUrl;
+      const pluginToken = effectivePluginToken;
 
       const result = await dispatchScriptToPluginEngine({
         scriptResult: scriptToDispatch,
         aspectRatio,
         platformFormat: selectedPlatformFormat,
-        platformFormatLabel: `${selectedPlatformPreset.title} (${selectedPlatformPreset.resolution})`,
+        platformFormatLabel: `${selectedPlatformPreset.title} • ${selectedPlatformPreset.resolution}`,
         targetChannels: [selectedPlatformPreset.platform],
         attachedImageDataUrl: attachedImage?.dataUrl,
         attachedAudioUrl: attachedAudio?.objectUrl,
         signal: controller.signal,
-        scriptModelName: selectedModel,
+        scriptModelName: selectedPluginModel ? `${selectedModel} → ${selectedPluginModel}` : selectedModel,
         scriptProviderName: provMeta?.name || selectedProvider,
         pluginId: selectedPluginTool,
         pluginEndpoint,
@@ -861,8 +928,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     setAspectRatio('16:9');
                     if (selectedPlatformPreset.aspectRatio !== '16:9') {
                       setSelectedPlatformFormat('youtube-long-16-9');
-                      setTargetDurationMin(3);
-                      setTargetDurationSec(180);
+                      setDurationMinutes(2);
+                      setDurationSeconds(0);
                     }
                   }}
                   className={`p-3.5 rounded-xl border cursor-pointer transition ${aspectRatio === '16:9'
@@ -884,8 +951,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     setAspectRatio('9:16');
                     if (selectedPlatformPreset.aspectRatio !== '9:16') {
                       setSelectedPlatformFormat('tiktok-viral-9-16');
-                      setTargetDurationMin(0.5);
-                      setTargetDurationSec(30);
+                      setDurationMinutes(0);
+                      setDurationSeconds(30);
                     }
                   }}
                   className={`p-3.5 rounded-xl border cursor-pointer transition ${aspectRatio === '9:16'
@@ -918,9 +985,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                         onClick={() => {
                           setSelectedPlatformFormat(preset.id);
                           setAspectRatio(preset.aspectRatio);
-                          const nextSec = preset.aspectRatio === '9:16' ? 30 : preset.recommendedMinutes >= 5 ? 180 : 180;
-                          setTargetDurationSec(nextSec);
-                          setTargetDurationMin(nextSec / 60);
+                          const nextSec = preset.aspectRatio === '9:16' ? 30 : 120;
+                          setDurationMinutes(Math.floor(nextSec / 60));
+                          setDurationSeconds(nextSec % 60);
                         }}
                         title={preset.description}
                         className={`p-2 rounded-lg border text-left transition cursor-pointer ${
@@ -1146,47 +1213,12 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               )}
             </div>
 
-            {/* 3. CHỦ ĐỀ HOẶC KỊCH BẢN NỘI DUNG */}
+            {/* NHẬP CHỦ ĐỀ / KỊCH BẢN & THỜI LƯỢNG TÙY CHỈNH (MAX 2 PHÚT) */}
             <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <label className="text-zinc-800 font-semibold block">
-                  3. Chủ đề hoặc Kịch bản nội dung *
-                </label>
-                <button
-                  type="button"
-                  onClick={handleEnhancePrompt}
-                  disabled={!promptText.trim() || isGenerating}
-                  className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed shadow-2xs"
-                  title="Tự động mở rộng ý tưởng ngắn thành dàn ý phân cảnh chi tiết bám sát khuôn mẫu đạo diễn"
-                >
-                  <Wand2 className="w-3 h-3 text-indigo-600" />
-                  <span>✨ Nâng cấp Prompt Chuẩn Đạo Diễn</span>
-                </button>
-              </div>
-
-              {/* Quick Prompt Chips */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] text-zinc-500 font-medium mr-0.5">Gợi ý nhanh:</span>
-                {QUICK_PROMPT_CHIPS.map((chip) => (
-                  <button
-                    key={chip.label}
-                    type="button"
-                    onClick={() => {
-                      setPromptText(chip.prompt);
-                      setSuggestedScript(null);
-                      setPreviewScenes([]);
-                    }}
-                    className="px-2 py-0.5 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-700 hover:text-zinc-950 border border-black/[0.06] text-[10.5px] font-medium transition cursor-pointer"
-                  >
-                    {chip.label}
-                  </button>
-                ))}
-              </div>
-
               <textarea
                 rows={4}
                 required
-                placeholder="Nhập nội dung, đề tài hoặc gõ từng dòng phân cảnh (Ví dụ: 1. Cảnh mở đầu..., 2. Cận cảnh nhân vật..., hoặc để AI bóc tách trực tiếp từ câu lệnh của bạn)..."
+                placeholder="Nhập nội dung, đề tài hoặc gõ từng dòng phân cảnh (Ví dụ: 1. Cảnh mở đầu..., 2. Cận cảnh..., hoặc mô tả trực tiếp yêu cầu video của bạn)..."
                 value={promptText}
                 onChange={(e) => {
                   setPromptText(e.target.value);
@@ -1198,40 +1230,51 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 className="w-full bg-white border border-black/[0.12] rounded-xl p-3 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950/5 leading-relaxed transition"
               />
 
-              {/* Thời lượng, Giọng đọc AI & Chế độ tốc độ */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
-                {/* Thời lượng mục tiêu */}
+              {/* Thời lượng tùy chỉnh Phút/Giây (Max 2 phút) & Giọng đọc AI */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
+                {/* Thời lượng mục tiêu (Max 120s) */}
                 <div className="p-2.5 rounded-xl bg-zinc-50/80 border border-black/[0.07] space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-800">
-                    <Clock className="w-3.5 h-3.5 text-zinc-600" />
-                    <span>Thời lượng Video</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-800">
+                      <Clock className="w-3.5 h-3.5 text-zinc-600" />
+                      <span>Thời lượng Video (Tối đa 2 phút)</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded bg-zinc-900 text-white text-[10px] font-mono font-semibold">
+                      {Math.floor(targetDurationSec / 60)}p {(targetDurationSec % 60).toString().padStart(2, '0')}s
+                    </span>
                   </div>
-                  <div className="flex flex-wrap gap-1">
-                    {DURATION_CHIPS.map((chip) => {
-                      const active = targetDurationSec === chip.sec;
-                      return (
-                        <button
-                          key={chip.sec}
-                          type="button"
-                          onClick={() => {
-                            setTargetDurationSec(chip.sec);
-                            setTargetDurationMin(chip.sec / 60);
-                          }}
-                          className={`px-2 py-0.5 rounded-md text-[10.5px] font-mono font-semibold border transition cursor-pointer ${
-                            active
-                              ? 'bg-zinc-900 text-white border-zinc-950 shadow-2xs'
-                              : 'bg-white text-zinc-700 border-black/[0.08] hover:border-black/[0.2]'
-                          }`}
-                        >
-                          {chip.label}
-                        </button>
-                      );
-                    })}
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 text-[11px] text-zinc-700 font-medium flex-1">
+                      <span>Phút (0–2):</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={2}
+                        value={durationMinutes}
+                        onChange={(e) => handleDurationMinutesChange(e.target.value)}
+                        className="w-full bg-white border border-black/[0.12] rounded-lg px-2 py-1 text-xs font-mono font-semibold text-zinc-950 focus:outline-none focus:border-zinc-950"
+                      />
+                    </label>
+                    <label className="flex items-center gap-1.5 text-[11px] text-zinc-700 font-medium flex-1">
+                      <span>Giây (0–59):</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={durationMinutes >= 2 ? 0 : 59}
+                        disabled={durationMinutes >= 2}
+                        value={durationSeconds}
+                        onChange={(e) => handleDurationSecondsChange(e.target.value)}
+                        className="w-full bg-white border border-black/[0.12] rounded-lg px-2 py-1 text-xs font-mono font-semibold text-zinc-950 focus:outline-none focus:border-zinc-950 disabled:bg-zinc-100 disabled:text-zinc-400"
+                      />
+                    </label>
                   </div>
+                  <p className="text-[10px] text-zinc-500 leading-tight">
+                    Mỗi video dài tối đa 2 phút (120 giây). Muốn làm video dài 5–10 phút, hãy tạo các đoạn 2 phút rồi dùng tính năng <strong>Ghép Nối Video</strong>.
+                  </p>
                 </div>
 
                 {/* Chọn Giọng đọc AI */}
-                <div className="p-2.5 rounded-xl bg-zinc-50/80 border border-black/[0.07] space-y-1.5">
+                <div className="p-2.5 rounded-xl bg-zinc-50/80 border border-black/[0.07] space-y-1.5 flex flex-col justify-between">
                   <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-800">
                     <Mic className="w-3.5 h-3.5 text-zinc-600" />
                     <span>Giọng đọc AI (Tiếng Việt)</span>
@@ -1239,7 +1282,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                   <select
                     value={selectedVoiceId}
                     onChange={(e) => setSelectedVoiceId(e.target.value)}
-                    className="w-full bg-white border border-black/[0.1] rounded-lg px-2 py-1.5 text-[11px] font-medium text-zinc-900 focus:outline-none focus:border-zinc-950 cursor-pointer"
+                    className="w-full bg-white border border-black/[0.1] rounded-lg px-2.5 py-2 text-[11px] font-medium text-zinc-900 focus:outline-none focus:border-zinc-950 cursor-pointer"
                   >
                     {STUDIO_VOICE_OPTIONS.map((v) => (
                       <option key={v.id || 'auto'} value={v.id}>
@@ -1247,89 +1290,36 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                       </option>
                     ))}
                   </select>
-                </div>
-
-                {/* Chế độ tốc độ xử lý */}
-                <div className="p-2.5 rounded-xl bg-zinc-50/80 border border-black/[0.07] space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-800">
-                    <Zap className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Tốc độ khởi tạo</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setCreationSpeedMode('turbo')}
-                      className={`px-2 py-1 rounded-lg text-[10.5px] font-semibold border flex items-center justify-center gap-1 transition cursor-pointer ${
-                        creationSpeedMode === 'turbo'
-                          ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
-                          : 'bg-white text-zinc-700 border-black/[0.08] hover:border-black/[0.2]'
-                      }`}
-                      title="Dựng kịch bản & phân cảnh tức thì dưới 1 giây bằng Động cơ Đạo diễn nội bộ bám sát 100% prompt"
-                    >
-                      <Zap className="w-3 h-3" />
-                      <span>Siêu tốc (&lt;1s)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCreationSpeedMode('cloud')}
-                      className={`px-2 py-1 rounded-lg text-[10.5px] font-semibold border flex items-center justify-center gap-1 transition cursor-pointer ${
-                        creationSpeedMode === 'cloud'
-                          ? 'bg-zinc-900 text-white border-zinc-950 shadow-2xs'
-                          : 'bg-white text-zinc-700 border-black/[0.08] hover:border-black/[0.2]'
-                      }`}
-                      title="Kết nối Model AI đám mây (Gemini/GPT/Claude) chạy đua đa luồng để sáng tạo sâu"
-                    >
-                      <Brain className="w-3 h-3" />
-                      <span>AI Cloud</span>
-                    </button>
-                  </div>
+                  <p className="text-[10px] text-zinc-500 leading-tight">
+                    Có thể đổi giọng hoặc dùng VoiceStudio (LABS) / Thu âm trực tiếp sau khi khởi tạo.
+                  </p>
                 </div>
               </div>
             </div>
 
-            {/* 4. CƠ CHẾ PLUGIN & MÔ HÌNH AI BIÊN KỊCH */}
+            {/* 3. CƠ CHẾ PLUGIN BẮT BUỘC & MÔ HÌNH AI BIÊN KỊCH */}
             <div className="p-3.5 rounded-xl bg-zinc-50/90 border border-black/[0.08] space-y-3">
               <div className="flex items-center justify-between border-b border-black/[0.06] pb-2">
                 <div className="flex items-center gap-1.5 font-semibold text-zinc-950 text-xs">
                   <Workflow className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>4. Quy trình Model AI gợi ý kịch bản & Công cụ Plugin tạo video</span>
+                  <span>3. Model AI biên kịch & Plugin tạo video (Bắt buộc kết nối)</span>
                 </div>
                 {onOpenAiSettings && (
                   <button
                     type="button"
-                    onClick={() => onOpenAiSettings(selectedProvider)}
+                    onClick={() => onOpenAiSettings('plugin')}
                     className="text-[11px] text-zinc-600 hover:text-zinc-950 flex items-center gap-1 cursor-pointer font-medium"
-                    title="Mở trang cấu hình API Keys"
+                    title="Mở trang cấu hình Plugin & API Keys"
                   >
                     <Key className="w-3 h-3 text-zinc-500" />
-                    <span>Quản lý API Keys</span>
+                    <span>Cài đặt Plugin & Keys</span>
                     <ExternalLink className="w-2.5 h-2.5" />
                   </button>
                 )}
               </div>
 
-              {/* Breadcrumb quy trình 4 bước */}
-              <div className="grid grid-cols-4 gap-1.5 p-2 bg-white rounded-lg border border-black/[0.05] text-[10.5px]">
-                <div className="flex items-center gap-1.5 text-zinc-800 font-semibold">
-                  <span className="w-4 h-4 rounded-full bg-zinc-950 text-white flex items-center justify-center text-[9px] font-mono">1</span>
-                  <span className="truncate">Ý tưởng</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-indigo-700 font-semibold">
-                  <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[9px] font-mono">2</span>
-                  <span className="truncate">Model AI</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-emerald-700 font-semibold">
-                  <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px] font-mono">3</span>
-                  <span className="truncate">Plugin Tool</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-amber-700 font-semibold">
-                  <span className="w-4 h-4 rounded-full bg-amber-600 text-white flex items-center justify-center text-[9px] font-mono">4</span>
-                  <span className="truncate">Chờ Duyệt</span>
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Bước 2: Model AI gợi ý kịch bản */}
+                {/* Cột 1: Model AI gợi ý kịch bản */}
                 <div className="space-y-1.5">
                   <label className="text-zinc-800 font-semibold block text-[11px] flex items-center gap-1.5">
                     <Cpu className="w-3.5 h-3.5 text-indigo-600" />
@@ -1369,12 +1359,23 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                   </div>
                 </div>
 
-                {/* Bước 3: Công cụ Plugin Video */}
+                {/* Cột 2: Plugin tạo video BẮT BUỘC & đọc Model bên trong Plugin */}
                 <div className="space-y-1.5">
-                  <label className="text-zinc-800 font-semibold block text-[11px] flex items-center gap-1.5">
-                    <Workflow className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Công cụ trong Plugin nhận kịch bản</span>
-                  </label>
+                  <div className="flex items-center justify-between gap-1">
+                    <label className="text-zinc-800 font-semibold text-[11px] flex items-center gap-1.5">
+                      <Plug className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Plugin tạo Video (Bắt buộc) *</span>
+                    </label>
+                    <span
+                      className={`text-[9.5px] font-mono px-1.5 py-0.5 rounded border font-semibold ${
+                        isPluginConnected
+                          ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                          : 'text-rose-700 bg-rose-50 border-rose-200'
+                      }`}
+                    >
+                      {isPluginConnected ? 'Đã kết nối' : 'Chưa kết nối'}
+                    </span>
+                  </div>
 
                   <div className="relative">
                     <select
@@ -1393,24 +1394,86 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Plugin card details */}
-                  {(() => {
-                    const activePreset = PLUGIN_PRESETS.find((p) => p.id === selectedPluginTool) || PLUGIN_PRESETS[0];
-                    return (
-                      <div className="p-2.5 rounded-lg bg-white border border-black/[0.06] text-[11px] space-y-1 shadow-2xs">
-                        <div className="flex items-center gap-2">
-                          <ProviderBrandLogo provider="plugin" pluginBrand={activePreset.brand} size="xs" withBadge={false} />
-                          <span className="font-semibold text-zinc-950">{activePreset.name}</span>
-                          <span className="text-[9px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 ml-auto">
-                            Đã sẵn sàng
+                  {isPluginConnected ? (
+                    <div className="p-2.5 rounded-lg bg-white border border-emerald-200 text-[11px] space-y-1.5 shadow-2xs">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <ProviderBrandLogo
+                            provider="plugin"
+                            pluginBrand={activePluginPreset.brand}
+                            size="xs"
+                            withBadge={false}
+                          />
+                          <span className="font-semibold text-zinc-950 truncate">
+                            Model trong {activePluginPreset.name}
                           </span>
                         </div>
-                        <p className="text-[10.5px] text-zinc-500 leading-snug line-clamp-2">
-                          {activePreset.description}
-                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleScanPluginModels()}
+                          disabled={isScanningPluginModels}
+                          className="text-[10px] text-sky-700 hover:text-sky-900 flex items-center gap-1 cursor-pointer font-medium flex-shrink-0"
+                        >
+                          <RefreshCw className={`w-2.5 h-2.5 ${isScanningPluginModels ? 'animate-spin' : ''}`} />
+                          <span>Quét Model</span>
+                        </button>
                       </div>
-                    );
-                  })()}
+                      <select
+                        value={selectedPluginModel}
+                        onChange={(e) => {
+                          const nextMod = e.target.value;
+                          setSelectedPluginModel(nextMod);
+                          if (onUpdateAiConfig) {
+                            onUpdateAiConfig({
+                              ...aiConfig,
+                              plugin: {
+                                ...aiConfig.plugin,
+                                endpointUrl: effectivePluginEndpoint,
+                                apiToken: effectivePluginToken,
+                                model: nextMod,
+                              },
+                            });
+                          }
+                        }}
+                        className="w-full bg-zinc-50 border border-black/[0.1] rounded-lg px-2 py-1.5 text-[11px] font-mono text-zinc-900 focus:outline-none focus:border-zinc-950 cursor-pointer"
+                      >
+                        {pluginModelsList.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} {m.description ? `— ${m.description}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {pluginStatusMessage && (
+                        <p className="text-[10px] text-emerald-700 leading-tight">{pluginStatusMessage}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-lg bg-rose-50/90 border border-rose-200 text-[11px] space-y-2 shadow-2xs">
+                      <div className="flex items-start gap-1.5 text-rose-900 font-medium">
+                        <ShieldAlert className="w-3.5 h-3.5 text-rose-600 flex-shrink-0 mt-0.5" />
+                        <span className="leading-snug text-[10.5px]">
+                          Chưa có kết nối Plugin. Dán Token / API Key của Plugin để mở khóa tạo video & tự động đọc Model bên trong Plugin:
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="password"
+                          placeholder={`Dán Token ${activePluginPreset.name}...`}
+                          value={inlinePluginToken}
+                          onChange={(e) => setInlinePluginToken(e.target.value)}
+                          className="flex-1 bg-white border border-rose-200 rounded-lg px-2 py-1 text-[11px] font-mono text-zinc-900 focus:outline-none focus:border-zinc-950"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleScanPluginModels(inlinePluginToken, effectivePluginEndpoint)}
+                          disabled={inlinePluginToken.trim().length <= 5 || isScanningPluginModels}
+                          className="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-black text-white text-[10.5px] font-semibold whitespace-nowrap cursor-pointer disabled:opacity-40"
+                        >
+                          {isScanningPluginModels ? 'Đang kết nối...' : 'Kết nối & Đọc Model'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1643,6 +1706,24 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               </div>
             )}
 
+            {!isPluginConnected && (
+              <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[11px] flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-600 flex-shrink-0" />
+                  <span>Bắt buộc kết nối Plugin ở mục 3 trước khi gợi ý kịch bản hoặc khởi tạo video.</span>
+                </div>
+                {onOpenAiSettings && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenAiSettings('plugin')}
+                    className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold text-[10.5px] whitespace-nowrap cursor-pointer"
+                  >
+                    Kết nối Plugin
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Action buttons */}
             <div className="pt-3 border-t border-black/[0.06] flex flex-wrap items-center justify-between gap-2">
               <button
@@ -1658,9 +1739,13 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 <button
                   type="button"
                   onClick={handleSuggestScript}
-                  disabled={isGenerating || !promptText.trim()}
+                  disabled={isGenerating || !promptText.trim() || !isPluginConnected}
                   className="px-3.5 py-1.5 rounded-lg bg-white hover:bg-zinc-100 text-zinc-800 text-xs font-semibold border border-black/[0.12] transition flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Cho phép Model AI viết kịch bản phân cảnh để bạn duyệt trước khi gửi sang Plugin"
+                  title={
+                    isPluginConnected
+                      ? 'Cho phép Model AI viết kịch bản phân cảnh để bạn duyệt trước khi gửi sang Plugin'
+                      : 'Cần kết nối Plugin trước'
+                  }
                 >
                   <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
                   <span>Model AI Gợi Ý Kịch Bản</span>
@@ -1669,9 +1754,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 {/* Nút 2: Gửi thẳng sang Plugin và chuyển về Hàng Chờ Duyệt */}
                 <button
                   type="submit"
-                  disabled={isGenerating || !promptText.trim()}
+                  disabled={isGenerating || !promptText.trim() || !isPluginConnected}
                   className={
-                    isGenerating || !promptText.trim()
+                    isGenerating || !promptText.trim() || !isPluginConnected
                       ? 'px-3.5 py-1.5 rounded-lg bg-zinc-200 text-zinc-400 text-xs font-medium cursor-not-allowed border border-black/5 flex items-center gap-1.5'
                       : 'btn-primary cursor-pointer flex items-center gap-1.5 px-4 py-1.5'
                   }
@@ -1902,8 +1987,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               <button
                 type="button"
                 onClick={handleDispatchScriptToPlugin}
-                disabled={isGenerating}
-                className="btn-primary cursor-pointer flex items-center gap-2 px-5 py-2 font-bold shadow-xs"
+                disabled={isGenerating || !isPluginConnected}
+                className="btn-primary cursor-pointer flex items-center gap-2 px-5 py-2 font-bold shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="w-4 h-4 text-emerald-400" />
                 <span>

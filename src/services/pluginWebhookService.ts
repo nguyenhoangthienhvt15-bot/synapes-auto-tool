@@ -211,15 +211,28 @@ export async function dispatchScriptToPluginEngine(
       ? targetChannels
       : resolveChannelsFromPlatform(platformFormat, aspectRatio);
 
+  const cleanTitle = String(scriptResult.title || '')
+    .replace(/\(([^()]*)\(([^()]*)\)([^()]*)\)/g, '($1• $2$3)')
+    .replace(/\(\s*•\s*/g, '(')
+    .replace(/\s*•\s*\)/g, ')')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  const cleanFormatLabel = String(
+    platformFormatLabel || (aspectRatio === '16:9' ? 'YouTube Video Dài • 16:9' : 'TikTok / Reels Dọc • 9:16')
+  )
+    .replace(/\(([^()]*)\(([^()]*)\)([^()]*)\)/g, '($1• $2$3)')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
   const newProject: Project = {
     id: projId,
     code: `SYN-${codeNum}`,
-    title: scriptResult.title,
+    title: cleanTitle || scriptResult.title,
     status: 'pending_approval', // 100% gửi về hàng chờ duyệt cho người dùng xem và quyết định
     aspectRatio,
     platformFormat: platformFormat || (aspectRatio === '16:9' ? 'youtube-long-16-9' : 'tiktok-viral-9-16'),
-    platformFormatLabel:
-      platformFormatLabel || (aspectRatio === '16:9' ? 'YouTube Video Dài (16:9)' : 'TikTok / Reels Dọc (9:16)'),
+    platformFormatLabel: cleanFormatLabel,
     videoGenre: scriptResult.videoGenre,
     newsTickerText: scriptResult.newsTickerText,
     duration: scriptResult.duration,

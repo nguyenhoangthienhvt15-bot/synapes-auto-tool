@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserAccount, ContractCategory } from '../types';
 import {
   Bell, KeyRound, LogOut, BookOpen, Terminal, Film,
-  PanelLeftClose, PanelLeftOpen, Lock
+  PanelLeftClose, PanelLeftOpen, Lock, AudioLines
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -10,6 +10,7 @@ interface HeaderProps {
   pendingCount: number;
   activeView: string;
   userPlanTier?: ContractCategory;
+  loginAnimTrigger?: number;
   onSelectView: (view: string) => void;
   onLogout: () => void;
   onOpenChangePass: () => void;
@@ -24,6 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
   pendingCount,
   activeView,
   userPlanTier = 'personal',
+  loginAnimTrigger = 0,
   onSelectView,
   onLogout,
   onOpenChangePass,
@@ -33,6 +35,18 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
+  const [isLogoAnimating, setIsLogoAnimating] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!loginAnimTrigger || loginAnimTrigger <= 0) return;
+    setIsLogoAnimating(false);
+    const raf = requestAnimationFrame(() => setIsLogoAnimating(true));
+    const timer = setTimeout(() => setIsLogoAnimating(false), 6100);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [loginAnimTrigger]);
 
   useEffect(() => {
     const update = () => {
@@ -82,10 +96,19 @@ export const Header: React.FC<HeaderProps> = ({
 
         <button
           onClick={() => onSelectView('pending-approval')}
-          className="flex items-center gap-2.5 text-left group cursor-pointer"
-          title="SYNAPES Video Studio"
+          onDoubleClick={(e) => {
+            e.preventDefault();
+            setIsLogoAnimating(false);
+            requestAnimationFrame(() => setIsLogoAnimating(true));
+            setTimeout(() => setIsLogoAnimating(false), 6100);
+          }}
+          className={`flex items-center gap-2.5 text-left group cursor-pointer px-1.5 py-0.5 rounded-lg transition ${
+            isLogoAnimating ? 'synapes-brand-anim' : ''
+          }`}
+          title="SYNAPES Video Studio (Nhấp đúp để phát lại hiệu ứng logo)"
         >
-          <div className="w-7 h-7 rounded-md bg-zinc-900 border border-zinc-900/10 flex items-center justify-center p-0.5 overflow-hidden shadow-2xs">
+          <span className="synapes-rgb-sweep" aria-hidden="true" />
+          <div className="synapes-logo-box w-7 h-7 rounded-md bg-zinc-900 border border-zinc-900/10 flex items-center justify-center p-0.5 overflow-hidden shadow-2xs flex-shrink-0">
             <img
               src="/logo.jpg"
               alt="SYNAPES"
@@ -93,13 +116,34 @@ export const Header: React.FC<HeaderProps> = ({
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-zinc-950 text-[13px] tracking-tight">
-              SYNAPES
+          <div className="flex items-center gap-1.5 select-none">
+            <span className="font-bold text-zinc-950 text-[13px] tracking-tight inline-flex">
+              {'SYNAPES'.split('').map((ch, idx) => (
+                <span
+                  key={`syn-${idx}`}
+                  className="synapes-char"
+                  style={{ '--char-idx': idx } as React.CSSProperties}
+                >
+                  {ch}
+                </span>
+              ))}
             </span>
-            <span className="text-zinc-300 font-light">/</span>
-            <span className="text-[11px] font-medium text-zinc-600">
-              Studio
+            <span
+              className="text-zinc-300 font-light synapes-char"
+              style={{ '--char-idx': 7 } as React.CSSProperties}
+            >
+              /
+            </span>
+            <span className="text-[11px] font-medium text-zinc-600 inline-flex">
+              {'Studio'.split('').map((ch, idx) => (
+                <span
+                  key={`st-${idx}`}
+                  className="synapes-char"
+                  style={{ '--char-idx': 8 + idx } as React.CSSProperties}
+                >
+                  {ch}
+                </span>
+              ))}
             </span>
           </div>
         </button>
@@ -176,6 +220,22 @@ export const Header: React.FC<HeaderProps> = ({
             >
               {userPlanTier !== 'enterprise' && <Lock className="w-2.5 h-2.5" />}
               <span>ULTRA</span>
+            </span>
+          </button>
+
+          <button
+            onClick={() => onSelectView('voice-studio-labs')}
+            className={`px-3 py-1.5 rounded-md text-[11.5px] font-medium transition cursor-pointer flex items-center gap-1.5 ${
+              activeView === 'voice-studio-labs'
+                ? 'bg-white text-zinc-950 shadow-2xs border border-zinc-200/60 font-semibold'
+                : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/50'
+            }`}
+            title="VoiceStudio LABS • Nhân bản giọng nói, Thiết kế giọng, Lồng tiếng Video & Whisper"
+          >
+            <AudioLines className="w-3.5 h-3.5 text-emerald-700" />
+            <span>VoiceStudio</span>
+            <span className="px-1.5 py-0.2 rounded text-[8.5px] font-mono font-bold bg-emerald-600 text-white tracking-wider">
+              LABS
             </span>
           </button>
 

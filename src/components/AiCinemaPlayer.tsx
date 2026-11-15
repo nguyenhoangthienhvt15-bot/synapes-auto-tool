@@ -64,6 +64,7 @@ interface AiCinemaPlayerProps {
   onOpenVoiceStudio?: () => void;
   onOpenShortcutsModal?: () => void;
   onOpenLiveDubbingModal?: () => void;
+  onOpenStitcherStudio?: () => void;
 }
 
 export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
@@ -76,6 +77,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   onOpenVoiceStudio,
   onOpenShortcutsModal,
   onOpenLiveDubbingModal,
+  onOpenStitcherStudio,
 }) => {
   const scenes = project.storyboard && project.storyboard.length > 0 ? project.storyboard : [];
   const totalDuration = scenes.reduce((acc, s) => Math.max(acc, s.endSec || 0), 0) || project.duration || 48;
@@ -1324,10 +1326,10 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       ctx.restore();
     }
 
-    // 3D Extruded Counting Number Badge (Top-Left)
-    const badgeX = W * 0.08;
-    const badgeY = H * 0.18;
+    // 3D Extruded Counting Number Badge (Top-Left, clamped safely inside margin)
     const badgeR = Math.min(W, H) * 0.075;
+    const badgeX = Math.max(W * 0.14, badgeR + 28);
+    const badgeY = Math.max(H * 0.18, badgeR + 24);
     const popScale = 1 + Math.sin(clockSec * 6.8) * 0.06 * Math.min(1, progress * 4);
     ctx.save();
     ctx.translate(badgeX, badgeY);
@@ -2077,20 +2079,32 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           drawAppleKeynoteSubtleMotionOverlay(ctx, W, H, clockSec, progress, activeIdx);
         }
       } else if (is3dAnimationProject) {
+        const isInsectCountingStage =
+          /côn\s*trùng|cào\s*cào|châu\s*chấu|bọ\s*rùa|đếm\s*số|insect|grasshopper/i.test(
+            `${project.title} ${scene.visualPrompt || ''}`
+          );
         if (project.dialogueMode || scene.speakerId || scene.cameraAngle) {
           draw3dDialogueCinemaStage(ctx, W, H, clockSec, activeIdx, progress, scene);
-        } else {
+        } else if (isInsectCountingStage) {
           draw3dAnimationInsectStage(ctx, W, H, clockSec, activeIdx, progress);
+        } else {
+          drawAppleKeynoteSubtleMotionOverlay(ctx, W, H, clockSec, progress, activeIdx);
         }
       } else if (visualRenderMode === 'hybrid-3d' && !isHardwareKeynoteProject) {
         // Hiệu ứng quét ánh sáng điện ảnh trung tính cho các chủ đề không phải điện thoại
         drawAppleKeynoteSubtleMotionOverlay(ctx, W, H, clockSec, progress, activeIdx);
       }
     } else if (is3dAnimationProject) {
+      const isInsectCountingStage =
+        /côn\s*trùng|cào\s*cào|châu\s*chấu|bọ\s*rùa|đếm\s*số|insect|grasshopper/i.test(
+          `${project.title} ${scene.visualPrompt || ''}`
+        );
       if (project.dialogueMode || scene.speakerId || scene.cameraAngle) {
         draw3dDialogueCinemaStage(ctx, W, H, clockSec, activeIdx, progress, scene);
-      } else {
+      } else if (isInsectCountingStage) {
         draw3dAnimationInsectStage(ctx, W, H, clockSec, activeIdx, progress);
+      } else {
+        drawCinematicSceneStage(ctx, W, H, clockSec, activeIdx, progress, scene);
       }
     } else if (isHardwareKeynoteProject) {
       drawCinematicSceneStage(ctx, W, H, clockSec, activeIdx, progress, scene);
@@ -3974,95 +3988,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     <div className="space-y-2 select-none" ref={containerRef}>
       {/* 1. NLE STUDIO EDITING TOOLBAR RIBBON */}
       <div className="p-2.5 rounded-xl bg-zinc-900 text-white flex flex-wrap items-center justify-between gap-2 text-xs shadow-md border border-white/10">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {/* Split Scene (S) */}
-          <button
-            type="button"
-            onClick={handleSplitScene}
-            className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/10"
-            title="Tách phân cảnh tại vị trí playhead (Phím tắt: S)"
-          >
-            <Scissors className="w-3.5 h-3.5 text-amber-400" />
-            <span>Tách cảnh</span>
-            <kbd className="px-1 py-0.2 rounded bg-zinc-900 text-zinc-400 text-[9px] font-mono">S</kbd>
-          </button>
-
-          {/* Duplicate Scene (Ctrl+D) */}
-          <button
-            type="button"
-            onClick={handleDuplicateScene}
-            className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/10"
-            title="Nhân đôi phân cảnh hiện tại (Phím tắt: Ctrl+D)"
-          >
-            <Copy className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Nhân đôi</span>
-          </button>
-
-          {/* Delete Scene (Del) */}
-          <button
-            type="button"
-            onClick={handleDeleteCurrentScene}
-            className="px-2 py-1.5 rounded-lg bg-zinc-800 hover:bg-rose-950/70 hover:text-rose-300 text-zinc-300 font-medium flex items-center gap-1 transition cursor-pointer border border-white/10"
-            title="Xóa phân cảnh hiện tại khỏi timeline"
-          >
-            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-            <span>Xóa</span>
-          </button>
-
-          {/* Move Up/Down */}
-          <div className="flex items-center bg-zinc-800 rounded-lg p-0.5 border border-white/10">
-            <button
-              type="button"
-              onClick={() => handleMoveSceneOrder(-1)}
-              disabled={currentSceneIndex === 0}
-              className="p-1 rounded hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 cursor-pointer"
-              title="Đưa cảnh lên trước"
-            >
-              <ArrowUp className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => handleMoveSceneOrder(1)}
-              disabled={currentSceneIndex === scenes.length - 1}
-              className="p-1 rounded hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 cursor-pointer"
-              title="Đưa cảnh xuống sau"
-            >
-              <ArrowDown className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <div className="h-4 w-px bg-zinc-700 mx-0.5"></div>
-
-          {/* Upload custom B-roll media */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/10"
-            title="Tải lên ảnh hoặc video riêng từ máy tính cho phân cảnh này"
-          >
-            <Upload className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Đổi B-Roll / Ảnh</span>
-          </button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            accept="image/*,video/*"
-            className="hidden"
-          />
-
-          {/* Internet Real Image Search Button */}
-          <button
-            type="button"
-            onClick={() => setShowInternetImageModal(true)}
-            className="px-2.5 py-1.5 rounded-lg bg-sky-950 hover:bg-sky-900 text-sky-200 font-semibold flex items-center gap-1.5 transition cursor-pointer border border-sky-500/30 shadow-xs"
-            title="Tìm và nạp dữ liệu hình ảnh sản phẩm thực tế từ Internet cho phân cảnh này"
-          >
-            <Globe className="w-3.5 h-3.5 text-sky-400" />
-            <span>Kho Ảnh Internet</span>
-          </button>
-
-          {/* Voice Studio Modal Button */}
+        <div className="flex items-center gap-2 flex-wrap">          {/* Voice Studio Modal Button */}
           <button
             type="button"
             onClick={onOpenVoiceStudio}
@@ -4086,93 +4012,22 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
             </button>
           )}
 
-          {/* Visual Render Mode Switcher: Auto theo Chủ đề / Bản Tin 24h / Điện Ảnh / Ảnh Sạch */}
-          <div className="flex items-center bg-zinc-950/90 rounded-lg p-0.5 border border-white/10">
-            {[
-              { id: 'auto-genre', label: 'Auto Chủ Đề' },
-              { id: 'news-24h', label: 'Bản Tin 24h' },
-              { id: 'hybrid-3d', label: isHardwareKeynoteProject ? '3D Keynote' : 'Điện Ảnh' },
-              { id: 'clean-photo', label: 'Ảnh Sạch' },
-            ].map((mode) => (
-              <button
-                key={mode.id}
-                type="button"
-                onClick={() => setVisualRenderMode(mode.id as any)}
-                className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
-                  visualRenderMode === mode.id
-                    ? 'bg-white text-zinc-950 font-bold shadow-xs'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-                title="Chuyển chế độ hiển thị đồ họa theo thể loại dự án"
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Clean Cinema vs Technical Broadcast HUD toggle */}
-          <button
-            type="button"
-            onClick={() => setShowBroadcastHud((h) => !h)}
-            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium flex items-center gap-1 transition cursor-pointer border ${
-              showBroadcastHud
-                ? 'bg-sky-950 text-sky-200 border-sky-500/40'
-                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-white/10'
-            }`}
-            title="Bật/Tắt lớp thông số kỹ thuật Broadcast HUD trên màn hình"
-          >
-            <span>{showBroadcastHud ? 'HUD: Bật' : 'HUD: Ẩn (Clean)'}</span>
-          </button>
-
-          {/* LUT & VFX palette */}
-          <button
-            type="button"
-            onClick={() => setShowLutPaletteModal(true)}
-            className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/10"
-            title="Chọn bộ lọc màu điện ảnh & hiệu ứng quang học"
-          >
-            <Palette className="w-3.5 h-3.5 text-amber-300" />
-            <span>Màu & VFX</span>
-          </button>
+          {/* Video Stitcher Button (Ghép Nối Video > 2 phút) */}
+          {onOpenStitcherStudio && (
+            <button
+              type="button"
+              onClick={onOpenStitcherStudio}
+              className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-200 font-semibold flex items-center gap-1.5 transition cursor-pointer border border-amber-500/30 shadow-xs"
+              title="Ghép nối nhiều đoạn video (mỗi đoạn tối đa 2 phút) thành video dài 5–10 phút liền mạch"
+            >
+              <Film className="w-3.5 h-3.5 text-amber-400" />
+              <span>Ghép Nối Video</span>
+            </button>
+          )}
         </div>
 
-        {/* Right Tools: Snapshot 4K, Export Video, Shortcuts */}
+        {/* Right Tools: Export Video */}
         <div className="flex items-center gap-2">
-          {/* Snapshot 4K */}
-          <button
-            type="button"
-            onClick={handleSnapshot4K}
-            className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/10"
-            title="Chụp ảnh khung hình 4K hiện tại (Phím tắt: Shift+S)"
-          >
-            <Camera className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Snapshot</span>
-          </button>
-
-          {/* Shortcuts Help */}
-          <button
-            type="button"
-            onClick={onOpenShortcutsModal}
-            className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition cursor-pointer"
-            title="Bảng tra cứu phím tắt biên tập (Phím tắt: ?)"
-          >
-            <Keyboard className="w-4 h-4 text-zinc-400" />
-          </button>
-
-          {/* Record Screen / Session Button */}
-          <button
-            type="button"
-            onClick={handleStartSessionRecording}
-            className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition cursor-pointer border shadow-sm ${
-              isRecordingSession
-                ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-400 animate-pulse'
-                : 'bg-zinc-800 hover:bg-zinc-700 text-rose-300 border-rose-500/30'
-            }`}
-            title="Ghi hình toàn bộ quá trình thao tác trên màn hình (Lưu file .webm)"
-          >
-            <span className={`w-2.5 h-2.5 rounded-full ${isRecordingSession ? 'bg-white animate-ping' : 'bg-rose-500'}`}></span>
-            <span>{isRecordingSession ? 'ĐANG GHI MÀN HÌNH...' : 'GHI THAO TÁC'}</span>
-          </button>
 
           {/* Export Video Master Button */}
           <button
@@ -4538,7 +4393,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                     {(
                       [
                         { val: 1 as const, label: '1x Chuẩn' },
-                        { val: 2 as const, label: '2x Nhanh (Khuyên dùng)' },
+                        { val: 2 as const, label: '2x Nhanh' },
                         { val: 4 as const, label: '4x Siêu tốc' },
                       ] as const
                     ).map((opt) => (
