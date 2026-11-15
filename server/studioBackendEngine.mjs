@@ -902,37 +902,298 @@ export async function searchWikimediaImages(query, limit = 8) {
 }
 
 // ============================================================================
-// 4. NEURAL TTS SYNTHESIS ENGINE (OPENAI STUDIO + EDGE NEURAL + GOOGLE DSP)
+// 4. NEURAL TTS SYNTHESIS ENGINE (OPENAI STUDIO + EDGE NEURAL V2 + GOOGLE DSP)
 // ============================================================================
+const _EDGE_SHA256_INITIAL = [0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C, 0x1F83D9AB, 0x5BE0CD19];
+const _EDGE_SHA256_STATE = [0xFD9FBEA2, 0x91243CE7, 0xBE499094, 0xCD2E1E0A, 0x6C006F49, 0x04BD35AB, 0xFEB0A7E4, 0x03EFFBD2];
+const _EDGE_SHA256_SCHEDULE = [0xEB24BF9E, 0x1558691F, 0xA0C09EE2, 0x0CFA32BA, 0xA622EE8C, 0xD1DD9491, 0xC0DD25A0, 0xF9E70AB6, 0xF0C31573, 0x7058CE4E, 0x7188E606, 0x00E5AB33, 0xD258B060, 0x72766564];
+const _EDGE_SHA256_ROUND_CONSTANTS = [
+  0x428A2F98, 0x71374491, 0xB5C0FBCF, 0xE9B5DBA5, 0x3956C25B, 0x59F111F1, 0x923F82A4, 0xAB1C5ED5,
+  0xD807AA98, 0x12835B01, 0x243185BE, 0x550C7DC3, 0x72BE5D74, 0x80DEB1FE, 0x9BDC06A7, 0xC19BF174,
+  0xE49B69C1, 0xEFBE4786, 0x0FC19DC6, 0x240CA1CC, 0x2DE92C6F, 0x4A7484AA, 0x5CB0A9DC, 0x76F988DA,
+  0x983E5152, 0xA831C66D, 0xB00327C8, 0xBF597FC7, 0xC6E00BF3, 0xD5A79147, 0x06CA6351, 0x14292967,
+  0x27B70A85, 0x2E1B2138, 0x4D2C6DFC, 0x53380D13, 0x650A7354, 0x766A0ABB, 0x81C2C92E, 0x92722C85,
+  0xA2BFE8A1, 0xA81A664B, 0xC24B8B70, 0xC76C51A3, 0xD192E819, 0xD6990624, 0xF40E3585, 0x106AA070,
+  0x19A4C116, 0x1E376C08, 0x2748774C, 0x34B0BCB5, 0x391C0CB3, 0x4ED8AA4A, 0x5B9CCA4F, 0x682E6FF3,
+  0x748F82EE, 0x78A5636F, 0x84C87814, 0x8CC70208, 0x90BEFFFA, 0xA4506CEB, 0xBEF9A3F7, 0xC67178F2,
+];
+const _EDGE_SHA256_ADJUSTMENT = 0xC9DC06A7;
+const _EDGE_SHA256_BLOCK_CONSTANTS = [
+  ..._EDGE_SHA256_ROUND_CONSTANTS.slice(0, 14),
+  _EDGE_SHA256_ADJUSTMENT,
+  ..._EDGE_SHA256_ROUND_CONSTANTS.slice(15),
+];
+const _EDGE_SHA256_SIGMA0_ADJ = 0x059C0B80;
+const _EDGE_SHA256_SIGMA1_ADJ = 0x000B92C0;
+const _EDGE_CS64_COEFFICIENTS = [
+  [0xE82E91B1, 0xB32700D0], [0x44DE24C6, 0x88DFF51D], [0x3BEB65BC, 0x29514038], [0xC89C5933, 0xB328CBDF],
+  [0x8D1EC211, 0xD405B4D5], [0x314EF5D5, 0x26E55F3C], [0xE92491B1, 0x607801C6], [0xF0A5B9D5, 0x82B2C1FB],
+  [0x06064CF3, 0xFA51A3DA], [0xDA79FA60, 0x207CC464], [0xBED20560, 0x3C3C74F3], [0x89F9C9F8, 0xD2D14B61],
+  [0x35FA38C6, 0xBB04A2C1], [0xCB49E3C6, 0xC5626167],
+];
+const _EDGE_CS64_FACTOR = 0x82893933;
+const _EDGE_CS64_ADJ0 = 0xF2F90B1A;
+const _EDGE_CS64_ADJ1 = 0x0B1A0000;
+
+const _u32 = (x) => (x >>> 0);
+const _mul32 = (a, b) => Math.imul(a >>> 0, b >>> 0) >>> 0;
+const _rotr32 = (v, n) => (((v >>> 0) >>> n) | ((v >>> 0) << (32 - n))) >>> 0;
+const _rol16 = (v) => (((v >>> 0) << 16) | ((v >>> 0) >>> 16)) >>> 0;
+const _sigma0 = (v) => (_rotr32(v, 7) ^ _rotr32(v, 18) ^ ((v >>> 0) >>> 3)) >>> 0;
+const _sigma1 = (v) => (_rotr32(v, 17) ^ _rotr32(v, 19) ^ ((v >>> 0) >>> 10)) >>> 0;
+const _bigSigma0 = (v) => (_rotr32(v, 2) ^ _rotr32(v, 13) ^ _rotr32(v, 22)) >>> 0;
+const _bigSigma1 = (v) => (_rotr32(v, 6) ^ _rotr32(v, 11) ^ _rotr32(v, 25)) >>> 0;
+
+function _edgeSha256Rounds(state, words, firstRound = 0) {
+  let [a, b, c, d, e, f, g, h] = state.map(_u32);
+  const constants = firstRound === 14 ? _EDGE_SHA256_BLOCK_CONSTANTS : _EDGE_SHA256_ROUND_CONSTANTS;
+  for (let i = firstRound; i < 64; i++) {
+    const t1 = (h + _bigSigma1(e) + ((g ^ (e & (f ^ g))) >>> 0) + constants[i] + words[i]) >>> 0;
+    const t2 = (_bigSigma0(a) + (((a & b) | (c & (a | b))) >>> 0)) >>> 0;
+    h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+  }
+  return [a, b, c, d, e, f, g, h];
+}
+
+function _edgeExpandSchedule(words, firstWord = 16) {
+  for (let i = firstWord; i < 64; i++) {
+    words[i] = (_sigma1(words[i - 2]) + words[i - 7] + _sigma0(words[i - 15]) + words[i - 16]) >>> 0;
+  }
+}
+
+function _edgeSha256Init(data7) {
+  const words = new Array(14).fill(0);
+  words.push(((data7[0] << 16) | (data7[1] << 8) | data7[2]) >>> 0);
+  words.push(((data7[3] << 24) | (data7[4] << 16) | (data7[5] << 8) | data7[6]) >>> 0);
+  for (let i = 16; i < 30; i++) {
+    let val = _EDGE_SHA256_SCHEDULE[i - 16] >>> 0;
+    if (i - 2 >= 14) {
+      val = (val + (i === 16 ? (_sigma1(words[i - 2]) ^ _EDGE_SHA256_SIGMA1_ADJ) : _sigma1(words[i - 2]))) >>> 0;
+    }
+    if (i - 7 >= 14) val = (val + words[i - 7]) >>> 0;
+    if (i - 15 >= 14) {
+      val = (val + (i === 29 ? (_sigma0(words[i - 15]) ^ _EDGE_SHA256_SIGMA0_ADJ) : _sigma0(words[i - 15]))) >>> 0;
+    }
+    words.push(val >>> 0);
+  }
+  words.push((_sigma1(words[28]) + words[23] + _sigma0(words[15]) + words[14] + _EDGE_SHA256_ADJUSTMENT - _EDGE_SHA256_ROUND_CONSTANTS[14]) >>> 0);
+  _edgeExpandSchedule(words, 31);
+  const working = _edgeSha256Rounds(_EDGE_SHA256_STATE, words, 14);
+  return _EDGE_SHA256_INITIAL.map((x, idx) => (x + working[idx]) >>> 0);
+}
+
+function _edgeSha256Digest(dataBuf) {
+  const length = 57 + dataBuf.length;
+  const padZeros = ((55 - length) % 64 + 64) % 64;
+  const tail = dataBuf.subarray(7);
+  const padded = Buffer.alloc(tail.length + 1 + padZeros + 8);
+  tail.copy(padded, 0);
+  padded[tail.length] = 0x80;
+  padded.writeBigUInt64BE(BigInt(length * 8), padded.length - 8);
+  let state = _edgeSha256Init(dataBuf.subarray(0, 7));
+  for (let off = 0; off < padded.length; off += 64) {
+    const words = new Array(16);
+    for (let i = 0; i < 16; i++) words[i] = padded.readUInt32BE(off + i * 4);
+    _edgeExpandSchedule(words, 16);
+    const working = _edgeSha256Rounds(state, words, 0);
+    state = state.map((x, idx) => (x + working[idx]) >>> 0);
+  }
+  const out = Buffer.alloc(32);
+  state.forEach((w, idx) => out.writeUInt32BE(w >>> 0, idx * 4));
+  return out;
+}
+
+function _edgeCs64Digest(dataBuf, digestBuf) {
+  const keyA = (digestBuf.readUInt32LE(0) | 1) >>> 0;
+  const keyB = (digestBuf.readUInt32LE(4) | 1) >>> 0;
+  const factors = [_mul32(keyA, _EDGE_CS64_FACTOR), _mul32(keyB, _EDGE_CS64_FACTOR)];
+  const terms = _EDGE_CS64_COEFFICIENTS.map(([c], i) => _mul32(c, factors[i % 2]));
+  const offsets = _EDGE_CS64_COEFFICIENTS.map(([, o]) => o >>> 0);
+  const prep = Buffer.concat([Buffer.from([0]), dataBuf]);
+  const padLen = (4 - (prep.length % 4)) % 4;
+  const padded = padLen ? Buffer.concat([prep, Buffer.alloc(padLen)]) : prep;
+  const words = [];
+  for (let i = 0; i < padded.length; i += 4) words.push(padded.readUInt32LE(i));
+  if (words.length % 2 === 1) words.push(0);
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i] >>> 0;
+    let term = _mul32(w, i % 2 === 0 ? keyA : keyB);
+    let offset = _mul32(_rol16(w), i % 2 === 0 ? 0xEF0569FB : 0xC31713DB);
+    if (i === 0) {
+      term = (term + _mul32(_EDGE_CS64_ADJ0, factors[0])) >>> 0;
+      offset = (offset + _EDGE_CS64_ADJ1) >>> 0;
+    }
+    terms.push(term >>> 0);
+    offsets.push(offset >>> 0);
+  }
+  let swapAcc = 0, swapLast = 0, state = 0, acc = 0;
+  for (let i = 0; i < terms.length; i += 2) {
+    const x = terms[i] >>> 0, y = terms[i + 1] >>> 0;
+    let t = _rol16((offsets[i] + x) >>> 0);
+    let q = _mul32(t, 0x76F50F34);
+    swapAcc = (swapAcc + ((_mul32(_rol16(q), 0xC3EFEA97) + q) >>> 0)) >>> 0;
+    t = _rol16((offsets[i + 1] + y) >>> 0);
+    q = _mul32(t, 0x1881CE3C);
+    swapLast = (_mul32(_rol16(q), 0x35BD1EC9) + q) >>> 0;
+    swapAcc = (swapAcc + swapLast) >>> 0;
+    state = (_mul32(state, keyA) + x) >>> 0;
+    state = _mul32(_rol16(state), 0xCF98B111);
+    state = _mul32(_rol16(state), 0x87085B9F);
+    state = _mul32(_rol16(state), 0x12CEB96D);
+    state = _mul32(_rol16(state), 0x257E1D83);
+    acc = (acc + state) >>> 0;
+    t = (_mul32(state, keyB) + y) >>> 0;
+    t = _mul32(_rol16(t), 0xA27416F5);
+    t = _mul32(_rol16(t), 0xD38396FF);
+    state = _mul32(_rol16(_mul32(_rol16(t), 0x7C932B89)), 0xBFA49F69);
+    acc = (acc + state) >>> 0;
+  }
+  const out = Buffer.alloc(8);
+  out.writeUInt32LE((swapLast ^ state) >>> 0, 0);
+  out.writeUInt32LE((swapAcc ^ acc) >>> 0, 4);
+  return out;
+}
+
 function generateSecMsGec() {
   const WIN_EPOCH = 11644473600;
   const TRUSTED_CLIENT_TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
   let ticks = Math.floor(Date.now() / 1000) + WIN_EPOCH;
   ticks -= ticks % 300;
   ticks *= 10000000;
-  const strToHash = `${ticks.toFixed(0)}${TRUSTED_CLIENT_TOKEN}`;
-  return crypto.createHash('sha256').update(strToHash, 'ascii').digest('hex').toUpperCase();
+  const dataBuf = Buffer.from(`${ticks.toFixed(0)}${TRUSTED_CLIENT_TOKEN}`, 'ascii');
+  const digest = _edgeSha256Digest(dataBuf);
+  const cs64 = _edgeCs64Digest(dataBuf, digest).toString('hex').toUpperCase();
+  return `${cs64}-${digest.toString('hex').toUpperCase()}`;
+}
+
+function _sendWsTextFrame(socket, str) {
+  const payload = Buffer.from(str, 'utf8');
+  const mask = crypto.randomBytes(4);
+  let header;
+  if (payload.length < 126) {
+    header = Buffer.alloc(2);
+    header[0] = 0x81;
+    header[1] = 0x80 | payload.length;
+  } else if (payload.length < 65536) {
+    header = Buffer.alloc(4);
+    header[0] = 0x81;
+    header[1] = 0x80 | 126;
+    header.writeUInt16BE(payload.length, 2);
+  } else {
+    header = Buffer.alloc(10);
+    header[0] = 0x81;
+    header[1] = 0x80 | 127;
+    header.writeBigUInt64BE(BigInt(payload.length), 2);
+  }
+  const masked = Buffer.alloc(payload.length);
+  for (let i = 0; i < payload.length; i++) masked[i] = payload[i] ^ mask[i % 4];
+  socket.write(Buffer.concat([header, mask, masked]));
 }
 
 async function synthesizeEdgeNeuralTts(text, voiceName, ratePct = '+0%', pitchHz = '+0Hz') {
-  if (typeof WebSocket === 'undefined') {
-    throw new Error('Native WebSocket not available');
-  }
-
   return new Promise((resolve, reject) => {
     const reqId = crypto.randomUUID().replace(/-/g, '');
     const secMsGec = generateSecMsGec();
-    const wsUrl = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&Sec-MS-GEC=${secMsGec}&Sec-MS-GEC-Version=1-131.0.2903.51&ConnectionId=${reqId}`;
+    const muid = crypto.randomBytes(16).toString('hex').toUpperCase();
+    const pathUrl = `/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&Sec-MS-GEC=${secMsGec}&Sec-MS-GEC-Version=2-143.0.3650.75&ConnectionId=${reqId}`;
+    const wsKey = crypto.randomBytes(16).toString('base64');
 
-    const ws = new WebSocket(wsUrl);
-    ws.binaryType = 'arraybuffer';
-    const audioChunks = [];
+    let settled = false;
+    const finish = (err, data) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (err) reject(err);
+      else resolve(data);
+    };
+
+    const req = https.request({
+      hostname: 'speech.platform.bing.com',
+      port: 443,
+      path: pathUrl,
+      method: 'GET',
+      headers: {
+        Connection: 'Upgrade',
+        Upgrade: 'websocket',
+        'Sec-WebSocket-Version': '13',
+        'Sec-WebSocket-Key': wsKey,
+        Pragma: 'no-cache',
+        'Cache-Control': 'no-cache',
+        Cookie: `muid=${muid};`,
+        Origin: 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0',
+      },
+    });
+
     const timeout = setTimeout(() => {
-      try { ws.close(); } catch { }
-      reject(new Error('Edge TTS timeout'));
-    }, 5500);
+      try { req.destroy(); } catch { }
+      finish(new Error('Edge TTS v2 timeout'));
+    }, 8500);
 
-    ws.onopen = () => {
+    req.on('error', (err) => finish(err));
+    req.on('response', (res) => {
+      res.resume();
+      finish(new Error(`Edge TTS HTTP ${res.statusCode}`));
+    });
+
+    req.on('upgrade', (_res, socket) => {
+      const audioChunks = [];
+      let rxBuf = Buffer.alloc(0);
+
+      socket.on('error', (err) => finish(err));
+      socket.on('close', () => {
+        if (!settled) {
+          if (audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
+          else finish(new Error('Edge TTS socket closed before audio'));
+        }
+      });
+
+      socket.on('data', (chunk) => {
+        rxBuf = Buffer.concat([rxBuf, chunk]);
+        while (rxBuf.length >= 2) {
+          const byte0 = rxBuf[0];
+          const opcode = byte0 & 0x0f;
+          let len = rxBuf[1] & 0x7f;
+          let offset = 2;
+          if (len === 126) {
+            if (rxBuf.length < 4) break;
+            len = rxBuf.readUInt16BE(2);
+            offset = 4;
+          } else if (len === 127) {
+            if (rxBuf.length < 10) break;
+            len = Number(rxBuf.readBigUInt64BE(2));
+            offset = 10;
+          }
+          if (rxBuf.length < offset + len) break;
+          const frameData = rxBuf.subarray(offset, offset + len);
+          rxBuf = rxBuf.subarray(offset + len);
+
+          if (opcode === 0x01) {
+            const txt = frameData.toString('utf8');
+            if (txt.includes('Path:turn.end')) {
+              try { socket.destroy(); } catch { }
+              if (audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
+              else finish(new Error('Empty Edge TTS buffer'));
+              return;
+            }
+          } else if (opcode === 0x02 && frameData.length > 2) {
+            const headerLen = frameData.readUInt16BE(0);
+            if (frameData.length > 2 + headerLen) {
+              const headerStr = frameData.subarray(2, 2 + headerLen).toString('utf8');
+              if (headerStr.includes('Path:audio')) {
+                audioChunks.push(frameData.subarray(2 + headerLen));
+              }
+            }
+          } else if (opcode === 0x08) {
+            try { socket.destroy(); } catch { }
+            if (audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
+            else finish(new Error('Edge TTS closed frame'));
+            return;
+          }
+        }
+      });
+
       const configMsg =
         `X-Timestamp:${new Date().toString()}\r\n` +
         `Content-Type:application/json; charset=utf-8\r\n` +
@@ -947,7 +1208,7 @@ async function synthesizeEdgeNeuralTts(text, voiceName, ratePct = '+0%', pitchHz
             },
           },
         });
-      ws.send(configMsg);
+      _sendWsTextFrame(socket, configMsg);
 
       const escapedText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const langCode = voiceName.startsWith('en') ? 'en-US' : 'vi-VN';
@@ -963,35 +1224,10 @@ async function synthesizeEdgeNeuralTts(text, voiceName, ratePct = '+0%', pitchHz
         `X-Timestamp:${new Date().toString()}Z\r\n` +
         `Path:ssml\r\n\r\n` +
         ssml;
-      ws.send(ssmlMsg);
-    };
+      _sendWsTextFrame(socket, ssmlMsg);
+    });
 
-    ws.onmessage = (event) => {
-      if (typeof event.data === 'string') {
-        if (event.data.includes('Path:turn.end')) {
-          clearTimeout(timeout);
-          try { ws.close(); } catch { }
-          if (audioChunks.length > 0) resolve(Buffer.concat(audioChunks));
-          else reject(new Error('Empty Edge TTS buffer'));
-        }
-      } else if (event.data instanceof ArrayBuffer) {
-        const buf = Buffer.from(event.data);
-        if (buf.length > 2) {
-          const headerLen = buf.readUInt16BE(0);
-          if (buf.length > 2 + headerLen) {
-            const headerStr = buf.subarray(2, 2 + headerLen).toString('utf8');
-            if (headerStr.includes('Path:audio')) {
-              audioChunks.push(buf.subarray(2 + headerLen));
-            }
-          }
-        }
-      }
-    };
-
-    ws.onerror = (err) => {
-      clearTimeout(timeout);
-      reject(err);
-    };
+    req.end();
   });
 }
 
@@ -2396,6 +2632,213 @@ export async function handleStudioApiRequest(req, res) {
     } catch (err) {
       res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ error: 'TTS synthesis failed', details: String(err) }));
+    }
+    return true;
+  }
+
+  // --------------------------------------------------------------------------
+  // E2. GOOGLE SHEET GVIZ SERVER-SIDE PROXY (/api/sheet-gviz)
+  // Ngăn chặn hoàn toàn lỗi CORS & CSP khi Google Sheet đặt quyền Hạn chế (302 ServiceLogin)
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/sheet-gviz' && req.method === 'GET') {
+    try {
+      const parsedUrl = new URL(rawUrl, 'http://localhost');
+      const sheetId = parsedUrl.searchParams.get('sheetId') || '';
+      const gid = parsedUrl.searchParams.get('gid') || '0';
+      if (!sheetId) {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, restricted: true, text: '' }));
+        return true;
+      }
+      const targetUrl = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/gviz/tq?tqx=out:json&gid=${encodeURIComponent(gid)}&_t=${Date.now()}`;
+      const gvizRes = await fetch(targetUrl, {
+        method: 'GET',
+        redirect: 'manual',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36',
+        },
+      });
+      if (gvizRes.status >= 300 && gvizRes.status < 400) {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, restricted: true, text: '' }));
+        return true;
+      }
+      if (!gvizRes.ok) {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, restricted: true, text: '' }));
+        return true;
+      }
+      const text = await gvizRes.text();
+      if (text.trimStart().startsWith('<')) {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, restricted: true, text: '' }));
+        return true;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ok: true, restricted: false, text }));
+    } catch {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, restricted: true, text: '' }));
+    }
+    return true;
+  }
+
+  // --------------------------------------------------------------------------
+  // E3. VOICESTUDIO NEURAL ENGINE ENDPOINTS (/api/voicestudio/*)
+  // Hỗ trợ Health Check, Dịch Lồng Tiếng Đa Ngôn Ngữ Thực Tế & Phân Tích Thiết Kế Giọng
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/voicestudio/health' || cleanUrl === '/api/voicestudio/v1/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(
+      JSON.stringify({
+        status: 'ok',
+        service: 'synapes-voicestudio-neural-engine',
+        version: '2.5.0',
+        engines: [
+          'edge-neural-24khz',
+          'google-neural-dsp',
+          'openai-studio-hd',
+          'elevenlabs-multilingual-v2',
+          'whisper-asr-vad',
+          'wsola-vocal-tract-dsp',
+        ],
+      })
+    );
+    return true;
+  }
+
+  if (cleanUrl === '/api/voicestudio/translate-dub' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const lines = Array.isArray(body?.lines) ? body.lines.map((l) => String(l || '').trim()) : [];
+      const targetLang = String(body?.targetLang || 'en').trim().toLowerCase();
+
+      if (lines.length === 0) {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: true, engine: 'empty', translatedLines: [] }));
+        return true;
+      }
+
+      if (targetLang === 'vi') {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: true, engine: 'native-vi', translatedLines: lines }));
+        return true;
+      }
+
+      // Translate each line using Google GTX Neural Machine Translation
+      const translateSingleLine = async (text) => {
+        if (!text) return '';
+        try {
+          const gtxUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(
+            targetLang
+          )}&dt=t&q=${encodeURIComponent(text)}`;
+          const resp = await fetch(gtxUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36',
+            },
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (Array.isArray(data?.[0])) {
+              const joined = data[0]
+                .map((seg) => (Array.isArray(seg) && typeof seg[0] === 'string' ? seg[0] : ''))
+                .join('')
+                .trim();
+              if (joined) return joined;
+            }
+          }
+        } catch {
+          // fallback below
+        }
+        return text;
+      };
+
+      const translatedLines = await Promise.all(lines.map((line) => translateSingleLine(line)));
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(
+        JSON.stringify({
+          ok: true,
+          engine: 'google-neural-mt',
+          targetLang,
+          translatedLines,
+        })
+      );
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err) }));
+    }
+    return true;
+  }
+
+  if (cleanUrl === '/api/voicestudio/design-analyze' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const prompt = String(body?.prompt || '').toLowerCase();
+      const gender = String(body?.gender || 'Nam');
+      const age = String(body?.age || '26-45');
+      const emotion = String(body?.emotion || '').toLowerCase();
+
+      let pitch = gender === 'Nữ' ? 1.05 : gender === 'Trung tính' ? 0.99 : 0.94;
+      let rate = 1.0;
+      let warmthDb = gender === 'Nam' ? 3.5 : 2.0;
+      let midGainDb = 3.2;
+      let highGainDb = 2.4;
+
+      if (age === '18-25') {
+        pitch += 0.05;
+        rate += 0.04;
+        highGainDb += 1.0;
+      } else if (age === '46+') {
+        pitch -= 0.06;
+        rate -= 0.05;
+        warmthDb += 2.0;
+      }
+
+      if (/trầm|ấm|uy lực|baritone|deep|bass|tài liệu/.test(prompt + ' ' + emotion)) {
+        pitch -= 0.04;
+        warmthDb = Math.min(6.0, warmthDb + 1.5);
+      }
+      if (/cao|sáng|trong trẻo|soprano|bright|clear/.test(prompt + ' ' + emotion)) {
+        pitch += 0.05;
+        highGainDb = Math.min(5.0, highGainDb + 1.4);
+      }
+      if (/nhanh|sôi nổi|năng lượng|hào hứng|review|tiktok|viral/.test(prompt + ' ' + emotion)) {
+        rate = Math.min(1.22, rate + 0.08);
+        midGainDb = Math.min(5.0, midGainDb + 1.0);
+      }
+      if (/chậm|điềm tĩnh|kể chuyện|thư giãn|audiobook|truyền cảm/.test(prompt + ' ' + emotion)) {
+        rate = Math.max(0.86, rate - 0.05);
+      }
+
+      pitch = Number(Math.max(0.75, Math.min(1.3, pitch)).toFixed(2));
+      rate = Number(Math.max(0.8, Math.min(1.3, rate)).toFixed(2));
+      warmthDb = Number(Math.max(-2, Math.min(6, warmthDb)).toFixed(1));
+
+      const recommendedVoiceId =
+        gender === 'Nữ'
+          ? age === '18-25'
+            ? 'vi-female-south-1'
+            : 'vi-female-north-1'
+          : age === '46+'
+            ? 'vi-male-north-2'
+            : 'vi-male-north-1';
+
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(
+        JSON.stringify({
+          ok: true,
+          pitch,
+          rate,
+          warmthDb,
+          midGainDb: Number(midGainDb.toFixed(1)),
+          highGainDb: Number(highGainDb.toFixed(1)),
+          recommendedVoiceId,
+          acousticSummary: `F0 Ratio ${pitch}x • Tempo ${rate}x • LowShelf +${warmthDb}dB • Presence +${midGainDb.toFixed(1)}dB`,
+        })
+      );
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err) }));
     }
     return true;
   }

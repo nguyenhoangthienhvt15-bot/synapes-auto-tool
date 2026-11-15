@@ -149,18 +149,18 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         {/* Live System Indicator */}
-        <div className="hidden md:flex items-center gap-1.5 pl-3 border-l border-zinc-200 text-[11px] text-zinc-500 font-mono">
+        <div className="hidden xl:flex items-center gap-1.5 pl-2.5 border-l border-zinc-200 text-[11px] text-zinc-500 font-mono whitespace-nowrap flex-shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
           <span>{currentTime || '00:00'}</span>
         </div>
       </div>
 
       {/* Center: Linear-style Studio Segmented Navigation */}
-      <div className="hidden lg:flex items-center">
-        <nav className="inline-flex items-center p-1 bg-zinc-100/90 rounded-lg border border-zinc-200/80 text-xs gap-0.5">
+      <div className="hidden lg:flex items-center min-w-0 max-w-full overflow-hidden">
+        <nav className="inline-flex items-center p-1 bg-zinc-100/90 rounded-lg border border-zinc-200/80 text-xs gap-0.5 whitespace-nowrap max-w-full overflow-x-auto">
           <button
             onClick={() => onSelectView('pending-approval')}
-            className={`px-3 py-1.5 rounded-md text-[11.5px] font-medium transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer flex items-center gap-1 whitespace-nowrap flex-shrink-0 ${
               activeView === 'pending-approval' || activeView === 'review'
                 ? 'bg-white text-zinc-950 shadow-2xs border border-zinc-200/60 font-semibold'
                 : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/50'
@@ -176,7 +176,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => onSelectView('in-progress')}
-            className={`px-3 py-1.5 rounded-md text-[11.5px] font-medium transition cursor-pointer ${
+            className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer whitespace-nowrap flex-shrink-0 ${
               activeView === 'in-progress'
                 ? 'bg-white text-zinc-950 shadow-2xs border border-zinc-200/60 font-semibold'
                 : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/50'
@@ -187,7 +187,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => onSelectView('calendar')}
-            className={`px-3 py-1.5 rounded-md text-[11.5px] font-medium transition cursor-pointer ${
+            className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer whitespace-nowrap flex-shrink-0 ${
               activeView === 'calendar'
                 ? 'bg-white text-zinc-950 shadow-2xs border border-zinc-200/60 font-semibold'
                 : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/50'
@@ -198,7 +198,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => onSelectView('video-cloner')}
-            className={`px-3 py-1.5 rounded-md text-[11.5px] font-medium transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer flex items-center gap-1 whitespace-nowrap flex-shrink-0 ${
               activeView === 'video-cloner'
                 ? 'bg-white text-zinc-950 shadow-2xs border border-zinc-200/60 font-semibold'
                 : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/50'
@@ -215,7 +215,7 @@ export const Header: React.FC<HeaderProps> = ({
               className={`px-1 py-0.2 rounded text-[8.5px] font-mono font-bold border inline-flex items-center gap-0.5 ${
                 userPlanTier === 'enterprise'
                   ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                  : 'bg-gradient-to-r from-amber-100 to-indigo-100 text-amber-900 border-amber-300'
+                  : 'bg-amber-50 text-amber-900 border-amber-300'
               }`}
             >
               {userPlanTier !== 'enterprise' && <Lock className="w-2.5 h-2.5" />}
@@ -225,7 +225,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => onSelectView('voice-studio-labs')}
-            className={`px-3 py-1.5 rounded-md text-[11.5px] font-medium transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer flex items-center gap-1 whitespace-nowrap flex-shrink-0 ${
               activeView === 'voice-studio-labs'
                 ? 'bg-white text-zinc-950 shadow-2xs border border-zinc-200/60 font-semibold'
                 : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/50'
@@ -241,7 +241,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => onSelectView('mcp-tools')}
-            className={`px-3 py-1.5 rounded-md text-[11.5px] font-medium transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer flex items-center gap-1 whitespace-nowrap flex-shrink-0 ${
               activeView === 'mcp-tools'
                 ? 'bg-white text-zinc-950 shadow-2xs border border-zinc-200/60 font-semibold'
                 : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/50'
@@ -249,19 +249,19 @@ export const Header: React.FC<HeaderProps> = ({
             title="Khối MCP Servers & Công cụ Video AI"
           >
             <Terminal className="w-3.5 h-3.5 text-zinc-500" />
-            <span>Khối MCP & Video Tools</span>
+            <span>MCP & Video Tools</span>
           </button>
 
           <button
             onClick={() => onSelectView('user-guide')}
-            className={`px-3 py-1.5 rounded-md text-[11.5px] font-medium transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer flex items-center gap-1 whitespace-nowrap flex-shrink-0 ${
               activeView === 'user-guide'
                 ? 'bg-white text-zinc-950 shadow-2xs border border-zinc-200/60 font-semibold'
                 : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/50'
             }`}
           >
             <BookOpen className="w-3.5 h-3.5 text-zinc-500" />
-            <span>Hướng Dẫn Sử Dụng</span>
+            <span>Hướng Dẫn</span>
           </button>
         </nav>
       </div>
