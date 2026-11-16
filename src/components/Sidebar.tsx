@@ -44,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // ---------------------------------------------------------------------------
   if (isCollapsed) {
     return (
-      <aside className="w-14 bg-[#FDFCF9] border-r border-black/[0.08] py-3 px-2 flex flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.5rem)] select-none transition-all duration-200 ease-in-out">
+      <aside className="w-14 bg-[#FDFCF9] border-r border-black/[0.08] py-3 px-2 flex flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.5rem)] select-none transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]">
         <div className="flex flex-col items-center gap-2">
           {/* New Project Quick Trigger */}
           <button
@@ -117,11 +117,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ? 'bg-zinc-100 text-zinc-950 font-bold border border-zinc-300'
                 : 'text-zinc-500 hover:text-zinc-950 hover:bg-zinc-50'
             }`}
-            title="VoiceStudio LABS • Nhân bản giọng, Thiết kế giọng, Lồng tiếng & Whisper"
+            title="VoiceStudio ULTRA • Nhân bản giọng, Thiết kế giọng, Lồng tiếng & Whisper"
           >
             <AudioLines className="w-4 h-4" />
-            <span className="absolute -top-1 -right-1 px-1 rounded text-[6.5px] font-mono font-bold bg-emerald-600 text-white border border-emerald-700">
-              LABS
+            <span className="absolute -top-1 -right-1 px-1 rounded text-[6.5px] font-mono font-bold bg-gradient-to-r from-emerald-600 to-teal-600 text-white border border-emerald-700">
+              ULTRA
             </span>
           </button>
 
@@ -147,6 +147,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title="Cài Đặt Động Cơ AI & Khóa API"
           >
             <Cpu className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => onSelectView('skills')}
+            className={`w-10 h-10 rounded-lg flex items-center justify-center transition cursor-pointer relative ${
+              activeView === 'skills'
+                ? 'bg-zinc-100 text-zinc-950 font-bold border border-zinc-300'
+                : 'text-zinc-500 hover:text-zinc-950 hover:bg-zinc-50'
+            }`}
+            title="Kho Skills & Prompts LABS — Động Cơ Video GitHub & Video Mẫu"
+          >
+            <Layers className="w-4 h-4" />
+            <span className="absolute -top-1 -right-1 px-1 rounded text-[6.5px] font-mono font-bold bg-amber-600 text-white border border-amber-700">
+              LABS
+            </span>
           </button>
 
           <button
@@ -180,7 +195,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // FULL EXPANDED CRAFT SIDEBAR MODE (w-60 / 240px)
   // ---------------------------------------------------------------------------
   return (
-    <aside className="w-60 bg-[#FDFCF9] border-r border-black/[0.08] p-3 flex flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.5rem)] overflow-y-auto select-none scrollbar-none transition-all duration-200 ease-in-out">
+    <aside className="w-60 bg-[#FDFCF9] border-r border-black/[0.08] p-3 flex flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.5rem)] overflow-y-auto select-none scrollbar-none transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]">
       <div className="space-y-3">
 
         {/* Primary Action Button */}
@@ -234,14 +249,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   ? 'bg-zinc-100 text-zinc-950 font-semibold'
                   : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100'
               }`}
-              title="VoiceStudio LABS — Nhân bản giọng, Thiết kế giọng, Lồng tiếng đa ngôn ngữ & Whisper"
+              title="VoiceStudio ULTRA — Nhân bản giọng, Thiết kế giọng, Lồng tiếng đa ngôn ngữ & Whisper"
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <AudioLines className="w-3.5 h-3.5 text-emerald-700 flex-shrink-0" />
                 <span className="truncate">VoiceStudio</span>
               </div>
-              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-emerald-600 text-white flex-shrink-0">
-                LABS
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex-shrink-0">
+                ULTRA
               </span>
             </button>
 
@@ -257,6 +272,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Layers className="w-3.5 h-3.5 text-zinc-500" />
                 <span>Kho Skills & Prompts</span>
               </div>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-600 text-white flex-shrink-0">
+                LABS
+              </span>
             </button>
           </div>
         </div>

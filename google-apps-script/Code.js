@@ -2388,6 +2388,7 @@ function syncAccountToMainSheet(code, name, email, password, phone, address, isR
   var existingRowStatus = foundRow !== -1 ? String(data[foundRow - 1][6] || "").trim() : "";
   var existingCustomPass = !isReset && foundRow !== -1 && (
     isHashedOrCustomPasswordGas(existingRowPass) ||
+    existingRowStatus.indexOf("Đã đổi mật khẩu") !== -1 ||
     existingRowStatus.indexOf("Khách đã đổi") !== -1
   );
 
@@ -2404,9 +2405,9 @@ function syncAccountToMainSheet(code, name, email, password, phone, address, isR
   if (isReset) {
     finalStatus = "🔄 Đã cấp lại MK (" + nowStr + ")";
   } else if (isHashedOrCustomPasswordGas(finalPassword) || existingCustomPass) {
-    finalStatus = (existingRowStatus && existingRowStatus.indexOf("Khách đã đổi") !== -1)
+    finalStatus = (existingRowStatus && (existingRowStatus.indexOf("Đã đổi mật khẩu") !== -1 || existingRowStatus.indexOf("Khách đã đổi") !== -1))
       ? existingRowStatus
-      : "🟢 Khách đã đổi pass riêng (" + nowStr + ")";
+      : "🟢 Đã đổi mật khẩu (" + nowStr + ")";
   } else if (!isNew && existingRowStatus && (existingRowStatus.indexOf("Đã cấp lại MK") !== -1 || existingRowStatus.indexOf("🔄") !== -1)) {
     finalStatus = existingRowStatus;
   } else if (!isNew && existingRowStatus && existingRowStatus.indexOf("Hoạt động") !== -1) {
@@ -3110,8 +3111,8 @@ function handleChangePasswordWebhook(ss, payload) {
 
   var nowStr = Utilities.formatDate(new Date(), "GMT+7", "dd/MM/yyyy HH:mm");
   var maskedPassValue = passwordHash
-    ? "🔒 Đã mã hóa [" + passwordHash + "]"
-    : "🔒 Đã ẩn (Khách đã đổi MK)";
+    ? "Đã đổi mật khẩu [🔒 " + passwordHash + "]"
+    : "Đã đổi mật khẩu";
 
   var uSheet = getUsersSheet(ss, false);
   if (uSheet && uSheet.getLastRow() >= 2) {
@@ -3174,19 +3175,19 @@ function handleChangePasswordWebhook(ss, payload) {
         .setFontWeight("bold")
         .setFontColor("#0f766e");
       accSheet.getRange(foundAccRow, 6).setValue(nowStr).setHorizontalAlignment("center");
-      accSheet.getRange(foundAccRow, 7).setValue("🟢 Khách đã đổi pass riêng");
+      accSheet.getRange(foundAccRow, 7).setValue("🟢 Đã đổi mật khẩu");
       accSheet
         .getRange(foundAccRow, 9)
-        .setValue("Mật khẩu riêng mã hóa một chiều an toàn");
+        .setValue("Đã đổi mật khẩu — khóa mật khẩu cũ/mặc định ngay lập tức (tối đa 3 lần/ngày)");
     } else if (code) {
       syncAccountToMainSheet(code, fullName || "Khách hàng SYNAPES", email, maskedPassValue, "", "", false);
       for (var k = 5; k <= accSheet.getLastRow(); k++) {
         var checkCode = String(accSheet.getRange(k, 2).getDisplayValue() || "").trim().toUpperCase();
         if (checkCode === code) {
-          accSheet.getRange(k, 7).setValue("🟢 Khách đã đổi pass riêng");
+          accSheet.getRange(k, 7).setValue("🟢 Đã đổi mật khẩu");
           accSheet
             .getRange(k, 9)
-            .setValue("Mật khẩu riêng mã hóa một chiều an toàn");
+            .setValue("Đã đổi mật khẩu — khóa mật khẩu cũ/mặc định ngay lập tức (tối đa 3 lần/ngày)");
           break;
         }
       }

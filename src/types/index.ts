@@ -204,6 +204,7 @@ export interface Project {
     model?: string;
     pluginUrl?: string;
   };
+  tokenTelemetry?: TokenTelemetry;
   createdAt: string;
   scheduledTime?: string;
   driveBackupUrl?: string;
@@ -236,6 +237,31 @@ export interface EngineerSheetRow {
   engineerNotes: string;
 }
 
+export interface TokenTelemetry {
+  provider: string;
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  estimatedCostUsd?: number;
+  keyStatus?: string;
+  failoverTriggered?: boolean;
+  failoverReason?: string;
+  attemptedProviders?: string[];
+}
+
+export interface CoreVideoRepo {
+  id: string;
+  repo: string;
+  repoUrl: string;
+  title: string;
+  stars: string;
+  roleInEngine: string;
+  capabilities: string[];
+  enabled: boolean;
+  sampleVideoUrl?: string;
+}
+
 export interface Skill {
   id: string;
   name: string;
@@ -245,6 +271,9 @@ export interface Skill {
   defaultTags: string[];
   tone: string;
   systemPrompt: string;
+  sampleVideoUrl?: string;
+  sampleVideoTitle?: string;
+  githubRepoUrl?: string;
 }
 
 export interface ConnectedChannelAccount {

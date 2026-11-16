@@ -6,6 +6,11 @@ interface PolicyModalProps {
   onClose: () => void;
 }
 
+interface PolicyArticle {
+  heading: string;
+  body: string;
+}
+
 interface PolicyDocInfo {
   id: string;
   title: string;
@@ -14,6 +19,7 @@ interface PolicyDocInfo {
   pdfPath: string;
   icon: React.ComponentType<{ className?: string }>;
   legalHighlights: string[];
+  articles: PolicyArticle[];
 }
 
 const POLICY_DOCS: Record<string, PolicyDocInfo> = {
@@ -29,6 +35,24 @@ const POLICY_DOCS: Record<string, PolicyDocInfo> = {
       'Luật Giao dịch điện tử số 20/2023/QH15',
       'Luật Công nghệ thông tin số 67/2006/QH11',
       'Nghị định số 147/2024/NĐ-CP'
+    ],
+    articles: [
+      {
+        heading: 'Điều 1. Phạm vi áp dụng và Tư cách pháp lý sử dụng',
+        body: 'Nền tảng SYNAPES Auto Video Studio cung cấp bộ công cụ biên kịch AI, nhân bản giọng nói VoiceStudio ULTRA và dựng/xuất bản video đa kênh cho khách hàng có mã tài khoản hợp lệ đã xác thực qua Hợp đồng điện tử hoặc tài khoản kiểm định được cấp phép.'
+      },
+      {
+        heading: 'Điều 2. Bảo vệ tài khoản, giới hạn đổi mật khẩu & an toàn truy cập',
+        body: 'Mỗi Mã Code chỉ phục vụ tổ chức/cá nhân sở hữu hợp lệ. Tài khoản áp dụng giới hạn đổi mật khẩu tối đa 03 lần/ngày theo thời gian thực để chống dò quét; mọi mật khẩu mặc định hoặc mật khẩu cũ bị khóa hiệu lực ngay lập tức sau khi đổi mật khẩu cá nhân mới.'
+      },
+      {
+        heading: 'Điều 3. Cơ chế BYOK & Tuân thủ quy định nhà cung cấp thứ ba',
+        body: 'Khách hàng tự quản trị API Key (Gemini, OpenAI, Claude, DeepSeek, Grok, ElevenLabs) hoặc URL Plugin HTTPS riêng. Hệ thống chỉ xử lý tác vụ theo đúng chỉ thị của chủ sở hữu Key và không tái sử dụng dữ liệu đầu vào cho mục đích khác.'
+      },
+      {
+        heading: 'Điều 4. Điều khoản thi hành và Giải quyết tranh chấp',
+        body: 'Quy chế có hiệu lực từ ngày ban hành và được chuẩn hóa đồng nhất cả trên bản xem trực tuyến và tệp PDF tải về. Mọi tranh chấp (nếu có) được giải quyết trên tinh thần hợp tác và tuân thủ pháp luật Việt Nam hiện hành.'
+      }
     ]
   },
   privacy: {
@@ -42,7 +66,25 @@ const POLICY_DOCS: Record<string, PolicyDocInfo> = {
       'Nghị định số 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân',
       'Luật An toàn thông tin mạng số 86/2015/QH13',
       'Luật An ninh mạng số 24/2018/QH14',
-      'Chuẩn mã hóa AES-256-GCM'
+      'Chuẩn mã hóa BCRYPT & Token Session Signed'
+    ],
+    articles: [
+      {
+        heading: 'Điều 1. Mã hóa một chiều & Bảo vệ thông tin xác thực',
+        body: 'Mật khẩu người dùng được băm một chiều (BCRYPT$ SHA-256 Salted Hash) trước khi lưu trữ và đồng bộ lên Google Sheet. Tuyệt đối không lưu mật khẩu cá nhân dạng văn bản thuần sau khi người dùng đã thiết lập mật khẩu riêng.'
+      },
+      {
+        heading: 'Điều 2. Phân tách hồ sơ dữ liệu theo từng Mã Code',
+        body: 'Mọi dự án video, danh sách kênh OAuth 2.0, lịch phát sóng và khóa API riêng (BYOK) đều được phân vùng độc lập theo User Code, hỗ trợ sao lưu Google Drive và khôi phục dữ liệu an toàn.'
+      },
+      {
+        heading: 'Điều 3. Kiểm soát an toàn kết nối & Chống truy cập trái phép',
+        body: 'Hệ thống áp dụng Content Security Policy (CSP), chặn kết nối HTTP localhost không an toàn từ dịch vụ Web công khai, kiểm tra chữ ký phiên HMAC và giới hạn tần suất (Rate Limiting) cho các điểm cuối xác thực.'
+      },
+      {
+        heading: 'Điều 4. Quyền kiểm soát, trích xuất và xóa dữ liệu của Chủ thể',
+        body: 'Chủ tài khoản có toàn quyền sao lưu, tải xuống toàn bộ dữ liệu dự án, ngắt kết nối Google Drive hoặc yêu cầu xóa vĩnh viễn dữ liệu bất cứ lúc nào theo đúng Nghị định 13/2023/NĐ-CP.'
+      }
     ]
   },
   copyright: {
@@ -57,6 +99,20 @@ const POLICY_DOCS: Record<string, PolicyDocInfo> = {
       'Nghị định số 17/2023/NĐ-CP',
       'Công ước Berne về bảo hộ tác phẩm',
       'Đạo luật DMCA'
+    ],
+    articles: [
+      {
+        heading: 'Điều 1. Quyền sở hữu kịch bản, hình ảnh & video thành phẩm',
+        body: 'Toàn bộ kịch bản, tệp âm thanh thuyết minh, phụ đề SRT và video hoàn thiện do người dùng khởi tạo từ tài khoản hợp lệ thuộc quyền khai thác thương mại hợp pháp của chủ tài khoản đó.'
+      },
+      {
+        heading: 'Điều 2. Cam kết nhân bản giọng nói hợp pháp (Voice Cloning Ethics)',
+        body: 'Khi sử dụng VoiceStudio ULTRA để nhân bản giọng nói từ tệp ghi âm mẫu, người dùng cam kết đó là giọng nói của chính mình hoặc đã có văn bản chấp thuận hợp pháp từ chủ thể giọng nói.'
+      },
+      {
+        heading: 'Điều 3. Tư liệu Wikimedia Commons & Kho mã nguồn mở chuẩn giấy phép',
+        body: 'Các nguồn tư liệu B-Roll, kiến thức Wikimedia Commons/Wikipedia và các lõi dựng video mã nguồn mở (Remotion, Manim, Editly, MoneyPrinterTurbo) được sử dụng đúng phạm vi giấy phép công khai.'
+      }
     ]
   },
   disclaimer: {
@@ -69,10 +125,22 @@ const POLICY_DOCS: Record<string, PolicyDocInfo> = {
     legalHighlights: [
       'Luật An ninh mạng năm 2018 (Điều 8 & Điều 16)',
       'Nghị định số 147/2024/NĐ-CP',
-      'Đảm bảo tính chính thống & hợp pháp của dữ liệu, API từ nhà phát triển',
-      'Miễn trừ trách nhiệm nếu người dùng sử dụng API không chính thống hoặc nguồn lậu',
       'Cơ chế Human-in-the-loop (Con người phê duyệt cuối)',
       'Tiêu chuẩn cộng đồng YouTube, Meta, TikTok API'
+    ],
+    articles: [
+      {
+        heading: 'Điều 1. Nguyên tắc Con người phê duyệt cuối (Human-in-the-loop)',
+        body: 'Mọi sản phẩm video sau khi sinh đều được chuyển về Bàn Chờ Duyệt để Chủ tài khoản/Biên tập viên rà soát lời dẫn, hình ảnh, nhãn dữ liệu và chủ động quyết định phê duyệt xuất bản.'
+      },
+      {
+        heading: 'Điều 2. Trách nhiệm xác thực thông tin & Nguồn API',
+        body: 'Hệ thống miễn trừ trách nhiệm pháp lý nếu người dùng tự ý đưa nội dung vi phạm pháp luật, sử dụng API Key/Plugin không chính thống, nguồn giả mạo hoặc phát hành nội dung không kiểm chứng.'
+      },
+      {
+        heading: 'Điều 3. Hiệu lực áp dụng thống nhất',
+        body: 'Quy chế này được áp dụng thống nhất giữa bản văn bản pháp lý chuẩn hóa trên hệ thống WebApp và tệp PDF lưu trữ chính thức.'
+      }
     ]
   }
 };
@@ -179,15 +247,64 @@ export const PolicyModal: React.FC<PolicyModalProps> = ({ policyType, onClose })
           })}
         </div>
 
-        {/* PDF viewer frame */}
-        <div className="flex-1 bg-zinc-100/50 p-2 sm:p-3 overflow-hidden flex flex-col gap-2 min-h-0">
-          <div className="w-full flex-1 bg-white rounded-lg border border-black/10 overflow-hidden relative shadow-inner">
-            <iframe
-              key={currentDoc.pdfPath}
-              src={`${currentDoc.pdfPath}#toolbar=1&navpanes=0&view=FitH`}
-              title={currentDoc.title}
-              className="w-full h-full border-0"
-            />
+        {/* Uniform A4 Document Reader (Zero Browser Blockage Across Desktop & Mobile) */}
+        <div className="flex-1 bg-zinc-200/70 p-3 sm:p-5 overflow-y-auto min-h-0" data-testid="policy-document-viewer">
+          <div className="mx-auto max-w-3xl bg-white rounded-lg border border-black/15 shadow-md p-6 sm:p-10 space-y-5 text-zinc-900">
+            {/* Official Header Block */}
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b-2 border-zinc-900 pb-4 text-center sm:text-left">
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wide text-zinc-950">
+                  HỆ THỐNG SYNAPES AUTO VIDEO STUDIO
+                </div>
+                <div className="text-[10.5px] font-mono text-zinc-600 mt-0.5">{currentDoc.docNumber}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-[11px] font-bold uppercase text-zinc-950">
+                  CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+                </div>
+                <div className="text-[11px] font-semibold text-zinc-800 border-b border-zinc-800 inline-block pb-0.5">
+                  Độc lập – Tự do – Hạnh phúc
+                </div>
+              </div>
+            </div>
+
+            <div className="text-center space-y-1.5 pt-1">
+              <h1 className="text-base sm:text-lg font-bold text-zinc-950 leading-snug uppercase">
+                {currentDoc.title}
+              </h1>
+              <p className="text-[11px] text-zinc-500 font-mono">
+                Ban hành thống nhất bởi Ban Chuyển đổi số &amp; Trí tuệ nhân tạo — SYNAPES Studio
+              </p>
+            </div>
+
+            <div className="space-y-4 pt-2 text-[12.5px] leading-relaxed">
+              {currentDoc.articles.map((art, i) => (
+                <div key={i} className="space-y-1">
+                  <h2 className="font-bold text-zinc-950">{art.heading}</h2>
+                  <p className="text-zinc-700 text-justify">{art.body}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-5 border-t border-black/10 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+              <div className="text-[11px] text-zinc-500 space-y-0.5 font-mono">
+                <div>Mã hiệu văn bản: {currentDoc.docNumber}</div>
+                <div>Địa điểm ban hành: Gò Vấp, TP. Hồ Chí Minh</div>
+                <div>Trạng thái: Hiệu lực chính thức • Đồng bộ PDF</div>
+              </div>
+              <div className="text-center space-y-1">
+                <div className="text-[10.5px] font-bold uppercase text-zinc-800">
+                  ĐẠI DIỆN ĐƠN VỊ BAN HÀNH
+                </div>
+                <img
+                  src="/stamp-truong-ban.png"
+                  alt="Con dấu đỏ KS. Nguyễn Hoàng Thiện"
+                  className="w-24 h-24 mx-auto object-contain opacity-95"
+                />
+                <div className="text-xs font-bold text-zinc-950">KS. Nguyễn Hoàng Thiện</div>
+                <div className="text-[10px] text-zinc-600">Trưởng ban CĐS &amp; Trí tuệ nhân tạo</div>
+              </div>
+            </div>
           </div>
         </div>
 

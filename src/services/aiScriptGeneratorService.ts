@@ -8,8 +8,25 @@ import type {
   VideoGenre,
   CharacterActor,
   CameraDialogueAngle,
+  TokenTelemetry,
+  CoreVideoRepo,
 } from '../types';
 import { PROVIDERS } from './aiModelDiscoveryService';
+import { SYSTEM_CORE_VIDEO_REPOS } from '../data/mockData';
+import { getSavedClonedVoiceProfiles } from './voiceStudioService';
+
+export function getActiveCoreVideoRepos(): CoreVideoRepo[] {
+  try {
+    const raw = localStorage.getItem('synapes_core_video_repos_v1');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter((r: CoreVideoRepo) => r && r.enabled);
+      }
+    }
+  } catch { }
+  return SYSTEM_CORE_VIDEO_REPOS.filter((r) => r.enabled);
+}
 
 export type TopicDomain =
   | 'geopolitics'
@@ -74,6 +91,8 @@ export interface GenerateScriptParams {
   model: string;
   apiKey: string;
   endpointUrl?: string;
+  fallbackProviders?: Array<{ provider: AIProviderId; model: string; apiKey: string; endpointUrl?: string }>;
+  preHarvestedResearch?: TopicResearchPayload | null;
   attachedImageDataUrl?: string;
   attachedImages?: string[];
   attachedImageName?: string;
@@ -114,6 +133,7 @@ export interface GeneratedScriptResult {
   videoUrl: string;
   thumbnailUrl: string;
   engineMessage: string;
+  tokenTelemetry?: TokenTelemetry;
 }
 
 // Kho chủ đề & Bản tin ngẫu nhiên đa lĩnh vực phục vụ tạo nhanh 1 chạm
@@ -852,7 +872,7 @@ async function fetchWithTimeoutAndSignal(
 /**
  * Thu thập dữ liệu tin tức Google News RSS & Wikipedia thời gian thực từ Backend
  */
-async function fetchRealtimeTopicResearch(
+export async function fetchRealtimeTopicResearch(
   query: string,
   externalSignal?: AbortSignal
 ): Promise<TopicResearchPayload> {
@@ -960,16 +980,24 @@ function buildDirectorSystemPrompt(
     ? `\nTƯ LIỆU HÌNH ẢNH ĐÍNH KÈM: Người dùng có đính kèm ảnh gốc làm điểm khởi đầu. BẮT BUỘC bám sát chi tiết nhân vật, bối cảnh và màu sắc từ ảnh đính kèm trong toàn bộ kịch bản và visualPrompt!`
     : '';
 
+  const activeRepos = getActiveCoreVideoRepos();
+  const coreRepoBlock =
+    activeRepos.length > 0
+      ? `\n[CORE VIDEO ENGINES ĐÃ BƠM TRỰC TIẾP]: ${activeRepos
+          .map((r) => `${r.repo} (${r.capabilities.slice(0, 2).join(', ')})`)
+          .join(' • ')}. Hãy thiết kế cảnh hỗ trợ HUD số liệu, ngắt câu phụ đề chuẩn điện ảnh và chuyển động camera mượt.`
+      : '';
+
   return `${roleInstruction}
 
 NHIỆM VỤ: Biên soạn kịch bản video hoàn chỉnh gồm đúng ${sceneCount} phân cảnh về chủ đề: "${coreSubject}" (Yêu cầu gốc của người dùng: "${rawPrompt}").
-- Định dạng xuất bản mục tiêu: ${platformFormatLabel || (isShort ? '9:16 (Shorts / Reels / TikTok)' : `16:9 (YouTube / Video dài ${targetDurationMin} phút)`)}
+- Định dạng xuất bản mục tiêu: ${platformFormatLabel || (isShort ? '9:16 (Shorts / Reels / TikTok)' : `16:9 (Video dài ${targetDurationMin} phút)`)}
 - Lĩnh vực phân loại: ${domain.toUpperCase()} | Thể loại đồ họa: ${videoGenre.toUpperCase()}
 - Bộ Skill: "${skill?.name || 'Biên kịch Chuyên nghiệp'}" (${skill?.tone || 'Chính xác, cuốn hút'})
-- Khung hình: ${isShort ? '9:16 (Dọc chuẩn TikTok / Reels / Shorts / Threads)' : `16:9 (Ngang chuẩn YouTube / Facebook Watch, mục tiêu ${targetDurationMin} phút)`}
+- Khung hình: ${isShort ? '9:16 (Dọc 1080x1920)' : `16:9 (Ngang 1920x1080, mục tiêu ${targetDurationMin} phút)`}
 ${liveNewsBlock}
 ${wikiBlock}
-${attachmentNote}
+${attachmentNote}${coreRepoBlock}
 
 QUY TẮC NGHIÊM NGẶT (BẮT BUỘC TUÂN THỦ 100%):
 1. TUYỆT ĐỐI KHÔNG lặp lại nguyên văn mệnh lệnh của người dùng (như "Tạo bản tin về...", "Làm video về...") trong "title", "headline" hay "voiceover".
@@ -1087,8 +1115,9 @@ async function callServerLlmProxy(
     domain?: string;
     platformFormatLabel?: string;
     mode?: 'llm' | 'studio-research';
+    fallbackProviders?: Array<{ provider: AIProviderId; model: string; apiKey: string; endpointUrl?: string }>;
   }
-): Promise<{ data: any; actualModel: string }> {
+): Promise<{ data: any; actualModel: string; actualProvider?: string; tokenTelemetry?: TokenTelemetry }> {
   const resp = await fetchWithTimeoutAndSignal(
     '/api/llm-generate',
     {
@@ -1105,7 +1134,7 @@ async function callServerLlmProxy(
         ...(extraMeta || {}),
       }),
     },
-    7000,
+    16000,
     externalSignal
   );
 
@@ -1122,7 +1151,12 @@ async function callServerLlmProxy(
   if (!parsed || !Array.isArray(parsed.scenes) || parsed.scenes.length === 0) {
     throw new Error('Invalid JSON structure from LLM');
   }
-  return { data: parsed, actualModel: json.actualModel || model };
+  return {
+    data: parsed,
+    actualModel: json.actualModel || model,
+    actualProvider: json.actualProvider || provider,
+    tokenTelemetry: json.tokenTelemetry,
+  };
 }
 
 /**
@@ -2511,6 +2545,8 @@ export async function generateAiVideoScript(
     model,
     apiKey,
     endpointUrl,
+    fallbackProviders = [],
+    preHarvestedResearch = null,
     attachedImageDataUrl,
     attachedImages = [],
     attachedAudioUrl,
@@ -2590,15 +2626,30 @@ export async function generateAiVideoScript(
       (prelimDomain !== 'creative' &&
         prelimDomain !== 'animation-3d'));
 
-  let research: TopicResearchPayload = {
-    query: coreSubject,
-    domain: prelimDomain,
-    headlines: [],
-    wikiSummary: '',
-    visuals: [],
-  };
+  let research: TopicResearchPayload = preHarvestedResearch
+    ? {
+        ...preHarvestedResearch,
+        headlines: [...(preHarvestedResearch.headlines || [])],
+        visuals: [...(preHarvestedResearch.visuals || [])],
+        videos: [...(preHarvestedResearch.videos || [])],
+      }
+    : {
+        query: coreSubject,
+        domain: prelimDomain,
+        headlines: [],
+        wikiSummary: '',
+        visuals: [],
+      };
 
-  if (needsLiveResearch) {
+  const hasPreHarvested = Boolean(
+    preHarvestedResearch &&
+      (preHarvestedResearch.headlines?.length > 0 ||
+        preHarvestedResearch.wikiSummary ||
+        preHarvestedResearch.visuals?.length > 0 ||
+        (preHarvestedResearch.videos?.length || 0) > 0)
+  );
+
+  if (needsLiveResearch && !hasPreHarvested) {
     onProgress?.(`Đang tra cứu dữ liệu thời gian thực & báo chí cho "${coreSubject}"...`, 22);
     // 2. Tra cứu Google News RSS + Wikipedia + Ảnh báo chí thực tế từ Backend
     research = await fetchRealtimeTopicResearch(coreSubject, signal);
@@ -2643,22 +2694,25 @@ export async function generateAiVideoScript(
   let rawJson: any = null;
   let isLiveApi = false;
   let actualModelUsed = isTurboMode ? 'SYNAPES Turbo Director Engine' : model;
+  let actualProviderUsed: string = provider;
+  let capturedTelemetry: TokenTelemetry | undefined;
   let engineMessage = isTurboMode
     ? `⚡ Đã dựng siêu tốc bám sát 100% prompt "${coreSubject}" trong <1s.`
     : '';
 
-  // 3. Gọi tới LLM API (nếu có API Key riêng) HOẶC Server Research Director (khi dùng Plugin Token như Kling AI)
+  // 3. Gọi tới LLM API (kèm Auto-Failover giữa các API Key còn token) HOẶC Server Research Director
   const hasRealLlmKey = Boolean(apiKey && apiKey.trim().length > 5 && provider !== 'plugin');
+  const hasFallbacks = Array.isArray(fallbackProviders) && fallbackProviders.length > 0;
   if (!isTurboMode) {
     try {
       onProgress?.(
         hasRealLlmKey
-          ? `Đang kết nối song song ${provName} (${model}) biên soạn kịch bản "${coreSubject}"...`
+          ? `Đang kết nối ${provName} (${model})${hasFallbacks ? ` + ${fallbackProviders.length} Key dự phòng` : ''} biên soạn kịch bản "${coreSubject}"...`
           : `Đang kết nối Động cơ Biên kịch & Nghiên cứu Dữ liệu cho "${coreSubject}"...`,
         48
       );
 
-      if (hasRealLlmKey && provider === 'gemini') {
+      if (hasRealLlmKey && provider === 'gemini' && !hasFallbacks) {
         const geminiRes = await raceGeminiProxyAndDirect({
           model,
           apiKey,
@@ -2673,6 +2727,18 @@ export async function generateAiVideoScript(
         });
         rawJson = geminiRes.data;
         actualModelUsed = geminiRes.actualModel;
+        capturedTelemetry = {
+          provider: 'gemini',
+          model: actualModelUsed,
+          promptTokens: Math.max(180, Math.round((systemPrompt.length + coreSubject.length) / 3.8)),
+          completionTokens: Math.max(240, Math.round(JSON.stringify(rawJson).length / 4)),
+          totalTokens:
+            Math.max(180, Math.round((systemPrompt.length + coreSubject.length) / 3.8)) +
+            Math.max(240, Math.round(JSON.stringify(rawJson).length / 4)),
+          keyStatus: 'active',
+          failoverTriggered: false,
+          attemptedProviders: [`gemini:${actualModelUsed}`],
+        };
       } else {
         const extractedClauses = splitPromptClauses(prompt, coreSubject);
         const proxyRes = await callServerLlmProxy(
@@ -2693,16 +2759,19 @@ export async function generateAiVideoScript(
             domain,
             platformFormatLabel,
             mode: hasRealLlmKey ? 'llm' : 'studio-research',
+            fallbackProviders,
           }
         );
         rawJson = proxyRes.data;
         actualModelUsed = proxyRes.actualModel;
+        actualProviderUsed = proxyRes.actualProvider || provider;
+        capturedTelemetry = proxyRes.tokenTelemetry;
       }
 
       if (rawJson && Array.isArray(rawJson.scenes) && rawJson.scenes.length > 0) {
         isLiveApi = true;
         engineMessage = hasRealLlmKey
-          ? `Đã biên kịch trực tiếp bởi ${provName} (${actualModelUsed}) bám sát yêu cầu.`
+          ? `Đã biên kịch trực tiếp bởi ${actualProviderUsed.toUpperCase()} (${actualModelUsed})${capturedTelemetry?.failoverTriggered ? ' [Auto-Failover ✓]' : ''} bám sát yêu cầu.`
           : `Đã tổng hợp kịch bản đa nhánh bám sát yêu cầu từ dữ liệu thực tế (${actualModelUsed}).`;
       }
     } catch (err: any) {
@@ -2712,6 +2781,17 @@ export async function generateAiVideoScript(
       console.warn('Live LLM API fallback triggered:', err);
       actualModelUsed = 'SYNAPES Studio Creative Engine';
       engineMessage = `Đã kích hoạt Động cơ Biên kịch Thông minh SYNAPES Studio cho "${coreSubject}".`;
+      capturedTelemetry = {
+        provider: 'synapes-studio-core',
+        model: actualModelUsed,
+        promptTokens: Math.max(150, Math.round(prompt.length / 3)),
+        completionTokens: 540,
+        totalTokens: Math.max(150, Math.round(prompt.length / 3)) + 540,
+        keyStatus: hasRealLlmKey ? 'quota_failover_studio_core' : 'studio_core',
+        failoverTriggered: hasRealLlmKey,
+        failoverReason: hasRealLlmKey ? String(err?.message || 'Quota/timeout fallback') : '',
+        attemptedProviders: [provider, ...fallbackProviders.map((f) => f.provider), 'studio-core'],
+      };
     }
   }
 
@@ -2747,7 +2827,19 @@ export async function generateAiVideoScript(
   const motions = skillDirectives.motions;
   const lightings = skillDirectives.lightings;
 
-  const preferredVoice = preferredVoiceId ? PREFERRED_VOICE_MAP[preferredVoiceId] : undefined;
+  const matchedSavedClone = preferredVoiceId
+    ? getSavedClonedVoiceProfiles().find((cv) => cv.id === preferredVoiceId)
+    : undefined;
+  const preferredVoice = matchedSavedClone
+    ? {
+        id: matchedSavedClone.id,
+        label: `${matchedSavedClone.name} (Clone ULTRA)`,
+        speed: matchedSavedClone.rate || 1.0,
+        pitch: matchedSavedClone.pitch || 1.0,
+      }
+    : preferredVoiceId
+      ? PREFERRED_VOICE_MAP[preferredVoiceId]
+      : undefined;
   const defaultVoice = preferredVoice || pickDefaultVoiceForGenre(videoGenre, domain);
   const isHardwareKeynote = videoGenre === 'apple-keynote' && domain === 'hardware';
 
@@ -3141,6 +3233,20 @@ export async function generateAiVideoScript(
     videoUrl: SCENE_VIDEO_CLIPS[0],
     thumbnailUrl: heroThumbnail,
     engineMessage,
+    ...(capturedTelemetry
+      ? { tokenTelemetry: capturedTelemetry }
+      : {
+          tokenTelemetry: {
+            provider: actualProviderUsed,
+            model: actualModelUsed,
+            promptTokens: Math.max(120, Math.round(prompt.length / 3)),
+            completionTokens: 480,
+            totalTokens: Math.max(120, Math.round(prompt.length / 3)) + 480,
+            keyStatus: isTurboMode ? 'turbo_local' : 'active',
+            failoverTriggered: false,
+            attemptedProviders: [actualProviderUsed],
+          },
+        }),
   };
 
   if (cacheKey) {

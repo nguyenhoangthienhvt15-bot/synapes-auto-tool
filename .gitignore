@@ -33,5 +33,10 @@ dist-ssr
 *.mp4
 *.png
 !public/*.png
+!public/**/*.png
+!public/**/*.webm
+!dist/*.png
+!dist/**/*.png
+!dist/**/*.webm
 !src/assets/*.png
 scratch/

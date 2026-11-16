@@ -5,7 +5,9 @@ import {
   ENGLISH_VOICE_PROFILES,
   auditionVoice,
   stopVoiceAudition,
+  bindExclusiveAudioElement,
   getActiveVoiceSpectrum,
+  getSavedClonedVoiceProfiles,
   synthesizeNeuralVoiceToWav,
 } from '../services/voiceStudioService';
 import {
@@ -178,8 +180,30 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
 
   if (!isOpen) return null;
 
+  const savedClonedAsProfiles: VoiceProfile[] =
+    selectedLanguage === 'vi'
+      ? getSavedClonedVoiceProfiles().map((cv) => ({
+          id: cv.id,
+          name: `${cv.name} (Clone ULTRA)`,
+          language: 'vi',
+          gender: cv.gender === 'Nữ' ? 'Nữ' : 'Nam',
+          region: 'Clone ULTRA',
+          toneTag: `ULTRA • ${cv.engine}`,
+          description: cv.description || 'Giọng cá nhân được nhân bản bằng Formant-Warp VTLN v4.0 trong VoiceStudio ULTRA.',
+          sampleSentence: 'Xin chào, đây là giọng nói cá nhân đã nhân bản từ SYNAPES VoiceStudio ULTRA.',
+          pitch: cv.pitch || 1.0,
+          rate: cv.rate || 1.0,
+          neuralVoiceId: cv.gender === 'Nữ' ? 'vi-VN-HoaiMyNeural' : 'vi-VN-NamMinhNeural',
+          geminiVoiceName: cv.gender === 'Nữ' ? 'Aoede' : 'Charon',
+          openaiVoiceName: cv.gender === 'Nữ' ? 'nova' : 'onyx',
+          formantEq: { lowShelfHz: 220, lowGainDb: cv.warmthDb ?? 2.8, midPeakingHz: 2100, midGainDb: 3.0, highShelfHz: 5200, highGainDb: 2.2 },
+        }))
+      : [];
+
   const availableVoices =
-    selectedLanguage === 'en' ? ENGLISH_VOICE_PROFILES : VIETNAMESE_VOICE_PROFILES;
+    selectedLanguage === 'en'
+      ? ENGLISH_VOICE_PROFILES
+      : [...savedClonedAsProfiles, ...VIETNAMESE_VOICE_PROFILES];
   const selectedVoice =
     availableVoices.find((v) => v.id === selectedVoiceId) || availableVoices[0];
 
@@ -189,7 +213,9 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
       : availableVoices.filter((v) =>
           filterRegion === 'Apple Keynote'
             ? v.id.includes('apple') || v.region.toLowerCase().includes('apple')
-            : v.region.toLowerCase().includes(filterRegion.toLowerCase())
+            : filterRegion === 'Clone ULTRA'
+              ? v.region === 'Clone ULTRA' || v.id.startsWith('labs-voice-')
+              : v.region.toLowerCase().includes(filterRegion.toLowerCase())
         );
 
   const handleStartMicRecording = async () => {
@@ -602,6 +628,7 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                     <audio
                       controls
                       src={micDataUrl}
+                      onPlay={(e) => bindExclusiveAudioElement(e.currentTarget)}
                       className="w-full h-9"
                       data-testid="voice-studio-audio-preview"
                     />
@@ -666,7 +693,7 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
 
                 <div className="flex items-center gap-1 flex-wrap">
                   {(selectedLanguage === 'vi'
-                    ? ['All', 'Apple Keynote', 'Bắc', 'Nam', 'Trung', 'AI Neural']
+                    ? ['All', 'Clone ULTRA', 'Apple Keynote', 'Bắc', 'Nam', 'Trung', 'AI Neural']
                     : ['All', 'America', 'Kingdom', 'AI Neural']
                   ).map((reg) => (
                     <button

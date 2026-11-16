@@ -7,7 +7,7 @@ import {
 } from './data/mockData';
 import {
   fetchGoogleSheetLive, getCachedSheetRows, cacheSheetRows, getLastSyncTime,
-  saveCustomPassword, getStoredRegistrations, verifyAccountLogin,
+  saveCustomPassword, changePasswordSecureWithQuota, getStoredRegistrations, verifyAccountLogin,
   verifyLoginViaAppsScriptWebhook, resolveUserPlanTier
 } from './services/googleSheetService';
 import {
@@ -376,7 +376,7 @@ export function App() {
     setIsDriveConnected(profile.driveConnected);
     setSelectedProject(profile.projects[0] || null);
 
-    setIsAuthModalOpen(false);
+    setTimeout(() => setIsAuthModalOpen(false), 480);
     showToast(`Đăng nhập thành công với tài khoản ${userAccount.code} (${userAccount.name})!`);
     return true;
   };
@@ -399,8 +399,10 @@ export function App() {
     showToast('Đã đăng xuất khỏi tài khoản Studio.');
   };
 
-  const handleForceChangePassword = (newPass: string) => {
-    if (!currentUser) return;
+  const handleForceChangePassword = async (
+    newPass: string
+  ): Promise<{ ok: boolean; error?: string; remaining?: number }> => {
+    if (!currentUser) return { ok: false, error: 'Chưa đăng nhập tài khoản.' };
     const now = new Date();
     const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
 
@@ -409,24 +411,30 @@ export function App() {
       sessionAuthToken = sessionStorage.getItem(`synapes_auth_token_${currentUser.code.toUpperCase()}`) || '';
     } catch { }
 
-    const passHash = saveCustomPassword(
-      currentUser.code,
-      newPass,
-      currentUser.email,
-      currentUser.name,
-      sessionAuthToken
-    );
+    const res = await changePasswordSecureWithQuota({
+      code: currentUser.code,
+      newPassword: newPass,
+      email: currentUser.email,
+      fullName: currentUser.name,
+      authToken: sessionAuthToken,
+    });
 
+    if (!res.success || !res.passwordHash) {
+      showToast(res.error || 'Đã đạt giới hạn đổi mật khẩu hôm nay (tối đa 3 lần/ngày).');
+      return { ok: false, error: res.error, remaining: res.remainingChangesToday };
+    }
+
+    const passHash = res.passwordHash;
     let updatedFound = false;
     const updated = sheetRows.map((r) => {
       if (r.code.toUpperCase() === currentUser.code.toUpperCase()) {
         updatedFound = true;
         return {
           ...r,
-          currentTempPassword: `🔒 Đã mã hóa [${passHash}]`,
+          currentTempPassword: `Đã đổi mật khẩu [🔒 ${passHash}]`,
           lastIssuedTime: timeString,
           accountStatus: 'custom_password_active' as const,
-          engineerNotes: `${r.engineerNotes} | 🟢 Đã tạo mật khẩu mới (${timeString})`,
+          engineerNotes: `${r.engineerNotes} | 🟢 Đã đổi mật khẩu (${timeString})`,
         };
       }
       return r;
@@ -436,10 +444,10 @@ export function App() {
         code: currentUser.code,
         clientName: currentUser.name,
         registeredGmail: currentUser.email,
-        currentTempPassword: `🔒 Đã mã hóa [${passHash}]`,
+        currentTempPassword: `Đã đổi mật khẩu [🔒 ${passHash}]`,
         lastIssuedTime: timeString,
         accountStatus: 'custom_password_active',
-        engineerNotes: `🟢 Đã tạo mật khẩu mới (${timeString})`,
+        engineerNotes: `🟢 Đã đổi mật khẩu (${timeString})`,
       });
     }
 
@@ -448,7 +456,10 @@ export function App() {
     const updatedUser: UserAccount = { ...currentUser, isDefaultPassword: false };
     setCurrentUser(updatedUser);
     setActiveSession(updatedUser);
-    showToast('🔒 Đã tạo mật khẩu cá nhân mới (mã hóa bảo mật) và cập nhật trạng thái lên Google Sheet!');
+    showToast(
+      `🔒 Đã đổi mật khẩu thành công (còn ${res.remainingChangesToday}/${res.dailyLimit} lượt hôm nay). Mật khẩu cũ đã bị khóa ngay lập tức!`
+    );
+    return { ok: true, remaining: res.remainingChangesToday };
   };
 
   const handleCreateProject = (newProject: Project) => {

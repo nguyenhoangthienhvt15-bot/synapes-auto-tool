@@ -235,12 +235,12 @@ export const Header: React.FC<HeaderProps> = ({
                 ? 'bg-white text-zinc-950 shadow-2xs border border-zinc-200/60 font-semibold'
                 : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/50'
             }`}
-            title="VoiceStudio LABS • Nhân bản giọng nói, Thiết kế giọng, Lồng tiếng Video & Whisper"
+            title="VoiceStudio ULTRA • Nhân bản giọng nói, Thiết kế giọng, Lồng tiếng Video & Whisper"
           >
             <AudioLines className="w-3.5 h-3.5 text-emerald-700" />
             <span>VoiceStudio</span>
-            <span className="px-1.5 py-0.2 rounded text-[8.5px] font-mono font-bold bg-emerald-600 text-white tracking-wider">
-              LABS
+            <span className="px-1.5 py-0.2 rounded text-[8.5px] font-mono font-bold bg-gradient-to-r from-emerald-600 to-teal-600 text-white tracking-wider">
+              ULTRA
             </span>
           </button>
 

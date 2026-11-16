@@ -1969,6 +1969,7 @@ const SYSTEM_CORE_ACCOUNTS = [
     code: 'SNP_2611092202',
     clientName: 'KS. Nguyễn Hoàng Thiện (Kiểm toán Thẩm định)',
     registeredGmail: 'nguyenhoangthien.hvt.15@gmail.com',
+    phone: '0983396354',
     currentTempPassword: '[REDACTED_BY_P0_AUDIT]',
     accountStatus: 'custom_password_active',
     planTier: 'enterprise',
@@ -2051,7 +2052,10 @@ function loadAuthDirectory() {
       accountStatus: core.accountStatus || 'never_changed',
       isDefaultPassword: core.accountStatus === 'never_changed' || core.accountStatus === 'temp_password_active',
       planTier: core.planTier || inferServerPlanTier(core),
-      phoneVerifyHash: '',
+      phoneVerifyHash: core.phone ? computeServerPhoneVerifyHash(core.registeredGmail, core.phone) : '',
+      dailyChangeDate: '',
+      dailyChangeCount: 0,
+      sheetStatusText: core.accountStatus === 'custom_password_active' ? 'Đã đổi mật khẩu' : '',
       updatedAt: 0,
       localChangedAt: 0,
       source: 'core_seed',
@@ -2202,6 +2206,160 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
   return null;
 }
 
+// ----------------------------------------------------------------------------
+// 5C. REAL-TIME IP GEOLOCATION & COUNTRY-LOCALIZED DATE / CLOCK RESOLVER
+// ----------------------------------------------------------------------------
+const IP_GEO_CACHE = new Map();
+const COUNTRY_TIMEZONE_MAP = {
+  VN: { timezone: 'Asia/Ho_Chi_Minh', countryName: 'Việt Nam' },
+  US: { timezone: 'America/New_York', countryName: 'Hoa Kỳ' },
+  JP: { timezone: 'Asia/Tokyo', countryName: 'Nhật Bản' },
+  KR: { timezone: 'Asia/Seoul', countryName: 'Hàn Quốc' },
+  SG: { timezone: 'Asia/Singapore', countryName: 'Singapore' },
+  TH: { timezone: 'Asia/Bangkok', countryName: 'Thái Lan' },
+  GB: { timezone: 'Europe/London', countryName: 'Vương quốc Anh' },
+  FR: { timezone: 'Europe/Paris', countryName: 'Pháp' },
+  DE: { timezone: 'Europe/Berlin', countryName: 'Đức' },
+  AU: { timezone: 'Australia/Sydney', countryName: 'Úc' },
+  TW: { timezone: 'Asia/Taipei', countryName: 'Đài Loan' },
+  CN: { timezone: 'Asia/Shanghai', countryName: 'Trung Quốc' },
+};
+
+function isPrivateOrLocalIp(ip) {
+  if (!ip) return true;
+  const norm = ip.replace(/^::ffff:/i, '').trim();
+  return (
+    norm === '127.0.0.1' ||
+    norm === '::1' ||
+    norm === 'localhost' ||
+    norm.startsWith('10.') ||
+    norm.startsWith('192.168.') ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(norm)
+  );
+}
+
+function buildClockFromTimezone(timezone, countryCode, countryName, ip) {
+  const now = new Date();
+  let tz = timezone || 'Asia/Ho_Chi_Minh';
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      weekday: 'short',
+      hour12: false,
+    }).formatToParts(now);
+    const getPart = (t) => parts.find((p) => p.type === t)?.value || '';
+    const year = Number(getPart('year')) || now.getFullYear();
+    const month = Number(getPart('month')) || now.getMonth() + 1;
+    const day = Number(getPart('day')) || now.getDate();
+    const hour = Number(getPart('hour')) % 24;
+    const minute = Number(getPart('minute')) || 0;
+    const weekday = getPart('weekday') || '';
+    const dateStr = `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
+    const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+    const isoDate = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+    return {
+      success: true,
+      ip: ip || 'local',
+      countryCode: countryCode || 'VN',
+      countryName: countryName || 'Việt Nam',
+      timezone: tz,
+      year,
+      month,
+      day,
+      hour,
+      minute,
+      weekday,
+      isoDate,
+      dateStr,
+      timeStr,
+      isoNow: now.toISOString(),
+    };
+  } catch {
+    const vnNow = new Date(now.getTime() + 7 * 3600 * 1000);
+    const year = vnNow.getUTCFullYear();
+    const month = vnNow.getUTCMonth() + 1;
+    const day = vnNow.getUTCDate();
+    const hour = vnNow.getUTCHours();
+    const minute = vnNow.getUTCMinutes();
+    return {
+      success: true,
+      ip: ip || 'local',
+      countryCode: 'VN',
+      countryName: 'Việt Nam',
+      timezone: 'Asia/Ho_Chi_Minh',
+      year,
+      month,
+      day,
+      hour,
+      minute,
+      weekday: 'Mon',
+      isoDate: `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`,
+      dateStr: `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`,
+      timeStr: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
+      isoNow: now.toISOString(),
+    };
+  }
+}
+
+async function resolveClientGeoAndTime(req) {
+  const rawIp = String(req?.headers?.['cf-connecting-ip'] || req?.headers?.['x-forwarded-for']?.split(',')[0] || req?.socket?.remoteAddress || '127.0.0.1')
+    .replace(/^::ffff:/i, '')
+    .trim();
+
+  const headerCountry = String(
+    req?.headers?.['cf-ipcountry'] ||
+      req?.headers?.['x-vercel-ip-country'] ||
+      req?.headers?.['x-country-code'] ||
+      ''
+  )
+    .trim()
+    .toUpperCase();
+
+  if (headerCountry && COUNTRY_TIMEZONE_MAP[headerCountry]) {
+    const mapped = COUNTRY_TIMEZONE_MAP[headerCountry];
+    return buildClockFromTimezone(mapped.timezone, headerCountry, mapped.countryName, rawIp);
+  }
+
+  if (!isPrivateOrLocalIp(rawIp)) {
+    const cached = IP_GEO_CACHE.get(rawIp);
+    if (cached && Date.now() - cached.cachedAt < 6 * 3600 * 1000) {
+      return buildClockFromTimezone(cached.timezone, cached.countryCode, cached.countryName, rawIp);
+    }
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1100);
+      const geoRes = await fetch(`https://ipwho.is/${encodeURIComponent(rawIp)}`, { signal: controller.signal });
+      clearTimeout(timer);
+      if (geoRes.ok) {
+        const geo = await geoRes.json();
+        if (geo && geo.success !== false && geo.country_code) {
+          const cc = String(geo.country_code).toUpperCase();
+          const mapped = COUNTRY_TIMEZONE_MAP[cc];
+          const tz = geo.timezone?.id || mapped?.timezone || 'Asia/Ho_Chi_Minh';
+          const cname = mapped?.countryName || geo.country || cc;
+          IP_GEO_CACHE.set(rawIp, {
+            countryCode: cc,
+            countryName: cname,
+            timezone: tz,
+            cachedAt: Date.now(),
+          });
+          return buildClockFromTimezone(tz, cc, cname, rawIp);
+        }
+      }
+    } catch {
+      // Fallback sang locale Accept-Language / VN
+    }
+  }
+
+  return buildClockFromTimezone('Asia/Ho_Chi_Minh', 'VN', 'Việt Nam', rawIp);
+}
+
 // ============================================================================
 // 6. UNIFIED API ROUTE HANDLER (RETURNS true IF HANDLED, false OTHERWISE)
 // ============================================================================
@@ -2234,6 +2392,48 @@ export async function handleStudioApiRequest(req, res) {
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
     res.end();
+    return true;
+  }
+
+  // --------------------------------------------------------------------------
+  // REAL-TIME IP TIMEZONE & COUNTRY CLOCK (/api/system/ip-time)
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/system/ip-time' && req.method === 'GET') {
+    try {
+      const geoClock = await resolveClientGeoAndTime(req);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(geoClock));
+      return true;
+    } catch (err) {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(buildClockFromTimezone('Asia/Ho_Chi_Minh', 'VN', 'Việt Nam', 'local')));
+      return true;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // PASSWORD CHANGE QUOTA CHECK (/api/auth/password-quota)
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/auth/password-quota' && req.method === 'GET') {
+    const qIdx = rawUrl.indexOf('?');
+    const params = new URLSearchParams(qIdx >= 0 ? rawUrl.slice(qIdx + 1) : '');
+    const codeClean = String(params.get('code') || '').trim().toUpperCase();
+    const geoClock = await resolveClientGeoAndTime(req);
+    const todayKey = geoClock.isoDate;
+    const prev = codeClean ? AUTH_DIRECTORY_MAP.get(codeClean) : null;
+    const usedToday = prev && prev.dailyChangeDate === todayKey ? Number(prev.dailyChangeCount || 0) : 0;
+    const dailyLimit = 3;
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(
+      JSON.stringify({
+        success: true,
+        code: codeClean,
+        dailyLimit,
+        usedToday,
+        remainingChangesToday: Math.max(0, dailyLimit - usedToday),
+        dateKey: todayKey,
+      })
+    );
     return true;
   }
 
@@ -2353,7 +2553,28 @@ export async function handleStudioApiRequest(req, res) {
         ? rawPassOrHash.toUpperCase()
         : computeServerPasswordHash(codeClean, rawPassOrHash);
 
+      const geoClock = await resolveClientGeoAndTime(req);
+      const todayKey = geoClock.isoDate;
       const prev = AUTH_DIRECTORY_MAP.get(codeClean);
+      const dailyLimit = 3;
+      const prevUsed = prev && prev.dailyChangeDate === todayKey ? Number(prev.dailyChangeCount || 0) : 0;
+
+      if (prevUsed >= dailyLimit) {
+        res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            code: 'DAILY_CHANGE_LIMIT_REACHED',
+            dailyLimit,
+            usedToday: prevUsed,
+            remainingChangesToday: 0,
+            message: `Tài khoản ${codeClean} đã đạt giới hạn tối đa ${dailyLimit} lần đổi mật khẩu trong ngày (${todayKey}). Vui lòng thử lại vào ngày mai.`,
+          })
+        );
+        return true;
+      }
+
+      const nextCount = prevUsed + 1;
       AUTH_DIRECTORY_MAP.set(codeClean, {
         code: prev?.code || codeClean,
         clientName: String(body.fullName || prev?.clientName || 'Khách hàng SYNAPES').trim(),
@@ -2362,19 +2583,52 @@ export async function handleStudioApiRequest(req, res) {
         passwordHashUpper: null,
         accountStatus: 'custom_password_active',
         isDefaultPassword: false,
+        planTier: prev?.planTier || inferServerPlanTier({ code: codeClean }),
         phoneVerifyHash: prev?.phoneVerifyHash || '',
+        dailyChangeDate: todayKey,
+        dailyChangeCount: nextCount,
+        sheetStatusText: 'Đã đổi mật khẩu',
         updatedAt: Date.now(),
         localChangedAt: Date.now(),
         source: 'webapp_change_password',
       });
       saveAuthDirectoryToDisk();
 
+      // Vô hiệu hóa tức thì mật khẩu mặc định / mật khẩu cũ trong hồ sơ registrations.json (nếu tồn tại)
+      const regFilePath = path.resolve(process.cwd(), 'data', 'registrations.json');
+      try {
+        if (fs.existsSync(regFilePath)) {
+          const regList = JSON.parse(fs.readFileSync(regFilePath, 'utf8'));
+          if (Array.isArray(regList)) {
+            let changedReg = false;
+            for (const r of regList) {
+              if (r?.assignedCode && String(r.assignedCode).trim().toUpperCase() === codeClean) {
+                r.assignedPassword = `Đã đổi mật khẩu [🔒 ${finalHash}]`;
+                r.notes = `Đã ký hợp đồng | 🟢 Đã đổi mật khẩu (${todayKey})`;
+                changedReg = true;
+              }
+            }
+            if (changedReg) {
+              fs.writeFileSync(regFilePath, JSON.stringify(regList, null, 2), 'utf8');
+            }
+          }
+        }
+      } catch {
+        // ignore disk sync issue
+      }
+
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({
-        success: true,
-        authToken: issueServerAuthToken(codeClean),
-        message: 'Đã cập nhật mật khẩu riêng lên máy chủ xác thực thành công.',
-      }));
+      res.end(
+        JSON.stringify({
+          success: true,
+          authToken: issueServerAuthToken(codeClean),
+          dailyLimit,
+          usedToday: nextCount,
+          remainingChangesToday: Math.max(0, dailyLimit - nextCount),
+          sheetStatusText: 'Đã đổi mật khẩu',
+          message: `Đã đổi mật khẩu thành công (Còn ${Math.max(0, dailyLimit - nextCount)}/${dailyLimit} lượt hôm nay). Mật khẩu cũ và mặc định đã bị khóa ngay lập tức.`,
+        })
+      );
       return true;
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -2418,7 +2672,7 @@ export async function handleStudioApiRequest(req, res) {
           existing.source === 'webapp_change_password' &&
           !isIncomingReset &&
           acc.accountStatus !== 'custom_password_active' &&
-          now - (existing.localChangedAt || 0) < 15 * 60 * 1000;
+          now - (existing.localChangedAt || 0) < 24 * 60 * 60 * 1000;
 
         if (isRecentLocalCustom) {
           if (acc.phoneVerifyHash && !existing.phoneVerifyHash) {
@@ -2437,6 +2691,9 @@ export async function handleStudioApiRequest(req, res) {
           isDefaultPassword: Boolean(acc.isDefaultPassword),
           planTier: inferServerPlanTier({ ...acc, code: acc.code, planTier: acc.planTier || existing?.planTier }),
           phoneVerifyHash: String(acc.phoneVerifyHash || existing?.phoneVerifyHash || '').trim(),
+          dailyChangeDate: existing?.dailyChangeDate || '',
+          dailyChangeCount: existing?.dailyChangeCount || 0,
+          sheetStatusText: acc.accountStatus === 'custom_password_active' ? 'Đã đổi mật khẩu' : existing?.sheetStatusText || '',
           updatedAt: now,
           localChangedAt: existing?.localChangedAt || 0,
           source: 'sheet_sync',
@@ -2498,6 +2755,23 @@ export async function handleStudioApiRequest(req, res) {
         if (String(entry.registeredGmail || '').trim().toLowerCase() === emailClean) {
           if (entry.phoneVerifyHash && constantTimeVerify(targetPhoneHash, entry.phoneVerifyHash)) {
             matchedEntry = entry;
+            break;
+          }
+        }
+      }
+
+      if (!matchedEntry) {
+        for (const core of SYSTEM_CORE_ACCOUNTS) {
+          const coreMail = String(core.registeredGmail || '').trim().toLowerCase();
+          const coreDigits = String(core.phone || '').replace(/\D/g, '');
+          const coreTail = coreDigits.length >= 9 ? coreDigits.slice(-9) : coreDigits;
+          if (coreMail === emailClean && coreTail && coreTail === phoneTail) {
+            matchedEntry = {
+              code: core.code,
+              clientName: core.clientName,
+              registeredGmail: emailClean,
+              phoneVerifyHash: targetPhoneHash,
+            };
             break;
           }
         }
@@ -3172,6 +3446,7 @@ export async function handleStudioApiRequest(req, res) {
         endpointUrl,
         imageDataUrl,
         mode,
+        fallbackProviders,
       } = body || {};
 
       const cleanKey = String(apiKey || '').trim();
@@ -3384,12 +3659,27 @@ export async function handleStudioApiRequest(req, res) {
             actualModel: 'SYNAPES Server Research Director',
             domain,
             headlinesCount: mergedHeadlines.length,
+            tokenTelemetry: {
+              provider: 'studio-research',
+              model: model || 'internet-crawler-v3',
+              promptTokens: Math.round((String(systemPrompt || '').length + String(userPrompt || '').length) / 4),
+              completionTokens: 480,
+              totalTokens: Math.round((String(systemPrompt || '').length + String(userPrompt || '').length) / 4) + 480,
+              estimatedCostUsd: 0,
+              keyStatus: 'active',
+              failoverTriggered: false,
+              attemptedProviders: ['studio-research'],
+            },
           })
         );
         return true;
       }
 
-      if (!effectiveGeminiKey && (!cleanKey || cleanKey.length < 5)) {
+      const fallbackQueue = Array.isArray(fallbackProviders)
+        ? fallbackProviders.filter((fp) => fp && fp.provider && String(fp.apiKey || '').trim().length >= 5)
+        : [];
+
+      if (!effectiveGeminiKey && (!cleanKey || cleanKey.length < 5) && fallbackQueue.length === 0) {
         res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ error: 'Missing API Key' }));
         return true;
@@ -3399,65 +3689,131 @@ export async function handleStudioApiRequest(req, res) {
           ? imageDataUrl.trim().match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/)
           : null;
 
-      if (provider === 'gemini' || (isPluginOrNoLlmKey && effectiveGeminiKey)) {
-        const keyToUse = effectiveGeminiKey || cleanKey;
-        const base = (endpointUrl || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
-        const requestedMod = String(model || 'gemini-2.0-flash').replace(/^models\//, '').trim();
-        const isAliasOrPreview = /^(gemini-3\.[5-9]|gemma-4)/i.test(requestedMod);
-        // Filter out non-text-generation endpoints (tts, imagen, embedding, live-only, veo)
-        const isNonScriptModel = /tts|imagen|-image|embedding|robotics|veo|audio|-live|aqa/i.test(requestedMod);
-
-        const resolveGeminiServerModelCandidates = () =>
-          Array.from(
-            new Set([
-              ...(!isNonScriptModel && !isAliasOrPreview ? [requestedMod] : []),
-              'gemini-2.0-flash',
-              'gemini-2.5-flash',
-            ])
-          );
-
-        const candidates = resolveGeminiServerModelCandidates();
-
-        const extractGeminiText = (parsed) => {
-          const parts = parsed?.candidates?.[0]?.content?.parts;
-          if (!Array.isArray(parts) || parts.length === 0) return '';
-          const nonThought = parts.filter((p) => !p?.thought && typeof p?.text === 'string');
-          if (nonThought.length > 0) return nonThought.map((p) => p.text).join('\n').trim();
-          const anyText = parts.filter((p) => typeof p?.text === 'string');
-          return anyText.length > 0 ? anyText[anyText.length - 1].text.trim() : '';
+      const buildTokenTelemetry = ({
+        prov,
+        mod,
+        parsedJson,
+        attempted,
+        failoverTriggered,
+        failoverReason,
+        keyStatus,
+      }) => {
+        let promptTokens = 0;
+        let completionTokens = 0;
+        let totalTokens = 0;
+        if (prov === 'gemini' && parsedJson?.usageMetadata) {
+          promptTokens = Number(parsedJson.usageMetadata.promptTokenCount || 0);
+          completionTokens = Number(parsedJson.usageMetadata.candidatesTokenCount || 0) + Number(parsedJson.usageMetadata.thoughtsTokenCount || 0);
+          totalTokens = Number(parsedJson.usageMetadata.totalTokenCount || promptTokens + completionTokens);
+        } else if (prov === 'claude' && parsedJson?.usage) {
+          promptTokens = Number(parsedJson.usage.input_tokens || 0);
+          completionTokens = Number(parsedJson.usage.output_tokens || 0);
+          totalTokens = promptTokens + completionTokens;
+        } else if (parsedJson?.usage) {
+          promptTokens = Number(parsedJson.usage.prompt_tokens || 0);
+          completionTokens = Number(parsedJson.usage.completion_tokens || 0);
+          totalTokens = Number(parsedJson.usage.total_tokens || promptTokens + completionTokens);
+        }
+        if (totalTokens === 0) {
+          promptTokens = Math.max(120, Math.round((String(systemPrompt || '').length + String(userPrompt || '').length) / 3.8));
+          completionTokens = 650;
+          totalTokens = promptTokens + completionTokens;
+        }
+        const estCost = +((promptTokens * 0.00000015) + (completionTokens * 0.0000006)).toFixed(6);
+        return {
+          provider: prov,
+          model: mod,
+          promptTokens,
+          completionTokens,
+          totalTokens,
+          estimatedCostUsd: estCost,
+          keyStatus: keyStatus || 'active',
+          failoverTriggered: Boolean(failoverTriggered),
+          failoverReason: failoverReason || '',
+          attemptedProviders: attempted,
         };
+      };
 
-        const geminiParts = [{ text: `${systemPrompt}\n\n${userPrompt}` }];
-        if (parsedImageMatch) {
-          geminiParts.push({
-            inlineData: {
-              mimeType: parsedImageMatch[1],
-              data: parsedImageMatch[2],
-            },
+      const attemptConfigs = [];
+      if (cleanKey.length >= 5 || (provider === 'gemini' && effectiveGeminiKey)) {
+        attemptConfigs.push({
+          provider: provider || 'gemini',
+          model: model || '',
+          apiKey: provider === 'gemini' ? effectiveGeminiKey || cleanKey : cleanKey,
+          endpointUrl: endpointUrl || '',
+        });
+      }
+      for (const fp of fallbackQueue) {
+        const dup = attemptConfigs.some(
+          (a) => a.provider === fp.provider && String(a.apiKey) === String(fp.apiKey) && String(a.model || '') === String(fp.model || '')
+        );
+        if (!dup) {
+          attemptConfigs.push({
+            provider: String(fp.provider).toLowerCase(),
+            model: fp.model || '',
+            apiKey: String(fp.apiKey).trim(),
+            endpointUrl: fp.endpointUrl || '',
           });
         }
+      }
+      if (envGeminiKey && !attemptConfigs.some((a) => a.provider === 'gemini' && a.apiKey === envGeminiKey)) {
+        attemptConfigs.push({
+          provider: 'gemini',
+          model: 'gemini-2.0-flash',
+          apiKey: envGeminiKey,
+          endpointUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        });
+      }
 
-        let lastErr = 'Gemini call failed';
-        for (const mod of candidates) {
-          const gUrl = `${base}/models/${encodeURIComponent(mod)}:generateContent?key=${encodeURIComponent(keyToUse)}`;
-          try {
-            let resp = await postJsonHttps(
-              gUrl,
-              {},
-              {
-                contents: [{ parts: geminiParts }],
-                generationConfig: {
-                  temperature: 0.65,
-                  maxOutputTokens: 6500,
-                  responseMimeType: 'application/json',
-                },
-              },
-              14000
+      const attemptedProviders = [];
+      let lastErr = 'All AI providers failed';
+      let lastStatusCode = 502;
+      let failoverReason = '';
+
+      for (let attemptIdx = 0; attemptIdx < attemptConfigs.length; attemptIdx++) {
+        const cfg = attemptConfigs[attemptIdx];
+        const curProvider = String(cfg.provider || 'gemini').toLowerCase();
+        const curKey = String(cfg.apiKey || '').trim();
+        const curModel = String(cfg.model || '').trim();
+        const curEndpoint = String(cfg.endpointUrl || '').trim();
+        attemptedProviders.push(`${curProvider}:${curModel || 'default'}`);
+
+        try {
+          if (curProvider === 'gemini') {
+            const base = (curEndpoint || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
+            const requestedMod = String(curModel || 'gemini-2.0-flash').replace(/^models\//, '').trim();
+            const isAliasOrPreview = /^(gemini-3\.[5-9]|gemma-4)/i.test(requestedMod);
+            const isNonScriptModel = /tts|imagen|-image|embedding|robotics|veo|audio|-live|aqa/i.test(requestedMod);
+            const candidates = Array.from(
+              new Set([
+                ...(!isNonScriptModel && !isAliasOrPreview ? [requestedMod] : []),
+                'gemini-2.0-flash',
+                'gemini-2.5-flash',
+              ])
             );
 
-            // Retry without responseMimeType if preview/experimental model rejects JSON mode
-            if (resp.status === 400) {
-              resp = await postJsonHttps(
+            const extractGeminiText = (parsed) => {
+              const parts = parsed?.candidates?.[0]?.content?.parts;
+              if (!Array.isArray(parts) || parts.length === 0) return '';
+              const nonThought = parts.filter((p) => !p?.thought && typeof p?.text === 'string');
+              if (nonThought.length > 0) return nonThought.map((p) => p.text).join('\n').trim();
+              const anyText = parts.filter((p) => typeof p?.text === 'string');
+              return anyText.length > 0 ? anyText[anyText.length - 1].text.trim() : '';
+            };
+
+            const geminiParts = [{ text: `${systemPrompt}\n\n${userPrompt}` }];
+            if (parsedImageMatch) {
+              geminiParts.push({
+                inlineData: {
+                  mimeType: parsedImageMatch[1],
+                  data: parsedImageMatch[2],
+                },
+              });
+            }
+
+            for (const mod of candidates) {
+              const gUrl = `${base}/models/${encodeURIComponent(mod)}:generateContent?key=${encodeURIComponent(curKey)}`;
+              let resp = await postJsonHttps(
                 gUrl,
                 {},
                 {
@@ -3465,103 +3821,185 @@ export async function handleStudioApiRequest(req, res) {
                   generationConfig: {
                     temperature: 0.65,
                     maxOutputTokens: 6500,
+                    responseMimeType: 'application/json',
                   },
                 },
                 14000
               );
-            }
 
+              if (resp.status === 400) {
+                resp = await postJsonHttps(
+                  gUrl,
+                  {},
+                  {
+                    contents: [{ parts: geminiParts }],
+                    generationConfig: {
+                      temperature: 0.65,
+                      maxOutputTokens: 6500,
+                    },
+                  },
+                  14000
+                );
+              }
+
+              if (resp.status === 200) {
+                const parsed = JSON.parse(resp.text);
+                const outText = extractGeminiText(parsed);
+                if (outText) {
+                  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                  res.end(
+                    JSON.stringify({
+                      text: outText,
+                      actualModel: mod,
+                      actualProvider: 'gemini',
+                      tokenTelemetry: buildTokenTelemetry({
+                        prov: 'gemini',
+                        mod,
+                        parsedJson: parsed,
+                        attempted: attemptedProviders,
+                        failoverTriggered: attemptIdx > 0,
+                        failoverReason,
+                        keyStatus: attemptIdx > 0 ? 'failover_recovered' : 'active',
+                      }),
+                    })
+                  );
+                  return true;
+                }
+              } else {
+                lastStatusCode = resp.status || 502;
+                lastErr = `HTTP ${resp.status}: ${resp.text.slice(0, 200)}`;
+                const quotaHit =
+                  resp.status === 429 ||
+                  resp.status === 402 ||
+                  /RESOURCE_EXHAUSTED|quota|rate.?limit/i.test(resp.text);
+                if (quotaHit) {
+                  failoverReason = `Gemini (${mod}) hết hạn mức/rate limit (HTTP ${resp.status}) -> Tự động chuyển luồng`;
+                  break; // Chuyển ngay sang provider dự phòng tiếp theo thay vì thử thêm model cùng key hết quota
+                }
+              }
+            }
+            if (!failoverReason) failoverReason = `Gemini fallback: ${lastErr.slice(0, 80)}`;
+            continue;
+          }
+
+          if (curProvider === 'claude') {
+            const base = (curEndpoint || 'https://api.anthropic.com/v1').replace(/\/+$/, '');
+            const cModel = curModel || 'claude-3-7-sonnet-20250219';
+            const resp = await postJsonHttps(
+              `${base}/messages`,
+              {
+                'x-api-key': curKey,
+                'anthropic-version': '2023-06-01',
+              },
+              {
+                model: cModel,
+                max_tokens: 6000,
+                temperature: 0.65,
+                system: systemPrompt,
+                messages: [{ role: 'user', content: userPrompt }],
+              },
+              14000
+            );
             if (resp.status === 200) {
               const parsed = JSON.parse(resp.text);
-              const outText = extractGeminiText(parsed);
+              const outText = parsed?.content?.[0]?.text || '';
               if (outText) {
                 res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-                res.end(JSON.stringify({ text: outText, actualModel: mod }));
+                res.end(
+                  JSON.stringify({
+                    text: outText,
+                    actualModel: cModel,
+                    actualProvider: 'claude',
+                    tokenTelemetry: buildTokenTelemetry({
+                      prov: 'claude',
+                      mod: cModel,
+                      parsedJson: parsed,
+                      attempted: attemptedProviders,
+                      failoverTriggered: attemptIdx > 0,
+                      failoverReason,
+                      keyStatus: attemptIdx > 0 ? 'failover_recovered' : 'active',
+                    }),
+                  })
+                );
                 return true;
               }
-            } else {
-              lastErr = `HTTP ${resp.status}: ${resp.text.slice(0, 200)}`;
             }
-          } catch (attemptErr) {
-            lastErr = String(attemptErr?.message || attemptErr);
+            lastStatusCode = resp.status || 502;
+            lastErr = resp.text.slice(0, 300);
+            failoverReason = `Claude (${cModel}) HTTP ${resp.status} -> Chuyển sang model dự phòng`;
+            continue;
           }
-        }
-        res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ error: lastErr }));
-        return true;
-      }
 
-      if (provider === 'claude') {
-        const base = (endpointUrl || 'https://api.anthropic.com/v1').replace(/\/+$/, '');
-        const resp = await postJsonHttps(
-          `${base}/messages`,
-          {
-            'x-api-key': cleanKey,
-            'anthropic-version': '2023-06-01',
-          },
-          {
-            model: model || 'claude-3-7-sonnet-20250219',
-            max_tokens: 6000,
+          // OpenAI / DeepSeek / Grok
+          const defaultBase =
+            curProvider === 'openai'
+              ? 'https://api.openai.com/v1'
+              : curProvider === 'deepseek'
+                ? 'https://api.deepseek.com/v1'
+                : 'https://api.x.ai/v1';
+          const base = (curEndpoint || defaultBase).replace(/\/+$/, '');
+          const userContent =
+            curProvider === 'openai' && parsedImageMatch
+              ? [
+                  { type: 'text', text: userPrompt },
+                  { type: 'image_url', image_url: { url: imageDataUrl.trim() } },
+                ]
+              : userPrompt;
+          const targetMod =
+            curModel || (curProvider === 'openai' ? 'gpt-4o' : curProvider === 'deepseek' ? 'deepseek-chat' : 'grok-2');
+          const payload = {
+            model: targetMod,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userContent },
+            ],
             temperature: 0.65,
-            system: systemPrompt,
-            messages: [{ role: 'user', content: userPrompt }],
-          },
-          14000
-        );
-        if (resp.status === 200) {
-          const parsed = JSON.parse(resp.text);
-          const outText = parsed?.content?.[0]?.text || '';
-          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-          res.end(JSON.stringify({ text: outText, actualModel: model || 'claude-3-7-sonnet-20250219' }));
-          return true;
+            max_tokens: 6000,
+          };
+          if (curProvider !== 'grok') {
+            payload.response_format = { type: 'json_object' };
+          }
+          const resp = await postJsonHttps(
+            `${base}/chat/completions`,
+            { Authorization: `Bearer ${curKey}` },
+            payload,
+            14000
+          );
+          if (resp.status === 200) {
+            const parsed = JSON.parse(resp.text);
+            const outText = parsed?.choices?.[0]?.message?.content || '';
+            if (outText) {
+              res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+              res.end(
+                JSON.stringify({
+                  text: outText,
+                  actualModel: payload.model,
+                  actualProvider: curProvider,
+                  tokenTelemetry: buildTokenTelemetry({
+                    prov: curProvider,
+                    mod: payload.model,
+                    parsedJson: parsed,
+                    attempted: attemptedProviders,
+                    failoverTriggered: attemptIdx > 0,
+                    failoverReason,
+                    keyStatus: attemptIdx > 0 ? 'failover_recovered' : 'active',
+                  }),
+                })
+              );
+              return true;
+            }
+          }
+          lastStatusCode = resp.status || 502;
+          lastErr = resp.text.slice(0, 300);
+          failoverReason = `${curProvider.toUpperCase()} (${targetMod}) HTTP ${resp.status} -> Tự động failover`;
+        } catch (attemptErr) {
+          lastErr = String(attemptErr?.message || attemptErr);
+          failoverReason = `${curProvider.toUpperCase()} error: ${lastErr.slice(0, 80)}`;
         }
-        res.writeHead(resp.status, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ error: resp.text.slice(0, 300) }));
-        return true;
       }
 
-      // OpenAI / DeepSeek / Grok
-      const defaultBase =
-        provider === 'openai'
-          ? 'https://api.openai.com/v1'
-          : provider === 'deepseek'
-            ? 'https://api.deepseek.com/v1'
-            : 'https://api.x.ai/v1';
-      const base = (endpointUrl || defaultBase).replace(/\/+$/, '');
-      const userContent =
-        provider === 'openai' && parsedImageMatch
-          ? [
-              { type: 'text', text: userPrompt },
-              { type: 'image_url', image_url: { url: imageDataUrl.trim() } },
-            ]
-          : userPrompt;
-      const payload = {
-        model: model || (provider === 'openai' ? 'gpt-4o' : provider === 'deepseek' ? 'deepseek-chat' : 'grok-2'),
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent },
-        ],
-        temperature: 0.65,
-        max_tokens: 6000,
-      };
-      if (provider !== 'grok') {
-        payload.response_format = { type: 'json_object' };
-      }
-      const resp = await postJsonHttps(
-        `${base}/chat/completions`,
-        { Authorization: `Bearer ${cleanKey}` },
-        payload,
-        14000
-      );
-      if (resp.status === 200) {
-        const parsed = JSON.parse(resp.text);
-        const outText = parsed?.choices?.[0]?.message?.content || '';
-        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ text: outText, actualModel: payload.model }));
-        return true;
-      }
-      res.writeHead(resp.status, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ error: resp.text.slice(0, 300) }));
+      res.writeHead(lastStatusCode, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: lastErr, attemptedProviders, failoverReason }));
       return true;
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -5984,13 +6422,48 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
 
   // --------------------------------------------------------------------------
   // REAL MULTI-PLATFORM TRAFFIC ANALYTICS (TIKTOK / FACEBOOK / YOUTUBE)
+  // Hỗ trợ bước thời gian 1 giờ (00:00 -> 23:00) theo Quốc gia & Múi giờ IP thực tế
   // --------------------------------------------------------------------------
-  const buildRealTrafficSummary = (rawStore, overrideCounts = {}) => {
-    const slots = ['06:00', '10:00', '14:00', '18:00', '20:30', '22:00', '24:00'];
+  const buildRealTrafficSummary = (rawStore, overrideCounts = {}, geoInfo = null) => {
+    const resolvedGeo = geoInfo || buildClockFromTimezone('Asia/Ho_Chi_Minh', 'VN', 'Việt Nam', 'local');
+    const cc = String(resolvedGeo.countryCode || 'VN').toUpperCase();
+    const currentHour = Number.isFinite(Number(resolvedGeo.hour)) ? Number(resolvedGeo.hour) % 24 : new Date().getHours();
+
+    // 24 khung giờ liên tục (bước nhảy 1 giờ: 00:00, 01:00, ..., 23:00)
+    const slots = Array.from({ length: 24 }, (_, h) => `${h.toString().padStart(2, '0')}:00`);
+
+    // Nhịp hành vi xem video 24 giờ theo khu vực (châu Á / Âu-Mỹ)
+    const isAmericasOrEu = ['US', 'CA', 'GB', 'FR', 'DE', 'AU'].includes(cc);
+    const shift = isAmericasOrEu ? 1 : 0;
     const baseWeights = {
-      tiktok: [0.38, 0.72, 0.85, 1.35, 1.62, 1.48, 0.94],
-      facebook: [0.42, 0.68, 0.88, 1.18, 1.45, 1.12, 0.62],
-      youtube: [0.34, 0.61, 0.79, 1.24, 1.56, 1.38, 0.85],
+      tiktok: slots.map((_, h) => {
+        const lh = (h + shift) % 24;
+        if (lh >= 19 && lh <= 22) return 1.58 + (lh === 20 ? 0.22 : lh === 21 ? 0.16 : 0);
+        if (lh === 12 || lh === 13) return 1.18;
+        if (lh >= 17 && lh <= 18) return 1.24;
+        if (lh >= 7 && lh <= 11) return 0.62 + (lh - 7) * 0.08;
+        if (lh >= 14 && lh <= 16) return 0.88 + (lh - 14) * 0.06;
+        if (lh === 23) return 1.12;
+        return Math.max(0.18, 0.42 - Math.abs(lh - 3) * 0.06);
+      }),
+      facebook: slots.map((_, h) => {
+        const lh = (h + shift) % 24;
+        if (lh >= 20 && lh <= 21) return 1.48;
+        if (lh === 12 || lh === 13) return 1.32;
+        if (lh >= 8 && lh <= 11) return 0.72 + (lh - 8) * 0.07;
+        if (lh >= 14 && lh <= 19) return 0.94 + (lh - 14) * 0.08;
+        if (lh >= 22) return 0.95 - (lh - 22) * 0.22;
+        return Math.max(0.15, 0.36 - Math.abs(lh - 3) * 0.05);
+      }),
+      youtube: slots.map((_, h) => {
+        const lh = (h + shift) % 24;
+        if (lh >= 19 && lh <= 22) return 1.62 + (lh === 21 ? 0.18 : 0);
+        if (lh >= 11 && lh <= 13) return 0.98;
+        if (lh >= 7 && lh <= 10) return 0.58 + (lh - 7) * 0.09;
+        if (lh >= 14 && lh <= 18) return 0.85 + (lh - 14) * 0.09;
+        if (lh === 23) return 1.18;
+        return Math.max(0.2, 0.45 - Math.abs(lh - 4) * 0.06);
+      }),
     };
 
     const events = Array.isArray(rawStore.events) ? rawStore.events : [];
@@ -6012,14 +6485,19 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
     const fbVideos = Number(overrideCounts.facebook ?? 0) || profileProjects.filter((p) => (p.targetChannels || []).includes('facebook')).length;
 
     const slotBoosts = {
-      tiktok: new Array(slots.length).fill(0),
-      facebook: new Array(slots.length).fill(0),
-      youtube: new Array(slots.length).fill(0),
+      tiktok: new Array(24).fill(0),
+      facebook: new Array(24).fill(0),
+      youtube: new Array(24).fill(0),
     };
     for (const ev of events) {
       const pf = String(ev.platform || '').toLowerCase();
       if (!slotBoosts[pf]) continue;
-      const idx = typeof ev.slotIndex === 'number' && ev.slotIndex >= 0 && ev.slotIndex < slots.length ? ev.slotIndex : 4;
+      let idx = currentHour;
+      if (typeof ev.hourSlot === 'number' && ev.hourSlot >= 0 && ev.hourSlot < 24) {
+        idx = ev.hourSlot;
+      } else if (typeof ev.slotIndex === 'number' && ev.slotIndex >= 0 && ev.slotIndex < 24) {
+        idx = ev.slotIndex <= 6 ? [6, 10, 14, 18, 20, 22, 23][ev.slotIndex] : ev.slotIndex;
+      }
       slotBoosts[pf][idx] += Math.max(10, Number(ev.viewsDelta) || 45);
     }
 
@@ -6028,15 +6506,17 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
     const ytMult = 1 + Math.min(4, ytVideos) * 0.31 + (userChannels.youtube?.status === 'connected' ? 0.38 : 0);
 
     const series = slots.map((slot, idx) => {
-      const tiktok = Math.round(680 * baseWeights.tiktok[idx] * ttMult + slotBoosts.tiktok[idx]);
-      const facebook = Math.round(520 * baseWeights.facebook[idx] * fbMult + slotBoosts.facebook[idx]);
-      const youtube = Math.round(610 * baseWeights.youtube[idx] * ytMult + slotBoosts.youtube[idx]);
+      const tiktok = Math.round(420 * baseWeights.tiktok[idx] * ttMult + slotBoosts.tiktok[idx]);
+      const facebook = Math.round(330 * baseWeights.facebook[idx] * fbMult + slotBoosts.facebook[idx]);
+      const youtube = Math.round(390 * baseWeights.youtube[idx] * ytMult + slotBoosts.youtube[idx]);
       return {
         slot,
+        hour: idx,
         tiktok,
         facebook,
         youtube,
         total: tiktok + facebook + youtube,
+        isCurrentHour: idx === currentHour,
       };
     });
 
@@ -6046,12 +6526,21 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       youtube: series.reduce((acc, s) => acc + s.youtube, 0),
     };
     const grandTotal = totals.tiktok + totals.facebook + totals.youtube;
-    const peakPoint = [...series].sort((a, b) => b.total - a.total)[0] || series[4];
+    const peakPoint = [...series].sort((a, b) => b.total - a.total)[0] || series[20];
 
     return {
       success: true,
       updatedAt: rawStore.updatedAt || new Date().toISOString(),
       eventCount: events.length,
+      unit: '1h',
+      geo: {
+        countryCode: resolvedGeo.countryCode,
+        countryName: resolvedGeo.countryName,
+        timezone: resolvedGeo.timezone,
+        currentHour,
+        dateStr: resolvedGeo.dateStr,
+        timeStr: resolvedGeo.timeStr,
+      },
       series,
       totals: { ...totals, all: grandTotal },
       activeVideos: { tiktok: ttVideos, facebook: fbVideos, youtube: ytVideos },
@@ -6075,12 +6564,17 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       const qIdx = rawUrl.indexOf('?');
       const params = new URLSearchParams(qIdx >= 0 ? rawUrl.slice(qIdx + 1) : '');
       const store = readJsonRegistry(PLATFORM_TRAFFIC_FILE, { events: [], updatedAt: new Date().toISOString() });
-      const summary = buildRealTrafficSummary(store, {
-        userCode: params.get('userCode') || '',
-        youtube: Number(params.get('yt') || 0),
-        tiktok: Number(params.get('tt') || 0),
-        facebook: Number(params.get('fb') || 0),
-      });
+      const geoInfo = await resolveClientGeoAndTime(req);
+      const summary = buildRealTrafficSummary(
+        store,
+        {
+          userCode: params.get('userCode') || '',
+          youtube: Number(params.get('yt') || 0),
+          tiktok: Number(params.get('tt') || 0),
+          facebook: Number(params.get('fb') || 0),
+        },
+        geoInfo
+      );
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(summary));
       return true;
@@ -6101,8 +6595,8 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         ? body.platforms
         : [String(body.platform || 'youtube')];
 
-      const hourNow = new Date().getHours();
-      const slotIdx = hourNow < 8 ? 0 : hourNow < 12 ? 1 : hourNow < 16 ? 2 : hourNow < 19 ? 3 : hourNow < 21 ? 4 : hourNow < 23 ? 5 : 6;
+      const geoInfo = await resolveClientGeoAndTime(req);
+      const hourNow = geoInfo.hour;
 
       for (const pfRaw of platforms) {
         const pf = String(pfRaw || '').toLowerCase();
@@ -6112,7 +6606,8 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
           eventType: String(body.eventType || 'project_activity').slice(0, 60),
           projectId: String(body.projectId || '').slice(0, 64),
           viewsDelta: Math.min(2500, Math.max(15, Number(body.viewsDelta) || 85)),
-          slotIndex: slotIdx,
+          hourSlot: hourNow,
+          slotIndex: hourNow,
           timestamp: new Date().toISOString(),
         });
       }
@@ -6120,7 +6615,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       store.updatedAt = new Date().toISOString();
       writeJsonRegistry(PLATFORM_TRAFFIC_FILE, store);
 
-      const summary = buildRealTrafficSummary(store, { userCode: body.userCode || '' });
+      const summary = buildRealTrafficSummary(store, { userCode: body.userCode || '' }, geoInfo);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(summary));
       return true;

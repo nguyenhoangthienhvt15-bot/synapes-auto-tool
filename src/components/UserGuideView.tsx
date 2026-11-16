@@ -1275,10 +1275,33 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
                     </span>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {renderVisualMockup(mod.mockupType)}
+                    {(mod.id === 'ai-prompt-guide' || mod.id === 'channels-guide' || mod.id === 'drive-guide' || mod.id === 'voice-studio-guide' || mod.id === 'skills-guide') && (
+                      <div className="rounded-lg border border-black/10 overflow-hidden bg-zinc-50 shadow-2xs">
+                        <div className="px-2.5 py-1 bg-zinc-100 border-b border-black/5 text-[10px] font-mono text-zinc-600 flex items-center justify-between">
+                          <span>📸 Ảnh Chụp Thao Tác Thực Tế Trên Web</span>
+                          <span className="text-emerald-700 font-semibold">Live UI Capture</span>
+                        </div>
+                        <img
+                          src={
+                            mod.id === 'ai-prompt-guide'
+                              ? '/guide-screenshots/ai-keys-guide.png'
+                              : mod.id === 'channels-guide'
+                                ? '/guide-screenshots/social-oauth-guide.png'
+                                : mod.id === 'drive-guide'
+                                  ? '/guide-screenshots/drive-oauth-guide.png'
+                                  : mod.id === 'skills-guide'
+                                    ? '/guide-screenshots/skills-repos-guide.png'
+                                    : '/guide-screenshots/voicestudio-ultra-guide.png'
+                          }
+                          alt={`Ảnh chụp hướng dẫn ${mod.title}`}
+                          className="w-full h-auto object-cover block"
+                        />
+                      </div>
+                    )}
                     <div className="text-[10px] text-zinc-400 text-center italic">
-                      Hình ảnh mô phỏng trực quan các trường nhập liệu và nút bấm thực tế trên hệ thống.
+                      Ảnh chụp và mô phỏng trực quan quy trình thao tác thực tế trên phiên bản Web mới nhất.
                     </div>
                   </div>
                 </div>
