@@ -240,7 +240,7 @@ export async function dispatchScriptToPluginEngine(
     .trim();
 
   const cleanFormatLabel = String(
-    platformFormatLabel || (aspectRatio === '16:9' ? 'YouTube Video Dài • 16:9' : 'TikTok / Reels Dọc • 9:16')
+    platformFormatLabel || (aspectRatio === '16:9' ? '1920x1080 (16:9)' : '1080x1920 (9:16)')
   )
     .replace(/\(([^()]*)\(([^()]*)\)([^()]*)\)/g, '($1• $2$3)')
     .replace(/\s{2,}/g, ' ')
@@ -278,6 +278,7 @@ export async function dispatchScriptToPluginEngine(
       model: `${scriptModelName}`,
       pluginUrl: endpoint,
     },
+    ...(scriptResult.tokenTelemetry ? { tokenTelemetry: scriptResult.tokenTelemetry } : {}),
     createdAt: now.toISOString(),
     storyboard: updatedStoryboard,
   };

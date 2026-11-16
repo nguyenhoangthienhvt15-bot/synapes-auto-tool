@@ -409,10 +409,13 @@ export function getActiveVoiceSpectrum(barCount = 16): number[] {
   return bars;
 }
 
+let activeAudioElement: HTMLAudioElement | null = null;
+
 /**
- * Dừng ngay lập tức mọi âm thanh thử giọng đang phát
+ * Dừng ngay lập tức mọi âm thanh thử giọng đang phát (Web Audio + <audio> elements)
+ * giúp loại bỏ hoàn toàn lỗi chồng chéo 2 luồng âm thanh cùng lúc.
  */
-export function stopVoiceAudition() {
+export function stopVoiceAudition(exceptEl?: HTMLAudioElement | null) {
   if (activeAuditionAbort) {
     activeAuditionAbort.abort();
     activeAuditionAbort = null;
@@ -425,11 +428,86 @@ export function stopVoiceAudition() {
     } catch { }
     activeAuditionSource = null;
   }
+  if (activeAudioElement && activeAudioElement !== exceptEl) {
+    try {
+      activeAudioElement.pause();
+    } catch { }
+    activeAudioElement = null;
+  }
   if ('speechSynthesis' in window) {
     try {
       window.speechSynthesis.cancel();
     } catch { }
   }
+}
+
+/**
+ * Gắn khóa phát độc quyền cho phần tử <audio> trên UI để mọi thao tác Play/Pause
+ * đều đồng bộ 100%, không bao giờ phát đè 2 giọng nói cùng lúc.
+ */
+export function bindExclusiveAudioElement(el: HTMLAudioElement | null) {
+  if (!el) return;
+  stopVoiceAudition(el);
+  activeAudioElement = el;
+}
+
+export interface SavedClonedVoiceItem {
+  id: string;
+  name: string;
+  engine: string;
+  pitch: number;
+  rate: number;
+  warmthDb: number;
+  gender: 'Nam' | 'Nữ' | 'Trung tính';
+  description: string;
+  createdAt: string;
+  baseVoiceId?: string;
+  fundamentalHz?: number;
+  formantsHz?: [number, number, number, number];
+}
+
+export function getSavedClonedVoiceProfiles(): SavedClonedVoiceItem[] {
+  try {
+    const raw = localStorage.getItem('synapes_voicestudio_custom_voices');
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Tra cứu VoiceProfile hoàn chỉnh cho cả giọng gốc hệ thống và giọng đã nhân bản trong VoiceStudio ULTRA.
+ */
+export function resolveVoiceProfileById(voiceId?: string, language: VoiceLanguage = 'vi'): VoiceProfile {
+  if (voiceId) {
+    const direct = ALL_VOICE_PROFILES.find((v) => v.id === voiceId);
+    if (direct) return direct;
+
+    const savedCloned = getSavedClonedVoiceProfiles().find((cv) => cv.id === voiceId);
+    if (savedCloned) {
+      const isFemale = savedCloned.gender === 'Nữ';
+      const base =
+        ALL_VOICE_PROFILES.find((v) => v.id === savedCloned.baseVoiceId) ||
+        (isFemale ? VIETNAMESE_VOICE_PROFILES.find((v) => v.gender === 'Nữ') : VIETNAMESE_VOICE_PROFILES[0]) ||
+        ALL_VOICE_PROFILES[0];
+      return {
+        ...base,
+        id: savedCloned.id,
+        name: `${savedCloned.name} (Clone ULTRA)`,
+        language: language || base.language,
+        gender: isFemale ? 'Nữ' : 'Nam',
+        toneTag: `ULTRA Clone • ${savedCloned.engine}`,
+        description: savedCloned.description,
+        pitch: savedCloned.pitch || 1.0,
+        rate: savedCloned.rate || 1.0,
+        neuralVoiceId: isFemale ? 'vi-VN-HoaiMyNeural' : 'vi-VN-NamMinhNeural',
+        dspDetuneCents: Math.round(((savedCloned.pitch || 1.0) - 1) * 900),
+      };
+    }
+  }
+  return language === 'en' ? ENGLISH_VOICE_PROFILES[0] : VIETNAMESE_VOICE_PROFILES[0];
 }
 
 /**
@@ -1368,9 +1446,7 @@ export class StudioAudioSynthesizer {
     for (const scene of scenes) {
       if (!scene?.voiceover?.trim() || scene.customAudioUrl) continue;
       const isEnglish = scene.voiceLanguage === 'en';
-      const profile =
-        ALL_VOICE_PROFILES.find((v) => v.id === scene.voiceId) ||
-        (isEnglish ? ENGLISH_VOICE_PROFILES[0] : baseProf);
+      const profile = resolveVoiceProfileById(scene.voiceId, isEnglish ? 'en' : 'vi') || baseProf;
 
       try {
         await fetchAndDecodeNeuralAudio(ctx, scene.voiceover, profile);
@@ -2095,10 +2171,70 @@ export function computeWaveformPeaks(buffer: AudioBuffer, barCount = 48): number
  * - Giữ nguyên hoàn hảo pha tức thời (Zero-Phase Distortion) & bảo toàn phụ âm xát /s, x, tr/
  * - Vòng lặp hội tụ lần 2 đảm bảo độ khớp phổ thực đo đạt 93%–98%
  */
+function warpTargetFreqToSourceHz(
+  fTarget: number,
+  uFormants: [number, number, number, number],
+  sFormants: [number, number, number, number],
+  nyquistHz: number,
+  warpBlend = 0.72
+): number {
+  const uKnots = [
+    0,
+    Math.max(180, uFormants[0]),
+    Math.max(550, uFormants[1]),
+    Math.max(1650, uFormants[2]),
+    Math.max(2700, uFormants[3]),
+    nyquistHz,
+  ];
+  const sKnots = [
+    0,
+    Math.max(180, sFormants[0]),
+    Math.max(550, sFormants[1]),
+    Math.max(1650, sFormants[2]),
+    Math.max(2700, sFormants[3]),
+    nyquistHz,
+  ];
+  for (let i = 1; i < uKnots.length; i++) {
+    if (fTarget <= uKnots[i] || i === uKnots.length - 1) {
+      const spanU = Math.max(1, uKnots[i] - uKnots[i - 1]);
+      const t = (fTarget - uKnots[i - 1]) / spanU;
+      const linearSrc = sKnots[i - 1] + t * (sKnots[i] - sKnots[i - 1]);
+      return Math.max(40, Math.min(nyquistHz - 40, fTarget + (linearSrc - fTarget) * warpBlend));
+    }
+  }
+  return fTarget;
+}
+
+function getEngineAcousticCharacter(cloneEngine?: string): {
+  presenceDb: number;
+  warmthTiltDb: number;
+  airBoostDb: number;
+  warpStrength: number;
+} {
+  const key = String(cloneEngine || 'qwen3-tts').toLowerCase();
+  if (key.includes('xtts')) {
+    return { presenceDb: 1.4, warmthTiltDb: 2.1, airBoostDb: 0.6, warpStrength: 0.76 };
+  }
+  if (key.includes('fish')) {
+    return { presenceDb: 2.2, warmthTiltDb: -0.6, airBoostDb: 2.4, warpStrength: 0.68 };
+  }
+  if (key.includes('gemini')) {
+    return { presenceDb: 2.4, warmthTiltDb: 1.1, airBoostDb: 1.9, warpStrength: 0.8 };
+  }
+  if (key.includes('openai')) {
+    return { presenceDb: 1.8, warmthTiltDb: 0.8, airBoostDb: 1.6, warpStrength: 0.74 };
+  }
+  if (key.includes('eleven')) {
+    return { presenceDb: 2.0, warmthTiltDb: 1.4, airBoostDb: 2.6, warpStrength: 0.78 };
+  }
+  return { presenceDb: 1.6, warmthTiltDb: 0.5, airBoostDb: 1.2, warpStrength: 0.74 };
+}
+
 function applyStftSourceFilterVoiceClone(
   ctx: AudioContext,
   inputBuffer: AudioBuffer,
-  targetAnalysis: ReferenceVoiceAnalysis
+  targetAnalysis: ReferenceVoiceAnalysis,
+  cloneEngine?: string
 ): AudioBuffer {
   const sr = inputBuffer.sampleRate;
   const ch0 = inputBuffer.getChannelData(0);
@@ -2106,6 +2242,7 @@ function applyStftSourceFilterVoiceClone(
   if (!targetEnv128 || targetEnv128.length !== 128 || ch0.length < 1024) {
     return inputBuffer;
   }
+  const charTraits = getEngineAcousticCharacter(cloneEngine);
 
   const runZeroPhaseSpectralPass = (
     samples: Float32Array,
@@ -2126,50 +2263,60 @@ function applyStftSourceFilterVoiceClone(
       hann[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (winLen - 1)));
     }
 
-    // Precompute gain lookup per bin [0..halfBins-1]
+    // Precompute gain & VTLN formant frequency mapping per bin [0..halfBins-1]
     const baseGainDb = new Float32Array(halfBins);
-    const h1h2Delta = Math.max(-5, Math.min(5, (targetAnalysis.h1H2Db - srcH1H2) * 0.55));
-    const f0Lim = Math.max(150, targetAnalysis.fundamentalHz * 2.4);
+    const warpSrcBin = new Float32Array(halfBins);
+    const h1h2Delta = Math.max(-6, Math.min(6, (targetAnalysis.h1H2Db - srcH1H2) * 0.65));
+    const f0Lim = Math.max(150, targetAnalysis.fundamentalHz * 2.5);
 
     for (let k = 1; k < halfBins; k++) {
       const f = k * binFreq;
-      if (f < 75 || f > sr * 0.47) {
+      const srcHz = applyGlottalAndFormantAccent && f >= 140 && f <= 4600
+        ? warpTargetFreqToSourceHz(f, targetAnalysis.formantsHz, srcFormants, sr * 0.5, charTraits.warpStrength)
+        : f;
+      warpSrcBin[k] = Math.max(1, Math.min(halfBins - 2, srcHz / binFreq));
+
+      if (f < 70 || f > sr * 0.47) {
         baseGainDb[k] = 0;
         continue;
       }
       const uDb = sampleEnvelopeAtFreqHz(targetEnv128, f);
-      const sDb = sampleEnvelopeAtFreqHz(srcEnv128, f);
+      const sDb = sampleEnvelopeAtFreqHz(srcEnv128, srcHz);
       let dDb = (uDb - sDb) * strength;
 
       if (applyGlottalAndFormantAccent) {
-        // Gentle glottal thickness H1-H2 matching below 2.4 * F0
         if (f <= f0Lim) {
-          dDb += h1h2Delta * (1 - (f / f0Lim) * 0.6);
+          dDb += (h1h2Delta + charTraits.warmthTiltDb) * (1 - (f / f0Lim) * 0.55);
         }
-        // Subtle Gaussian formant peak sharpening around target [F1, F2, F3] when source shifted away
-        for (let fi = 0; fi < 3; fi++) {
+        for (let fi = 0; fi < 4; fi++) {
           const fu = targetAnalysis.formantsHz[fi];
           const fs = srcFormants[fi];
-          if (Math.abs(fu - fs) > 70) {
-            const bw = fu * 0.14;
+          if (Math.abs(fu - fs) > 55) {
+            const bw = fu * 0.12;
             const dTarget = (f - fu) / bw;
-            dDb += 1.6 * Math.exp(-0.5 * dTarget * dTarget);
+            dDb += (fi < 2 ? 2.4 : 1.7) * Math.exp(-0.5 * dTarget * dTarget);
           }
+        }
+        if (f >= 2100 && f <= 3800) {
+          dDb += charTraits.presenceDb * 0.65;
+        } else if (f >= 5200 && f <= 9200) {
+          dDb += charTraits.airBoostDb * 0.55;
         }
       }
 
-      // Smooth high-frequency taper above 6200 Hz so sibilants remain airy & crisp
-      if (f > 6200) {
-        const taper = Math.max(0.35, 1 - (f - 6200) / 5500);
+      if (f > 6400) {
+        const taper = Math.max(0.4, 1 - (f - 6400) / 5500);
         dDb *= taper;
       }
 
-      baseGainDb[k] = 16 * Math.tanh(dDb / 16);
+      baseGainDb[k] = 17 * Math.tanh(dDb / 17);
     }
 
     const out = new Float32Array(samples.length);
     const re = new Float64Array(fftSize);
     const im = new Float64Array(fftSize);
+    const reOrig = new Float64Array(halfBins);
+    const imOrig = new Float64Array(halfBins);
     const b120 = Math.max(1, Math.floor(120 / binFreq));
     const b2000 = Math.min(halfBins - 1, Math.floor(2000 / binFreq));
     const b4000 = Math.min(halfBins - 1, Math.floor(4000 / binFreq));
@@ -2181,24 +2328,43 @@ function applyStftSourceFilterVoiceClone(
       im.fill(0);
       for (let i = 0; i < winLen; i++) re[i] = samples[pos + i] * hann[i];
       fftInPlace(re, im, false);
+      for (let k = 0; k < halfBins; k++) {
+        reOrig[k] = re[k];
+        imOrig[k] = im[k];
+      }
 
-      // Frame voicedness weight [0.35 for pure /s, f/ -> 1.0 for vowels & sonorants]
       let lowE = 0;
       let highE = 0;
-      for (let k = b120; k <= b2000; k++) lowE += re[k] * re[k] + im[k] * im[k];
-      for (let k = b4000; k <= b9000; k++) highE += re[k] * re[k] + im[k] * im[k];
+      for (let k = b120; k <= b2000; k++) lowE += reOrig[k] * reOrig[k] + imOrig[k] * imOrig[k];
+      for (let k = b4000; k <= b9000; k++) highE += reOrig[k] * reOrig[k] + imOrig[k] * imOrig[k];
       const voicedRatio = lowE / (lowE + highE * 1.4 + 1e-12);
       const frameAlpha = 0.35 + 0.65 * Math.min(1, voicedRatio * 1.15);
 
       for (let k = 1; k < halfBins - 1; k++) {
+        let curRe = reOrig[k];
+        let curIm = imOrig[k];
+        if (applyGlottalAndFormantAccent && voicedRatio > 0.42) {
+          const sb = warpSrcBin[k];
+          const b0 = Math.floor(sb);
+          const b1 = Math.min(halfBins - 1, b0 + 1);
+          const frac = sb - b0;
+          const mag0 = Math.hypot(reOrig[b0], imOrig[b0]);
+          const mag1 = Math.hypot(reOrig[b1], imOrig[b1]);
+          const warpedMag = mag0 + frac * (mag1 - mag0);
+          const origMag = Math.hypot(curRe, curIm) + 1e-9;
+          const blendMag = origMag + (warpedMag - origMag) * (voicedRatio * 0.72);
+          const ratio = blendMag / origMag;
+          curRe *= ratio;
+          curIm *= ratio;
+        }
         const gainLin = Math.pow(10, (baseGainDb[k] * frameAlpha) / 20);
-        re[k] *= gainLin;
-        im[k] *= gainLin;
+        re[k] = curRe * gainLin;
+        im[k] = curIm * gainLin;
         re[fftSize - k] = re[k];
         im[fftSize - k] = -im[k];
       }
       const nyqGain = Math.pow(10, (baseGainDb[halfBins - 1] * frameAlpha) / 20);
-      re[halfBins - 1] *= nyqGain;
+      re[halfBins - 1] = reOrig[halfBins - 1] * nyqGain;
       im[halfBins - 1] = 0;
 
       fftInPlace(re, im, true);
@@ -2207,7 +2373,6 @@ function applyStftSourceFilterVoiceClone(
       }
     }
 
-    // Preserve tail samples cleanly with crossfade
     const lastProcessed = Math.max(0, samples.length - winLen);
     for (let i = lastProcessed; i < samples.length; i++) {
       if (out[i] === 0) out[i] = samples[i];
@@ -2215,14 +2380,14 @@ function applyStftSourceFilterVoiceClone(
     return out;
   };
 
-  // Pass 1: Full Source-Filter Spectral Transfer
+  // Pass 1: Piecewise-Linear Formant Frequency Warping + 128-Band Cepstral Source-Filter Transfer
   const pass1SrcInfo = extractCepstralSpectralAndFormants(ch0, sr, targetAnalysis.fundamentalHz);
   const pass1Samples = runZeroPhaseSpectralPass(
     ch0,
     pass1SrcInfo.cepstralEnvelopeDb,
     pass1SrcInfo.h1H2Db,
     pass1SrcInfo.formantsHz,
-    0.96,
+    0.98,
     true
   );
 
@@ -2233,7 +2398,7 @@ function applyStftSourceFilterVoiceClone(
     pass2Measure.cepstralEnvelopeDb,
     pass2Measure.h1H2Db,
     pass2Measure.formantsHz,
-    0.72,
+    0.76,
     false
   );
 
@@ -2370,8 +2535,8 @@ export async function analyzeReferenceAudioBuffer(fileOrBlob: Blob): Promise<Ref
   const inferredGender: 'Nam' | 'Nữ' | 'Trung tính' =
     medianF0 >= 172 ? 'Nữ' : medianF0 <= 158 ? 'Nam' : 'Trung tính';
 
-  const refBaseHz = inferredGender === 'Nữ' ? 212 : inferredGender === 'Trung tính' ? 165 : 128;
-  const recommendedPitch = Number(Math.max(0.76, Math.min(1.32, medianF0 / refBaseHz)).toFixed(2));
+  // Khóa 1.00x = 100% đúng tần số F0 gốc của người nói để tránh lệch tông khi kéo slider mặc định
+  const recommendedPitch = 1.0;
 
   let totalSq = 0;
   for (let i = 0; i < cleanCh0.length; i++) totalSq += cleanCh0[i] * cleanCh0[i];
@@ -2415,6 +2580,7 @@ export async function synthesizeNeuralVoiceToAudioBuffer(
     highGainDb?: number;
     referenceAnalysis?: ReferenceVoiceAnalysis | null;
     directReferenceBlob?: Blob | null;
+    cloneEngine?: string;
   }
 ): Promise<{
   audioBuffer: AudioBuffer;
@@ -2484,12 +2650,17 @@ export async function synthesizeNeuralVoiceToAudioBuffer(
         ? processVocalTractPitchAndTempo(ctx, fetched.audioBuffer, residualPitch, 1.0)
         : fetched.audioBuffer;
 
-    // Bước 3: STFT Source-Filter 128-Band Cepstral + Formant F1-F4 Cross-Synthesis (2-Pass Closed-Loop)
-    workingBuffer = applyStftSourceFilterVoiceClone(ctx, pitchLockedBuffer, {
-      ...refAnalysis,
-      fundamentalHz: Math.round(targetF0),
-    });
-    engine = `${engine}+stft-cepstral-v3`;
+    // Bước 3: STFT Formant Frequency Warping (VTLN) + Cepstral 128-Band + Glottal H1-H2 (v4.0)
+    workingBuffer = applyStftSourceFilterVoiceClone(
+      ctx,
+      pitchLockedBuffer,
+      {
+        ...refAnalysis,
+        fundamentalHz: Math.round(targetF0),
+      },
+      opts?.cloneEngine
+    );
+    engine = `${engine}+stft-vtln-v4(${opts?.cloneEngine || 'qwen3'})`;
   } else {
     const fetched = await fetchAndDecodeNeuralAudio(
       ctx,
@@ -2610,6 +2781,7 @@ export async function synthesizeNeuralVoiceToWav(
     highGainDb?: number;
     referenceAnalysis?: ReferenceVoiceAnalysis | null;
     directReferenceBlob?: Blob | null;
+    cloneEngine?: string;
   }
 ): Promise<RenderedNeuralWavResult> {
   const rendered = await synthesizeNeuralVoiceToAudioBuffer(text, profile, opts);

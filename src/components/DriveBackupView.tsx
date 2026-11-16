@@ -767,6 +767,76 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
           </div>
         </div>
       )}
+      {/* Cẩm nang hướng dẫn chi tiết lấy Google Drive OAuth 2.0 Access Token */}
+      <div className="studio-card p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 pb-3">
+          <div>
+            <h3 className="text-sm font-bold text-zinc-950">
+              Hướng Dẫn Lấy OAuth 2.0 Token &amp; URL Thư Mục Google Drive (Từng Bước)
+            </h3>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              Kết nối trực tiếp qua OAuth 2.0 chuẩn Google Cloud với phạm vi an toàn tối thiểu <code className="font-mono text-zinc-800">drive.file</code>
+            </p>
+          </div>
+          <a
+            href="https://console.cloud.google.com/apis/library/drive.googleapis.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary text-xs inline-flex items-center gap-1.5"
+          >
+            <span>Mở Google Cloud Console</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          <div className="lg:col-span-7 space-y-2.5 text-xs">
+            {[
+              {
+                step: 'Bước 1',
+                title: 'Bật Google Drive API trên Google Cloud Console',
+                desc: 'Truy cập console.cloud.google.com -> Chọn/tạo Project mới -> APIs & Services -> Enable APIs -> Tìm "Google Drive API" và nhấn Enable.',
+              },
+              {
+                step: 'Bước 2',
+                title: 'Tạo OAuth Client ID & Cấp Scope drive.file',
+                desc: 'Vào Credentials -> Create Credentials -> OAuth Client ID (Web Application). Thêm Authorized Redirect URI: https://developers.google.com/oauthplayground.',
+              },
+              {
+                step: 'Bước 3',
+                title: 'Lấy Access Token (ya29.a0...) từ OAuth 2.0 Playground',
+                desc: 'Mở developers.google.com/oauthplayground -> Cài đặt OAuth Client ID của bạn -> Chọn scope https://www.googleapis.com/auth/drive.file -> Authorize APIs -> Exchange authorization code for tokens và sao chép Access Token.',
+              },
+              {
+                step: 'Bước 4',
+                title: 'Mở thư mục đích & Dán vào SYNAPES Drive Cloud',
+                desc: 'Mở thư mục Google Drive muốn lưu video (URL dạng https://drive.google.com/drive/folders/...), bấm "Đăng Nhập / Đổi Tài Khoản" ở góc trên để dán Token & URL thư mục.',
+              },
+            ].map((item) => (
+              <div key={item.step} className="p-2.5 rounded-lg bg-zinc-50 border border-black/[0.06] space-y-0.5">
+                <div className="font-semibold text-zinc-900">
+                  <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-zinc-900 text-white mr-1.5">{item.step}</span>
+                  <span>{item.title}</span>
+                </div>
+                <p className="text-[11px] text-zinc-600 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="lg:col-span-5 space-y-1.5">
+            <div className="text-[10.5px] font-mono font-bold text-zinc-500 uppercase tracking-wider">
+              Ảnh Chụp Thực Tế Giao Diện Kết Nối Drive OAuth
+            </div>
+            <div className="rounded-xl border border-black/10 overflow-hidden bg-zinc-100 shadow-xs">
+              <img
+                src="/guide-screenshots/drive-oauth-guide.png"
+                alt="Hướng dẫn xác thực Google Drive OAuth 2.0"
+                className="w-full h-auto object-cover block"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

@@ -99,7 +99,13 @@ export function extractPasswordHash(raw: string | undefined | null): string | nu
 export function isPasswordMaskedOrHashed(raw: string | undefined | null): boolean {
   if (!raw) return false;
   const s = String(raw);
-  return Boolean(extractPasswordHash(s)) || s.includes('🔒') || s.toLowerCase().includes('đã mã hóa') || s.toLowerCase().includes('đã ẩn');
+  return (
+    Boolean(extractPasswordHash(s)) ||
+    s.includes('🔒') ||
+    s.toLowerCase().includes('đã mã hóa') ||
+    s.toLowerCase().includes('đã ẩn') ||
+    s.toLowerCase().includes('đã đổi mật khẩu')
+  );
 }
 
 // Danh sách ID lỗi 404 (chưa deploy Web App) cần tự động loại bỏ khỏi bộ nhớ đệm
@@ -988,13 +994,147 @@ export async function verifyLoginViaAppsScriptWebhook(
  * Lưu mật khẩu riêng của tài khoản dưới dạng mã băm 1 chiều (BCRYPT$...)
  * và đồng bộ trạng thái "🟢 Đã tạo mật khẩu mới" lên cả Server API & Google Sheet.
  */
+export const PASSWORD_CHANGE_QUOTA_KEY = 'synapes_pwd_daily_quota_v1';
+
+export function getLocalPasswordDailyQuota(code: string): { used: number; remaining: number; limit: number; dateKey: string } {
+  const limit = 3;
+  const dateKey = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+  const codeClean = (code || '').trim().toUpperCase();
+  try {
+    const raw = localStorage.getItem(PASSWORD_CHANGE_QUOTA_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    const rec = parsed?.[codeClean];
+    const used = rec && rec.dateKey === dateKey ? Number(rec.used || 0) : 0;
+    return { used, remaining: Math.max(0, limit - used), limit, dateKey };
+  } catch {
+    return { used: 0, remaining: limit, limit, dateKey };
+  }
+}
+
+export function incrementLocalPasswordDailyQuota(code: string, serverRemaining?: number): void {
+  const limit = 3;
+  const dateKey = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+  const codeClean = (code || '').trim().toUpperCase();
+  try {
+    const raw = localStorage.getItem(PASSWORD_CHANGE_QUOTA_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    const prevUsed = parsed?.[codeClean]?.dateKey === dateKey ? Number(parsed[codeClean].used || 0) : 0;
+    const nextUsed =
+      typeof serverRemaining === 'number'
+        ? Math.max(0, Math.min(limit, limit - serverRemaining))
+        : Math.min(limit, prevUsed + 1);
+    parsed[codeClean] = { dateKey, used: nextUsed };
+    localStorage.setItem(PASSWORD_CHANGE_QUOTA_KEY, JSON.stringify(parsed));
+  } catch { }
+}
+
+/**
+ * Đổi mật khẩu qua Server + Google Sheet kèm kiểm soát chặt chẽ giới hạn 3 lần/ngày
+ * và vô hiệu hóa tức thì mật khẩu mặc định / mật khẩu cũ.
+ */
+export async function changePasswordSecureWithQuota(params: {
+  code: string;
+  newPassword: string;
+  email?: string;
+  fullName?: string;
+  authToken?: string;
+  currentPassword?: string;
+}): Promise<{
+  success: boolean;
+  passwordHash?: string;
+  remainingChangesToday: number;
+  dailyLimit: number;
+  error?: string;
+}> {
+  const codeClean = (params.code || '').trim().toUpperCase();
+  const quota = getLocalPasswordDailyQuota(codeClean);
+  const passwordHash = computePasswordHash(codeClean, params.newPassword);
+
+  let resolvedToken = params.authToken || '';
+  if (!resolvedToken && typeof sessionStorage !== 'undefined') {
+    resolvedToken = sessionStorage.getItem(`synapes_auth_token_${codeClean}`) || '';
+  }
+
+  try {
+    const res = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {}),
+      },
+      body: JSON.stringify({
+        code: codeClean,
+        passwordHash,
+        email: (params.email || '').trim(),
+        fullName: params.fullName || 'Khách hàng SYNAPES',
+        authToken: resolvedToken,
+        currentPassword: params.currentPassword || '',
+      }),
+    });
+    const data = await res.json().catch(() => null);
+    if (res.status === 429 || data?.code === 'DAILY_CHANGE_LIMIT_REACHED') {
+      incrementLocalPasswordDailyQuota(codeClean, 0);
+      return {
+        success: false,
+        remainingChangesToday: 0,
+        dailyLimit: 3,
+        error: data?.message || 'Bạn đã dùng hết 3/3 lượt đổi mật khẩu trong hôm nay. Vui lòng thử lại vào ngày mai.',
+      };
+    }
+    if (res.ok && data?.success) {
+      if (data.authToken && typeof sessionStorage !== 'undefined') {
+        try {
+          sessionStorage.setItem(`synapes_auth_token_${codeClean}`, data.authToken);
+        } catch { }
+      }
+      const rem = typeof data.remainingChangesToday === 'number' ? data.remainingChangesToday : Math.max(0, quota.remaining - 1);
+      incrementLocalPasswordDailyQuota(codeClean, rem);
+      saveCustomPassword(codeClean, params.newPassword, params.email, params.fullName, data.authToken || resolvedToken, params.currentPassword, true);
+      return {
+        success: true,
+        passwordHash,
+        remainingChangesToday: rem,
+        dailyLimit: data.dailyLimit || 3,
+      };
+    }
+    if (res.status === 401) {
+      return {
+        success: false,
+        remainingChangesToday: quota.remaining,
+        dailyLimit: 3,
+        error: data?.message || 'Mật khẩu hiện tại không đúng hoặc phiên xác thực đã hết hạn.',
+      };
+    }
+  } catch {
+    // Offline fallback vẫn giới hạn chặt 3 lần/ngày theo local quota
+  }
+
+  if (quota.remaining <= 0) {
+    return {
+      success: false,
+      remainingChangesToday: 0,
+      dailyLimit: 3,
+      error: 'Bạn đã đạt giới hạn tối đa 3 lần đổi mật khẩu trong hôm nay.',
+    };
+  }
+  saveCustomPassword(codeClean, params.newPassword, params.email, params.fullName, resolvedToken, params.currentPassword, false);
+  incrementLocalPasswordDailyQuota(codeClean);
+  return {
+    success: true,
+    passwordHash,
+    remainingChangesToday: Math.max(0, quota.remaining - 1),
+    dailyLimit: 3,
+  };
+}
+
 export function saveCustomPassword(
   code: string,
   plainOrHash: string,
   email?: string,
   fullName?: string,
   authToken?: string,
-  currentPassword?: string
+  currentPassword?: string,
+  skipServerCall = false
 ): string {
   const codeClean = (code || '').trim().toUpperCase();
   const passwordHash = computePasswordHash(codeClean, plainOrHash);
@@ -1018,8 +1158,8 @@ export function saveCustomPassword(
         (r.assignedCode && r.assignedCode.toUpperCase() === codeClean) ||
         (email && r.email && r.email.toLowerCase() === email.toLowerCase())
       ) {
-        r.assignedPassword = `🔒 Đã mã hóa [${passwordHash}]`;
-        r.notes = 'Đã ký hợp đồng | 🟢 Đã tạo mật khẩu mới';
+        r.assignedPassword = `Đã đổi mật khẩu [🔒 ${passwordHash}]`;
+        r.notes = 'Đã ký hợp đồng | 🟢 Đã đổi mật khẩu';
         if (!email) email = r.email;
         if (!fullName) fullName = r.fullName;
         updatedRegs = true;
@@ -1033,37 +1173,42 @@ export function saveCustomPassword(
   }
 
   // Đồng bộ tức thì lên Server API (/api/auth/change-password) để đăng nhập được trên mọi trình duyệt & thiết bị
-  try {
-    let resolvedToken = authToken || '';
-    if (!resolvedToken && typeof sessionStorage !== 'undefined') {
-      resolvedToken = sessionStorage.getItem(`synapes_auth_token_${codeClean}`) || '';
-    }
-    fetch('/api/auth/change-password', {
-      method: 'POST',
-      keepalive: true,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {}),
-      },
-      body: JSON.stringify({
-        code: codeClean,
-        passwordHash,
-        email: (email || '').trim(),
-        fullName: fullName || 'Khách hàng SYNAPES',
-        authToken: resolvedToken,
-        currentPassword: currentPassword || '',
-      }),
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.authToken && typeof sessionStorage !== 'undefined') {
-          try {
-            sessionStorage.setItem(`synapes_auth_token_${codeClean}`, data.authToken);
-          } catch { }
-        }
+  if (!skipServerCall) {
+    try {
+      let resolvedToken = authToken || '';
+      if (!resolvedToken && typeof sessionStorage !== 'undefined') {
+        resolvedToken = sessionStorage.getItem(`synapes_auth_token_${codeClean}`) || '';
+      }
+      fetch('/api/auth/change-password', {
+        method: 'POST',
+        keepalive: true,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {}),
+        },
+        body: JSON.stringify({
+          code: codeClean,
+          passwordHash,
+          email: (email || '').trim(),
+          fullName: fullName || 'Khách hàng SYNAPES',
+          authToken: resolvedToken,
+          currentPassword: currentPassword || '',
+        }),
       })
-      .catch(() => { });
-  } catch { }
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.authToken && typeof sessionStorage !== 'undefined') {
+            try {
+              sessionStorage.setItem(`synapes_auth_token_${codeClean}`, data.authToken);
+            } catch { }
+          }
+          if (typeof data?.remainingChangesToday === 'number') {
+            incrementLocalPasswordDailyQuota(codeClean, data.remainingChangesToday);
+          }
+        })
+        .catch(() => { });
+    } catch { }
+  }
 
   // Đẩy trạng thái "Đã tạo mật khẩu mới" + mã băm 1 chiều lên Google Sheet
   changeUserPasswordViaSheet({
@@ -1679,7 +1824,7 @@ export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): P
         const hashStr = computePasswordHash(codeKey, localCustom);
         mergedMap.set(codeKey, {
           ...rowItem,
-          currentTempPassword: `🔒 Đã mã hóa [${hashStr}]`,
+          currentTempPassword: `Đã đổi mật khẩu [🔒 ${hashStr}]`,
           accountStatus: 'custom_password_active',
         });
       }

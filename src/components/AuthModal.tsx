@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserAccount, EngineerSheetRow } from '../types';
-import { Lock, User, KeyRound, Shield, AlertCircle, ArrowRight, CheckCircle2, X, RefreshCw, Eye, EyeOff, ExternalLink } from 'lucide-react';
+import { Lock, User, KeyRound, AlertCircle, ArrowRight, CheckCircle2, X, RefreshCw, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import { RegisterModal } from './RegisterModal';
 import {
   generateUserPassword,
@@ -10,6 +10,7 @@ import {
   fetchGoogleSheetLive,
   sendForgotPasswordViaSheet,
   syncForgotPasswordWithServer,
+  getLocalPasswordDailyQuota,
 } from '../services/googleSheetService';
 
 interface AuthModalProps {
@@ -17,7 +18,7 @@ interface AuthModalProps {
   sheetRows: EngineerSheetRow[];
   onLogin: (code: string, pass: string) => Promise<boolean> | boolean;
   onLogout: () => void;
-  onForceChangePassword: (newPass: string) => void;
+  onForceChangePassword: (newPass: string) => Promise<{ ok: boolean; error?: string; remaining?: number } | void> | void;
   onCloseChangePass?: () => void;
   onClose?: () => void;
   onUpdateSheetRow: (rows: EngineerSheetRow[]) => void;
@@ -40,14 +41,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [showLoginPass, setShowLoginPass] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isLogoCelebrating, setIsLogoCelebrating] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
 
-  // Forced password change (lần đầu login với pass mặc định)
+  // Forced password change (lần đầu login với pass mặc định / đổi tối đa 3 lần/ngày)
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPass, setShowNewPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [changePassError, setChangePassError] = useState<string | null>(null);
+  const [isChangingPass, setIsChangingPass] = useState(false);
+  const [dailyQuota, setDailyQuota] = useState<{ used: number; remaining: number; limit: number }>(() =>
+    getLocalPasswordDailyQuota(currentUser?.code || '')
+  );
+
+  useEffect(() => {
+    const code = (currentUser?.code || '').trim().toUpperCase();
+    if (!code) return;
+    setDailyQuota(getLocalPasswordDailyQuota(code));
+    fetch(`/api/auth/password-quota?code=${encodeURIComponent(code)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.success && typeof d.remainingChangesToday === 'number') {
+          setDailyQuota({
+            used: Number(d.usedToday || 0),
+            remaining: Number(d.remainingChangesToday),
+            limit: Number(d.dailyLimit || 3),
+          });
+        }
+      })
+      .catch(() => {});
+  }, [currentUser?.code]);
 
   // Quên mật khẩu popup
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -95,7 +119,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsLoggingIn(true);
     try {
       const ok = await onLogin(loginCode.trim(), loginPass);
-      if (!ok) {
+      if (ok) {
+        setIsLogoCelebrating(true);
+        setTimeout(() => setIsLogoCelebrating(false), 750);
+      } else {
         setLoginError('Mã Code hoặc Mật khẩu không chính xác. Vui lòng kiểm tra lại thông tin đăng nhập của bạn.');
       }
     } catch {
@@ -105,9 +132,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleChangePassSubmit = (e: React.FormEvent) => {
+  const handleChangePassSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setChangePassError(null);
+    if (dailyQuota.remaining <= 0) {
+      setChangePassError(`Tài khoản ${currentUser?.code || ''} đã hết lượt đổi mật khẩu hôm nay (tối đa ${dailyQuota.limit} lần/ngày). Vui lòng thử lại vào ngày mai.`);
+      return;
+    }
     if (newPassword.length < 6) {
       setChangePassError('Mật khẩu mới phải có ít nhất 6 ký tự.');
       return;
@@ -116,7 +147,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setChangePassError('Xác nhận mật khẩu không trùng khớp.');
       return;
     }
-    onForceChangePassword(newPassword);
+    setIsChangingPass(true);
+    try {
+      const res = await onForceChangePassword(newPassword);
+      if (res && res.ok === false) {
+        setChangePassError(res.error || 'Không thể đổi mật khẩu lúc này.');
+        if (typeof res.remaining === 'number') {
+          setDailyQuota((prev) => ({ ...prev, remaining: res.remaining!, used: prev.limit - res.remaining! }));
+        }
+        return;
+      }
+      if (res && typeof res.remaining === 'number') {
+        setDailyQuota((prev) => ({ ...prev, remaining: res.remaining!, used: prev.limit - res.remaining! }));
+      }
+      setNewPassword('');
+      setConfirmPassword('');
+    } finally {
+      setIsChangingPass(false);
+    }
   };
 
   const handleForgotSubmit = async (e: React.FormEvent) => {
@@ -162,9 +210,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         const notesPhone = (r.engineerNotes || '').replace(/\D/g, '');
         return (
           rEmail === emailClean &&
-          (Boolean(regMatch) ||
-            (phoneTail.length >= 8 && notesPhone.includes(phoneTail)) ||
-            (!notesPhone && phoneClean.length >= 9))
+          (Boolean(regMatch) || (phoneTail.length >= 8 && Boolean(notesPhone) && notesPhone.includes(phoneTail)))
         );
       });
 
@@ -283,9 +329,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <X className="w-4 h-4" />
             </button>
 
-            <div className="text-center space-y-1">
-              <div className="w-9 h-9 mx-auto rounded-lg bg-zinc-100 border border-black/[0.06] flex items-center justify-center text-zinc-900 mb-2">
-                <Shield className="w-4 h-4" />
+            <div className="text-center space-y-1.5">
+              <div
+                className={`w-12 h-12 mx-auto rounded-xl bg-zinc-950 border border-black/15 flex items-center justify-center p-1 mb-2 shadow-sm transition-transform duration-500 ${
+                  isLogoCelebrating || isLoggingIn ? 'synapes-logo-elevate' : ''
+                }`}
+                data-testid="auth-studio-logo-box"
+              >
+                <div className="synapes-mirror-sheen w-full h-full rounded-[7px]">
+                  <img
+                    src="/logo.jpg"
+                    alt="SYNAPES Studio"
+                    className="w-full h-full object-cover rounded-[7px]"
+                  />
+                </div>
               </div>
               <h2 className="text-base font-bold text-zinc-950 tracking-tight">Đăng Nhập Studio</h2>
               <p className="text-zinc-500 text-xs">Nhập Mã Code và Mật khẩu được cấp để truy cập hệ thống</p>
@@ -481,8 +538,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               </div>
 
-              <div className="p-2.5 bg-zinc-50 border border-black/[0.06] rounded-lg text-[11px] text-zinc-600 leading-relaxed font-mono">
-                Mật khẩu riêng được mã hóa bằng bcrypt an toàn để bảo vệ tài khoản Studio của bạn.
+              <div className="p-2.5 bg-zinc-50 border border-black/[0.06] rounded-lg text-[11px] text-zinc-600 leading-relaxed font-mono space-y-1">
+                <div>Mật khẩu mới sẽ khóa ngay lập tức mật khẩu cũ / mật khẩu mặc định và đồng bộ trạng thái &ldquo;Đã đổi mật khẩu&rdquo; lên hệ thống.</div>
+                <div className={`font-semibold ${dailyQuota.remaining > 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                  Giới hạn bảo mật: Tối đa {dailyQuota.limit} lần/ngày (Còn lại hôm nay: {dailyQuota.remaining}/{dailyQuota.limit} lượt).
+                </div>
               </div>
 
               <div className="flex items-center gap-2 pt-2 border-t border-black/[0.06]">
@@ -497,9 +557,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary flex-1 py-2 cursor-pointer"
+                  disabled={isChangingPass || dailyQuota.remaining <= 0}
+                  className="btn-primary flex-1 py-2 cursor-pointer disabled:opacity-50"
                 >
-                  Kích Hoạt
+                  {isChangingPass ? 'Đang cập nhật...' : 'Kích Hoạt'}
                 </button>
               </div>
             </form>

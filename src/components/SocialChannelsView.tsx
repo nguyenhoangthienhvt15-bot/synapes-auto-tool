@@ -616,10 +616,26 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
         {activeGuide === 'meta' && (
           <ol className="list-decimal list-inside space-y-2 text-zinc-600 leading-relaxed text-xs">
             <li>Truy cập <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className="text-zinc-900 font-medium underline">Meta for Developers</a>.</li>
-            <li>Đăng nhập tài khoản Facebook quản trị Fanpage của bạn.</li>
-            <li>Cấp quyền <code className="px-1.5 py-0.5 rounded bg-zinc-100 font-mono text-[11px]">pages_manage_posts</code> và <code className="px-1.5 py-0.5 rounded bg-zinc-100 font-mono text-[11px]">reels_upload</code>.</li>
+            <li>Đăng nhập tài khoản Facebook quản trị Fanpage của bạn -&gt; Graph API Explorer.</li>
+            <li>Cấp quyền <code className="px-1.5 py-0.5 rounded bg-zinc-100 font-mono text-[11px]">pages_manage_posts</code> và <code className="px-1.5 py-0.5 rounded bg-zinc-100 font-mono text-[11px]">reels_upload</code>, sau đó nhấn Generate Page Access Token.</li>
           </ol>
         )}
+
+        <div className="pt-3 border-t border-black/5 grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
+          <div className="lg:col-span-7 text-[11px] text-zinc-600 leading-relaxed space-y-1">
+            <div className="font-semibold text-zinc-900">Lưu ý bảo mật OAuth 2.0 Đa Kênh:</div>
+            <p>
+              Sau khi sao chép OAuth Access Token (YouTube <code className="font-mono">ya29.a0...</code>, TikTok <code className="font-mono">act.xxx...</code>, Meta Page Token <code className="font-mono">EAABsb...</code>), bấm nút <strong>Đăng Nhập / Đổi Tài Khoản</strong> trên từng thẻ kênh bên trên để xác thực và thử xuất bản video mẫu.
+            </p>
+          </div>
+          <div className="lg:col-span-5 rounded-lg border border-black/10 overflow-hidden bg-zinc-100 shadow-2xs">
+            <img
+              src="/guide-screenshots/social-oauth-guide.png"
+              alt="Minh họa cấu hình OAuth YouTube, TikTok và Facebook"
+              className="w-full h-auto object-cover block"
+            />
+          </div>
+        </div>
       </div>
 
       {/* POPUP ĐĂNG NHẬP & ỦY QUYỀN TÀI KHOẢN KÊNH MỚI */}

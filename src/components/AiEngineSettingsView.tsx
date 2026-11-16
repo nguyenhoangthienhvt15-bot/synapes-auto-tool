@@ -842,6 +842,79 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
             </div>
           )}
 
+          {/* Cẩm nang hướng dẫn chi tiết lấy API Key cho mọi nhà cung cấp AI */}
+          <div className="p-4 rounded-xl bg-zinc-50/90 border border-black/[0.08] space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 pb-2">
+              <div className="text-xs font-bold text-zinc-950">
+                Hướng Dẫn Lấy API Key &amp; Cơ Chế Tự Động Chuyển Luồng (Auto-Failover) Khi Hết Token
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold">
+                BYOK Token Failover Active ✓
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start text-[11px]">
+              <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {[
+                  {
+                    name: 'Google Gemini API',
+                    url: 'https://aistudio.google.com/apikey',
+                    prefix: 'AIzaSy...',
+                    steps: 'Mở Google AI Studio -> Get API Key -> Create API key in new project -> Quét tự động Gemini 2.0/2.5 Flash & Native Audio.',
+                  },
+                  {
+                    name: 'OpenAI GPT & Audio',
+                    url: 'https://platform.openai.com/api-keys',
+                    prefix: 'sk-proj-...',
+                    steps: 'Vào OpenAI Platform -> API Keys -> Create new secret key -> Nạp tối thiểu \$5 để mở khóa GPT-4o, TTS-1-HD & Whisper.',
+                  },
+                  {
+                    name: 'Anthropic Claude',
+                    url: 'https://console.anthropic.com/settings/keys',
+                    prefix: 'sk-ant-...',
+                    steps: 'Mở Anthropic Console -> API Keys -> Create Key -> Sao chép ngay chuỗi sk-ant-api03-... dùng cho biên kịch phân tích sâu.',
+                  },
+                  {
+                    name: 'DeepSeek & xAI Grok',
+                    url: 'https://platform.deepseek.com/api_keys',
+                    prefix: 'sk-... / xai-...',
+                    steps: 'Lấy Key từ platform.deepseek.com hoặc console.x.ai -> Dán vào tab tương ứng để hệ thống tự động dự phòng failover khi Key chính hết hạn mức.',
+                  },
+                ].map((guide) => (
+                  <div key={guide.name} className="p-2.5 rounded-lg bg-white border border-black/[0.07] space-y-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold text-zinc-900">{guide.name}</span>
+                      <a
+                        href={guide.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-indigo-600 hover:underline inline-flex items-center gap-0.5 font-mono"
+                      >
+                        <span>Portal</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
+                    <div className="text-[10px] font-mono text-zinc-500">Định dạng Key: {guide.prefix}</div>
+                    <p className="text-[10.5px] text-zinc-600 leading-relaxed">{guide.steps}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="lg:col-span-5 space-y-1.5">
+                <div className="text-[10px] font-mono font-bold text-zinc-500 uppercase">
+                  Ảnh Chụp Giao Diện Thiết Lập API Keys &amp; Models
+                </div>
+                <div className="rounded-lg border border-black/10 overflow-hidden bg-white shadow-xs">
+                  <img
+                    src="/guide-screenshots/ai-keys-guide.png"
+                    alt="Minh họa cấu hình API Keys đa nhà cung cấp SYNAPES"
+                    className="w-full h-auto object-cover block"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Security & Action Buttons */}
           <div className="p-3 rounded-lg bg-zinc-50 border border-black/5 flex items-center justify-between gap-3 text-[11px] text-zinc-500">
             <div className="flex items-center gap-2">

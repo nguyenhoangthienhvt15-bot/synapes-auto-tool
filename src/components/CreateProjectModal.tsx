@@ -36,6 +36,7 @@ import {
   Clock,
   Mic,
   Plug,
+  Globe,
 } from 'lucide-react';
 import {
   PROVIDERS,
@@ -51,7 +52,10 @@ import {
 import {
   generateAiVideoScript,
   GeneratedScriptResult,
+  fetchRealtimeTopicResearch,
+  TopicResearchPayload,
 } from '../services/aiScriptGeneratorService';
+import { getSavedClonedVoiceProfiles } from '../services/voiceStudioService';
 import { dispatchScriptToPluginEngine } from '../services/pluginWebhookService';
 import { AiProviderDropdown, AiModelDropdown, ProviderBrandLogo } from './AiProviderDropdown';
 
@@ -69,98 +73,38 @@ const PLATFORM_FORMAT_PRESETS: PlatformFormatPreset[] = [
   {
     id: 'youtube-long-16-9',
     platform: 'youtube',
-    platformLabel: 'YouTube',
-    title: 'YouTube Video Dài',
+    platformLabel: '16:9 Ngang',
+    title: 'Khung Ngang Full HD • 16:9',
     aspectRatio: '16:9',
     displayRatio: '16:9',
     resolution: '1920x1080 (16:9)',
-    recommendedMinutes: 8,
-    description: 'Màn hình ngang chuẩn YouTube, phân tích chuyên sâu & kể chuyện dài',
-    promptStyleHint: 'YouTube 16:9 ngang, kể chuyện có chiều sâu và giữ chân người xem',
-  },
-  {
-    id: 'youtube-shorts-9-16',
-    platform: 'youtube',
-    platformLabel: 'YouTube',
-    title: 'YouTube Shorts',
-    aspectRatio: '9:16',
-    displayRatio: '9:16',
-    resolution: '1080x1920 (9:16)',
-    recommendedMinutes: 1,
-    description: 'Video dọc dưới 60 giây tối ưu đề xuất YouTube Shorts',
-    promptStyleHint: 'YouTube Shorts 9:16 dọc, mở đầu nhanh gọn và súc tích',
+    recommendedMinutes: 2,
+    description: 'Khung hình ngang chuẩn Full HD 1920x1080 (16:9) cho video chuyên sâu & trình chiếu',
+    promptStyleHint: '16:9 ngang 1920x1080, kể chuyện có chiều sâu và giữ chân người xem',
   },
   {
     id: 'tiktok-viral-9-16',
     platform: 'tiktok',
-    platformLabel: 'TikTok',
-    title: 'TikTok Viral',
+    platformLabel: '9:16 Dọc',
+    title: 'Khung Dọc Full HD • 9:16',
     aspectRatio: '9:16',
     displayRatio: '9:16',
     resolution: '1080x1920 (9:16)',
     recommendedMinutes: 1,
-    description: 'Hook 3 giây đầu, nhịp cắt nhanh & phụ đề dọc cho TikTok',
-    promptStyleHint: 'TikTok 9:16 nhịp cắt nhanh, hook 3 giây đầu gây tò mò',
-  },
-  {
-    id: 'instagram-reels-9-16',
-    platform: 'instagram',
-    platformLabel: 'Instagram',
-    title: 'Instagram Reels',
-    aspectRatio: '9:16',
-    displayRatio: '9:16',
-    resolution: '1080x1920 (9:16)',
-    recommendedMinutes: 1,
-    description: 'Thẩm mỹ điện ảnh, chuyển cảnh mượt tối ưu Instagram Reels',
-    promptStyleHint: 'Instagram Reels 9:16 chú trọng bố cục thị giác và chuyển cảnh mượt',
+    description: 'Khung hình dọc chuẩn Full HD 1080x1920 (9:16) tối ưu video ngắn nhịp cắt nhanh',
+    promptStyleHint: '9:16 dọc 1080x1920 nhịp cắt nhanh, hook 3 giây đầu gây tò mò',
   },
   {
     id: 'instagram-feed-4-5',
     platform: 'instagram',
-    platformLabel: 'Instagram',
-    title: 'Instagram Feed (4:5)',
+    platformLabel: '4:5 Chân Dung',
+    title: 'Khung Chân Dung HD • 4:5',
     aspectRatio: '9:16',
     displayRatio: '4:5',
     resolution: '1080x1350 (4:5)',
     recommendedMinutes: 1,
-    description: 'Khung dọc 4:5 chiếm trọn diện tích bảng tin Instagram Feed',
-    promptStyleHint: 'Instagram Feed 4:5 nổi bật giữa khung hình di động',
-  },
-  {
-    id: 'facebook-reels-9-16',
-    platform: 'facebook',
-    platformLabel: 'Facebook',
-    title: 'Facebook Reels',
-    aspectRatio: '9:16',
-    displayRatio: '9:16',
-    resolution: '1080x1920 (9:16)',
-    recommendedMinutes: 1,
-    description: 'Tăng giữ chân & chia sẻ tự nhiên trên Facebook Reels',
-    promptStyleHint: 'Facebook Reels 9:16 dễ đồng cảm, thúc đẩy bình luận và chia sẻ',
-  },
-  {
-    id: 'facebook-watch-16-9',
-    platform: 'facebook',
-    platformLabel: 'Facebook',
-    title: 'Facebook Watch',
-    aspectRatio: '16:9',
-    displayRatio: '16:9',
-    resolution: '1920x1080 (16:9)',
-    recommendedMinutes: 5,
-    description: 'Video ngang trung-dài tối ưu trang Fanpage & Facebook Watch',
-    promptStyleHint: 'Facebook Watch 16:9 dẫn dắt mạch lạc, giữ chân phút đầu',
-  },
-  {
-    id: 'threads-video-9-16',
-    platform: 'threads',
-    platformLabel: 'Threads',
-    title: 'Threads Video',
-    aspectRatio: '9:16',
-    displayRatio: '9:16',
-    resolution: '1080x1920 (9:16)',
-    recommendedMinutes: 1,
-    description: 'Clip dọc ngắn trực diện, mở màn nhanh gợi thảo luận trên Threads',
-    promptStyleHint: 'Threads 9:16 ngắn gọn, đi thẳng trọng tâm kích thích tranh luận',
+    description: 'Khung hình chân dung 1080x1350 (4:5) tối ưu hiển thị toàn màn hình di động',
+    promptStyleHint: '4:5 1080x1350 nổi bật giữa bảng tin di động',
   },
 ];
 
@@ -463,6 +407,62 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   });
 
   const [isScanningKey, setIsScanningKey] = useState(false);
+  const [isHarvestingInternet, setIsHarvestingInternet] = useState(false);
+  const [harvestedResearch, setHarvestedResearch] = useState<TopicResearchPayload | null>(null);
+  const [harvestError, setHarvestError] = useState<string | null>(null);
+  const savedClonedVoices = getSavedClonedVoiceProfiles();
+
+  const buildConfiguredFallbackProviders = (primaryProv: AIProviderId) => {
+    const candidateIds: AIProviderId[] = ['gemini', 'openai', 'claude', 'deepseek', 'grok'];
+    return candidateIds
+      .filter((pid) => pid !== primaryProv)
+      .map((pid) => {
+        const key = getProviderApiKey(pid, aiConfig);
+        if (!key || key.trim().length < 6) return null;
+        const cfg = (aiConfig[pid as keyof AIProviderConfig] as any) || {};
+        return {
+          provider: pid,
+          model: cfg.model || PROVIDERS.find((p) => p.id === pid)?.defaultModel || '',
+          apiKey: key.trim(),
+          endpointUrl: cfg.endpointUrl || '',
+        };
+      })
+      .filter(Boolean) as Array<{ provider: AIProviderId; model: string; apiKey: string; endpointUrl?: string }>;
+  };
+
+  const handleHarvestInternetData = async () => {
+    const q = (promptText || '').trim() || 'Xu hướng công nghệ trí tuệ nhân tạo mới nhất';
+    setIsHarvestingInternet(true);
+    setHarvestError(null);
+    try {
+      const [topicRes, brollRes] = await Promise.all([
+        fetchRealtimeTopicResearch(q),
+        fetch(`/api/video-broll-search?q=${encodeURIComponent(q)}&domain=technology`).then((r) =>
+          r.ok ? r.json() : null
+        ),
+      ]);
+      const extraVideos = Array.isArray(brollRes?.videos)
+        ? brollRes.videos.map((v: any) => ({
+            title: String(v.title || q),
+            proxyUrl: String(v.proxyUrl || v.url || ''),
+            source: String(v.source || 'Wikimedia Commons'),
+          }))
+        : [];
+      const mergedVideos = [...(topicRes.videos || []), ...extraVideos].filter((v) => v.proxyUrl);
+      const mergedPayload: TopicResearchPayload = {
+        ...topicRes,
+        videos: mergedVideos,
+      };
+      setHarvestedResearch(mergedPayload);
+      if (mergedPayload.headlines.length === 0 && !mergedPayload.wikiSummary && mergedPayload.visuals.length === 0 && mergedVideos.length === 0) {
+        setHarvestError('Không tìm thấy dữ liệu Internet mới cho từ khóa này — thử từ khóa tiếng Việt/Anh cụ thể hơn.');
+      }
+    } catch (err: any) {
+      setHarvestError(err?.message || 'Lỗi kết nối thu thập dữ liệu Internet.');
+    } finally {
+      setIsHarvestingInternet(false);
+    }
+  };
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const [keyErrorNotice, setKeyErrorNotice] = useState<string | null>(null);
 
@@ -650,6 +650,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         model: selectedModel,
         apiKey,
         endpointUrl: endpoint,
+        fallbackProviders: buildConfiguredFallbackProviders(selectedProvider),
+        preHarvestedResearch: harvestedResearch,
         onProgress: (stepText, pct) => {
           if (!isMountedRef.current || controller.signal.aborted) return;
           setGenerationStep(stepText);
@@ -799,6 +801,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           model: selectedModel,
           apiKey,
           endpointUrl: endpoint,
+          fallbackProviders: buildConfiguredFallbackProviders(selectedProvider),
+          preHarvestedResearch: harvestedResearch,
           onProgress: (stepText, pct) => {
             if (!isMountedRef.current || controller.signal.aborted) return;
             setGenerationStep(stepText);
@@ -957,7 +961,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     <span>Khuôn Mẫu Video Dài (16:9)</span>
                   </div>
                   <div className="text-[11px] text-zinc-500 mt-1 leading-relaxed">
-                    Định dạng màn hình ngang 16:9 tiêu chuẩn cho YouTube và Facebook Watch
+                    Định dạng màn hình ngang Full HD 1920x1080 tiêu chuẩn
                   </div>
                 </div>
 
@@ -980,17 +984,17 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     <span>Khuôn Mẫu Video Ngắn (9:16)</span>
                   </div>
                   <div className="text-[11px] text-zinc-500 mt-1 leading-relaxed">
-                    Định dạng dọc chuẩn Shorts, TikTok, Instagram Reels, Facebook Reels & Threads
+                    Định dạng khung dọc 1080x1920 cho video ngắn nhịp độ cao
                   </div>
                 </div>
               </div>
 
-              {/* Chọn định dạng chi tiết theo nền tảng mạng xã hội */}
+              {/* Chọn nhanh Kích thước & Tỷ lệ khung hình hợp nhất */}
               <div className="pt-1">
                 <div className="text-[11px] font-medium text-zinc-600 mb-1.5 flex items-center justify-between">
-                  <span>Định dạng tối ưu theo nền tảng xuất bản (Instagram, Facebook, TikTok, YouTube, Threads):</span>
+                  <span>Độ phân giải &amp; Tỷ lệ khung hình xuất bản:</span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {PLATFORM_FORMAT_PRESETS.map((preset) => {
                     const isSelected = selectedPlatformFormat === preset.id;
                     return (
@@ -1245,6 +1249,44 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 className="w-full bg-white border border-black/[0.12] rounded-xl p-3 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950/5 leading-relaxed transition"
               />
 
+              {/* Nút Chủ Động Thu Thập Dữ Liệu Thực Tế Từ Internet & Đa Nền Tảng */}
+              <div className="p-2.5 rounded-xl bg-sky-50/70 border border-sky-200/80 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-950">
+                    <Globe className="w-3.5 h-3.5 text-sky-600" />
+                    <span>Nguồn Dữ Liệu Thực Tế Internet &amp; B-Roll Đa Nền Tảng</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleHarvestInternetData}
+                    disabled={isHarvestingInternet}
+                    data-testid="harvest-internet-data-btn"
+                    className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isHarvestingInternet ? 'animate-spin' : ''}`} />
+                    <span>{isHarvestingInternet ? 'Đang Thu Thập...' : 'Thu Thập Dữ Liệu Internet & B-Roll'}</span>
+                  </button>
+                </div>
+                {harvestError && (
+                  <p className="text-[10.5px] text-amber-800 bg-amber-50 px-2 py-1 rounded border border-amber-200">{harvestError}</p>
+                )}
+                {harvestedResearch && (
+                  <div className="p-2 rounded-lg bg-white border border-sky-200/70 space-y-1 text-[10.5px]" data-testid="harvested-research-preview">
+                    <div className="flex flex-wrap items-center gap-2 font-mono text-sky-900 font-semibold">
+                      <span>✓ {harvestedResearch.headlines.length} Tin báo chí</span>
+                      <span>• {harvestedResearch.visuals.length} Ảnh tư liệu Wikimedia</span>
+                      <span>• {harvestedResearch.videos?.length || 0} Clip B-Roll Video</span>
+                      <span>• Wiki: {harvestedResearch.wikiSummary ? 'Đã nạp ✓' : 'Ngắn gọn'}</span>
+                    </div>
+                    {harvestedResearch.headlines[0] && (
+                      <div className="text-zinc-600 truncate">
+                        Tiêu điểm: <strong>[{harvestedResearch.headlines[0].source}]</strong> {harvestedResearch.headlines[0].title}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Thời lượng tùy chỉnh Phút/Giây (Max 2 phút) & Giọng đọc AI */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
                 {/* Thời lượng mục tiêu (Max 120s) */}
@@ -1298,15 +1340,27 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                     value={selectedVoiceId}
                     onChange={(e) => setSelectedVoiceId(e.target.value)}
                     className="w-full bg-white border border-black/[0.1] rounded-lg px-2.5 py-2 text-[11px] font-medium text-zinc-900 focus:outline-none focus:border-zinc-950 cursor-pointer"
+                    data-testid="create-project-voice-select"
                   >
-                    {STUDIO_VOICE_OPTIONS.map((v) => (
-                      <option key={v.id || 'auto'} value={v.id}>
-                        {v.label}
-                      </option>
-                    ))}
+                    {savedClonedVoices.length > 0 && (
+                      <optgroup label={`Giọng Nhân Bản Từ VoiceStudio ULTRA (${savedClonedVoices.length})`}>
+                        {savedClonedVoices.map((cv) => (
+                          <option key={cv.id} value={cv.id}>
+                            🎙️ {cv.name} ({cv.gender} • {cv.engine})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <optgroup label="Giọng Phát Thanh Viên Studio Chuẩn">
+                      {STUDIO_VOICE_OPTIONS.map((v) => (
+                        <option key={v.id || 'auto'} value={v.id}>
+                          {v.label}
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                   <p className="text-[10px] text-zinc-500 leading-tight">
-                    Có thể đổi giọng hoặc dùng VoiceStudio (LABS) / Thu âm trực tiếp sau khi khởi tạo.
+                    Chọn thẳng giọng đã nhân bản trong VoiceStudio ULTRA hoặc đổi / thu âm trực tiếp sau khi khởi tạo.
                   </p>
                 </div>
               </div>
@@ -1871,6 +1925,12 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                   <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-white text-zinc-800 border border-black/[0.08]">
                     Tổng: {previewScenes.reduce((acc, s) => acc + Math.max(2, Math.round((s.endSec || 0) - (s.startSec || 0)) || 6), 0)}s
                   </span>
+                  {suggestedScript?.tokenTelemetry && (
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      Tokens: {suggestedScript.tokenTelemetry.promptTokens} in / {suggestedScript.tokenTelemetry.completionTokens} out
+                      {suggestedScript.tokenTelemetry.failoverTriggered ? ' • Auto-Failover ✓' : ''}
+                    </span>
+                  )}
                 </div>
                 <p className="text-[11px] text-zinc-600 mt-0.5">
                   Chỉnh sửa trực tiếp tiêu đề cảnh, thời lượng, góc máy, lời thoại hoặc thêm/bớt phân cảnh trước khi điều phối sang Plugin.

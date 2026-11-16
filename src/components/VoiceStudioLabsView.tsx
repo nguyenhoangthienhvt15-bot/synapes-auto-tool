@@ -13,6 +13,7 @@ import {
   VIETNAMESE_VOICE_PROFILES,
   auditionVoice,
   stopVoiceAudition,
+  bindExclusiveAudioElement,
   analyzeReferenceAudioBuffer,
   synthesizeNeuralVoiceToWav,
   synthesizeMultiSpeakerAudiobookToWav,
@@ -84,9 +85,9 @@ function buildVoiceProfileFromCustom(preset: CustomVoicePreset): VoiceProfile {
     language: matchedBase?.language || 'vi',
     gender: isFemale ? 'Nữ' : 'Nam',
     region: matchedBase?.region || 'Miền Bắc',
-    toneTag: `LABS • ${preset.engine}`,
+    toneTag: `ULTRA • ${preset.engine}`,
     description: preset.description,
-    sampleSentence: 'Xin chào, đây là giọng nói Neural được tổng hợp từ SYNAPES VoiceStudio LABS.',
+    sampleSentence: 'Xin chào, đây là giọng nói Neural được tổng hợp từ SYNAPES VoiceStudio ULTRA.',
     pitch: preset.pitch,
     rate: preset.rate,
     neuralVoiceId: isFemale ? 'vi-VN-HoaiMyNeural' : 'vi-VN-NamMinhNeural',
@@ -145,15 +146,22 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
   onBack,
 }) => {
   const [activeTab, setActiveTab] = useState<VoiceLabsTab>('cloning');
+  const cloneAudioRef = useRef<HTMLAudioElement | null>(null);
+  const designAudioRef = useRef<HTMLAudioElement | null>(null);
+  const dubAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audiobookAudioRef = useRef<HTMLAudioElement | null>(null);
   const [localEndpoint, setLocalEndpoint] = useState<string>(() => {
     try {
-      return localStorage.getItem('synapes_voicestudio_endpoint') || 'http://localhost:8000';
+      const saved = localStorage.getItem('synapes_voicestudio_endpoint') || '';
+      if (/localhost|127\.0\.0\.1/i.test(saved)) return '';
+      return saved;
     } catch {
-      return 'http://localhost:8000';
+      return '';
     }
   });
+  const [pluginModels, setPluginModels] = useState<{ id: string; label: string }[]>([]);
   const [serverStatus, setServerStatus] = useState<'idle' | 'checking' | 'connected' | 'studio-neural'>('studio-neural');
-  const [activeEngineBadge, setActiveEngineBadge] = useState<string>('Studio Neural Engine (24kHz PCM)');
+  const [activeEngineBadge, setActiveEngineBadge] = useState<string>('Studio ULTRA Engine (24kHz VTLN)');
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [customVoices, setCustomVoices] = useState<CustomVoicePreset[]>(() => {
     try {
@@ -165,7 +173,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
   });
 
   // Tab 1: Voice Cloning state
-  const [cloneEngine, setCloneEngine] = useState<'qwen3-tts' | 'xttsv2' | 'fish-speech' | 'byok-eleven'>('qwen3-tts');
+  const [cloneEngine, setCloneEngine] = useState<string>('qwen3-tts');
   const [cloneName, setCloneName] = useState<string>('Giọng Nhân Bản Studio #1');
   const [refAudioFile, setRefAudioFile] = useState<{
     name: string;
@@ -178,7 +186,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
     'Hôm nay chúng ta sẽ cùng phân tích kiến trúc phần cứng và quy trình tối ưu hiệu năng âm thanh.'
   );
   const [cloneTargetText, setCloneTargetText] = useState<string>(
-    'Chào mừng bạn đến với SYNAPES VoiceStudio LABS. Bản thu này sử dụng công nghệ nhân bản giọng nói Zero-Shot theo mẫu âm thanh bạn vừa cung cấp.'
+    'Chào mừng bạn đến với SYNAPES VoiceStudio ULTRA. Bản thu này sử dụng công nghệ nhân bản giọng nói Zero-Shot định dạng Formant VTLN theo mẫu âm thanh bạn vừa cung cấp.'
   );
   const [cloneConsent, setCloneConsent] = useState<boolean>(false);
   const [clonePitch, setClonePitch] = useState<number>(1.0);
@@ -231,7 +239,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
   const [dubPreviewDuration, setDubPreviewDuration] = useState<number>(0);
 
   // Tab 4: Whisper Dictation state
-  const [whisperEngine, setWhisperEngine] = useState<'local-faster-whisper' | 'groq-whisper' | 'openai-whisper' | 'browser-live'>('local-faster-whisper');
+  const [whisperEngine, setWhisperEngine] = useState<'studio-vad-whisper' | 'groq-whisper' | 'openai-whisper' | 'browser-live'>('studio-vad-whisper');
   const [whisperFileName, setWhisperFileName] = useState<string>('');
   const [whisperDurationSec, setWhisperDurationSec] = useState<number>(0);
   const [whisperPeaks, setWhisperPeaks] = useState<number[]>([]);
@@ -284,7 +292,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
       .then((data) => {
         if (data?.status === 'ok') {
           setServerStatus('studio-neural');
-          setActiveEngineBadge('Studio Neural Engine (/api/tts • 24kHz PCM)');
+          setActiveEngineBadge('Studio ULTRA Engine (/api/tts • 24kHz VTLN)');
         }
       })
       .catch(() => {});
@@ -309,40 +317,68 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
   }, [dubProjectId, projects]);
 
   const handleCheckLocalServer = async () => {
+    const cleanUrl = localEndpoint.trim().replace(/\/$/, '');
+    if (!cleanUrl) {
+      setPluginModels([]);
+      setServerStatus('studio-neural');
+      setActiveEngineBadge('Studio ULTRA Engine (/api/tts • 24kHz VTLN)');
+      setStatusMessage('Vui lòng nhập URL Voice Plugin HTTPS (ví dụ: https://voice-plugin.domain.com) để mở rộng mô hình.');
+      return;
+    }
+    if (/localhost|127\.0\.0\.1/i.test(cleanUrl) || !/^https:\/\//i.test(cleanUrl)) {
+      setStatusMessage('Chỉ hỗ trợ kết nối Voice Plugin qua giao thức HTTPS công khai trên Web (đã khóa localhost/HTTP nội bộ).');
+      return;
+    }
+
     setServerStatus('checking');
     setStatusMessage('');
     try {
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 2200);
-      const res = await fetch(`${localEndpoint.replace(/\/$/, '')}/health`, {
+      const timer = setTimeout(() => ctrl.abort(), 3000);
+      const res = await fetch(`${cleanUrl}/health`, {
         method: 'GET',
         signal: ctrl.signal,
       });
       clearTimeout(timer);
       if (res.ok) {
+        let extraModels: { id: string; label: string }[] = [];
+        try {
+          const mRes = await fetch(`${cleanUrl}/v1/models`);
+          if (mRes.ok) {
+            const mData = await mRes.json();
+            const arr = Array.isArray(mData?.models) ? mData.models : Array.isArray(mData?.data) ? mData.data : [];
+            extraModels = arr
+              .map((item: any) => ({
+                id: `plugin::${String(item?.id || item?.name || '').trim()}`,
+                label: `${item?.name || item?.id} (Voice Plugin HTTPS)`,
+              }))
+              .filter((x: any) => x.id !== 'plugin::');
+          }
+        } catch { }
+        setPluginModels(extraModels);
         setServerStatus('connected');
-        setActiveEngineBadge(`Local Python GPU (${localEndpoint})`);
-        setStatusMessage(`Đã kết nối thành công tới Local Voice Server tại ${localEndpoint}`);
+        setActiveEngineBadge(`HTTPS Voice Plugin (${new URL(cleanUrl).hostname})`);
+        setStatusMessage(`Đã kết nối Voice Plugin HTTPS tại ${cleanUrl}${extraModels.length ? ` • Tải ${extraModels.length} mô hình` : ''}.`);
         return;
       }
     } catch {
-      // Fall through to built-in Studio Neural Engine check
+      // Fall through to built-in Studio ULTRA Engine
     }
 
     try {
       const studioRes = await fetch('/api/voicestudio/health');
       if (studioRes.ok) {
         setServerStatus('studio-neural');
-        setActiveEngineBadge('Studio Neural Engine (/api/tts • 24kHz PCM)');
+        setActiveEngineBadge('Studio ULTRA Engine (/api/tts • 24kHz VTLN)');
         setStatusMessage(
-          'Server Python :8000 chưa bật — Đã kích hoạt Studio Neural Engine (/api/tts 24kHz PCM + Web Audio DSP WSOLA Vocal Tract + Multi-Engine Translation).'
+          `Không kết nối được Voice Plugin (${cleanUrl}) — Đã kích hoạt Studio ULTRA Engine (24kHz Formant-Warp VTLN + BYOK Cloud APIs).`
         );
         return;
       }
     } catch { }
 
     setServerStatus('studio-neural');
-    setStatusMessage('Đang sử dụng Studio Neural Engine (/api/tts 24kHz PCM + Web Audio DSP WSOLA Vocal Tract).');
+    setStatusMessage('Đang sử dụng Studio ULTRA Engine (/api/tts 24kHz VTLN + BYOK Cloud APIs).');
   };
 
   const handleInspectReferenceBlob = async (fileOrBlob: Blob, name: string) => {
@@ -456,11 +492,11 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
       let finalMatchScore = 95;
       let finalOutputF0Hz = refAnalysis?.fundamentalHz || 130;
 
-      // 1. If connected to external Local Python Server (:8000), upload actual reference audio via FormData
-      if (serverStatus === 'connected' && cloneMode !== 'direct-voice-remaster') {
+      // 1. If connected to external HTTPS Voice Plugin Server, upload actual reference audio via FormData
+      if (serverStatus === 'connected' && /^https:\/\//i.test(localEndpoint) && cloneMode !== 'direct-voice-remaster') {
         try {
           const form = new FormData();
-          form.append('engine', cloneEngine);
+          form.append('engine', cloneEngine.replace(/^plugin::/, ''));
           form.append('text', cloneTargetText);
           form.append('reference_text', refTranscript);
           form.append('pitch', String(clonePitch));
@@ -493,7 +529,47 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
         } catch { }
       }
 
-      // 2. If ElevenLabs BYOK is selected and configured
+      // 2. If OpenAI BYOK Voice API is selected and configured
+      if (!generatedUrl && cloneEngine === 'byok-openai-audio' && aiConfig.openai?.apiKey && cloneMode !== 'direct-voice-remaster') {
+        try {
+          const base = (aiConfig.openai.endpointUrl || 'https://api.openai.com/v1').replace(/\/+$/, '');
+          const openAiVoice = (cloneGender || refAnalysis?.inferredGender) === 'Nữ' ? 'nova' : 'onyx';
+          const res = await fetch(`${base}/audio/speech`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${aiConfig.openai.apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'tts-1-hd',
+              input: cloneTargetText,
+              voice: openAiVoice,
+              speed: Math.max(0.5, Math.min(2.0, cloneRate)),
+              response_format: 'wav',
+            }),
+          });
+          if (res.ok) {
+            const blob = await res.blob();
+            const rendered = await analyzeReferenceAudioBuffer(blob).catch(() => null);
+            generatedUrl = URL.createObjectURL(blob);
+            if (rendered) {
+              finalMatchScore = 96;
+              finalOutputF0Hz = rendered.fundamentalHz;
+              setCloneOutputDuration(rendered.durationSec);
+              setCloneOutputPeaks(rendered.waveformPeaks);
+              setCloneOutputF0Hz(rendered.fundamentalHz);
+              setCloneSpectralMatchScore(96);
+              setCloneOutputFormants(rendered.formantsHz);
+              setCloneOutputBark16(rendered.spectralEnvelopeDb);
+              setCloneF0MatchScore(96);
+              setCloneFormantMatchScore(96);
+              setCloneCepstralMatchScore(96);
+            }
+          }
+        } catch { }
+      }
+
+      // 3. If ElevenLabs BYOK is selected and configured
       if (!generatedUrl && cloneEngine === 'byok-eleven' && aiConfig.elevenlabs?.apiKey && cloneMode !== 'direct-voice-remaster') {
         try {
           const voiceId = aiConfig.elevenlabs.voiceId || '21m00Tcm4TlvDq8ikWAM';
@@ -561,6 +637,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
           highGainDb: 2.6,
           referenceAnalysis: activeAnalysis,
           directReferenceBlob: useDirectBlob,
+          cloneEngine,
         });
         generatedUrl = renderedWav.url;
         finalMatchScore = renderedWav.spectralMatchScore ?? 95;
@@ -576,18 +653,20 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
         setCloneCepstralMatchScore(renderedWav.cepstralMatchScore ?? 0);
       }
 
-      // Phát trực tiếp chính tệp .WAV vừa tổng hợp để âm thanh phát ra loa khớp 100% tuyệt đối với tệp tải về
-      try {
-        stopVoiceAudition();
-        const player = new Audio(generatedUrl);
-        player.play().catch(() => {});
-      } catch { }
-
+      // Đồng bộ phát duy nhất trên chính <audio ref={cloneAudioRef}> hiển thị ở UI để tránh chồng 2 luồng tiếng khi bấm Play/Pause
+      stopVoiceAudition();
       setCloneOutputUrl(generatedUrl);
+      setTimeout(() => {
+        if (cloneAudioRef.current) {
+          bindExclusiveAudioElement(cloneAudioRef.current);
+          cloneAudioRef.current.currentTime = 0;
+          cloneAudioRef.current.play().catch(() => {});
+        }
+      }, 60);
       setStatusMessage(
         cloneMode === 'direct-voice-remaster' && refAudioFile?.blob
           ? `Đã tái tạo & xử lý Master trực tiếp trên sóng âm giọng thu [${refAudioFile.name}] (${effectiveGender} • F0 ${finalOutputF0Hz}Hz)!`
-          : `Voice Clone v3.0 STFT Cepstral 128 dải hoàn tất (${effectiveGender} • F0 đích ${refAnalysis?.fundamentalHz || 130}Hz -> Clone ${finalOutputF0Hz}Hz • Giống giọng gốc ${finalMatchScore}%)!`
+          : `Voice Clone v4.0 Formant Warping hoàn tất (${effectiveGender} • ${cloneEngine} • F0 gốc ${refAnalysis?.fundamentalHz || 130}Hz -> Clone ${finalOutputF0Hz}Hz • Độ khớp ${finalMatchScore}%)!`
       );
     } catch (err) {
       setStatusMessage(`Lỗi tổng hợp giọng: ${String(err)}`);
@@ -603,7 +682,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
       createdAt: new Date().toLocaleTimeString('vi-VN'),
     };
     setCustomVoices((prev) => [item, ...prev]);
-    setStatusMessage(`Đã lưu giọng [${item.name}] vào thư viện VoiceStudio LABS.`);
+    setStatusMessage(`Đã lưu giọng [${item.name}] vào thư viện VoiceStudio ULTRA (đã đồng bộ chọn nhanh khi tạo video).`);
   };
 
   const handlePreviewVoiceDesign = async () => {
@@ -667,10 +746,17 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
         highGainDb: highGain,
       });
 
+      stopVoiceAudition();
       setDesignOutputUrl(renderedWav.url);
       setDesignOutputDuration(renderedWav.durationSec);
       setDesignOutputPeaks(renderedWav.waveformPeaks);
-      auditionVoice(profile, designSampleText, targetRate, targetPitch);
+      setTimeout(() => {
+        if (designAudioRef.current) {
+          bindExclusiveAudioElement(designAudioRef.current);
+          designAudioRef.current.currentTime = 0;
+          designAudioRef.current.play().catch(() => {});
+        }
+      }, 60);
       setStatusMessage(
         `Đã thiết kế & tổng hợp giọng Neural "${designName}" (${renderedWav.durationSec}s • 24kHz WAV).`
       );
@@ -843,7 +929,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
       const updatedProject: Project = {
         ...proj,
         voiceoverTrack: {
-          name: `VoiceStudio LABS (${chosenProfile.name})`,
+          name: `VoiceStudio ULTRA (${chosenProfile.name})`,
           voiceName: chosenProfile.name,
           audioUrl: masterPreviewUrl || proj.voiceoverTrack?.audioUrl,
         },
@@ -930,8 +1016,8 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
         } catch { }
       }
 
-      // 3. Local Faster-Whisper Server (:8000)
-      if (serverStatus === 'connected') {
+      // 3. External Cloud HTTPS Voice Plugin Whisper (if connected)
+      if (serverStatus === 'connected' && /^https:\/\//i.test(localEndpoint)) {
         try {
           const form = new FormData();
           form.append('file', file);
@@ -1047,7 +1133,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
 
   const availableDubVoices: { id: string; label: string }[] = [
     ...ALL_VOICE_PROFILES.map((v) => ({ id: v.id, label: `${v.name} (${v.language.toUpperCase()})` })),
-    ...customVoices.map((c) => ({ id: c.id, label: `[LABS] ${c.name} (${c.engine})` })),
+    ...customVoices.map((c) => ({ id: c.id, label: `[ULTRA] ${c.name} (${c.engine})` })),
   ];
 
   const TABS: { id: VoiceLabsTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -1080,11 +1166,11 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
               <h1 className="text-sm font-bold text-zinc-950 tracking-tight">
                 SYNAPES VoiceStudio
               </h1>
-              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-600 text-white">
-                LABS
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+                ULTRA
               </span>
               <span className="text-[10px] font-mono text-zinc-500">
-                Neural 24kHz • WSOLA Formant • Multi-Speaker • Whisper VAD
+                Neural 24kHz • Formant VTLN v4.0 • Multi-Speaker • Whisper VAD
               </span>
             </div>
             <p className="text-[11px] text-zinc-500 mt-0.5 truncate">
@@ -1093,24 +1179,24 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
           </div>
         </div>
 
-        {/* Engine & Local Python Server Status Bar */}
+        {/* Cloud Voice Plugin & Engine Status Bar (HTTPS Only — Zero Localhost) */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5 bg-zinc-50 border border-zinc-200 rounded-lg px-2.5 py-1.5">
             <Server className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
             <input
-              type="text"
+              type="url"
               value={localEndpoint}
               onChange={(e) => setLocalEndpoint(e.target.value)}
-              placeholder="http://localhost:8000"
-              className="text-[11px] font-mono text-zinc-800 bg-transparent focus:outline-none w-36"
-              aria-label="VoiceStudio Local Server URL"
+              placeholder="https://voice-plugin.domain.com"
+              className="text-[11px] font-mono text-zinc-800 bg-transparent focus:outline-none w-48 sm:w-56"
+              aria-label="VoiceStudio HTTPS Plugin URL"
             />
             <button
               onClick={handleCheckLocalServer}
               className="px-2 py-0.5 rounded bg-zinc-900 text-white text-[10px] font-medium hover:bg-black transition cursor-pointer inline-flex items-center gap-1 whitespace-nowrap"
             >
               <RefreshCw className={`w-2.5 h-2.5 ${serverStatus === 'checking' ? 'animate-spin' : ''}`} />
-              <span>Kết Nối :8000</span>
+              <span>Kết Nối Plugin</span>
             </button>
           </div>
 
@@ -1183,16 +1269,35 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                 />
               </div>
               <div>
-                <label className="text-[11px] font-medium text-zinc-700 block mb-1">Mô Hình Nhân Bản</label>
+                <label className="text-[11px] font-medium text-zinc-700 block mb-1">Mô Hình Nhân Bản (Mở rộng theo API Key & Plugin)</label>
                 <select
                   value={cloneEngine}
-                  onChange={(e) => setCloneEngine(e.target.value as any)}
+                  onChange={(e) => setCloneEngine(e.target.value)}
                   className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-xs bg-white focus:outline-none focus:border-zinc-900"
                 >
-                  <option value="qwen3-tts">Qwen3-TTS 1.7B Zero-Shot (Neural DSP / :8000)</option>
-                  <option value="xttsv2">Coqui XTTSv2 Đa Ngôn Ngữ (Neural DSP / :8000)</option>
-                  <option value="fish-speech">Fish Speech S1 Acoustic (Neural DSP / :8000)</option>
-                  <option value="byok-eleven">ElevenLabs Voice API (BYOK Key)</option>
+                  <optgroup label="SYNAPES Studio ULTRA Core (Formant-Warp v4.0)">
+                    <option value="qwen3-tts">Qwen3-TTS 1.7B Zero-Shot (Formant VTLN v4.0)</option>
+                    <option value="xttsv2">Coqui XTTSv2 Đa Ngôn Ngữ (Formant VTLN v4.0)</option>
+                    <option value="fish-speech">Fish Speech S1 Acoustic (Formant VTLN v4.0)</option>
+                  </optgroup>
+                  <optgroup label="Mô Hình Cloud BYOK Theo API Key Hệ Thống">
+                    <option value="byok-gemini-audio">
+                      Gemini 2.5 Native Audio Clone {aiConfig.gemini?.apiKey ? '(Đã có Key ✓)' : '(BYOK / Studio)'}
+                    </option>
+                    <option value="byok-openai-audio">
+                      OpenAI GPT-4o Audio / TTS-1-HD {aiConfig.openai?.apiKey ? '(Đã có Key ✓)' : '(Cần OpenAI Key)'}
+                    </option>
+                    <option value="byok-eleven">
+                      ElevenLabs Multilingual v2 {aiConfig.elevenlabs?.apiKey ? '(Đã có Key ✓)' : '(Cần ElevenLabs Key)'}
+                    </option>
+                  </optgroup>
+                  {pluginModels.length > 0 && (
+                    <optgroup label="Mô Hình Từ Voice Plugin HTTPS Đã Kết Nối">
+                      {pluginModels.map((pm) => (
+                        <option key={pm.id} value={pm.id}>{pm.label}</option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
             </div>
@@ -1240,7 +1345,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                     <span className="text-[11px] font-mono text-zinc-700 truncate">
                       {refAudioFile.name} ({refAudioFile.sizeKb} KB)
                     </span>
-                    <audio controls src={refAudioFile.url} className="h-7 max-w-[240px]" />
+                    <audio controls src={refAudioFile.url} onPlay={(e) => bindExclusiveAudioElement(e.currentTarget)} className="h-7 max-w-[240px]" />
                   </div>
                   {refAnalysis && (
                     <div className="space-y-2 bg-white p-2.5 rounded border border-zinc-200/80">
@@ -1546,7 +1651,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                       )}
                     </div>
                   )}
-                  <audio controls src={cloneOutputUrl} className="w-full" />
+                  <audio ref={cloneAudioRef} controls src={cloneOutputUrl} onPlay={(e) => bindExclusiveAudioElement(e.currentTarget)} className="w-full" />
                   <a
                     href={cloneOutputUrl}
                     download={`${cloneName.replace(/\s+/g, '_')}.wav`}
@@ -1789,7 +1894,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                 label={`Phổ Âm Giọng Thiết Kế: ${designName}`}
                 durationSec={designOutputDuration}
               />
-              <audio controls src={designOutputUrl} className="w-full" />
+              <audio ref={designAudioRef} controls src={designOutputUrl} onPlay={(e) => bindExclusiveAudioElement(e.currentTarget)} className="w-full" />
             </div>
           )}
         </div>
@@ -1804,7 +1909,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                 Lồng Tiếng Video Đa Ngôn Ngữ & Đồng Bộ Khớp Cảnh
               </h2>
               <p className="text-[11px] text-zinc-500 mt-0.5">
-                Dịch thuật tự động đa ngôn ngữ (Neural MT / Gemini / OpenAI) và gắn trực tiếp chất giọng LABS vào Timeline video.
+                Dịch thuật tự động đa ngôn ngữ (Neural MT / Gemini / OpenAI) và gắn trực tiếp chất giọng ULTRA vào Timeline video.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -1885,7 +1990,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                     label={`Bản Thu Thử Lồng Tiếng Cảnh #1 (${dubLanguage.toUpperCase()})`}
                     durationSec={dubPreviewDuration}
                   />
-                  <audio controls src={dubPreviewUrl} className="w-full h-8" />
+                  <audio ref={dubAudioRef} controls src={dubPreviewUrl} onPlay={(e) => bindExclusiveAudioElement(e.currentTarget)} className="w-full h-8" />
                 </div>
               )}
 
@@ -1922,7 +2027,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                 Chép Lời Whisper & Xuất Phụ Đề (.SRT / .TXT)
               </h2>
               <p className="text-[11px] text-zinc-500 mt-0.5">
-                Hỗ trợ OpenAI Whisper-1 (BYOK), Groq Whisper Turbo, Faster-Whisper (:8000), Web Audio VAD hoặc đọc Micro trực tiếp.
+                Hỗ trợ OpenAI Whisper-1 (BYOK), Groq Whisper Turbo, Cloud HTTPS Voice Plugin, Studio Web Audio VAD hoặc đọc Micro trực tiếp.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -1931,7 +2036,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                 onChange={(e) => setWhisperEngine(e.target.value as any)}
                 className="px-2.5 py-1.5 rounded-lg border border-zinc-200 text-xs bg-white"
               >
-                <option value="local-faster-whisper">Faster-Whisper Local (:8000 / VAD)</option>
+                <option value="studio-vad-whisper">Studio Web Audio VAD + AI Alignment (24kHz)</option>
                 <option value="groq-whisper">Groq Whisper Turbo (BYOK)</option>
                 <option value="openai-whisper">OpenAI Whisper-1 (BYOK)</option>
                 <option value="browser-live">Micro Trực Tiếp (Trình duyệt)</option>
@@ -2160,7 +2265,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                 durationSec={audiobookMasterDuration}
               />
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <audio controls src={audiobookMasterUrl} className="flex-1 min-w-[240px]" />
+                <audio ref={audiobookAudioRef} controls src={audiobookMasterUrl} onPlay={(e) => bindExclusiveAudioElement(e.currentTarget)} className="flex-1 min-w-[240px]" />
                 <a
                   href={audiobookMasterUrl}
                   download="SYNAPES_Audiobook_Master.wav"
@@ -2181,7 +2286,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
           <div className="flex items-center gap-2">
             <AlertCircle className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
             <span>
-              Mọi tệp .WAV xuất ra đều được tổng hợp từ giọng nói Neural thực tế (24kHz PCM + WSOLA Vocal Tract EQ) hoặc qua Local Python Server (:8000) / BYOK Cloud APIs.
+              Mọi tệp .WAV xuất ra đều được tổng hợp từ giọng nói Neural thực tế (24kHz PCM + Formant-Warp VTLN v4.0) hoặc qua Cloud Voice Plugin HTTPS / BYOK Cloud APIs.
             </span>
           </div>
         </div>

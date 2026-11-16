@@ -235,13 +235,13 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
               }`}
             >
               <YoutubeIcon className={`w-3.5 h-3.5 ${platformFilter === 'youtube' ? 'text-white' : 'text-red-600'}`} />
-              <span>Video YouTube (16:9)</span>
+              <span>YouTube</span>
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${platformFilter === 'youtube' ? 'bg-white/20 text-white' : 'bg-red-200/70 text-red-800'}`}>
                 {youtubeCount}
               </span>
             </button>
 
-            {/* Tag TikTok (9:16) */}
+            {/* Tag TikTok */}
             <button
               type="button"
               onClick={() => setPlatformFilter('tiktok')}
@@ -250,15 +250,16 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
                   ? 'bg-zinc-950 text-cyan-400 border-zinc-950 shadow-2xs'
                   : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border-zinc-300'
               }`}
+              title="Lọc các dự án phát hành trên TikTok"
             >
               <TiktokIcon className={`w-3.5 h-3.5 ${platformFilter === 'tiktok' ? 'text-cyan-400' : 'text-zinc-900'}`} />
-              <span>TikTok Shorts (9:16)</span>
+              <span>TikTok</span>
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${platformFilter === 'tiktok' ? 'bg-white/10 text-cyan-300' : 'bg-zinc-300/80 text-zinc-800'}`}>
                 {tiktokCount}
               </span>
             </button>
 
-            {/* Tag Facebook (Reels & Feed) */}
+            {/* Tag Facebook */}
             <button
               type="button"
               onClick={() => setPlatformFilter('facebook')}
@@ -267,9 +268,10 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
                   ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
                   : 'bg-blue-50/80 hover:bg-blue-100/80 text-blue-700 border-blue-200'
               }`}
+              title="Lọc các dự án phát hành trên Facebook"
             >
               <FacebookIcon className={`w-3.5 h-3.5 ${platformFilter === 'facebook' ? 'text-white' : 'text-blue-600'}`} />
-              <span>Facebook Reels</span>
+              <span>Facebook</span>
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${platformFilter === 'facebook' ? 'bg-white/20 text-white' : 'bg-blue-200/70 text-blue-800'}`}>
                 {facebookCount}
               </span>
