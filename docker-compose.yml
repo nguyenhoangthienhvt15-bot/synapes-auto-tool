@@ -1,152 +1,91 @@
-version: '3.8'
-
-# ==============================================================================
-# SYNAPES STUDIO — ENTERPRISE DOCKER COMPOSE BLUEPRINT
-# Thiết kế kiến trúc: Antigravity AI Architecture Team
-# Chủ trì dự án: KS. Nguyễn Hoàng Thiện
-# ==============================================================================
+# Synapes Studio - 100% Cloud Railway / Cloud VPS Deployment Blueprint
+# Designed for Zero-Local-RAM offload (runs completely on Railway + Kaggle/RunPod GPU Worker)
 
 services:
-  # ----------------------------------------------------------------------------
-  # 1. Cơ sở dữ liệu quan hệ PostgreSQL (Lưu User, Hợp đồng, Metadata dự án)
-  # ----------------------------------------------------------------------------
-  postgres:
-    image: postgres:16-alpine
-    container_name: synapes-postgres
-    restart: always
-    environment:
-      POSTGRES_DB: ${DB_NAME:-synapes_studio}
-      POSTGRES_USER: ${DB_USER:-synapes_admin}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-SynapesSecurePass2026}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-synapes_admin} -d ${DB_NAME:-synapes_studio}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - synapes_network
-
-  # ----------------------------------------------------------------------------
-  # 2. Redis 7: Message Broker & Job Queue (BullMQ / Celery)
-  # ----------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
-    container_name: synapes-redis
-    restart: always
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-SynapesRedis2026}
-    volumes:
-      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-SynapesRedis2026}", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - synapes_network
+      - synapes_cloud
 
-  # ----------------------------------------------------------------------------
-  # 3. MinIO: S3-Compatible Object Storage (Lưu trữ Footage, Audio, Video Master)
-  # ----------------------------------------------------------------------------
-  minio:
-    image: minio/minio:latest
-    container_name: synapes-minio
-    restart: always
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-synapes_minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-SynapesMinioSecret2026}
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    restart: unless-stopped
     volumes:
-      - minio_data:/data
+      - ./litellm_config.yaml:/app/config.yaml:ro
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "4000:4000"
     networks:
-      - synapes_network
+      - synapes_cloud
 
-  # ----------------------------------------------------------------------------
-  # 4. Core Backend & Agentic Conductor Brain (FastAPI / Node.js)
-  # ----------------------------------------------------------------------------
-  api:
-    image: node:20-alpine
-    container_name: synapes-api
-    restart: always
-    working_dir: /app
+  swarm-orchestrator:
+    build:
+      context: ./services/swarm-agent
+      dockerfile: Dockerfile
+    restart: unless-stopped
     environment:
-      NODE_ENV: production
-      PORT: 3000
-      DATABASE_URL: postgresql://${DB_USER:-synapes_admin}:${DB_PASSWORD:-SynapesSecurePass2026}@postgres:5432/${DB_NAME:-synapes_studio}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-SynapesRedis2026}@redis:6379/0
-      MASTER_VAULT_KEY: ${MASTER_VAULT_KEY:-a6c8e9f2b1d4e7a035c8b2f1e4d7a9c2}
-      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-2026}
-      S3_ENDPOINT: http://minio:9000
-      S3_BUCKET: synapes-media
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - synapes_network
-
-  # ----------------------------------------------------------------------------
-  # 5. Distributed Async Video & Media Worker (FFmpeg, yt-dlp, Remotion, TTS)
-  # ----------------------------------------------------------------------------
-  worker:
-    image: python:3.11-slim
-    container_name: synapes-worker
-    restart: always
-    working_dir: /app
-    environment:
-      DATABASE_URL: postgresql://${DB_USER:-synapes_admin}:${DB_PASSWORD:-SynapesSecurePass2026}@postgres:5432/${DB_NAME:-synapes_studio}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-SynapesRedis2026}@redis:6379/0
-      MASTER_VAULT_KEY: ${MASTER_VAULT_KEY:-a6c8e9f2b1d4e7a035c8b2f1e4d7a9c2}
-      S3_ENDPOINT: http://minio:9000
-      S3_BUCKET: synapes-media
+      LITELLM_BASE_URL: http://litellm:4000
+      REDIS_URL: redis://redis:6379/0
+      COMFYUI_WORKER_URL: ${COMFYUI_WORKER_URL:-}
+    ports:
+      - "8000:8000"
     depends_on:
       redis:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-      minio:
+      litellm:
         condition: service_started
     networks:
-      - synapes_network
+      - synapes_cloud
 
-  # ----------------------------------------------------------------------------
-  # 6. Web Frontend (React + Vite SPA)
-  # ----------------------------------------------------------------------------
-  frontend:
-    image: nginx:alpine
-    container_name: synapes-frontend
-    restart: always
-    depends_on:
-      - api
-    networks:
-      - synapes_network
-
-  # ----------------------------------------------------------------------------
-  # 7. Gateway: Nginx Reverse Proxy (SSL Termination, WSS, Routing)
-  # ----------------------------------------------------------------------------
-  gateway:
-    image: nginx:alpine
-    container_name: synapes-gateway
-    restart: always
+  backend-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: ${PORT:-10000}
+      REDIS_URL: redis://redis:6379/0
+      SWARM_AGENT_URL: http://swarm-orchestrator:8000
+      LITELLM_GATEWAY_URL: http://litellm:4000
+      COMFYUI_WORKER_URL: ${COMFYUI_WORKER_URL:-}
+      MASTER_VAULT_KEY: ${MASTER_VAULT_KEY:-}
     ports:
-      - "80:80"
-      - "443:443"
+      - "10000:10000"
     depends_on:
-      - frontend
-      - api
+      redis:
+        condition: service_healthy
+      swarm-orchestrator:
+        condition: service_started
     networks:
-      - synapes_network
+      - synapes_cloud
+
+  frontend-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: http://backend-worker:10000
+    ports:
+      - "4173:80"
+    depends_on:
+      - backend-worker
+    networks:
+      - synapes_cloud
 
 networks:
-  synapes_network:
+  synapes_cloud:
     driver: bridge
-
-volumes:
-  postgres_data:
-  redis_data:
-  minio_data:

@@ -60,7 +60,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
       stepNumber: 'BƯỚC 01 / 11',
       category: 'auth',
       title: 'Đăng Nhập Studio & Quản Lý Mật Khẩu Khách Hàng',
-      shortDesc: 'Xác thực tài khoản bằng Mã Code định danh được cấp, cơ chế xem/ẩn mật khẩu an toàn và đồng bộ tức thời từ Google Sheet.',
+      shortDesc: 'Xác thực tài khoản bằng Mã định danh được cấp, cơ chế xem/ẩn mật khẩu an toàn và đồng bộ dữ liệu theo phiên bảo mật.',
       badge: 'Bảo Mật Xác Thực',
       steps: [
         {
@@ -70,26 +70,26 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
         },
         {
           number: 2,
-          title: 'Điền Mã Code Khách Hàng được cấp',
-          description: 'Nhập mã Code được cấp sau khi ký hợp đồng (dạng SNP_... hoặc mã do kỹ sư cấp). Hệ thống sẽ tự động đồng bộ danh bạ từ Google Sheet quản trị theo thời gian thực.',
+          title: 'Điền Mã Khách Hàng được cấp',
+          description: 'Nhập mã định danh được cấp sau khi ký hợp đồng (dạng SNP_...) để hệ thống xác thực qua máy chủ an toàn.',
         },
         {
           number: 3,
           title: 'Nhập Mật Khẩu & Sử dụng nút icon Con Mắt',
-          description: 'Nhập mật khẩu của bạn. Bạn có thể nhấp vào biểu tượng Con Mắt 👁️ ở góc phải ô nhập để xem rõ các ký tự mật khẩu, tránh gõ nhầm trước khi đăng nhập.',
+          description: 'Nhập mật khẩu của bạn. Bạn có thể nhấp vào biểu tượng Con Mắt ở góc phải ô nhập để xem rõ các ký tự mật khẩu, tránh gõ nhầm trước khi đăng nhập.',
           note: 'Mật khẩu khởi tạo mặc định có thể được đổi thành mật khẩu riêng bất cứ lúc nào.',
         },
         {
           number: 4,
           title: 'Đổi mật khẩu cá nhân (Tùy chọn)',
-          description: 'Sau khi vào bàn làm việc, nhấp biểu tượng Chìa Khóa 🔑 trên Header để đổi sang mật khẩu bí mật của riêng bạn.',
+          description: 'Sau khi vào bàn làm việc, nhấp biểu tượng Chìa Khóa trên Header để đổi sang mật khẩu bí mật của riêng bạn.',
         },
       ],
       actionLabel: 'Thử Mở Đổi Mật Khẩu',
       actionView: 'auth-modal',
       proTips: [
-        'Mã Code và mật khẩu được mã hóa an toàn tại trình duyệt (Local Storage).',
-        'Nếu quên mật khẩu, liên hệ quản trị viên để nhận mã khôi phục tạm thời qua Google Sheet.',
+        'Phiên làm việc được bảo vệ bằng token ký HMAC từ máy chủ.',
+        'Nếu quên mật khẩu, sử dụng tính năng khôi phục tài khoản qua Email đã đăng ký.',
       ],
       mockupType: 'auth',
     },
@@ -968,8 +968,8 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
             <div className="p-2 rounded bg-zinc-50 border border-black/5 text-xs space-y-1">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span className="font-mono text-zinc-800 font-medium">synapes.backup@gmail.com</span>
-                <span className="text-[10px] text-zinc-400 font-mono ml-auto">124 GB / 2 TB</span>
+                <span className="font-mono text-zinc-800 font-medium">studio-backup@example.com</span>
+                <span className="text-[10px] text-zinc-400 font-mono ml-auto">Thư mục đồng bộ</span>
               </div>
               <div className="text-[10px] text-zinc-500 font-mono truncate">
                 Đường dẫn: My Drive / Du_An_Video / 2026 / 11 /

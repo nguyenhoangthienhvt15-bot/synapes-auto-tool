@@ -154,15 +154,15 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         {/* Live System Indicator */}
-        <div className="hidden xl:flex items-center gap-1.5 pl-2.5 border-l border-black/[0.08] text-[11px] text-zinc-500 font-mono whitespace-nowrap flex-shrink-0">
+        <div className="hidden 2xl:flex items-center gap-1.5 pl-2.5 border-l border-black/[0.08] text-[11px] text-zinc-500 font-mono whitespace-nowrap flex-shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
           <span>{currentTime || '00:00'}</span>
         </div>
       </div>
 
       {/* Center: Linear-style Studio Segmented Navigation */}
-      <div className="hidden lg:flex items-center min-w-0 max-w-full overflow-hidden">
-        <nav className="inline-flex items-center p-1 bg-zinc-100/90 rounded-lg border border-zinc-200/80 text-xs gap-0.5 whitespace-nowrap max-w-full overflow-x-auto">
+      <div className="hidden xl:flex items-center min-w-0 flex-1 justify-center px-2 overflow-hidden">
+        <nav className="inline-flex items-center p-1 bg-zinc-100/90 rounded-lg border border-zinc-200/80 text-xs gap-0.5 whitespace-nowrap max-w-full overflow-x-auto scrollbar-none">
           <button
             onClick={() => onSelectView('pending-approval')}
             className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer flex items-center gap-1 whitespace-nowrap flex-shrink-0 ${
@@ -311,20 +311,20 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </div>
         ) : (
-          <div className="pl-2 border-l border-zinc-200 flex items-center gap-2">
+          <div className="pl-2 border-l border-zinc-200 flex items-center gap-2 flex-shrink-0">
             {onOpenRegister && (
               <button
                 onClick={onOpenRegister}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-zinc-300 text-xs font-medium text-zinc-800 hover:text-zinc-950 hover:bg-zinc-100 transition cursor-pointer shadow-2xs"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-zinc-300 text-xs font-medium text-zinc-800 hover:text-zinc-950 hover:bg-zinc-100 transition cursor-pointer shadow-2xs whitespace-nowrap"
               >
                 <span>Đăng Ký</span>
               </button>
             )}
             <button
               onClick={onOpenLogin}
-              className="btn-primary flex items-center gap-1.5 px-3.5 py-1.5 text-xs cursor-pointer shadow-2xs"
+              className="btn-primary flex items-center gap-1.5 px-3.5 py-1.5 text-xs cursor-pointer shadow-2xs whitespace-nowrap"
             >
-              <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
+              <KeyRound className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
               <span>Đăng Nhập</span>
             </button>
           </div>

@@ -1,0 +1,954 @@
+{
+  "userCode": "SNP_2611130908",
+  "updatedAt": "2026-11-18T13:38:50.882Z",
+  "sha256Checksum": "5f3852b0030a294b22a38e504485e5cd874ab6cd12e0340b42f3629ed303babe",
+  "profile": {
+    "code": "SNP_2611130908",
+    "name": "Tài khoản Kiểm định Studio (Enterprise)",
+    "email": "creator@studio.example.com",
+    "aiConfig": {
+      "mode": "gemini",
+      "activeProvider": "gemini",
+      "gemini": {
+        "apiKey": "",
+        "model": "gemini-2.0-flash",
+        "ttsVoice": "vi-VN-Standard-B (Nam Bắc chuẩn)"
+      },
+      "openai": {
+        "apiKey": "",
+        "model": "gpt-4o",
+        "endpointUrl": "https://api.openai.com/v1"
+      },
+      "claude": {
+        "apiKey": "",
+        "model": "claude-3-7-sonnet-20250219",
+        "endpointUrl": "https://api.anthropic.com/v1"
+      },
+      "deepseek": {
+        "apiKey": "",
+        "model": "deepseek-chat",
+        "endpointUrl": "https://api.deepseek.com/v1"
+      },
+      "grok": {
+        "apiKey": "",
+        "model": "grok-2",
+        "endpointUrl": "https://api.x.ai/v1"
+      },
+      "plugin": {
+        "id": "kling-default",
+        "name": "Kling Video Gen v1.5 (URL Plugin)",
+        "endpointUrl": "https://api.klingai.com/v1/videos/text2video",
+        "apiToken": "synapes-3d-studio-token-demo",
+        "inputMapping": "{\"prompt\": \"{prompt}\", \"duration\": {duration}, \"aspect_ratio\": \"{aspect_ratio}\"}",
+        "outputMapping": "{\"video_url\": \"data.video_url\"}",
+        "timeoutSeconds": 120,
+        "model": "kling-v1.5",
+        "availableModels": [
+          {
+            "id": "kling-v1.5",
+            "name": "Kling Video v1.5 API",
+            "tag": "Chất lượng điện ảnh • Chuẩn Kuaishou",
+            "isLiveFromKey": true,
+            "isRecommended": true,
+            "brand": "kling"
+          },
+          {
+            "id": "kling-v2.0",
+            "name": "Kling Video v2.0 HD",
+            "tag": "Mô phỏng vật lý chân thực",
+            "isLiveFromKey": true,
+            "brand": "kling"
+          },
+          {
+            "id": "runway-gen3",
+            "name": "Runway Gen-3 Alpha",
+            "tag": "Chuyển động camera siêu thực",
+            "isLiveFromKey": true,
+            "brand": "runway"
+          },
+          {
+            "id": "luma-dream",
+            "name": "Luma Dream Machine v1.6",
+            "tag": "Độ mượt 60fps điện ảnh",
+            "isLiveFromKey": true,
+            "brand": "luma"
+          },
+          {
+            "id": "pika-2.0",
+            "name": "Pika 2.0 Video Engine",
+            "tag": "Hiệu ứng VFX ấn tượng",
+            "isLiveFromKey": true,
+            "brand": "pika"
+          },
+          {
+            "id": "sora-video",
+            "name": "OpenAI Sora Video API",
+            "tag": "Đạo diễn AI không gian 3D",
+            "isLiveFromKey": true,
+            "brand": "sora"
+          },
+          {
+            "id": "hailuo-t2v",
+            "name": "Hailuo AI (MiniMax) T2V",
+            "tag": "Đặc tả con người tự nhiên",
+            "isLiveFromKey": true,
+            "brand": "hailuo"
+          },
+          {
+            "id": "elevenlabs-voice",
+            "name": "ElevenLabs Studio Voice",
+            "tag": "Lồng tiếng siêu cảm xúc",
+            "isLiveFromKey": true,
+            "brand": "elevenlabs"
+          },
+          {
+            "id": "custom-webhook",
+            "name": "Custom HTTP Webhook API",
+            "tag": "Tùy biến payload JSON",
+            "isLiveFromKey": true,
+            "brand": "custom"
+          }
+        ],
+        "modelsScannedAt": "2026-11-18T13:36:56.788Z"
+      }
+    },
+    "channels": [
+      {
+        "id": "yt",
+        "platform": "youtube",
+        "name": "Kênh YouTube",
+        "handle": "@creator",
+        "status": "disconnected",
+        "apiScope": "youtube.upload, youtube.readonly (Direct Upload 5–10 phút)",
+        "tokenExpiry": "Chưa cấp quyền",
+        "connectedAt": "",
+        "stats": {
+          "metricLabel": "Người đăng ký",
+          "metricValue": "0 subs",
+          "totalPublishedVideos": 0
+        }
+      },
+      {
+        "id": "tt",
+        "platform": "tiktok",
+        "name": "Tài khoản TikTok Creator",
+        "handle": "Chưa liên kết",
+        "status": "disconnected",
+        "apiScope": "video.upload, video.publish, link.anchor",
+        "tokenExpiry": "Chưa cấp quyền",
+        "connectedAt": "",
+        "stats": {
+          "metricLabel": "Lượt theo dõi",
+          "metricValue": "0 followers",
+          "totalPublishedVideos": 0
+        }
+      },
+      {
+        "id": "fb",
+        "platform": "facebook",
+        "name": "Facebook Fanpage / Reels",
+        "handle": "Chưa liên kết",
+        "status": "disconnected",
+        "apiScope": "pages_manage_posts, reels_upload",
+        "tokenExpiry": "Chưa cấp quyền",
+        "connectedAt": "",
+        "stats": {
+          "metricLabel": "Lượt thích trang",
+          "metricValue": "0 likes",
+          "totalPublishedVideos": 0
+        }
+      },
+      {
+        "id": "gd",
+        "platform": "drive",
+        "name": "Google Drive Storage",
+        "handle": "creator@studio.example.com",
+        "status": "disconnected",
+        "apiScope": "drive.file (Bảo mật thư mục riêng)",
+        "tokenExpiry": "Chưa cấp quyền",
+        "connectedAt": "",
+        "stats": {
+          "metricLabel": "Dung lượng đã dùng",
+          "metricValue": "0 GB / 15 GB",
+          "totalPublishedVideos": 0
+        }
+      }
+    ],
+    "driveEmail": "creator@studio.example.com",
+    "driveConnected": false,
+    "projects": [
+      {
+        "id": "prj-plugin-1795009114390",
+        "code": "SYN-712",
+        "title": "Vịt Mẹ Và Đàn Con — Vịt Con Lông Vàng 3D (Glow Studios Reference Pipeline)",
+        "status": "pending_approval",
+        "aspectRatio": "16:9",
+        "platformFormat": "youtube-long-16-9",
+        "platformFormatLabel": "Khung Ngang Full HD • 16:9 • 1920x1080 (16:9)",
+        "videoGenre": "3d-animation",
+        "newsTickerText": "THỨC DẬY TRONG RỔ MÂY NHÀ GỖ VÒM  •  GÀ TRỐNG GÁY SÁNG TRÊN MÁI NGÓI ĐỎ  •  MỘT HAI MỘT HAI — THỂ DỤC PHÀNH PHẠCH  •  LON TON XUỐNG CẦU GỖ BÊN CHÚ ONG VÀNG  •  KHUA NƯỚC BƠI ĐI CHÂN NHƯ MÁI CHÈO  •  VÒNG ĐU QUAY ĐỎ RỰC RỠ KẾT MÀN VUI NHỘN",
+        "duration": 60,
+        "targetChannels": [
+          "youtube"
+        ],
+        "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        "thumbnailUrl": "/api/image-proxy?domain=animation-3d&idx=0&url=https%3A%2F%2Fimages.unsplash.com%2Fphoto-1459682687441-7761439a709d%3Fauto%3Dformat%26fit%3Dcrop%26w%3D1400%26q%3D85",
+        "musicTrack": {
+          "name": "Upbeat Kids Exercise Pop & Xylophone 122BPM",
+          "license": "Bản quyền thương mại SYNAPES Audio Engine",
+          "volume": 18
+        },
+        "voiceoverTrack": {
+          "name": "Chị Diệu Thảo (Giọng Ca Hoạt Hình Thiếu Nhi 3D — Trong trẻo, Vui tươi)",
+          "voiceName": "vi-sg-female-1"
+        },
+        "metadata": {
+          "title": "Vịt Mẹ Và Đàn Con — Vịt Con Lông Vàng 3D (Glow Studios Reference Pipeline)",
+          "description": "Vịt Mẹ Và Đàn Con — Vịt Con Lông Vàng 3D (Glow Studios Reference Pipeline)\n\nMỐC NỘI DUNG CHÍNH:\n00:00 — 01. THỨC DẬY TRONG RỔ MÂY NHÀ GỖ VÒM\n00:09 — 02. GÀ TRỐNG GÁY SÁNG TRÊN MÁI NGÓI ĐỎ\n00:18 — 03. MỘT HAI MỘT HAI — THỂ DỤC PHÀNH PHẠCH\n00:29 — 04. LON TON XUỐNG CẦU GỖ BÊN CHÚ ONG VÀNG\n00:38 — 05. KHUA NƯỚC BƠI ĐI CHÂN NHƯ MÁI CHÈO\n00:49 — 06. VÒNG ĐU QUAY ĐỎ RỰC RỠ KẾT MÀN VUI NHỘN\n\nPHONG CÁCH BIÊN TẬP (SKILL): Tài Liệu & Kể Chuyện Chiều Sâu (/storytelling) — Đạo diễn điện ảnh kể chuyện giàu cảm xúc, chuyển cảnh dissolve mượt mà.",
+          "tags": [
+            "DienAnhStory",
+            "VitMeVaDanCon",
+            "VitConLongVang",
+            "HoatHinh3D",
+            "NhacThieuNhi3D",
+            "GlowStudiosStyle"
+          ],
+          "productLink": "https://synapes.ai/studio"
+        },
+        "aiSource": {
+          "type": "plugin",
+          "name": "Kling AI (Kuaishou)",
+          "model": "kling-v1.5 → kling-v1.5",
+          "pluginUrl": "https://api.klingai.com/v1/videos/text2video"
+        },
+        "tokenTelemetry": {
+          "provider": "synapes-studio-core",
+          "model": "SYNAPES Studio Creative Engine",
+          "promptTokens": 150,
+          "completionTokens": 540,
+          "totalTokens": 690,
+          "keyStatus": "studio_core",
+          "failoverTriggered": false,
+          "failoverReason": "",
+          "attemptedProviders": [
+            "plugin",
+            "studio-core"
+          ]
+        },
+        "createdAt": "2026-11-18T13:38:34.390Z",
+        "storyboard": [
+          {
+            "id": 1,
+            "sceneNumber": 1,
+            "headline": "01. THỨC DẬY TRONG RỔ MÂY NHÀ GỖ VÒM",
+            "timeRange": "00:00 - 00:09",
+            "startSec": 0,
+            "endSec": 9,
+            "voiceover": "Bình minh rạng rỡ rồi, chú vịt con đội mũ hoa đỏ vươn vai thức dậy trong rổ mây ấm áp!",
+            "visualPrompt": "3D yellow duckling with red green flower hat waking in wicker basket inside wooden coop arch, Glow Studios style, anamorphic 35mm cinema composition, soft golden-hour film grain, atmospheric depth of field",
+            "imageUrl": "/api/image-proxy?domain=animation-3d&idx=0&url=https%3A%2F%2Fimages.unsplash.com%2Fphoto-1459682687441-7761439a709d%3Fauto%3Dformat%26fit%3Dcrop%26w%3D1400%26q%3D85",
+            "secondaryImageUrl": "/api/image-proxy?domain=animation-3d&idx=4&url=https%3A%2F%2Fimages.unsplash.com%2Fphoto-1459682687441-7761439a709d%3Fauto%3Dformat%26fit%3Dcrop%26w%3D1400%26q%3D85",
+            "sourceCitation": "Google News & Wikimedia Commons",
+            "sceneMetrics": [
+              {
+                "label": "NHỊP ĐỌC THOẠI",
+                "value": "21 từ (5s)",
+                "delta": "252 từ/phút"
+              },
+              {
+                "label": "NGUỒN ĐỐI CHIẾU",
+                "value": "Studio Core",
+                "delta": "0 tin RSS"
+              },
+              {
+                "label": "KHO TƯ LIỆU B-ROLL",
+                "value": "0 tệp HD",
+                "delta": "Cảnh 01"
+              }
+            ],
+            "subShotMode": "auto",
+            "clipUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+            "cameraMotion": "crane-up",
+            "lightingStyle": "rembrandt",
+            "sfx": "Cinematic Atmos Swell",
+            "transition": "dissolve",
+            "voiceId": "vi-child-female",
+            "voiceLanguage": "vi",
+            "voiceSpeed": 1.05,
+            "voicePitch": 1.28,
+            "speakerId": "dan-vit-con",
+            "speakerName": "Vịt Con Mũ Hoa Đỏ",
+            "cameraAngle": "close-up-speaker",
+            "explodedView": false,
+            "apertureBlades": false,
+            "appleMotion3d": "none"
+          },
+          {
+            "id": 2,
+            "sceneNumber": 2,
+            "headline": "02. GÀ TRỐNG GÁY SÁNG TRÊN MÁI NGÓI ĐỎ",
+            "timeRange": "00:09 - 00:18",
+            "startSec": 9,
+            "endSec": 18,
+            "voiceover": "Ò ó o! Ông mặt trời lên cao, gà trống ngũ sắc cất tiếng gáy vang gọi cả xóm nhỏ ra sân!",
+            "visualPrompt": "3D colorful rooster crowing on stepped terracotta red tiled roof against bright sunlit sky, anamorphic 35mm cinema composition, soft golden-hour film grain, atmospheric depth of field",
+            "imageUrl": "/3d_dialogue_garden_stage.jpg",
+            "secondaryImageUrl": "/3d_insect_scene_2.jpg",
+            "sourceCitation": "Google News & Wikimedia Commons",
+            "sceneMetrics": [
+              {
+                "label": "NHỊP ĐỌC THOẠI",
+                "value": "22 từ (5s)",
+                "delta": "264 từ/phút"
+              },
+              {
+                "label": "NGUỒN ĐỐI CHIẾU",
+                "value": "Studio Core",
+                "delta": "0 tin RSS"
+              },
+              {
+                "label": "KHO TƯ LIỆU B-ROLL",
+                "value": "0 tệp HD",
+                "delta": "Cảnh 02"
+              }
+            ],
+            "subShotMode": "auto",
+            "clipUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+            "cameraMotion": "dolly-in",
+            "lightingStyle": "golden-hour",
+            "sfx": "Deep Film Riser",
+            "transition": "dissolve",
+            "voiceId": "vi-mature-male",
+            "voiceLanguage": "vi",
+            "voiceSpeed": 1.02,
+            "voicePitch": 0.98,
+            "speakerId": "ga-trong",
+            "speakerName": "Gà Trống Mái Ngói",
+            "cameraAngle": "master-shot",
+            "explodedView": false,
+            "apertureBlades": false,
+            "appleMotion3d": "none"
+          },
+          {
+            "id": 3,
+            "sceneNumber": 3,
+            "headline": "03. MỘT HAI MỘT HAI — THỂ DỤC PHÀNH PHẠCH",
+            "timeRange": "00:18 - 00:29",
+            "startSec": 18,
+            "endSec": 29,
+            "voiceover": "Vịt mẹ xòe mỏ gọi đàn con nhỏ, thể dục nhanh nhanh! Một hai, một hai! Giơ chân lên nào, vẫy cho đều phạch phành phạch!",
+            "visualPrompt": "Over shoulder 3D white Mother Duck with cyan wingtips standing on mossy daisy rock leading 5 yellow ducklings wing exercise, anamorphic 35mm cinema composition, soft golden-hour film grain, atmospheric depth of field",
+            "imageUrl": "/api/image-proxy?domain=animation-3d&idx=2&url=https%3A%2F%2Fimages.unsplash.com%2Fphoto-1474511320723-9a56873867b5%3Fauto%3Dformat%26fit%3Dcrop%26w%3D1400%26q%3D85",
+            "secondaryImageUrl": "/api/image-proxy?domain=animation-3d&idx=6&url=https%3A%2F%2Fimages.unsplash.com%2Fphoto-1474511320723-9a56873867b5%3Fauto%3Dformat%26fit%3Dcrop%26w%3D1400%26q%3D85",
+            "sourceCitation": "Google News & Wikimedia Commons",
+            "sceneMetrics": [
+              {
+                "label": "NHỊP ĐỌC THOẠI",
+                "value": "26 từ (6s)",
+                "delta": "260 từ/phút"
+              },
+              {
+                "label": "NGUỒN ĐỐI CHIẾU",
+                "value": "Studio Core",
+                "delta": "0 tin RSS"
+              },
+              {
+                "label": "KHO TƯ LIỆU B-ROLL",
+                "value": "0 tệp HD",
+                "delta": "Cảnh 03"
+              }
+            ],
+            "subShotMode": "auto",
+            "clipUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+            "cameraMotion": "orbit",
+            "lightingStyle": "volumetric",
+            "sfx": "Anamorphic Lens Sweep",
+            "transition": "dissolve",
+            "voiceId": "vi-gentle-female",
+            "voiceLanguage": "vi",
+            "voiceSpeed": 1.06,
+            "voicePitch": 1.1,
+            "speakerId": "vit-me",
+            "speakerName": "Vịt Mẹ & 5 Vịt Con",
+            "cameraAngle": "over-the-shoulder",
+            "explodedView": false,
+            "apertureBlades": false,
+            "appleMotion3d": "none"
+          },
+          {
+            "id": 4,
+            "sceneNumber": 4,
+            "headline": "04. LON TON XUỐNG CẦU GỖ BÊN CHÚ ONG VÀNG",
+            "timeRange": "00:29 - 00:38",
+            "startSec": 29,
+            "endSec": 38,
+            "voiceover": "Đàn vịt lon ton chạy theo vịt mẹ qua cầu ván gỗ cong, bên cạnh chú ong vàng vỗ cánh vo ve thật vui!",
+            "visualPrompt": "3D yellow ducklings waddling down curved wooden plank bridge over turquoise pond with flying striped cartoon bee, anamorphic 35mm cinema composition, soft golden-hour film grain, atmospheric depth of field",
+            "imageUrl": "/3d_forest_stage_2.jpg",
+            "secondaryImageUrl": "/3d_dialogue_garden_stage.jpg",
+            "sourceCitation": "Google News & Wikimedia Commons",
+            "sceneMetrics": [
+              {
+                "label": "NHỊP ĐỌC THOẠI",
+                "value": "24 từ (5s)",
+                "delta": "288 từ/phút"
+              },
+              {
+                "label": "NGUỒN ĐỐI CHIẾU",
+                "value": "Studio Core",
+                "delta": "0 tin RSS"
+              },
+              {
+                "label": "KHO TƯ LIỆU B-ROLL",
+                "value": "0 tệp HD",
+                "delta": "Cảnh 04"
+              }
+            ],
+            "subShotMode": "auto",
+            "clipUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4",
+            "cameraMotion": "pan-right",
+            "lightingStyle": "studio-clean",
+            "sfx": "Cinematic Atmos Swell",
+            "transition": "dissolve",
+            "voiceId": "vi-child-female",
+            "voiceLanguage": "vi",
+            "voiceSpeed": 1.06,
+            "voicePitch": 1.28,
+            "speakerId": "dan-vit-con",
+            "speakerName": "Đàn Vịt Con & Chú Ong",
+            "cameraAngle": "two-shot",
+            "explodedView": false,
+            "apertureBlades": false,
+            "appleMotion3d": "none"
+          },
+          {
+            "id": 5,
+            "sceneNumber": 5,
+            "headline": "05. KHUA NƯỚC BƠI ĐI CHÂN NHƯ MÁI CHÈO",
+            "timeRange": "00:38 - 00:49",
+            "startSec": 38,
+            "endSec": 49,
+            "voiceover": "Ùm xuống ao sâu tắm mát thật thích! Cạp cạp cạp! Đàn vịt khua nước bơi đi chân như mái chèo giữa hoa lục bình!",
+            "visualPrompt": "3D ducklings swimming across bright cyan pond surrounded by lily pads and purple hyacinths, anamorphic 35mm cinema composition, soft golden-hour film grain, atmospheric depth of field",
+            "imageUrl": "/3d_insect_scene_1.jpg",
+            "secondaryImageUrl": "/3d_forest_stage_1.jpg",
+            "sourceCitation": "Google News & Wikimedia Commons",
+            "sceneMetrics": [
+              {
+                "label": "NHỊP ĐỌC THOẠI",
+                "value": "25 từ (6s)",
+                "delta": "250 từ/phút"
+              },
+              {
+                "label": "NGUỒN ĐỐI CHIẾU",
+                "value": "Studio Core",
+                "delta": "0 tin RSS"
+              },
+              {
+                "label": "KHO TƯ LIỆU B-ROLL",
+                "value": "0 tệp HD",
+                "delta": "Cảnh 05"
+              }
+            ],
+            "subShotMode": "auto",
+            "clipUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4",
+            "cameraMotion": "dolly-out",
+            "lightingStyle": "rembrandt",
+            "sfx": "Deep Film Riser",
+            "transition": "dissolve",
+            "voiceId": "vi-gentle-female",
+            "voiceLanguage": "vi",
+            "voiceSpeed": 1.05,
+            "voicePitch": 1.12,
+            "speakerId": "vit-me",
+            "speakerName": "Đàn Vịt Khua Nước Bơi Đi",
+            "cameraAngle": "shot-reverse-shot",
+            "explodedView": false,
+            "apertureBlades": false,
+            "appleMotion3d": "none"
+          },
+          {
+            "id": 6,
+            "sceneNumber": 6,
+            "headline": "06. VÒNG ĐU QUAY ĐỎ RỰC RỠ KẾT MÀN VUI NHỘN",
+            "timeRange": "00:49 - 01:00",
+            "startSec": 49,
+            "endSec": 60,
+            "voiceover": "Hoan hô! Cả đàn vịt con cùng ngồi trên khoang đỏ vòng đu quay khổng lồ vẫy cánh hát vang bài ca thiếu nhi!",
+            "visualPrompt": "3D white steel-spoked Ferris wheel with glossy red capsule gondolas carrying happy ducklings above green hills, anamorphic 35mm cinema composition, soft golden-hour film grain, atmospheric depth of field",
+            "imageUrl": "/3d_insect_scene_2.jpg",
+            "secondaryImageUrl": "/3d_forest_stage_2.jpg",
+            "sourceCitation": "Google News & Wikimedia Commons",
+            "sceneMetrics": [
+              {
+                "label": "NHỊP ĐỌC THOẠI",
+                "value": "24 từ (6s)",
+                "delta": "240 từ/phút"
+              },
+              {
+                "label": "NGUỒN ĐỐI CHIẾU",
+                "value": "Studio Core",
+                "delta": "0 tin RSS"
+              },
+              {
+                "label": "KHO TƯ LIỆU B-ROLL",
+                "value": "0 tệp HD",
+                "delta": "Cảnh 06"
+              }
+            ],
+            "subShotMode": "auto",
+            "clipUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+            "cameraMotion": "crane-up",
+            "lightingStyle": "golden-hour",
+            "sfx": "Anamorphic Lens Sweep",
+            "transition": "dissolve",
+            "voiceId": "vi-child-female",
+            "voiceLanguage": "vi",
+            "voiceSpeed": 1.05,
+            "voicePitch": 1.24,
+            "speakerId": "dan-vit-con",
+            "speakerName": "Hội Xuân Đu Quay 3D",
+            "cameraAngle": "master-shot",
+            "explodedView": false,
+            "apertureBlades": false,
+            "appleMotion3d": "none"
+          }
+        ]
+      },
+      {
+        "id": "prj-plugin-1795009025308",
+        "code": "SYN-591",
+        "title": "Mất Bò Mới Lo Làm Chuồng & Đàn Gà Con Mới Nở (Hoạt Hình 3D Đồng Quê)",
+        "status": "pending_approval",
+        "aspectRatio": "16:9",
+        "platformFormat": "youtube-long-16-9",
+        "platformFormatLabel": "Khung Ngang Full HD • 16:9 • 1920x1080 (16:9)",
+        "videoGenre": "3d-animation",
+        "newsTickerText": "BÌNH MINH LÀNG QUÊ YÊN Ả  •  ĐÀN GÀ CON MỚI NỞ VUI ĐÙA  •  THỎ BUN NHẮC CỬA CHUỒNG LỎNG LẺO  •  MẢI CHƠI QUÊN CHỐT CỬA — BÒ ĐI LẠC  •  CÙNG BẠN BÈ TÌM BÒ & RÚT RA BÀI HỌC  •  ĐÓNG VÁN CHẮC CHẮN — KHÔNG ĐỂ MẤT BÒ NỮA  •  ĐOẠN KẾT VUI TƯƠI BÊN LÀNG QUÊ XANH",
+        "duration": 60,
+        "targetChannels": [
+          "youtube"
+        ],
+        "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        "thumbnailUrl": "/3d_dialogue_clinic_stage.jpg",
+        "musicTrack": {
+          "name": "Vietnamese Countryside Marimba & Flute 116BPM",
+          "license": "Bản quyền thương mại SYNAPES Audio Engine",
+          "volume": 18
+        },
+        "voiceoverTrack": {
+          "name": "Chị Diệu Thảo (Giọng Ca Hoạt Hình Thiếu Nhi 3D — Trong trẻo, Vui tươi)",
+          "voiceName": "vi-sg-female-1"
+        },
+        "metadata": {
+          "title": "Mất Bò Mới Lo Làm Chuồng & Đàn Gà Con Mới Nở (Hoạt Hình 3D Đồng Quê)",
+          "description": "Mất Bò Mới Lo Làm Chuồng & Đàn Gà Con Mới Nở (Hoạt Hình 3D Đồng Quê)\n\nMỐC NỘI DUNG CHÍNH:\n00:00 — 01. BÌNH MINH LÀNG QUÊ YÊN Ả\n00:09 — 02. ĐÀN GÀ CON MỚI NỞ VUI ĐÙA\n00:18 — 03. THỎ BUN NHẮC CỬA CHUỒNG LỎNG LẺO\n00:27 — 04. MẢI CHƠI QUÊN CHỐT CỬA — BÒ ĐI LẠC\n00:36 — 05. CÙNG BẠN BÈ TÌM BÒ & RÚT RA BÀI HỌC\n00:45 — 06. ĐÓNG VÁN CHẮC CHẮN — KHÔNG ĐỂ MẤT BÒ NỮA\n00:54 — 07. ĐOẠN KẾT VUI TƯƠI BÊN LÀNG QUÊ XANH\n\nPHONG CÁCH BIÊN TẬP (SKILL): Tài Liệu & Kể Chuyện Chiều Sâu (/storytelling) — Đạo diễn điện ảnh kể chuyện giàu cảm xúc, chuyển cảnh dissolve mượt mà.",
+          "tags": [
+            "DienAnhStory",
+            "HoatHinh3D",
+            "MatBoMoiLoLamChuong",
+            "DanGaCon",
+            "PixarDongQue",
+            "ThieuNhi3D"
+          ],
+          "productLink": "https://synapes.ai/studio"
+        },
+        "aiSource": {
+          "type": "plugin",
+          "name": "Kling AI (Kuaishou)",
+          "model": "gemini-2.0-flash → kling-v1.5",
+          "pluginUrl": "https://api.klingai.com/v1/videos/text2video"
+        },
+        "tokenTelemetry": {
+          "provider": "synapes-studio-core",
+          "model": "SYNAPES Studio Creative Engine",
+          "promptTokens": 150,
+          "completionTokens": 540,
+          "totalTokens": 690,
+          "keyStatus": "studio_core",
+          "failoverTriggered": false,
+          "failoverReason": "",
+          "attemptedProviders": [
+            "gemini",
+            "studio-core"
+          ]
+        },
+        "createdAt": "2026-11-18T13:37:05.308Z",
+        "storyboard": [
+          {
+            "id": 1,
+            "sceneNumber": 1,
+            "headline": "01. BÌNH MINH LÀNG QUÊ YÊN Ả",
+            "timeRange": "00:00 - 00:09",
+            "startSec": 0,
+            "endSec": 9,
+            "voiceover": "Sáng sớm bên rặng tre xanh, chuông bò leng keng vang khắp triền đê ngập tràn nắng vàng.",
+            "visualPrompt": "Pixar 3D stylized Vietnamese countryside meadow morning golden light, wooden barn, calf, chicks by creek, 8k, anamorphic 35mm cinema composition, soft golden-hour film grain, atmospheric depth of field",
+            "imageUrl": "/3d_dialogue_clinic_stage.jpg",
+            "secondaryImageUrl": "/3d_insect_scene_1.jpg",
+            "sourceCitation": "Google News & Wikimedia Commons",
+            "sceneMetrics": [
+              {
+                "label": "NHỊP ĐỌC THOẠI",
+                "value": "18 từ (4s)",
+                "delta": "270 từ/phút"
+              },
+              {
+                "label": "NGUỒN ĐỐI CHIẾU",
+                "value": "Studio Core",
+                "delta": "0 tin RSS"
+              },
+              {
+                "label": "KHO TƯ LIỆU B-ROLL",
+                "value": "0 tệp HD",
+                "delta": "Cảnh 01"
+              }
+            ],
+            "subShotMode": "auto",
+            "clipUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+            "cameraMotion": "crane-up",
+            "lightingStyle": "rembrandt",
+            "sfx": "Cinematic Atmos Swell",
+            "transition": "dissolve",
+            "voiceId": "vi-mature-male",
+            "voiceLanguage": "vi",
+            "voiceSpeed": 1,
+            "voicePitch": 0.96,
+            "speakerId": "bo-vang",
+            "speakerName": "Người Kể Chuyện",
+            "cameraAngle": "master-shot",
+            "explodedView": false,
+            "apertureBlades": false,
+            "appleMotion3d": "none"
+          },
+          {
+            "id": 2,
+            "sceneNumber": 2,
+            "headline": "02. ĐÀN GÀ CON MỚI NỞ VUI ĐÙA",
+            "timeRange": "00:09 - 00:18",
+            "startSec": 9,
+            "endSec": 18,
+            "voiceover": "Chiếp chiếp chiếp! Đàn gà con lông vàng óng ánh tung tăng nhảy múa theo điệu nhạc ban mai!",
+            "visualPrompt": "Cute 3D baby yellow chicks flapping wings hopping happily beside mother hen, Glow Studios inspired, 8k, anamorphic 35mm cinema composition, soft golden-hour film grain, atmospheric depth of field",
+            "imageUrl": "/3d_dialogue_garden_stage.jpg",
+            "secondaryImageUrl": "/3d_insect_scene_2.jpg",
+            "sourceCitation": "Google News & Wikimedia Commons",
+            "sceneMetrics": [
+              {
+                "label": "NHỊP ĐỌC THOẠI",
+                "value": "19 từ (4s)",
+                "delta": "285 từ/phút"
+              },
+              {
+                "label": "NGUỒN ĐỐI CHIẾU",
+                "value": "Studio Core",
+                "delta": "0 tin RSS"
+              },
+              {
+                "label": "KHO TƯ LIỆU B-ROLL",
+                "value": "0 tệp HD",
+                "delta": "Cảnh 02"
+              }
+            ],
+            "subShotMode": "auto",
+            "clipUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+            "cameraMotion": "dolly-in",
+            "lightingStyle": "golden-hour",
+            "sfx": "Deep Film Riser",
+            "transition": "dissolve",
+            "voiceId": "vi-child-female",
+            "voiceLanguage": "vi",
+            "voiceSpeed": 1.12,
+            "voicePitch": 1.38,
+            "speakerId": "dan-ga-con",
+            "speakerName": "Đàn Gà Con Mới Nở",
+            "cameraAngle": "close-up-speaker",
+            "explodedView": false,
+            "apertureBlades": false,
+            "appleMotion3d": "none"
+          },
+          {
+            "id": 3,
+            "sceneNumber": 3,
+            "headline": "03. THỎ BUN NHẮC CỬA CHUỒNG LỎNG LẺO",
+            "timeRange": "00:18 - 00:27",
+            "startSec": 18,
+            "endSec": 27,
+            "voiceover": "Anh Tí ơi! Cánh cửa chuồng bò bị tuột đinh kìa, lát trưa gió to là bò đi lạc mất đấy!",
+            "visualPrompt": "3D white bunny in blue vest pointing excitedly at loose wooden barn door warning shepherd boy Be Ti, 8k, anamorphic 35mm cinema composition, soft golden-hour film grain, atmospheric depth of field",
+            "imageUrl": "/3d_forest_stage_1.jpg",
+            "secondaryImageUrl": "/3d_dialogue_clinic_stage.jpg",
+            "sourceCitation": "Google News & Wikimedia Commons",
+            "sceneMetrics": [
+              {
+                "label": "NHỊP ĐỌC THOẠI",
+                "value": "21 từ (4s)",
+                "delta": "315 từ/phút"
+              },
+              {
+                "label": "NGUỒN ĐỐI CHIẾU",
+                "value": "Studio Core",
+                "delta": "0 tin RSS"
+              },
+              {
+                "label": "KHO TƯ LIỆU B-ROLL",
+                "value": "0 tệp HD",
+                "delta": "Cảnh 03"
+              }
+            ],
+            "subShotMode": "auto",
+            "clipUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+            "cameraMotion": "orbit",
+            "lightingStyle": "volumetric",
+            "sfx": "Anamorphic Lens Sweep",
+            "transition": "dissolve",
+            "voiceId": "vi-child-female",
+            "voiceLanguage": "vi",
+            "voiceSpeed": 1.04,
+            "voicePitch": 1.26,
+            "speakerId": "tho-bun",
+            "speakerName": "Thỏ Trắng Bun",
+            "cameraAngle": "two-shot",
+            "explodedView": false,
+            "apertureBlades": false,
+            "appleMotion3d": "none"
+          },
+          {
+            "id": 4,
+            "sceneNumber": 4,
+            "headline": "04. MẢI CHƠI QUÊN CHỐT CỬA — BÒ ĐI LẠC",
+            "timeRange": "00:27 - 00:36",
+            "startSec": 27,
+            "endSec": 36,
+            "voiceover": "Ôi không! Tí mải thả diều nên quên sửa chuồng, Bò Vàng đẩy tung cửa gỗ đi tuốt ra đồng xa mất rồi!",
+            "visualPrompt": "Over shoulder 3D shot of Be Ti shocked seeing empty barn gate and golden cow wandering across meadow hills, 8k, anamorphic 35mm cinema composition, soft golden-hour film grain, atmospheric depth of field",
+            "imageUrl": "/3d_forest_stage_2.jpg",
+            "secondaryImageUrl": "/3d_dialogue_garden_stage.jpg",
+            "sourceCitation": "Google News & Wikimedia Commons",
+            "sceneMetrics": [
+              {
+                "label": "NHỊP ĐỌC THOẠI",
+                "value": "23 từ (4s)",
+                "delta": "345 từ/phút"
+              },
+              {
+                "label": "NGUỒN ĐỐI CHIẾU",
+                "value": "Studio Core",
+                "delta": "0 tin RSS"
+              },
+              {
+                "label": "KHO TƯ LIỆU B-ROLL",
+                "value": "0 tệp HD",
+                "delta": "Cảnh 04"
+              }
+            ],
+            "subShotMode": "auto",
+            "clipUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4",
+            "cameraMotion": "pan-right",
+            "lightingStyle": "studio-clean",
+            "sfx": "Cinematic Atmos Swell",
+            "transition": "dissolve",
+            "voiceId": "vi-child-male",
+            "voiceLanguage": "vi",
+            "voiceSpeed": 1.06,
+            "voicePitch": 1.2,
+            "speakerId": "be-ti",
+            "speakerName": "Cậu Bé Tí",
+            "cameraAngle": "over-the-shoulder",
+            "explodedView": false,
+            "apertureBlades": false,
+            "appleMotion3d": "none"
+          },
+          {
+            "id": 5,
+            "sceneNumber": 5,
+            "headline": "05. CÙNG BẠN BÈ TÌM BÒ & RÚT RA BÀI HỌC",
+            "timeRange": "00:36 - 00:45",
+            "startSec": 36,
+            "endSec": 45,
+            "voiceover": "Đừng lo anh Tí ơi! Thỏ và đàn gà con thấy dấu chân bên suối rồi, mình dắt Bò Vàng về sửa chuồng ngay nhé!",
+            "visualPrompt": "3D reverse shot bunny and chicks guiding Be Ti toward creek wooden path, warm teamwork, 8k, anamorphic 35mm cinema composition, soft golden-hour film grain, atmospheric depth of field",
+            "imageUrl": "/3d_insect_scene_1.jpg",
+            "secondaryImageUrl": "/3d_forest_stage_1.jpg",
+            "sourceCitation": "Google News & Wikimedia Commons",
+            "sceneMetrics": [
+              {
+                "label": "NHỊP ĐỌC THOẠI",
+                "value": "25 từ (4s)",
+                "delta": "375 từ/phút"
+              },
+              {
+                "label": "NGUỒN ĐỐI CHIẾU",
+                "value": "Studio Core",
+                "delta": "0 tin RSS"
+              },
+              {
+                "label": "KHO TƯ LIỆU B-ROLL",
+                "value": "0 tệp HD",
+                "delta": "Cảnh 05"
+              }
+            ],
+            "subShotMode": "auto",
+            "clipUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4",
+            "cameraMotion": "dolly-out",
+            "lightingStyle": "rembrandt",
+            "sfx": "Deep Film Riser",
+            "transition": "dissolve",
+            "voiceId": "vi-child-female",
+            "voiceLanguage": "vi",
+            "voiceSpeed": 1.05,
+            "voicePitch": 1.26,
+            "speakerId": "tho-bun",
+            "speakerName": "Thỏ Trắng Bun",
+            "cameraAngle": "shot-reverse-shot",
+            "explodedView": false,
+            "apertureBlades": false,
+            "appleMotion3d": "none"
+          },
+          {
+            "id": 6,
+            "sceneNumber": 6,
+            "headline": "06. ĐÓNG VÁN CHẮC CHẮN — KHÔNG ĐỂ MẤT BÒ NỮA",
+            "timeRange": "00:45 - 00:54",
+            "startSec": 45,
+            "endSec": 54,
+            "voiceover": "Cốc cốc cốc! Tí đóng lại ba thanh gỗ thật chắc, từ nay nhớ làm chuồng trước chứ không đợi mất bò mới lo!",
+            "visualPrompt": "3D two-shot Be Ti hammering new solid planks onto barn fence while bunny hands nails, sunny glow, 8k, anamorphic 35mm cinema composition, soft golden-hour film grain, atmospheric depth of field",
+            "imageUrl": "/3d_insect_scene_2.jpg",
+            "secondaryImageUrl": "/3d_forest_stage_2.jpg",
+            "sourceCitation": "Google News & Wikimedia Commons",
+            "sceneMetrics": [
+              {
+                "label": "NHỊP ĐỌC THOẠI",
+                "value": "24 từ (4s)",
+                "delta": "360 từ/phút"
+              },
+              {
+                "label": "NGUỒN ĐỐI CHIẾU",
+                "value": "Studio Core",
+                "delta": "0 tin RSS"
+              },
+              {
+                "label": "KHO TƯ LIỆU B-ROLL",
+                "value": "0 tệp HD",
+                "delta": "Cảnh 06"
+              }
+            ],
+            "subShotMode": "auto",
+            "clipUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+            "cameraMotion": "crane-up",
+            "lightingStyle": "golden-hour",
+            "sfx": "Anamorphic Lens Sweep",
+            "transition": "dissolve",
+            "voiceId": "vi-child-male",
+            "voiceLanguage": "vi",
+            "voiceSpeed": 1.05,
+            "voicePitch": 1.18,
+            "speakerId": "be-ti",
+            "speakerName": "Cậu Bé Tí",
+            "cameraAngle": "two-shot",
+            "explodedView": false,
+            "apertureBlades": false,
+            "appleMotion3d": "none"
+          },
+          {
+            "id": 7,
+            "sceneNumber": 7,
+            "headline": "07. ĐOẠN KẾT VUI TƯƠI BÊN LÀNG QUÊ XANH",
+            "timeRange": "00:54 - 01:00",
+            "startSec": 54,
+            "endSec": 60,
+            "voiceover": "Hoan hô! Phòng bệnh hơn chữa bệnh, cẩn thận từ đầu để ngày nào đồng quê cũng rộn rã tiếng cười vui!",
+            "visualPrompt": "Pixar 3D wide celebration shot of Be Ti, golden cow inside sturdy barn, dancing chicks and bunny singing together, 8k, anamorphic 35mm cinema composition, soft golden-hour film grain, atmospheric depth of field",
+            "imageUrl": "/3d_dialogue_clinic_stage.jpg",
+            "secondaryImageUrl": "/3d_insect_scene_1.jpg",
+            "sourceCitation": "Google News & Wikimedia Commons",
+            "sceneMetrics": [
+              {
+                "label": "NHỊP ĐỌC THOẠI",
+                "value": "22 từ (4s)",
+                "delta": "330 từ/phút"
+              },
+              {
+                "label": "NGUỒN ĐỐI CHIẾU",
+                "value": "Studio Core",
+                "delta": "0 tin RSS"
+              },
+              {
+                "label": "KHO TƯ LIỆU B-ROLL",
+                "value": "0 tệp HD",
+                "delta": "Cảnh 07"
+              }
+            ],
+            "subShotMode": "auto",
+            "clipUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+            "cameraMotion": "dolly-in",
+            "lightingStyle": "volumetric",
+            "sfx": "Cinematic Atmos Swell",
+            "transition": "dissolve",
+            "voiceId": "vi-mature-male",
+            "voiceLanguage": "vi",
+            "voiceSpeed": 1.04,
+            "voicePitch": 1.02,
+            "speakerId": "bo-vang",
+            "speakerName": "Cả Nhóm Đồng Ca",
+            "cameraAngle": "master-shot",
+            "explodedView": false,
+            "apertureBlades": false,
+            "appleMotion3d": "none"
+          }
+        ]
+      }
+    ]
+  },
+  "backupHistory": [
+    {
+      "timestamp": "2026-11-18T13:38:50.882Z",
+      "checksum": "5f3852b0030a294b22a38e504485e5cd874ab6cd12e0340b42f3629ed303babe",
+      "projectCount": 2,
+      "channelCount": 4
+    },
+    {
+      "timestamp": "2026-11-18T13:37:11.624Z",
+      "checksum": "09b0a934f30527f5724fdad6f9fa4c472301ebb67cc5f1d8f7f10a330e0f1eb8",
+      "projectCount": 1,
+      "channelCount": 4
+    },
+    {
+      "timestamp": "2026-11-18T13:36:57.449Z",
+      "checksum": "0b00b2864be79cdb26afdc11758d67ed80b138ee2c0330e641b6542bbc206fff",
+      "projectCount": 0,
+      "channelCount": 4
+    },
+    {
+      "timestamp": "2026-11-18T13:36:50.079Z",
+      "checksum": "715aa24d3208bd73a0182427b5c74bc8d4a2105e700c995c291a3bfb9f698fff",
+      "projectCount": 0,
+      "channelCount": 4
+    },
+    {
+      "timestamp": "2026-11-18T13:11:22.933Z",
+      "checksum": "bef3e656f23f4c2fbc040392c754ef03d93a4572bbd307c377046533f7402b46",
+      "projectCount": 2,
+      "channelCount": 4
+    },
+    {
+      "timestamp": "2026-11-18T13:09:48.953Z",
+      "checksum": "1c4e07f6b182a4c4dec4790e88b6f6dac125cbe7f06b59b4f5cd466a8c6890a9",
+      "projectCount": 1,
+      "channelCount": 4
+    },
+    {
+      "timestamp": "2026-11-18T13:09:41.075Z",
+      "checksum": "adecd380db81776f466effb751e042305df92e8fd77fb4c684bad8322df50e42",
+      "projectCount": 0,
+      "channelCount": 4
+    },
+    {
+      "timestamp": "2026-11-18T13:09:34.650Z",
+      "checksum": "715aa24d3208bd73a0182427b5c74bc8d4a2105e700c995c291a3bfb9f698fff",
+      "projectCount": 0,
+      "channelCount": 4
+    }
+  ]
+}

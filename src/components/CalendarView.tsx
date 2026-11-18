@@ -227,8 +227,9 @@ const DONG_HO_IMAGE_BY_KEY: Record<DongHoZodiacMeta['key'], string> = {
 export const DongHoZodiacPainting: React.FC<{
   zodiac: DongHoZodiacMeta;
   large?: boolean;
+  compact?: boolean;
   onClick?: () => void;
-}> = ({ zodiac, large = false, onClick }) => {
+}> = ({ zodiac, large = false, compact = false, onClick }) => {
   const isHoeBg = zodiac.paperTone === 'hoe-gold';
   const imgSrc = DONG_HO_IMAGE_BY_KEY[zodiac.key] || '/dong-ho/zodiac-01-ty.jpg';
 
@@ -243,7 +244,9 @@ export const DongHoZodiacPainting: React.FC<{
       style={
         large
           ? { aspectRatio: '4 / 3', backgroundColor: isHoeBg ? '#DFC252' : '#ECE6D4' }
-          : { width: 172, height: 129, backgroundColor: isHoeBg ? '#DFC252' : '#ECE6D4' }
+          : compact
+            ? { width: 96, height: 72, backgroundColor: isHoeBg ? '#DFC252' : '#ECE6D4' }
+            : { width: 172, height: 129, backgroundColor: isHoeBg ? '#DFC252' : '#ECE6D4' }
       }
       title={`${zodiac.paintingTitle} (${zodiac.hanNom.join('')}) — Nhấn để phóng to Triển lãm 12 Tranh Đông Hồ`}
       data-testid={large ? 'dong-ho-zodiac-large' : 'dong-ho-zodiac-emblem'}
@@ -533,13 +536,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
       )}
 
-      {/* Header Bar với Tranh Dân Gian Đông Hồ tĩnh ở góc trên bên trái Lịch Biểu */}
-      <div className="studio-card p-3.5 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
+      {/* Header Bar cân đối với huy hiệu Tranh Dân Gian Đông Hồ (chống bóp nghẹt cột tiêu đề) */}
+      <div className="studio-card p-3.5 sm:p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex flex-wrap sm:flex-nowrap items-start sm:items-center gap-3.5 min-w-0 flex-1">
           {onBack && (
             <button
               onClick={onBack}
-              className="btn-secondary flex items-center gap-1.5"
+              className="btn-secondary flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 cursor-pointer"
               title="Quay lại bàn duyệt"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
@@ -547,19 +550,22 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </button>
           )}
 
-          {/* Bức Tranh Khắc Gỗ Đông Hồ 12 Con Giáp đứng yên cố định ở góc trên bên trái */}
-          <DongHoZodiacPainting
-            zodiac={currentZodiac}
-            onClick={() => {
-              setActiveMuseumMonth(currentZodiac.month);
-              setShowZodiacMuseumModal(true);
-            }}
-          />
+          {/* Bức Tranh Khắc Gỗ Đông Hồ 12 Con Giáp thu gọn cố định kích thước */}
+          <div className="flex-shrink-0 w-24">
+            <DongHoZodiacPainting
+              zodiac={currentZodiac}
+              compact
+              onClick={() => {
+                setActiveMuseumMonth(currentZodiac.month);
+                setShowZodiacMuseumModal(true);
+              }}
+            />
+          </div>
 
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-base font-bold text-[#141413] tracking-tight flex items-center gap-2">
-                <CalendarIcon className="w-4 h-4 text-[#8B261D]" />
+              <h2 className="text-base font-bold text-[#141413] tracking-tight flex items-center gap-2 whitespace-nowrap">
+                <CalendarIcon className="w-4 h-4 text-[#8B261D] flex-shrink-0" />
                 <span>Lịch Phát Sóng Video</span>
               </h2>
               <button
@@ -568,21 +574,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   setActiveMuseumMonth(currentZodiac.month);
                   setShowZodiacMuseumModal(true);
                 }}
-                className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#F5EFE0] text-[#8D281B] border border-[#8D281B]/25 hover:bg-[#E4C85E]/40 transition cursor-pointer"
+                className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-[#F5EFE0] text-[#8D281B] border border-[#8D281B]/25 hover:bg-[#E4C85E]/40 transition cursor-pointer whitespace-nowrap"
                 data-testid="open-dong-ho-museum-btn"
               >
                 Tháng {currentZodiac.month} ({currentZodiac.chiName}): {currentZodiac.paintingTitle}
               </button>
               <span
-                className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80"
+                className="text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 whitespace-nowrap"
                 data-testid="calendar-ip-clock"
                 title={ipGeoClock ? `Múi giờ theo IP: ${ipGeoClock.timezone}` : 'Thời gian hệ thống'}
               >
-                🕒 Hôm nay: {todayDate.getDate().toString().padStart(2, '0')}/{(todayDate.getMonth() + 1).toString().padStart(2, '0')}/{todayDate.getFullYear()}
+                Hôm nay: {todayDate.getDate().toString().padStart(2, '0')}/{(todayDate.getMonth() + 1).toString().padStart(2, '0')}/{todayDate.getFullYear()}
                 {ipGeoClock ? ` • ${ipGeoClock.countryName} (${ipGeoClock.countryCode})` : ''}
               </span>
             </div>
-            <p className="text-zinc-500 text-xs mt-1">
+            <p className="text-zinc-500 text-xs mt-1 leading-relaxed">
               Quản lý lịch xuất bản theo ngày/giờ riêng cho từng video trên YouTube, TikTok và Facebook
             </p>
           </div>

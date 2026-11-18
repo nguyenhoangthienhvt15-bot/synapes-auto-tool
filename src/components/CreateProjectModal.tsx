@@ -57,6 +57,8 @@ import {
 } from '../services/aiScriptGeneratorService';
 import { getSavedClonedVoiceProfiles } from '../services/voiceStudioService';
 import { dispatchScriptToPluginEngine } from '../services/pluginWebhookService';
+import { routeSemanticPipeline } from '../services/semanticPipelineRouter';
+import { runMultiAgentWritersRoom, WritersRoomSessionResult } from '../services/multiAgentWritersRoom';
 import { AiProviderDropdown, AiModelDropdown, ProviderBrandLogo } from './AiProviderDropdown';
 
 interface CreateProjectModalProps {
@@ -410,7 +412,17 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [isHarvestingInternet, setIsHarvestingInternet] = useState(false);
   const [harvestedResearch, setHarvestedResearch] = useState<TopicResearchPayload | null>(null);
   const [harvestError, setHarvestError] = useState<string | null>(null);
+  const [writersRoomResult, setWritersRoomResult] = useState<WritersRoomSessionResult | null>(null);
+  const [isRunningWritersRoom, setIsRunningWritersRoom] = useState(false);
   const savedClonedVoices = getSavedClonedVoiceProfiles();
+
+  const activeSelectedSkillCommand =
+    allSkills.find((s) => s.id === selectedSkillId)?.command || null;
+  const semanticRoute = routeSemanticPipeline(
+    promptText,
+    activeSelectedSkillCommand,
+    targetDurationSec
+  );
 
   const buildConfiguredFallbackProviders = (primaryProv: AIProviderId) => {
     const candidateIds: AIProviderId[] = ['gemini', 'openai', 'claude', 'deepseek', 'grok'];
@@ -430,8 +442,46 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       .filter(Boolean) as Array<{ provider: AIProviderId; model: string; apiKey: string; endpointUrl?: string }>;
   };
 
+  const isThreeDAnimationIntent = semanticRoute.lockWikimediaSearch;
+
+  const handleRunWritersRoomPreview = async () => {
+    const q = (promptText || '').trim();
+    if (!q) {
+      setHarvestError('Vui lòng nhập chủ đề trước khi chạy Multi-Agent Writers Room.');
+      return;
+    }
+    setIsRunningWritersRoom(true);
+    try {
+      const apiKey = getProviderApiKey(selectedProvider, aiConfig);
+      const endpointUrl = (aiConfig[selectedProvider as keyof AIProviderConfig] as any)?.endpointUrl;
+      const room = await runMultiAgentWritersRoom({
+        prompt: q,
+        route: semanticRoute,
+        targetDurationSec,
+        aiConfig: apiKey
+          ? { provider: selectedProvider, model: selectedModel, apiKey, endpointUrl }
+          : undefined,
+      });
+      setWritersRoomResult(room);
+    } catch (err: any) {
+      setHarvestError(err?.message || 'Lỗi khi chạy Multi-Agent Writers Room.');
+    } finally {
+      setIsRunningWritersRoom(false);
+    }
+  };
+
   const handleHarvestInternetData = async () => {
-    const q = (promptText || '').trim() || 'Xu hướng công nghệ trí tuệ nhân tạo mới nhất';
+    const q = (promptText || '').trim();
+    if (!q) {
+      setHarvestedResearch(null);
+      setHarvestError('Vui lòng nhập chủ đề hoặc nội dung vào ô kịch bản trước khi thu thập dữ liệu Internet.');
+      return;
+    }
+    if (isThreeDAnimationIntent) {
+      setHarvestedResearch(null);
+      setHarvestError('Đã tự động khóa tìm ảnh Wikimedia/báo chí cho luồng Hoạt hình 3D để bảo toàn nhất quán nhân vật AI (Character Consistency Vault).');
+      return;
+    }
     setIsHarvestingInternet(true);
     setHarvestError(null);
     try {
@@ -458,6 +508,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         setHarvestError('Không tìm thấy dữ liệu Internet mới cho từ khóa này — thử từ khóa tiếng Việt/Anh cụ thể hơn.');
       }
     } catch (err: any) {
+      setHarvestedResearch(null);
       setHarvestError(err?.message || 'Lỗi kết nối thu thập dữ liệu Internet.');
     } finally {
       setIsHarvestingInternet(false);
@@ -1240,7 +1291,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 placeholder="Nhập nội dung, đề tài hoặc gõ từng dòng phân cảnh (Ví dụ: 1. Cảnh mở đầu..., 2. Cận cảnh..., hoặc mô tả trực tiếp yêu cầu video của bạn)..."
                 value={promptText}
                 onChange={(e) => {
-                  setPromptText(e.target.value);
+                  const nextVal = e.target.value;
+                  setPromptText(nextVal);
+                  setHarvestedResearch(null);
+                  setHarvestError(null);
+                  setWritersRoomResult(null);
                   if (suggestedScript) {
                     setSuggestedScript(null);
                     setPreviewScenes([]);
@@ -1259,14 +1314,32 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                   <button
                     type="button"
                     onClick={handleHarvestInternetData}
-                    disabled={isHarvestingInternet}
+                    disabled={isHarvestingInternet || !promptText.trim() || isThreeDAnimationIntent}
                     data-testid="harvest-internet-data-btn"
-                    className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50"
+                    title={
+                      isThreeDAnimationIntent
+                        ? 'Luồng Hoạt hình 3D tự động khóa tìm ảnh Wikimedia để giữ nhất quán nhân vật'
+                        : !promptText.trim()
+                          ? 'Vui lòng nhập chủ đề trước khi thu thập dữ liệu Internet'
+                          : 'Thu thập dữ liệu báo chí & B-Roll thực tế theo chủ đề đã nhập'
+                    }
+                    className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <RefreshCw className={`w-3 h-3 ${isHarvestingInternet ? 'animate-spin' : ''}`} />
-                    <span>{isHarvestingInternet ? 'Đang Thu Thập...' : 'Thu Thập Dữ Liệu Internet & B-Roll'}</span>
+                    <span>
+                      {isHarvestingInternet
+                        ? 'Đang Thu Thập...'
+                        : isThreeDAnimationIntent
+                          ? 'Đã Khóa Ảnh Wikimedia (3D)'
+                          : 'Thu Thập Dữ Liệu Internet & B-Roll'}
+                    </span>
                   </button>
                 </div>
+                {isThreeDAnimationIntent && (
+                  <p className="text-[10.5px] text-indigo-800 bg-indigo-50 px-2 py-1 rounded border border-indigo-200" data-testid="wikimedia-locked-notice">
+                    Chế độ Hoạt hình 3D đang kích hoạt: hệ thống tự động khóa nguồn ảnh Wikimedia/tin tức để bảo vệ Character Consistency Vault.
+                  </p>
+                )}
                 {harvestError && (
                   <p className="text-[10.5px] text-amber-800 bg-amber-50 px-2 py-1 rounded border border-amber-200">{harvestError}</p>
                 )}
@@ -1276,13 +1349,67 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                       <span>✓ {harvestedResearch.headlines.length} Tin báo chí</span>
                       <span>• {harvestedResearch.visuals.length} Ảnh tư liệu Wikimedia</span>
                       <span>• {harvestedResearch.videos?.length || 0} Clip B-Roll Video</span>
-                      <span>• Wiki: {harvestedResearch.wikiSummary ? 'Đã nạp ✓' : 'Ngắn gọn'}</span>
+                      <span>• Wiki: {harvestedResearch.wikiSummary ? 'Đã nạp ✓' : 'Không tìm thấy'}</span>
                     </div>
                     {harvestedResearch.headlines[0] && (
                       <div className="text-zinc-600 truncate">
                         Tiêu điểm: <strong>[{harvestedResearch.headlines[0].source}]</strong> {harvestedResearch.headlines[0].title}
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+
+              {/* Semantic Intent Router, Audience Compliance & Multi-Agent Writers Room */}
+              <div className="p-2.5 rounded-xl bg-zinc-50 border border-black/[0.08] space-y-2" data-testid="semantic-router-panel">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10.5px]">
+                    <span className="font-semibold text-zinc-900 px-2 py-0.5 rounded-md bg-white border border-black/[0.08]">
+                      {semanticRoute.flowLabel}
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-md font-mono font-semibold border ${
+                        semanticRoute.compliance.isMadeForKids
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : semanticRoute.compliance.audienceRating === 'FINANCIAL_ADVISORY_16_PLUS'
+                            ? 'bg-amber-50 text-amber-800 border-amber-200'
+                            : 'bg-zinc-100 text-zinc-700 border-black/[0.08]'
+                      }`}
+                    >
+                      {semanticRoute.compliance.isMadeForKids
+                        ? 'Made for Kids (COPPA)'
+                        : semanticRoute.compliance.audienceRating}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRunWritersRoomPreview}
+                    disabled={isRunningWritersRoom || !promptText.trim()}
+                    data-testid="run-writers-room-btn"
+                    className="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-[10.5px] font-semibold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-300" />
+                    <span>
+                      {isRunningWritersRoom
+                        ? '4 Agents đang họp...'
+                        : 'Họp 4 Agents (Writers Room)'}
+                    </span>
+                  </button>
+                </div>
+
+                {writersRoomResult && (
+                  <div className="p-2 rounded-lg bg-white border border-black/[0.08] space-y-1.5 text-[10.5px]" data-testid="writers-room-summary">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/[0.06] pb-1">
+                      <span className="font-semibold text-zinc-900">
+                        Character Vault Seed #{writersRoomResult.characterVault[0]?.fixedSeed} • {writersRoomResult.cinematographerSpecs.length} Shots
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono font-bold">
+                        Rubric Critic: {writersRoomResult.rubricCritic.totalScore}/100
+                      </span>
+                    </div>
+                    <div className="text-zinc-600 line-clamp-2">
+                      {writersRoomResult.storyArchitectScenes.map((sc) => `${sc.beatRole} (${sc.durationSec}s)`).join(' → ')} | SFX: {writersRoomResult.foleySfxCues[0]?.musicBpm} BPM
+                    </div>
                   </div>
                 )}
               </div>

@@ -476,8 +476,9 @@ export function detectVideoGenre(
 
   if (
     domain === 'animation-3d' ||
-    /hoạt hình|pixar|disney|cartoon|anime|côn trùng|cào cào|châu chấu|chú thỏ|bộ xương hoạt hình|đếm số|thiếu nhi|nhảy múa|animation|3d character|3d cartoon/.test(
-      promptTextOnly
+    skill?.command === '/3d-character' ||
+    /hoạt hình|pixar|disney|cartoon|anime|côn trùng|cào cào|châu chấu|chú thỏ|bộ xương hoạt hình|đếm số|thiếu nhi|nhảy múa|animation|3d character|nhân vật 3d|3d cartoon/.test(
+      combined
     )
   ) {
     return '3d-animation';
@@ -1175,15 +1176,18 @@ async function callGeminiDirectBrowser(
     .trim()
     .replace(/\/+$/, '');
 
-  const cleanPreferred = preferredModel.replace(/^models\//, '').trim() || 'gemini-2.0-flash';
-  const isAliasOrPreview = /^(gemini-3\.[5-9]|gemma-4)/i.test(cleanPreferred);
+  const cleanPreferred = preferredModel.replace(/^models\//, '').trim() || 'gemini-3-flash-preview';
   const isNonScript = /tts|imagen|-image|embedding|veo|audio|-live|aqa/i.test(cleanPreferred);
 
   const candidateModels = Array.from(
     new Set([
-      ...(!isNonScript && !isAliasOrPreview ? [cleanPreferred] : []),
-      'gemini-2.0-flash',
+      ...(!isNonScript ? [cleanPreferred] : []),
+      'gemini-3-flash-preview',
+      'gemini-3.5-flash',
+      'gemini-3.8-flash',
+      'gemini-3.1-pro-preview',
       'gemini-2.5-flash',
+      'gemini-2.0-flash',
     ])
   );
 
@@ -1213,6 +1217,7 @@ async function callGeminiDirectBrowser(
       const url = `${base}/models/${encodeURIComponent(mod)}:generateContent?key=${encodeURIComponent(apiKey)}`;
       const contents = [{ parts }];
 
+      const supportsThinkBudget = /^(?:gemini-2\.5|gemini-3\.[5-9]|gemini-3-flash)/i.test(mod);
       let res = await fetchWithTimeoutAndSignal(
         url,
         {
@@ -1224,10 +1229,11 @@ async function callGeminiDirectBrowser(
               temperature: 0.65,
               maxOutputTokens: 2500,
               responseMimeType: 'application/json',
+              ...(supportsThinkBudget ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
             },
           }),
         },
-        5000,
+        20000,
         externalSignal
       );
 
@@ -1242,7 +1248,7 @@ async function callGeminiDirectBrowser(
               generationConfig: { temperature: 0.65, maxOutputTokens: 2500 },
             }),
           },
-          5000,
+          20000,
           externalSignal
         );
       }
@@ -1360,19 +1366,383 @@ function generateBespokeMultiGenreScript(
   const promptClauses = splitPromptClauses(rawPrompt, coreSubject);
   const fullTextSignal = `${rawPrompt} ${coreSubject}`;
 
-  // Tách 1-2 câu ngắn gọn từ Wikipedia nếu có
+  // Tách 1-2 câu sạch sẽ từ Wikipedia (xóa bỏ ngoặc ngày sinh/trích dẫn thô như "(sinh ngày 17 tháng 2 năm 1963)")
   const wikiClean = (research.wikiSummary || '')
+    .replace(/\([^)]*\)/g, '')
     .replace(/\s+/g, ' ')
     .split(/(?<=[.!?])\s+/)
-    .filter((s) => s.length > 35 && s.length < 220);
+    .map((s) => s.replace(/^[^:]{2,40}:\s*/, '').trim())
+    .filter((s) => s.length > 30 && s.length < 180 && !/\b(?:sinh ngày|tên khai sinh|là một doanh nhân người Mỹ)\b/i.test(s));
   const wikiFact1 = wikiClean[0] || '';
 
   // 0. CHẾ ĐỘ HOẠT HÌNH 3D ĐỐI THOẠI ĐA NHÂN VẬT & SÁNG TẠO THEO PROMPT
   if (videoGenre === '3d-animation' || domain === 'animation-3d') {
+    const isMotherDuck3d = /vịt\s*mẹ|đàn\s*vịt|vịt\s*con|lông\s*vàng|hvuA-jg9N7s/i.test(
+      fullTextSignal
+    );
+    const isCountrysideFable3d = !isMotherDuck3d && /mất\s*bò|làm\s*chuồng|đàn\s*gà|gà\s*con|đồng\s*quê|chăn\s*trâu|be-ti|bo-vang|dan-ga-con/i.test(
+      fullTextSignal
+    );
     const isRabbitDialogue = /thỏ\s*con|thỏ\s*hồng|bị\s*ốm|bác\s*sĩ\s*gấu/i.test(fullTextSignal);
     const isInsectCounting = /côn\s*trùng|cào\s*cào|châu\s*chấu|đếm\s*số|1\s*đến\s*10|một\s*đến\s*mười/i.test(
       fullTextSignal
     );
+
+    if (isMotherDuck3d) {
+      const title = 'Vịt Mẹ Và Đàn Con — Vịt Con Lông Vàng 3D (Glow Studios Reference Pipeline)';
+      const characterActors: CharacterActor[] = [
+        {
+          id: 'vit-me',
+          name: 'Vịt Mẹ Trắng (Chóp Cánh Xanh Ngọc)',
+          roleDescription: 'Vịt mẹ thân trắng, vòng cổ & chóp cánh xanh ngọc, ngậm lá hướng dẫn đàn con tập thể dục',
+          avatarUrl: '',
+          voiceId: 'vi-gentle-female',
+          voiceName: 'Giọng Ca Vịt Mẹ Dịu Dàng (HoaiMy Chuẩn)',
+          voiceSpeed: 1.02,
+          voicePitch: 1.08,
+          themeColor: '#06b6d4',
+          defaultEmotion: 'caring',
+        },
+        {
+          id: 'dan-vit-con',
+          name: '5 Chú Vịt Con Lông Vàng',
+          roleDescription: '5 chú vịt con bầu bĩnh 3 chỏm lông đầu, chú đầu đàn đội mũ hoa đỏ cuống xanh',
+          avatarUrl: '',
+          voiceId: 'vi-child-female',
+          voiceName: 'Đồng Ca Thiếu Nhi Vịt Con (HoaiMy +30% Pitch)',
+          voiceSpeed: 1.08,
+          voicePitch: 1.3,
+          themeColor: '#eab308',
+          defaultEmotion: 'playful',
+        },
+        {
+          id: 'ga-trong',
+          name: 'Gà Trống Ngũ Sắc',
+          roleDescription: 'Gà trống đứng trên mái ngói đỏ gáy báo thức bình minh',
+          avatarUrl: '',
+          voiceId: 'vi-mature-male',
+          voiceName: 'Giọng Gà Trống Khỏe Khoắn',
+          voiceSpeed: 1.0,
+          voicePitch: 0.98,
+          themeColor: '#dc2626',
+          defaultEmotion: 'happy',
+        },
+      ];
+
+      const duckScenes = [
+        {
+          sceneNumber: 1,
+          speakerId: 'dan-vit-con',
+          speakerName: 'Vịt Con Mũ Hoa Đỏ',
+          cameraAngle: 'close-up-speaker' as CameraDialogueAngle,
+          headline: '01. THỨC DẬY TRONG RỔ MÂY NHÀ GỖ VÒM',
+          durationSec: 5,
+          voiceover: 'Bình minh rạng rỡ rồi, chú vịt con đội mũ hoa đỏ vươn vai thức dậy trong rổ mây ấm áp!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.28,
+          voiceSpeed: 1.05,
+          visualPrompt: '3D yellow duckling with red green flower hat waking in wicker basket inside wooden coop arch, Glow Studios style',
+          imageUrl: '',
+          cameraMotion: 'dolly-in',
+          lightingStyle: 'golden-hour',
+          sfx: 'Soft Morning Harp + Baby Duck Chirp',
+          transition: 'fade',
+        },
+        {
+          sceneNumber: 2,
+          speakerId: 'ga-trong',
+          speakerName: 'Gà Trống Mái Ngói',
+          cameraAngle: 'master-shot' as CameraDialogueAngle,
+          headline: '02. GÀ TRỐNG GÁY SÁNG TRÊN MÁI NGÓI ĐỎ',
+          durationSec: 5,
+          voiceover: 'Ò ó o! Ông mặt trời lên cao, gà trống ngũ sắc cất tiếng gáy vang gọi cả xóm nhỏ ra sân!',
+          voiceId: 'vi-mature-male',
+          voicePitch: 0.98,
+          voiceSpeed: 1.02,
+          visualPrompt: '3D colorful rooster crowing on stepped terracotta red tiled roof against bright sunlit sky',
+          imageUrl: '',
+          cameraMotion: 'pan-right',
+          lightingStyle: 'golden-hour',
+          sfx: 'Rooster Crow + Cheerful Xylophone',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 3,
+          speakerId: 'vit-me',
+          speakerName: 'Vịt Mẹ & 5 Vịt Con',
+          cameraAngle: 'over-the-shoulder' as CameraDialogueAngle,
+          headline: '03. MỘT HAI MỘT HAI — THỂ DỤC PHÀNH PHẠCH',
+          durationSec: 6,
+          voiceover: 'Vịt mẹ xòe mỏ gọi đàn con nhỏ, thể dục nhanh nhanh! Một hai, một hai! Giơ chân lên nào, vẫy cho đều phạch phành phạch!',
+          voiceId: 'vi-gentle-female',
+          voicePitch: 1.1,
+          voiceSpeed: 1.06,
+          visualPrompt: 'Over shoulder 3D white Mother Duck with cyan wingtips standing on mossy daisy rock leading 5 yellow ducklings wing exercise',
+          imageUrl: '',
+          cameraMotion: 'orbit',
+          lightingStyle: 'studio-clean',
+          sfx: 'Kids Exercise Drumbeat 122BPM + Wing Flap',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 4,
+          speakerId: 'dan-vit-con',
+          speakerName: 'Đàn Vịt Con & Chú Ong',
+          cameraAngle: 'two-shot' as CameraDialogueAngle,
+          headline: '04. LON TON XUỐNG CẦU GỖ BÊN CHÚ ONG VÀNG',
+          durationSec: 5,
+          voiceover: 'Đàn vịt lon ton chạy theo vịt mẹ qua cầu ván gỗ cong, bên cạnh chú ong vàng vỗ cánh vo ve thật vui!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.28,
+          voiceSpeed: 1.06,
+          visualPrompt: '3D yellow ducklings waddling down curved wooden plank bridge over turquoise pond with flying striped cartoon bee',
+          imageUrl: '',
+          cameraMotion: 'pan-left',
+          lightingStyle: 'golden-hour',
+          sfx: 'Bee Buzz + Wooden Steps + Quack Quack',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 5,
+          speakerId: 'vit-me',
+          speakerName: 'Đàn Vịt Khua Nước Bơi Đi',
+          cameraAngle: 'shot-reverse-shot' as CameraDialogueAngle,
+          headline: '05. KHUA NƯỚC BƠI ĐI CHÂN NHƯ MÁI CHÈO',
+          durationSec: 6,
+          voiceover: 'Ùm xuống ao sâu tắm mát thật thích! Cạp cạp cạp! Đàn vịt khua nước bơi đi chân như mái chèo giữa hoa lục bình!',
+          voiceId: 'vi-gentle-female',
+          voicePitch: 1.12,
+          voiceSpeed: 1.05,
+          visualPrompt: '3D ducklings swimming across bright cyan pond surrounded by lily pads and purple hyacinths',
+          imageUrl: '',
+          cameraMotion: 'dolly-out',
+          lightingStyle: 'golden-hour',
+          sfx: 'Water Splash + Paddle Ripples + Duck Quack Chorus',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 6,
+          speakerId: 'dan-vit-con',
+          speakerName: 'Hội Xuân Đu Quay 3D',
+          cameraAngle: 'master-shot' as CameraDialogueAngle,
+          headline: '06. VÒNG ĐU QUAY ĐỎ RỰC RỠ KẾT MÀN VUI NHỘN',
+          durationSec: 6,
+          voiceover: 'Hoan hô! Cả đàn vịt con cùng ngồi trên khoang đỏ vòng đu quay khổng lồ vẫy cánh hát vang bài ca thiếu nhi!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.24,
+          voiceSpeed: 1.05,
+          visualPrompt: '3D white steel-spoked Ferris wheel with glossy red capsule gondolas carrying happy ducklings above green hills',
+          imageUrl: '',
+          cameraMotion: 'crane-up',
+          lightingStyle: 'golden-hour',
+          sfx: 'Upbeat Kids Finale Brass + Marimba 122BPM',
+          transition: 'fade',
+        },
+      ];
+
+      return {
+        title,
+        newsTicker: '',
+        musicGenre: 'Upbeat Kids Exercise Pop & Xylophone 122BPM',
+        tags: ['VitMeVaDanCon', 'VitConLongVang', 'HoatHinh3D', 'NhacThieuNhi3D', 'GlowStudiosStyle'],
+        characterActors,
+        dialogueMode: true,
+        scenes: duckScenes,
+      };
+    }
+
+    if (isCountrysideFable3d) {
+      const title = 'Mất Bò Mới Lo Làm Chuồng & Đàn Gà Con Mới Nở (Hoạt Hình 3D Đồng Quê)';
+      const characterActors: CharacterActor[] = [
+        {
+          id: 'be-ti',
+          name: 'Cậu Bé Tí (Chăn Bò)',
+          roleDescription: 'Cậu bé chăn bò mặc áo bà ba nâu, đội nón lá, tính tình hay quên đóng then chuồng',
+          avatarUrl: '',
+          voiceId: 'vi-child-male',
+          voiceName: 'Bé Trai Lanh Lợi (NamMinh +20% Pitch)',
+          voiceSpeed: 1.06,
+          voicePitch: 1.2,
+          themeColor: '#d97706',
+          defaultEmotion: 'playful',
+        },
+        {
+          id: 'tho-bun',
+          name: 'Thỏ Trắng Bun',
+          roleDescription: 'Bạn thỏ tinh anh sống gần rặng tre, nhắc Tí gia cố cửa chuồng gỗ',
+          avatarUrl: '',
+          voiceId: 'vi-child-female',
+          voiceName: 'Bé Gái Trong Trẻo (HoaiMy +26% Pitch)',
+          voiceSpeed: 1.04,
+          voicePitch: 1.26,
+          themeColor: '#0ea5e9',
+          defaultEmotion: 'caring',
+        },
+        {
+          id: 'dan-ga-con',
+          name: 'Đàn Gà Con Mới Nở',
+          roleDescription: '5 chú gà con vàng rực nhảy múa quanh gà mẹ bên bờ suối xanh',
+          avatarUrl: '',
+          voiceId: 'vi-child-female',
+          voiceName: 'Đàn Gà Con Líu Lo (HoaiMy +38% Pitch)',
+          voiceSpeed: 1.12,
+          voicePitch: 1.38,
+          themeColor: '#eab308',
+          defaultEmotion: 'happy',
+        },
+        {
+          id: 'bo-vang',
+          name: 'Bò Vàng & Người Kể Chuyện',
+          roleDescription: 'Chú bò vàng đeo chuông đồng hiền lành và lời dẫn câu chuyện ngụ ngôn',
+          avatarUrl: '',
+          voiceId: 'vi-mature-male',
+          voiceName: 'Người Kể Chuyện Ấm Áp (NamMinh Chuẩn)',
+          voiceSpeed: 1.0,
+          voicePitch: 0.96,
+          themeColor: '#16a34a',
+          defaultEmotion: 'happy',
+        },
+      ];
+
+      const countrysideScenes = [
+        {
+          sceneNumber: 1,
+          speakerId: 'bo-vang',
+          speakerName: 'Người Kể Chuyện',
+          cameraAngle: 'master-shot' as CameraDialogueAngle,
+          headline: '01. BÌNH MINH LÀNG QUÊ YÊN Ả',
+          durationSec: 4,
+          voiceover: 'Sáng sớm bên rặng tre xanh, chuông bò leng keng vang khắp triền đê ngập tràn nắng vàng.',
+          voiceId: 'vi-mature-male',
+          voicePitch: 0.96,
+          voiceSpeed: 1.0,
+          visualPrompt: 'Pixar 3D stylized Vietnamese countryside meadow morning golden light, wooden barn, calf, chicks by creek, 8k',
+          imageUrl: '',
+          cameraMotion: 'dolly-in',
+          lightingStyle: 'golden-hour',
+          sfx: 'Morning Flute + Creek Water + Soft Cowbell',
+          transition: 'fade',
+        },
+        {
+          sceneNumber: 2,
+          speakerId: 'dan-ga-con',
+          speakerName: 'Đàn Gà Con Mới Nở',
+          cameraAngle: 'close-up-speaker' as CameraDialogueAngle,
+          headline: '02. ĐÀN GÀ CON MỚI NỞ VUI ĐÙA',
+          durationSec: 4,
+          voiceover: 'Chiếp chiếp chiếp! Đàn gà con lông vàng óng ánh tung tăng nhảy múa theo điệu nhạc ban mai!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.38,
+          voiceSpeed: 1.12,
+          visualPrompt: 'Cute 3D baby yellow chicks flapping wings hopping happily beside mother hen, Glow Studios inspired, 8k',
+          imageUrl: '',
+          cameraMotion: 'orbit',
+          lightingStyle: 'golden-hour',
+          sfx: 'Chick Chirping + Upbeat Kids Marimba 116BPM',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 3,
+          speakerId: 'tho-bun',
+          speakerName: 'Thỏ Trắng Bun',
+          cameraAngle: 'two-shot' as CameraDialogueAngle,
+          headline: '03. THỎ BUN NHẮC CỬA CHUỒNG LỎNG LẺO',
+          durationSec: 4,
+          voiceover: 'Anh Tí ơi! Cánh cửa chuồng bò bị tuột đinh kìa, lát trưa gió to là bò đi lạc mất đấy!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.26,
+          voiceSpeed: 1.04,
+          visualPrompt: '3D white bunny in blue vest pointing excitedly at loose wooden barn door warning shepherd boy Be Ti, 8k',
+          imageUrl: '',
+          cameraMotion: 'pan-right',
+          lightingStyle: 'studio-clean',
+          sfx: 'Wooden Creak + Alert Pluck',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 4,
+          speakerId: 'be-ti',
+          speakerName: 'Cậu Bé Tí',
+          cameraAngle: 'over-the-shoulder' as CameraDialogueAngle,
+          headline: '04. MẢI CHƠI QUÊN CHỐT CỬA — BÒ ĐI LẠC',
+          durationSec: 4,
+          voiceover: 'Ôi không! Tí mải thả diều nên quên sửa chuồng, Bò Vàng đẩy tung cửa gỗ đi tuốt ra đồng xa mất rồi!',
+          voiceId: 'vi-child-male',
+          voicePitch: 1.2,
+          voiceSpeed: 1.06,
+          visualPrompt: 'Over shoulder 3D shot of Be Ti shocked seeing empty barn gate and golden cow wandering across meadow hills, 8k',
+          imageUrl: '',
+          cameraMotion: 'dolly-out',
+          lightingStyle: 'volumetric',
+          sfx: 'Dramatic Bass Swell + Distant Cowbell',
+          transition: 'cut',
+        },
+        {
+          sceneNumber: 5,
+          speakerId: 'tho-bun',
+          speakerName: 'Thỏ Trắng Bun',
+          cameraAngle: 'shot-reverse-shot' as CameraDialogueAngle,
+          headline: '05. CÙNG BẠN BÈ TÌM BÒ & RÚT RA BÀI HỌC',
+          durationSec: 4,
+          voiceover: 'Đừng lo anh Tí ơi! Thỏ và đàn gà con thấy dấu chân bên suối rồi, mình dắt Bò Vàng về sửa chuồng ngay nhé!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.26,
+          voiceSpeed: 1.05,
+          visualPrompt: '3D reverse shot bunny and chicks guiding Be Ti toward creek wooden path, warm teamwork, 8k',
+          imageUrl: '',
+          cameraMotion: 'pan-left',
+          lightingStyle: 'golden-hour',
+          sfx: 'Footsteps on Grass + Cheerful Harp',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 6,
+          speakerId: 'be-ti',
+          speakerName: 'Cậu Bé Tí',
+          cameraAngle: 'two-shot' as CameraDialogueAngle,
+          headline: '06. ĐÓNG VÁN CHẮC CHẮN — KHÔNG ĐỂ MẤT BÒ NỮA',
+          durationSec: 4,
+          voiceover: 'Cốc cốc cốc! Tí đóng lại ba thanh gỗ thật chắc, từ nay nhớ làm chuồng trước chứ không đợi mất bò mới lo!',
+          voiceId: 'vi-child-male',
+          voicePitch: 1.18,
+          voiceSpeed: 1.05,
+          visualPrompt: '3D two-shot Be Ti hammering new solid planks onto barn fence while bunny hands nails, sunny glow, 8k',
+          imageUrl: '',
+          cameraMotion: 'dolly-in',
+          lightingStyle: 'golden-hour',
+          sfx: 'Wooden Hammer Knock + Warm Bell',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 7,
+          speakerId: 'bo-vang',
+          speakerName: 'Cả Nhóm Đồng Ca',
+          cameraAngle: 'master-shot' as CameraDialogueAngle,
+          headline: '07. ĐOẠN KẾT VUI TƯƠI BÊN LÀNG QUÊ XANH',
+          durationSec: 4,
+          voiceover: 'Hoan hô! Phòng bệnh hơn chữa bệnh, cẩn thận từ đầu để ngày nào đồng quê cũng rộn rã tiếng cười vui!',
+          voiceId: 'vi-mature-male',
+          voicePitch: 1.02,
+          voiceSpeed: 1.04,
+          visualPrompt: 'Pixar 3D wide celebration shot of Be Ti, golden cow inside sturdy barn, dancing chicks and bunny singing together, 8k',
+          imageUrl: '',
+          cameraMotion: 'crane-up',
+          lightingStyle: 'golden-hour',
+          sfx: 'Upbeat Kids Finale Fanfare',
+          transition: 'fade',
+        },
+      ];
+
+      return {
+        title,
+        newsTicker: '',
+        musicGenre: 'Vietnamese Countryside Marimba & Flute 116BPM',
+        tags: ['HoatHinh3D', 'MatBoMoiLoLamChuong', 'DanGaCon', 'PixarDongQue', 'ThieuNhi3D'],
+        characterActors,
+        dialogueMode: true,
+        scenes: countrysideScenes,
+      };
+    }
 
     if (isRabbitDialogue) {
       const title = `Phim Hoạt Hình 3D Đối Thoại: Thỏ Con Bị Ốm & Các Bạn Nhỏ (Đa Giọng Thoại)`;
@@ -2480,6 +2850,47 @@ function resolveSkillDirectives(skill?: Skill): SkillDirectorDirectives {
         pacingSummary: 'Tối ưu giữ chân người xem nhịp cắt 2-4s, nhấn mạnh điểm chuyển cảnh.',
         tagHint: 'GiuChanNguoiXem',
       };
+    case '/3d-character':
+    case '/3d-presenter':
+      return {
+        motions: ['orbit', 'dolly-in', 'pan-right', 'dolly-out'],
+        lightings: ['studio-clean', 'volumetric', 'golden-hour'],
+        sfxList: ['3D Stage Whoosh', 'Character Expression Pop', 'Clean Broadcast Chime'],
+        preferredTransition: 'dissolve',
+        visualDirective: '3D character studio lighting, rim-light depth, SadTalker lip-sync framing, Three.js camera orbit',
+        pacingSummary: 'Đạo diễn nhân vật 3D với khẩu hình đồng bộ Neural TTS, ánh sáng 3D Rim-Light và chuyển cảnh mượt.',
+        tagHint: 'NhanVat3D',
+      };
+    case '/video-edit-pro':
+      return {
+        motions: ['dolly-in', 'pan-right', 'pan-left', 'orbit', 'crane-up'],
+        lightings: ['studio-clean', 'rembrandt', 'volumetric'],
+        sfxList: ['Beat-Sync Cut Snap', 'MoviePy LUT Whoosh', 'Auto Ducking Transition'],
+        preferredTransition: 'dissolve',
+        visualDirective: 'NLE multi-track compositing, Editly GL dissolve transitions, balanced LUT contrast',
+        pacingSummary: 'Dựng hậu kỳ NLE chuyên sâu theo nhịp Beat-Cut, chỉnh màu LUT và lớp phủ PiP.',
+        tagHint: 'VideoEditPro',
+      };
+    case '/paper-art':
+      return {
+        motions: ['dolly-in', 'pan-right', 'pan-left', 'dolly-out'],
+        lightings: ['golden-hour', 'studio-clean'],
+        sfxList: ['Sketch Pencil Stroke', 'Craft Paper Turn', 'Warm Acoustic Chime'],
+        preferredTransition: 'dissolve',
+        visualDirective: 'Rough.js hand-drawn kraft paper illustration, cut-paper shadows, PaperFold transition',
+        pacingSummary: 'Hoạt hình vẽ tranh giấy thủ công (Rough.js), chuyển cảnh lật trang PaperFold/PageCurl mượt mà.',
+        tagHint: 'VeTranhGiay',
+      };
+    case '/motion-transitions':
+      return {
+        motions: ['orbit', 'dolly-in', 'crane-up', 'fpv-zoom'],
+        lightings: ['volumetric', 'studio-clean', 'cyberpunk'],
+        sfxList: ['Cinematic Whip Whoosh', 'Subtle Bass Drop', 'Optical Lens Sweep'],
+        preferredTransition: 'dissolve',
+        visualDirective: 'GL-Transitions WebGL shader transition, GSAP kinetic typography, clean cinema 1080p frame',
+        pacingSummary: 'Dựng phim chuyển cảnh WebGL GL-Transitions & đồ họa GSAP không rác overlay.',
+        tagHint: 'GLTransitions',
+      };
     case '/videolingo-dub':
     case '/haptic-sound-design':
       return {
@@ -2850,35 +3261,18 @@ export async function generateAiVideoScript(
     if (Array.isArray(sc?.sceneMetrics) && sc.sceneMetrics.length >= 2) {
       return sc.sceneMetrics.slice(0, 3);
     }
-    const textPool = `${sc?.voiceover || ''} ${research.headlines[idx % Math.max(1, research.headlines.length)]?.title || ''}`;
-    const numMatch = textPool.match(/(\d+(?:[.,]\d+)?\s*(?:%|GW|MW|TWh|tỷ|triệu|nghìn|năm|USD|km|°C|nm))/i);
-    const extractedStat = numMatch ? numMatch[1] : `${72 + ((idx * 7) % 24)}%`;
+    const voText = String(sc?.voiceover || '').trim();
+    const wordCount = voText ? voText.split(/\s+/).filter(Boolean).length : 0;
+    const durSec = Math.max(2, Number(sc?.durationSec) || 8);
+    const wpm = Math.round((wordCount / durSec) * 60);
+    const srcName = research.headlines[idx % Math.max(1, research.headlines.length)]?.source || 'Studio Core';
+    const headlineCount = research.headlines.length;
+    const visualCount = research.visuals.length;
 
-    if (domain === 'finance') {
-      return [
-        { label: 'CHỈ SỐ DỮ LIỆU', value: extractedStat, delta: `+${(4.2 + idx * 1.1).toFixed(1)}%` },
-        { label: 'THANH KHOẢN', value: `${(1.8 + idx * 0.4).toFixed(1)}B`, delta: 'ĐỘT BIẾN' },
-        { label: 'TIN CẬY NGUỒN', value: '96/100', delta: 'LIVE RSS' },
-      ];
-    }
-    if (domain === 'science' || domain === 'ai-cyber' || domain === 'hardware') {
-      return [
-        { label: 'HIỆU SUẤT THỰC', value: extractedStat, delta: `+${14 + idx * 3}% YoY` },
-        { label: 'BĂNG THÔNG AI', value: `${420 + idx * 65} GB/s`, delta: 'VERIFIED' },
-        { label: 'ĐỘ PHỦ TƯ LIỆU', value: `${Math.min(99, 84 + idx * 2)}%`, delta: 'NASA / WIKI' },
-      ];
-    }
-    if (domain === 'travel' || domain === 'food') {
-      return [
-        { label: 'QUY MÔ ĐO ĐẠC', value: extractedStat, delta: `KỲ ${2024 + (idx % 3)}` },
-        { label: 'CHỈ SỐ SINH THÁI', value: `${86 + (idx % 12)} điểm`, delta: 'THỰC ĐỊA' },
-        { label: 'NGUỒN XÁC THỰC', value: research.headlines[idx]?.source || 'Wikimedia', delta: 'HD B-ROLL' },
-      ];
-    }
     return [
-      { label: 'DỮ KIỆN TRỌNG TÂM', value: extractedStat, delta: `CẢNH 0${idx + 1}` },
-      { label: 'MỨC ĐỘ ẢNH HƯỞNG', value: `${78 + ((idx * 5) % 20)}/100`, delta: `+${6 + idx * 2}%` },
-      { label: 'XÁC MINH NGUỒN', value: `${Math.max(1, research.headlines.length || 3)} nguồn`, delta: 'TRỰC TUYẾN' },
+      { label: 'NHỊP ĐỌC THOẠI', value: `${wordCount} từ (${durSec}s)`, delta: `${wpm} từ/phút` },
+      { label: 'NGUỒN ĐỐI CHIẾU', value: srcName.slice(0, 14), delta: `${headlineCount} tin RSS` },
+      { label: 'KHO TƯ LIỆU B-ROLL', value: `${visualCount} tệp HD`, delta: `Cảnh 0${idx + 1}` },
     ];
   };
 

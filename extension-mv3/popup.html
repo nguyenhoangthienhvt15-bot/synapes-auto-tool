@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <title>Synapes Studio Companion</title>
+    <style>
+      body { font-family: system-ui, -apple-system, sans-serif; width: 320px; padding: 12px; background: #09090b; color: #f4f4f5; margin: 0; }
+      h1 { font-size: 13px; margin: 0 0 8px; }
+      label { display: block; font-size: 11px; color: #a1a1aa; margin-top: 8px; }
+      input { width: 100%; box-sizing: border-box; padding: 6px 8px; margin-top: 4px; border-radius: 6px; border: 1px solid #27272a; background: #18181b; color: #fff; font-size: 11px; }
+      button { width: 100%; margin-top: 8px; padding: 7px; border-radius: 6px; border: none; font-size: 11px; font-weight: 600; cursor: pointer; background: #0284c7; color: #fff; }
+      button.secondary { background: #27272a; }
+      #status { margin-top: 8px; font-size: 11px; color: #38bdf8; min-height: 16px; word-break: break-word; }
+    </style>
+  </head>
+  <body>
+    <h1>Synapes Companion v7.0 (BYOK AES-GCM)</h1>
+    <label>Passphrase mở khóa Vault</label>
+    <input id="vault-pass" type="password" placeholder="Nhập mật khẩu két BYOK..." />
+    <label>Gemini / LiteLLM API Key (Mã hóa AES-GCM cục bộ)</label>
+    <input id="vault-key" type="password" placeholder="Dán API Key để lưu cục bộ..." />
+    <button id="save-vault-btn">Lưu Két BYOK (AES-GCM 256-bit)</button>
+    <button id="extract-dna-btn" class="secondary">Bóc Tách DNA Tab YouTube/TikTok Hiện Tại</button>
+    <div id="status"></div>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

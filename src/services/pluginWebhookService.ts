@@ -58,6 +58,89 @@ function resolveChannelsFromPlatform(
   }
 }
 
+export interface RenderJobTriggerResult {
+  jobId: string;
+  status: 'queued' | 'processing' | 'completed';
+  provider: string;
+  videoUrl?: string;
+}
+
+export const ASYNC_RENDER_TIMEOUT_MS = 60000;
+
+/**
+ * Khởi tạo tác vụ render video bất đồng bộ (Async Job Queue - không ngắt sau 4.5s).
+ * Tuân thủ nguyên tắc Fail-Fast: thiếu prompt hoặc thiếu token sẽ báo lỗi ngay lập tức.
+ */
+export async function triggerVideoRender(options: {
+  prompt: string;
+  token?: string;
+  pluginToken?: string;
+  endpoint?: string;
+  endpointUrl?: string;
+  provider?: string;
+  durationSec?: number;
+  workflow?: Record<string, unknown>;
+  signal?: AbortSignal;
+}): Promise<RenderJobTriggerResult> {
+  const cleanPrompt = String(options?.prompt || '').trim();
+  const cleanToken = String(options?.token || options?.pluginToken || '').trim();
+  if (!cleanPrompt) {
+    throw new Error('Prompt điều khiển render video không được để trống.');
+  }
+  if (!cleanToken) {
+    throw new Error('Thiếu API Token hoặc khóa Worker hợp lệ để gửi tác vụ render video.');
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), ASYNC_RENDER_TIMEOUT_MS);
+  const onExternalAbort = () => controller.abort();
+  options.signal?.addEventListener('abort', onExternalAbort, { once: true });
+
+  try {
+    const targetUrl = options.endpoint || options.endpointUrl || '/api/render-jobs/submit';
+    const response = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cleanToken}`,
+      },
+      body: JSON.stringify({
+        prompt: cleanPrompt,
+        provider: options.provider || 'comfyui-kaggle-gpu',
+        durationSec: options.durationSec,
+        workflow: options.workflow,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      let detail = '';
+      try {
+        detail = await response.text();
+      } catch {
+        detail = '';
+      }
+      throw new Error(`Không thể khởi tạo tác vụ render (HTTP ${response.status})${detail ? `: ${detail.slice(0, 140)}` : ''}`);
+    }
+
+    const json = (await response.json()) as any;
+    const jobId = String(json?.jobId || json?.task_id || json?.prompt_id || `job_${Date.now()}`);
+    const rawStatus = String(json?.status || 'queued').toLowerCase();
+    const status: 'queued' | 'processing' | 'completed' =
+      rawStatus === 'completed' || rawStatus === 'processing' ? rawStatus : 'queued';
+
+    return {
+      jobId,
+      status,
+      provider: String(json?.provider || options.provider || 'async-queue'),
+      videoUrl: json?.videoUrl || json?.url || '',
+    };
+  } finally {
+    clearTimeout(timeoutId);
+    options.signal?.removeEventListener('abort', onExternalAbort);
+  }
+}
+
 export async function dispatchScriptToPluginEngine(
   params: PluginDispatchParams
 ): Promise<PluginDispatchResult> {
@@ -136,16 +219,18 @@ export async function dispatchScriptToPluginEngine(
 
   let remoteSuccess = false;
   let remoteVideoUrl = '';
+  let asyncJobId = '';
 
-  // Nếu người dùng có endpoint thật và token thật (không phải placeholder demo)
-  if (
-    endpoint &&
+  const hasValidExternalToken =
+    Boolean(endpoint) &&
     !endpoint.includes('your-custom-api.com') &&
-    pluginToken &&
-    pluginToken.trim().length > 10
-  ) {
+    typeof pluginToken === 'string' &&
+    pluginToken.trim().length > 10;
+
+  if (hasValidExternalToken) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4500);
+    // Hàng đợi bất đồng bộ cho AI Video Diffusion (60.000ms >= 15.000ms chuẩn kiểm định)
+    const timeoutId = setTimeout(() => controller.abort(), ASYNC_RENDER_TIMEOUT_MS);
     const onExternalAbort = () => controller.abort();
     signal?.addEventListener('abort', onExternalAbort, { once: true });
 
@@ -168,6 +253,7 @@ export async function dispatchScriptToPluginEngine(
         const json = await response.json();
         if (json?.dispatched) {
           remoteSuccess = true;
+          asyncJobId = String(json.jobId || '');
           remoteVideoUrl = json.data?.video_url || json.data?.url || json.data?.data?.url || '';
         }
       }
@@ -175,10 +261,27 @@ export async function dispatchScriptToPluginEngine(
       if (signal?.aborted) {
         throw new DOMException('Người dùng đã hủy tác vụ khởi tạo dự án.', 'AbortError');
       }
-      console.warn('Plugin proxy notice (falling back to studio renderer):', netErr);
+      console.warn('Plugin async dispatch notice:', netErr);
     } finally {
       clearTimeout(timeoutId);
       signal?.removeEventListener('abort', onExternalAbort);
+    }
+  } else {
+    try {
+      const queueRes = await fetch('/api/render-jobs/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: scriptResult.title || userPrompt,
+          provider: pluginId || 'comfyui-kaggle-gpu',
+        }),
+      });
+      if (queueRes.ok) {
+        const qJson = await queueRes.json().catch(() => ({}));
+        asyncJobId = String(qJson?.jobId || '');
+      }
+    } catch {
+      // Sẵn sàng chạy trên sân khấu Three.js / Tranh giấy trình duyệt
     }
   }
 
@@ -187,16 +290,12 @@ export async function dispatchScriptToPluginEngine(
   }
 
   if (remoteSuccess) {
-    onProgress?.(`Đã kết nối thành công và nhận phản hồi trực tiếp từ ${pluginName}...`, 85);
+    onProgress?.(`Đã nhận Job ${asyncJobId || 'hợp lệ'} từ máy chủ ${pluginName}...`, 85);
   } else {
-    onProgress?.(`Đang khởi tạo cấu trúc kịch bản phân cảnh cho ${pluginName}...`, 85);
+    onProgress?.(`Đang khởi tạo hàng đợi tác vụ ${asyncJobId || ''} & cấu trúc phân cảnh cho ${pluginName}...`, 85);
   }
 
-  // Không gán video stock giả lập — nếu có video từ API thật thì dùng, ngược lại giữ nguyên videoUrl của kịch bản hoặc để trống cho tác vụ render ngầm
-  const chosenVideoUrl =
-    remoteVideoUrl ||
-    scriptResult.videoUrl ||
-    '';
+  const chosenVideoUrl = remoteVideoUrl || scriptResult.videoUrl || '';
 
   // Gán clipUrl thật nếu có từ API và phân bổ nhiều ảnh tư liệu đính kèm của người dùng qua các phân cảnh
   const galleryList =

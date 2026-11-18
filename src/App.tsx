@@ -13,7 +13,7 @@ import {
 import {
   getActiveSession, setActiveSession, clearActiveSession,
   getUserProfile, saveUserProfile, EMPTY_AI_CONFIG, getDisconnectedChannels,
-  syncUserProfileToServer, exportUserProfileBackupFile
+  syncUserProfileToServer, restoreUserProfileFromServer, exportUserProfileBackupFile
 } from './services/userProfileService';
 
 // Core Critical Components (Static for Instant First Paint)
@@ -162,6 +162,7 @@ export function App() {
 
   // Nạp toàn bộ thông tin cá nhân (API Keys, kênh mạng xã hội, dự án) khi người dùng đăng nhập
   useEffect(() => {
+    let isCancelled = false;
     if (currentUser && currentUser.isLoggedIn && currentUser.code) {
       const profile = getUserProfile(currentUser.code, currentUser.name, currentUser.email);
       setAiConfig(profile.aiConfig);
@@ -171,6 +172,18 @@ export function App() {
       setDriveEmail(profile.driveEmail);
       setIsDriveConnected(profile.driveConnected);
       setSelectedProject(profile.projects[0] || null);
+
+      void restoreUserProfileFromServer(currentUser.code).then((res) => {
+        if (isCancelled || !res.success || !res.profile) return;
+        const synced = res.profile;
+        setAiConfig(synced.aiConfig);
+        setSelectedAiProvider(synced.aiConfig.activeProvider || synced.aiConfig.mode || 'gemini');
+        setProjects(synced.projects);
+        setChannels(synced.channels);
+        setDriveEmail(synced.driveEmail);
+        setIsDriveConnected(synced.driveConnected);
+        setSelectedProject((prev) => synced.projects.find((p) => p.id === prev?.id) || synced.projects[0] || null);
+      });
     } else {
       setAiConfig(EMPTY_AI_CONFIG);
       setProjects([]);
@@ -179,6 +192,9 @@ export function App() {
       setIsDriveConnected(false);
       setSelectedProject(null);
     }
+    return () => {
+      isCancelled = true;
+    };
   }, [currentUser?.code, currentUser?.isLoggedIn]);
 
   // Đồng bộ thời gian thực từ Google Sheet

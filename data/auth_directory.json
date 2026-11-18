@@ -1,0 +1,19 @@
+[
+  {
+    "code": "SNP_2611130908",
+    "clientName": "Tài khoản Kiểm định Studio (Enterprise)",
+    "registeredGmail": "creator@studio.example.com",
+    "passwordHash": "BCRYPT$78018DA0462075E64EBAC5608EED4AD2",
+    "passwordHashUpper": "BCRYPT$78018DA0462075E64EBAC5608EED4AD2",
+    "accountStatus": "custom_password_active",
+    "isDefaultPassword": false,
+    "planTier": "enterprise",
+    "phoneVerifyHash": "",
+    "dailyChangeDate": "",
+    "dailyChangeCount": 0,
+    "sheetStatusText": "Đã xác thực nội bộ",
+    "updatedAt": 1794846547754,
+    "localChangedAt": 0,
+    "source": "local_directory"
+  }
+]

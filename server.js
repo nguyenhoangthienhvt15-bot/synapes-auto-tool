@@ -269,7 +269,7 @@ function getLockoutHtml(clientIp, bannedUntilIso) {
   <div class="footer">
     Mã sự cố: <span style="color:#a1a1aa;">${incidentCode}</span> • Bị khóa đến: <span style="color:#a1a1aa;">${safeUntil}</span>
     <br />
-    Chủ trì: <span style="color:#d4d4d8;">KS. Nguyễn Hoàng Thiện</span> • Email: <a href="mailto:nguyenhoangthien.hvt.15@gmail.com">nguyenhoangthien.hvt.15@gmail.com</a>
+    Liên hệ hỗ trợ kỹ thuật để cấp quyền truy cập hợp lệ.
   </div>
 
   <script>
@@ -366,12 +366,10 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(
         JSON.stringify({
-          error: '403 Forbidden: Địa chỉ IP của bạn đã bị khóa tạm thời do cố ý can thiệp vào mã nguồn dự án.',
+          error: '403 Forbidden: Địa chỉ IP của bạn đã bị khóa tạm thời do vi phạm chính sách bảo mật.',
           bannedUntil: new Date(banInfo.bannedUntil).toISOString(),
           unlockUrl: '/api/security/unlock',
           masterKeySupported: true,
-          leadEngineer: 'KS. Nguyễn Hoàng Thiện',
-          contact: 'nguyenhoangthien.hvt.15@gmail.com',
         })
       );
       return;

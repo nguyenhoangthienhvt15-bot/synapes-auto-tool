@@ -1,0 +1,119 @@
+{
+  "events": [
+    {
+      "platform": "youtube",
+      "eventType": "project_created",
+      "projectId": "prj-plugin-1794757198156",
+      "viewsDelta": 120,
+      "slotIndex": 5,
+      "timestamp": "2026-11-15T15:39:58.173Z"
+    },
+    {
+      "platform": "youtube",
+      "eventType": "project_created",
+      "projectId": "prj-plugin-1794757888263",
+      "viewsDelta": 120,
+      "slotIndex": 5,
+      "timestamp": "2026-11-15T15:51:28.296Z"
+    },
+    {
+      "platform": "youtube",
+      "eventType": "project_created",
+      "projectId": "prj-plugin-1794758403114",
+      "viewsDelta": 120,
+      "slotIndex": 6,
+      "timestamp": "2026-11-15T16:00:03.131Z"
+    },
+    {
+      "platform": "youtube",
+      "eventType": "project_created",
+      "projectId": "prj-plugin-1794829650521",
+      "viewsDelta": 120,
+      "hourSlot": 18,
+      "slotIndex": 18,
+      "timestamp": "2026-11-16T11:47:30.527Z"
+    },
+    {
+      "platform": "youtube",
+      "eventType": "project_created",
+      "projectId": "prj-plugin-1794847686262",
+      "viewsDelta": 120,
+      "hourSlot": 23,
+      "slotIndex": 23,
+      "timestamp": "2026-11-16T16:48:06.276Z"
+    },
+    {
+      "platform": "youtube",
+      "eventType": "project_created",
+      "projectId": "prj-plugin-1794888677799",
+      "viewsDelta": 120,
+      "hourSlot": 11,
+      "slotIndex": 11,
+      "timestamp": "2026-11-17T04:11:17.807Z"
+    },
+    {
+      "platform": "youtube",
+      "eventType": "project_created",
+      "projectId": "prj-plugin-1794888895254",
+      "viewsDelta": 120,
+      "hourSlot": 11,
+      "slotIndex": 11,
+      "timestamp": "2026-11-17T04:14:55.274Z"
+    },
+    {
+      "platform": "youtube",
+      "eventType": "project_created",
+      "projectId": "prj-plugin-1794893622771",
+      "viewsDelta": 120,
+      "hourSlot": 12,
+      "slotIndex": 12,
+      "timestamp": "2026-11-17T05:33:42.788Z"
+    },
+    {
+      "platform": "youtube",
+      "eventType": "project_created",
+      "projectId": "prj-plugin-1794894146543",
+      "viewsDelta": 120,
+      "hourSlot": 12,
+      "slotIndex": 12,
+      "timestamp": "2026-11-17T05:42:26.582Z"
+    },
+    {
+      "platform": "youtube",
+      "eventType": "project_created",
+      "projectId": "prj-plugin-1795007385583",
+      "viewsDelta": 120,
+      "hourSlot": 20,
+      "slotIndex": 20,
+      "timestamp": "2026-11-18T13:09:45.588Z"
+    },
+    {
+      "platform": "youtube",
+      "eventType": "project_created",
+      "projectId": "prj-plugin-1795007470719",
+      "viewsDelta": 120,
+      "hourSlot": 20,
+      "slotIndex": 20,
+      "timestamp": "2026-11-18T13:11:10.729Z"
+    },
+    {
+      "platform": "youtube",
+      "eventType": "project_created",
+      "projectId": "prj-plugin-1795009025308",
+      "viewsDelta": 120,
+      "hourSlot": 20,
+      "slotIndex": 20,
+      "timestamp": "2026-11-18T13:37:05.361Z"
+    },
+    {
+      "platform": "youtube",
+      "eventType": "project_created",
+      "projectId": "prj-plugin-1795009114390",
+      "viewsDelta": 120,
+      "hourSlot": 20,
+      "slotIndex": 20,
+      "timestamp": "2026-11-18T13:38:34.543Z"
+    }
+  ],
+  "updatedAt": "2026-11-18T13:38:34.543Z"
+}

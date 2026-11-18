@@ -1,0 +1,41 @@
+rules:
+  - id: synapes-no-unsplash-fallback-in-backend-or-services
+    pattern-regex: "images\\.unsplash\\.com"
+    message: "Anti-Fake Activity Violation: Hardcoded Unsplash fallback image detected in backend/service code. Return empty verified list [] instead."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include:
+        - server/topicResearchService.ts
+        - server/studioBackendEngine.mjs
+        - src/services/pluginWebhookService.ts
+        - src/services/videoDeconstructService.ts
+        - src/services/semanticPipelineRouter.ts
+        - src/services/multiAgentWritersRoom.ts
+
+  - id: synapes-no-short-render-timeout
+    patterns:
+      - pattern-either:
+          - pattern: AbortSignal.timeout($MS)
+          - pattern: setTimeout(..., $MS)
+      - metavariable-comparison:
+          metavariable: $MS
+          comparison: $MS < 15000
+    message: "Anti-Fake Activity Violation: Video render or webhook dispatch timeout must be >= 15000ms (use async job queueing instead of silent fallback)."
+    severity: ERROR
+    languages: [typescript, javascript]
+    paths:
+      include:
+        - src/services/pluginWebhookService.ts
+        - server/topicResearchService.ts
+
+  - id: synapes-no-fake-success-in-catch
+    pattern-regex: "catch\\s*\\([^)]*\\)\\s*\\{[^}]{0,260}(status:\\s*['\"]completed['\"]|success:\\s*true)"
+    message: "Anti-Fake Activity Violation: Catch block must never fabricate completed/success status upon API failure."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include:
+        - server/topicResearchService.ts
+        - server/studioBackendEngine.mjs
+        - src/services/pluginWebhookService.ts

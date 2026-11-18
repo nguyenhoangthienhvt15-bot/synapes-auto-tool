@@ -251,7 +251,7 @@ export const MiniPeakHoursAreaChart: React.FC<MiniPeakHoursAreaChartProps> = ({
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
           <span className="text-[10.5px] font-bold text-[#141413] tracking-tight truncate">
-            {traffic.geo?.countryName || 'Việt Nam'} • Bước 1h
+            {traffic.geo?.countryName || 'Việt Nam'} • Ước tính giờ vàng
           </span>
         </div>
         <span className="text-[9px] font-mono font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.5 rounded flex-shrink-0">

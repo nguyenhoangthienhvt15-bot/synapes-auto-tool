@@ -151,18 +151,17 @@ export const PROVIDERS: ProviderMeta[] = [
     vendor: 'Google DeepMind',
     description: 'Động cơ đa phương thức mạnh mẽ: phân rã kịch bản siêu tốc, tích hợp trực tiếp giọng đọc TTS tự nhiên tiếng Việt.',
     defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta',
-    defaultModel: 'gemini-2.5-flash',
+    defaultModel: 'gemini-3-flash-preview',
     models: [
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: 'Nhanh & Ổn Định Nhất • Đa phương thức Vision' },
-      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', tag: 'Siêu tốc độ <1.5s • Độ ổn định API 99.9%' },
-      { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash (Alias → 2.5)', tag: 'Tự động định tuyến Flash siêu tốc' },
-      { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash (Alias → 2.5)', tag: 'Tự động định tuyến Đa phương thức' },
-      { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (Alias → 2.0)', tag: 'Flagship Alias • Chống nghẽn 404' },
-      { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash (Alias → 2.5)', tag: 'Tối ưu phân cảnh tốc độ cao' },
-      { id: 'gemma-4-26b-a4b-it', name: 'Gemma 4 26B A4B IT', tag: 'Mô hình mã nguồn mở (tự định tuyến nếu chưa cấp)' },
+      { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', tag: 'Khuyên dùng 2026 • Siêu tốc ~2.3s' },
+      { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', tag: 'Nhanh & Ổn định đa phương thức' },
+      { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', tag: 'Thế hệ mới nhất 11/2026' },
+      { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview', tag: 'Suy luận kịch bản & Đạo diễn chuyên sâu' },
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Legacy)', tag: 'Tương thích Key thế hệ cũ' },
+      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Legacy)', tag: 'Tương thích dự phòng' },
     ],
-    keyPrefix: 'AIzaSy',
-    keyPlaceholder: 'AIzaSy...',
+    keyPrefix: 'AIzaSy / AQ.',
+    keyPlaceholder: 'AIzaSy... hoặc AQ.Ab8R...',
     consoleUrl: 'https://aistudio.google.com/app/apikey',
     consoleName: 'Google AI Studio Console',
     badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -461,6 +460,11 @@ function sortModels(models: DiscoveredModel[]): DiscoveredModel[] {
     const bText = b.id.toLowerCase();
 
     const getScore = (id: string): number => {
+      if (id.includes('3.8-flash')) return 120;
+      if (id.includes('3.1-pro')) return 115;
+      if (id.includes('3.7-flash')) return 110;
+      if (id.includes('3.6-flash')) return 108;
+      if (id.includes('3-flash')) return 105;
       if (id.includes('2.5')) return 100;
       if (id.includes('3-7') || id.includes('3.7')) return 95;
       if (id.includes('2.0-flash')) return 90;
@@ -555,12 +559,12 @@ export async function discoverModelsFromKey(
 
         if (supportsGenerate && lowerId.includes('gemini')) {
           const isRec =
+            lowerId === 'gemini-3.8-flash' ||
+            lowerId === 'gemini-3.1-pro-preview' ||
+            lowerId === 'gemini-3-flash-preview' ||
             lowerId === 'gemini-3.6-flash' ||
             lowerId === 'gemini-3.5-flash' ||
-            lowerId === 'gemini-3-flash-preview' ||
-            lowerId === 'gemini-2.5-flash' ||
-            lowerId === 'gemini-2.5-pro' ||
-            lowerId === 'gemini-2.0-flash';
+            lowerId === 'gemini-2.5-flash';
 
           filtered.push({
             id,

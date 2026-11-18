@@ -10,22 +10,32 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:integrity": "node scripts/verify-integrity.cjs",
-    "test": "npm run test:integrity",
+    "test:vitest": "vitest run tests/anti-fake-activity.test.ts",
+    "test": "npm run test:integrity && npm run test:vitest",
     "lint:architecture": "depcruise src --config .dependency-cruiser.cjs",
     "test:e2e": "playwright test",
     "prepare": "husky || true"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.4",
+    "@types/three": "^0.187.0",
     "@vitejs/plugin-react": "^6.0.1",
     "clsx": "^2.1.1",
+    "gl-transitions": "^3.3.0",
+    "gsap": "^3.15.1",
     "html2pdf.js": "^0.14.0",
+    "lottie-web": "^5.13.0",
     "lucide-react": "^1.16.0",
+    "mediabunny": "^1.66.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "roughjs": "^4.6.6",
     "tailwindcss": "^4.3.4",
+    "three": "^0.187.0",
     "typescript": "~6.0.2",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "wawa-lipsync": "^0.0.2",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -39,6 +49,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
     "husky": "^9.1.7",
-    "typescript-eslint": "^8.59.2"
+    "typescript-eslint": "^8.59.2",
+    "vitest": "^5.1.1"
   }
 }

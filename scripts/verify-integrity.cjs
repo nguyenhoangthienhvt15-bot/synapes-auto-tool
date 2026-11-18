@@ -372,6 +372,68 @@ assert(
 );
 
 // -----------------------------------------------------------------------------
+// 11. KIỂM ĐỊNH NGHIỆM THU 7 — ANTI-FAKE ACTIVITY GUARDRAILS & HONEST APIS
+// -----------------------------------------------------------------------------
+console.log('\n--- [NHÓM 11] KIỂM ĐỊNH ANTI-FAKE ACTIVITY & TRUNG THỰC DỮ LIỆU INTERNET ---');
+const topicSvcPath = path.join(ROOT, 'server', 'topicResearchService.ts');
+assert(fs.existsSync(topicSvcPath), 'Tồn tại server/topicResearchService.ts với schema Zod kiểm chứng dữ liệu');
+if (fs.existsSync(topicSvcPath)) {
+  const tsContent = fs.readFileSync(topicSvcPath, 'utf8');
+  assert(tsContent.includes('researchTopic') && !tsContent.includes('images.unsplash.com'),
+    'server/topicResearchService.ts không chứa fallback Unsplash giả mạo');
+}
+const g11BackendPath = path.join(ROOT, 'server', 'studioBackendEngine.mjs');
+if (fs.existsSync(g11BackendPath)) {
+  const bContent = fs.readFileSync(g11BackendPath, 'utf8');
+  assert(!bContent.includes('...domainPool') && !bContent.includes('...domainVideoPool') && bContent.includes('/api/render-jobs/submit'),
+    'studioBackendEngine.mjs đã gỡ bỏ toàn bộ trộn ảnh/video kho stock giả và có hàng đợi /api/render-jobs/submit');
+}
+const g11PluginPath = path.join(ROOT, 'src', 'services', 'pluginWebhookService.ts');
+if (fs.existsSync(g11PluginPath)) {
+  const pContent = fs.readFileSync(g11PluginPath, 'utf8');
+  assert(pContent.includes('triggerVideoRender') && pContent.includes('ASYNC_RENDER_TIMEOUT_MS = 60000'),
+    'pluginWebhookService.ts dùng ngưỡng timeout async >= 60000ms và xuất triggerVideoRender');
+}
+const g11ModalPath = path.join(ROOT, 'src', 'components', 'CreateProjectModal.tsx');
+if (fs.existsSync(g11ModalPath)) {
+  const mContent = fs.readFileSync(g11ModalPath, 'utf8');
+  assert(
+    !mContent.includes("|| 'Xu hướng công nghệ trí tuệ nhân tạo mới nhất'") &&
+    mContent.includes("'Không tìm thấy'") &&
+    mContent.includes('runMultiAgentWritersRoom'),
+    'CreateProjectModal.tsx bỏ từ khóa mồi AI mặc định, hiển thị trung thực Không tìm thấy và tích hợp Writers Room'
+  );
+}
+
+// -----------------------------------------------------------------------------
+// 12. KIỂM ĐỊNH HỆ SINH THÁI PIPELINE, EXTENSION MV3, WORKFLOW 3D & RAILWAY CLOUD
+// -----------------------------------------------------------------------------
+console.log('\n--- [NHÓM 12] KIỂM ĐỊNH ROUTER, 4-AGENT ROOM, 3D LIP-SYNC, EXTENSION MV3 & CLOUD ---');
+const routerPath = path.join(ROOT, 'src', 'services', 'semanticPipelineRouter.ts');
+const roomPath = path.join(ROOT, 'src', 'services', 'multiAgentWritersRoom.ts');
+const exporterPath = path.join(ROOT, 'src', 'utils', 'webCodecsMp4Exporter.ts');
+const stage3dPath = path.join(ROOT, 'src', 'utils', 'threeDStageRenderer.ts');
+assert(fs.existsSync(routerPath), 'Tồn tại src/services/semanticPipelineRouter.ts phân tách 3 luồng & Made for Kids');
+assert(fs.existsSync(roomPath), 'Tồn tại src/services/multiAgentWritersRoom.ts 4 AI Agents & Rubric Critic 0-100');
+assert(fs.existsSync(exporterPath), 'Tồn tại src/utils/webCodecsMp4Exporter.ts (mediabunny + WebCodecs + File System API)');
+if (fs.existsSync(stage3dPath)) {
+  const s3d = fs.readFileSync(stage3dPath, 'utf8');
+  assert(s3d.includes('GLTFLoader') && s3d.includes('wawa-lipsync'),
+    'threeDStageRenderer.ts tích hợp GLTFLoader và wawa-lipsync thời gian thực');
+}
+assert(
+  fs.existsSync(path.join(ROOT, 'workflows', 'comfyui_pixar_3d_pipeline.json')) &&
+  fs.existsSync(path.join(ROOT, 'extension-mv3', 'manifest.json')) &&
+  fs.existsSync(path.join(ROOT, 'extension-mv3', 'vault-crypto.js')) &&
+  fs.existsSync(path.join(ROOT, 'extension-mv3', 'offscreen-exporter.js')) &&
+  fs.existsSync(path.join(ROOT, 'scripts', 'kaggle_comfyui_worker.py')) &&
+  fs.existsSync(path.join(ROOT, 'services', 'swarm-agent', 'main.py')) &&
+  fs.existsSync(path.join(ROOT, '.semgrep', 'no-fake-activity.yml')) &&
+  (fs.existsSync(path.join(ROOT, '.github', 'workflows', 'quality-gate.yml')) || fs.existsSync(path.join(ROOT, 'workflows', 'github-ci-quality-gate.yml'))),
+  'Đầy đủ ComfyUI Workflow JSON, Extension MV3 (AES-GCM + Offscreen WebCodecs), Kaggle Worker, Swarm FastAPI, Semgrep & CI Quality Gate'
+);
+
+// -----------------------------------------------------------------------------
 // KẾT LUẬN TOÀN BỘ BÀI TEST
 // -----------------------------------------------------------------------------
 console.log('\n============================================================');
