@@ -32,7 +32,7 @@
     "roughjs": "^4.6.6",
     "tailwindcss": "^4.3.4",
     "three": "^0.187.0",
-    "typescript": "~6.0.2",
+    "typescript": "~7.0.2",
     "vite": "^8.0.12",
     "wawa-lipsync": "^0.0.2",
     "zod": "^4.6.7"
