@@ -40,3 +40,9 @@ dist-ssr
 !dist/**/*.webm
 !src/assets/*.png
 scratch/
+Nghiem_Thu_VoiceStudio/
+data/incidents/
+data/mail_outbox/
+data/audit_project_bunny_phien_7.json
+data/user_profiles/SNP_2611092202.json
+.github/workflows/

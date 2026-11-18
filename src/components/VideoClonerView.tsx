@@ -396,9 +396,9 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
         <div className="bg-white border border-black/[0.08] rounded-2xl shadow-sm overflow-hidden">
           <div className="bg-zinc-950 text-white p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-amber-400 text-zinc-950 text-[10.5px] font-mono font-bold tracking-wider uppercase">
-                <Crown className="w-3.5 h-3.5" />
-                <span>ULTRA • Độc quyền Gói Trả Phí Toàn Hệ</span>
+              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-amber-400 text-zinc-950 text-[10.5px] font-mono font-bold tracking-wider uppercase whitespace-nowrap">
+                <Crown className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>ULTRA • Độc quyền Gói Trả Phí Toàn Hệ Thống</span>
               </div>
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
                 <Lock className="w-5 h-5 text-amber-400 flex-shrink-0" />

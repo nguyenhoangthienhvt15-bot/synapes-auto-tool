@@ -1,0 +1,19 @@
+# Synapes Auto Video Studio - Anti-Fake Activity & Hardware Engineering Rules
+
+## 1. Strict Anti-Fake Activity Policy (Zero Tolerance)
+- NEVER return hardcoded Unsplash/Pexels/stock fallback URLs, mock headlines, or synthetic Wikipedia summaries when live API requests return empty or fail.
+- NEVER fall back to a default query string (e.g., "AI news") when the user submits a blank search input; reject with HTTP 400 / disabled UI state immediately.
+- NEVER swallow errors inside empty `catch {}` blocks that fabricate `{ success: true }` or fake "completed" render statuses.
+- NEVER place `< 15000ms` abort timeouts on AI video generation or ComfyUI/webhook dispatches; use asynchronous job queueing (`202` + `jobId` polling).
+- NEVER mix Wikimedia/news images into 3D Animation Kids workflows (`lockWikimediaSearch = true`).
+
+## 2. Hardware-Aware Local Constraint (Acer Aspire A514-54 • 8GB RAM • Iris Xe)
+- NEVER launch Docker Desktop, WSL2 VM containers, or local PyTorch/ComfyUI weights inside this developer laptop.
+- Offload heavy GPU workloads (Flux.1, Wan2.1 I2V, IPAdapter FaceID, LatentSync) to `COMFYUI_WORKER_URL` (Kaggle Dual-T4 / Railway Cloud Worker).
+- Use WebCodecs (`VideoEncoder`/`AudioEncoder`) + `mediabunny` (`StreamTarget` / `FileSystemWritableFileStream`) for hardware MP4 muxing inside the browser without OOM.
+
+## 3. Mandatory Verification Gate
+- After editing any file under `src/`, `server/`, `extension-mv3/`, or `workflows/`, run:
+  1. `node scripts/verify-integrity.cjs`
+  2. `npx vitest run tests/anti-fake-activity.test.ts`
+  3. `npm run build` (`tsc -b && vite build`)

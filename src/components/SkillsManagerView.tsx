@@ -27,7 +27,19 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
       const saved = localStorage.getItem(CORE_VIDEO_REPOS_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const sysById = new Map(SYSTEM_CORE_VIDEO_REPOS.map((r) => [r.id, r]));
+          const existingIds = new Set(parsed.map((r: CoreVideoRepo) => r.id));
+          const refreshed = parsed.map((r: CoreVideoRepo) => {
+            const sys = sysById.get(r.id);
+            return sys ? { ...sys, enabled: r.enabled } : r;
+          });
+          const merged = [
+            ...SYSTEM_CORE_VIDEO_REPOS.filter((s) => !existingIds.has(s.id)),
+            ...refreshed,
+          ];
+          return merged;
+        }
       }
     } catch { }
     return SYSTEM_CORE_VIDEO_REPOS;
@@ -43,7 +55,9 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
   const [repoName, setRepoName] = useState('');
   const [repoUrl, setRepoUrl] = useState('');
   const [repoRole, setRepoRole] = useState('');
-  const [repoCapabilities, setRepoCapabilities] = useState('Motion Graphics, Scene Pacing, Multi-Track Audio');
+  const [repoCapabilities, setRepoCapabilities] = useState('3D Character Rigging, Video Editing, Motion Graphics');
+  const [isVerifyingRepo, setIsVerifyingRepo] = useState(false);
+  const [repoInspectError, setRepoInspectError] = useState<string | null>(null);
 
   // Add Slash Skill State
   const [name, setName] = useState('');
@@ -60,27 +74,61 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
     );
   };
 
-  const handleAddCoreRepoSubmit = (e: React.FormEvent) => {
+  const handleAddCoreRepoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!repoName.trim()) return;
-    const slug = repoName.trim().toLowerCase().replace(/[^a-z0-9-_]+/g, '-');
-    const newRepo: CoreVideoRepo = {
-      id: `core-custom-${Date.now()}`,
-      repo: repoName.trim(),
-      repoUrl: repoUrl.trim() || `https://github.com/${repoName.trim()}`,
-      title: repoName.trim(),
-      stars: 'Custom Injected',
-      roleInEngine: repoRole.trim() || 'Bơm trực tiếp vào pipeline biên kịch và đồ họa AiCinemaPlayer.',
-      capabilities: repoCapabilities.split(',').map((s) => s.trim()).filter(Boolean),
-      enabled: true,
-      sampleVideoUrl: `/skill-samples/remotion-sample.webm`,
-    };
-    setCoreRepos((prev) => [newRepo, ...prev]);
-    setShowAddRepoModal(false);
-    setRepoName('');
-    setRepoUrl('');
-    setRepoRole('');
-    void slug;
+    const targetInput = (repoName.trim() || repoUrl.trim());
+    if (!targetInput || isVerifyingRepo) return;
+
+    setIsVerifyingRepo(true);
+    setRepoInspectError(null);
+    try {
+      const resp = await fetch('/api/github-repo/inspect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repo: repoName.trim(),
+          repoUrl: repoUrl.trim(),
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data?.success) {
+        setRepoInspectError(
+          data?.error || 'Không xác thực được kho mã nguồn trên GitHub API. Vui lòng kiểm tra lại owner/repo.'
+        );
+        return;
+      }
+
+      const customCaps = repoCapabilities
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const mergedCaps = Array.from(new Set([...(data.capabilities || []), ...customCaps])).slice(0, 5);
+
+      const newRepo: CoreVideoRepo = {
+        id: `core-gh-${Date.now()}`,
+        repo: data.repo,
+        repoUrl: data.repoUrl,
+        title: `${data.repo} (${data.language || 'Open Source'})`,
+        stars: data.stars || 'Verified ★',
+        roleInEngine:
+          repoRole.trim() ||
+          data.description ||
+          'Đã xác thực từ GitHub API và tích hợp vào pipeline biên kịch & AiCinemaPlayer.',
+        capabilities: mergedCaps,
+        enabled: true,
+        sampleVideoUrl: data.sampleVideoUrl || '/skill-samples/editly-sample.webm',
+      };
+      setCoreRepos((prev) => [newRepo, ...prev.filter((r) => r.repo.toLowerCase() !== newRepo.repo.toLowerCase())]);
+      setShowAddRepoModal(false);
+      setRepoName('');
+      setRepoUrl('');
+      setRepoRole('');
+      setRepoInspectError(null);
+    } catch (err: any) {
+      setRepoInspectError(err?.message || 'Lỗi kết nối máy chủ khi xác thực GitHub Repository.');
+    } finally {
+      setIsVerifyingRepo(false);
+    }
   };
 
   const handleUploadSkillFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -157,7 +205,7 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
               </span>
             </div>
             <p className="text-zinc-500 text-xs mt-0.5">
-              Bơm trực tiếp Engine tạo/edit video Top-Starred GitHub vào hệ thống &amp; Quản lý mẫu <code>/skill-name</code> kèm video mẫu
+              Tích hợp Engine dựng/edit video &amp; nhân vật 3D từ GitHub vào hệ thống &amp; Quản lý mẫu <code>/skill-name</code> kèm video mẫu
             </p>
           </div>
         </div>
@@ -165,11 +213,14 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setShowAddRepoModal(true)}
-            className="btn-secondary cursor-pointer"
+            onClick={() => {
+              setRepoInspectError(null);
+              setShowAddRepoModal(true);
+            }}
+            className="btn-secondary cursor-pointer whitespace-nowrap"
           >
             <GitBranch className="w-3.5 h-3.5 text-emerald-700" />
-            <span>+ Bơm Repo Video Mới</span>
+            <span>+ Tích Hợp Repo GitHub</span>
           </button>
 
           <label className="btn-secondary cursor-pointer">
@@ -200,10 +251,10 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
             <Cpu className="w-4 h-4 text-emerald-700" />
             <div>
               <h3 className="text-xs font-bold text-zinc-950 uppercase tracking-wide">
-                Core Video Engines Bơm Trực Tiếp Vào Hệ Thống (GitHub Top-Starred)
+                Core Video &amp; 3D Character Engines Tích Hợp Trực Tiếp (GitHub Verified)
               </h3>
               <p className="text-[11px] text-zinc-500">
-                Các thư viện dựng video &amp; đồ họa mã nguồn mở được tích hợp sẵn vào lõi biên kịch &amp; AiCinemaPlayer (tự động kích hoạt khi tạo video)
+                Các thư viện dựng video NLE, hoạt hình nhân vật 3D &amp; đồ họa mã nguồn mở được kết nối trực tiếp vào AiCinemaPlayer và bộ sinh kịch bản
               </p>
             </div>
           </div>
@@ -420,7 +471,7 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
         >
           <div className="studio-card max-w-md w-full p-6 shadow-2xl space-y-3.5 text-xs relative">
             <div className="flex items-center justify-between pb-2 border-b border-black/[0.06]">
-              <h3 className="text-zinc-950 font-bold text-sm">Bơm Repo / Engine Video Mới Vào Hệ Thống</h3>
+              <h3 className="text-zinc-950 font-bold text-sm">Tích Hợp Repo / Engine Video Mới Vào Hệ Thống</h3>
               <button
                 type="button"
                 onClick={() => setShowAddRepoModal(false)}
@@ -452,7 +503,7 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
                 />
               </div>
               <div>
-                <label className="text-zinc-700 font-medium block mb-1">Vai trò bơm trực tiếp vào lõi Render *</label>
+                <label className="text-zinc-700 font-medium block mb-1">Vai trò tích hợp trực tiếp vào lõi Render *</label>
                 <textarea
                   rows={2}
                   required
@@ -471,12 +522,17 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
                   className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-1.5 text-xs"
                 />
               </div>
+              {repoInspectError && (
+                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] leading-snug">
+                  {repoInspectError}
+                </div>
+              )}
               <div className="pt-2 flex justify-end gap-2 border-t border-black/[0.06]">
                 <button type="button" onClick={() => setShowAddRepoModal(false)} className="btn-secondary cursor-pointer">
                   Hủy
                 </button>
-                <button type="submit" className="btn-primary cursor-pointer">
-                  Bơm Vào Hệ Thống
+                <button type="submit" disabled={isVerifyingRepo} className="btn-primary cursor-pointer disabled:opacity-50">
+                  {isVerifyingRepo ? 'Đang xác thực GitHub API...' : 'Xác Thực & Tích Hợp'}
                 </button>
               </div>
             </form>

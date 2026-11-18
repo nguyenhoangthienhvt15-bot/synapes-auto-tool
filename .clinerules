@@ -1,0 +1,4 @@
+# Synapes Studio Cline Engineering Guidelines
+1. Always uphold zero fake-activity behavior: fail loudly on missing keys, blank inputs, and external API errors instead of fabricating fallback media or mock status updates.
+2. Never start local Docker daemons or PyTorch inference models on the host Windows 8GB RAM laptop; route heavy GPU work to Railway (`swarm-orchestrator`) and Kaggle Dual-T4 (`scripts/kaggle_comfyui_worker.py`).
+3. Keep `scripts/verify-integrity.cjs` (Groups 1-12), `vitest` tests, and `tsc -b && vite build` green after every code change.

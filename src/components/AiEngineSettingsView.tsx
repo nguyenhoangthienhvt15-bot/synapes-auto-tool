@@ -59,7 +59,7 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
   }, [config]);
 
   const [models, setModels] = useState<Record<string, string>>({
-    gemini: config.gemini?.model || 'gemini-2.0-flash',
+    gemini: config.gemini?.model || 'gemini-3.8-flash',
     openai: config.openai?.model || 'gpt-4o',
     claude: config.claude?.model || 'claude-3-7-sonnet-20250219',
     deepseek: config.deepseek?.model || 'deepseek-chat',
@@ -122,19 +122,24 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
     modelCount?: number;
   }>>({});
 
-  const handleDiscoverModels = async (provId: AIProviderId, customKey?: string, isAuto: boolean = false) => {
+  const handleDiscoverModels = async (
+    provId: AIProviderId,
+    customKey?: string,
+    isAuto: boolean = false
+  ): Promise<{ success: boolean; message: string }> => {
     const keyToUse = (customKey !== undefined ? customKey : keys[provId])?.trim();
     if (!keyToUse) {
+      const msg = `Vui lòng nhập API Key của ${PROVIDERS.find((p) => p.id === provId)?.name || provId} trước khi đọc Models.`;
       if (!isAuto) {
         setDiscoveryStatus((prev) => ({
           ...prev,
           [provId]: {
             type: 'error',
-            message: `Vui lòng nhập API Key của ${PROVIDERS.find((p) => p.id === provId)?.name || provId} trước khi đọc Models.`,
+            message: msg,
           },
         }));
       }
-      return;
+      return { success: false, message: msg };
     }
 
     setIsDiscovering(true);
@@ -162,7 +167,6 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
           },
         }));
 
-        // Nếu model hiện tại chưa được chọn hoặc không nằm trong danh sách mới, chọn model mặc định đầu tiên
         const currentModelId = models[provId];
         const hasCurrent = res.models.some((m) => m.id === currentModelId);
         const selectedModelId = hasCurrent
@@ -173,7 +177,6 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
           setModels((prev) => ({ ...prev, [provId]: selectedModelId }));
         }
 
-        // Tự động đồng bộ ngay API Key hợp lệ vào cấu hình phiên làm việc
         if (currentUser && currentUser.isLoggedIn) {
           const nextKeys = { ...keys, [provId]: keyToUse };
           const nextModels = { ...models, [provId]: selectedModelId };
@@ -193,6 +196,7 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
             },
           });
         }
+        return { success: true, message: res.message };
       } else {
         setDiscoveryStatus((prev) => ({
           ...prev,
@@ -201,15 +205,18 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
             message: res.message,
           },
         }));
+        return { success: false, message: res.message };
       }
     } catch (err: any) {
+      const errMsg = `Lỗi kết nối khi quét models: ${err?.message || 'Không xác định'}`;
       setDiscoveryStatus((prev) => ({
         ...prev,
         [provId]: {
           type: 'error',
-          message: `Lỗi kết nối khi quét models: ${err?.message || 'Không xác định'}`,
+          message: errMsg,
         },
       }));
+      return { success: false, message: errMsg };
     } finally {
       setIsDiscovering(false);
     }
@@ -325,18 +332,22 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
     }
 
     setIsTesting(true);
-    setTestResult(`Đang gửi tín hiệu kiểm tra Ping và đồng bộ danh sách Model từ ${currentMeta.name}...`);
+    setTestResult(`Đang gửi tín hiệu kiểm tra thực tế tới ${currentMeta.name}...`);
 
-    await handleDiscoverModels(activeProvider, key, false);
-
+    const discoverRes = await handleDiscoverModels(activeProvider, key, false);
     setIsTesting(false);
-    const chosenModel = models[activeProvider] || 'mô hình đã chọn';
-    setTestResult(`✅ Kết nối thành công! Động cơ ${currentMeta.name} phản hồi HTTP 200 OK (${chosenModel}). Sẵn sàng tạo kịch bản video.`);
-    setTimeout(() => setTestResult(null), 5000);
+
+    if (discoverRes.success) {
+      const chosenModel = models[activeProvider] || 'mô hình đã chọn';
+      setTestResult(`✓ Kết nối xác thực thành công! Động cơ ${currentMeta.name} phản hồi hợp lệ (${chosenModel}).`);
+    } else {
+      setTestResult(`✕ Kiểm tra kết nối thất bại: ${discoverRes.message}`);
+    }
+    setTimeout(() => setTestResult(null), 6000);
   };
 
   return (
-    <div className="space-y-6 animate-fade-in select-none text-zinc-900 max-w-6xl mx-auto pb-10">
+    <div className="space-y-6 animate-fade-in select-none text-zinc-900 max-w-6xl mx-auto pt-1 pb-10">
       {/* Cảnh báo khi chưa đăng nhập */}
       {(!currentUser || !currentUser.isLoggedIn) && (
         <div className="p-4 rounded-xl bg-amber-50/90 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-950 shadow-2xs animate-in fade-in">
@@ -368,10 +379,10 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
             {onBack && (
               <button
                 onClick={onBack}
-                className="btn-secondary cursor-pointer flex items-center gap-1.5"
+                className="btn-secondary cursor-pointer flex items-center gap-1.5 whitespace-nowrap flex-shrink-0"
                 title="Quay lại bàn duyệt"
               >
-                <ArrowLeft className="w-3.5 h-3.5" />
+                <ArrowLeft className="w-3.5 h-3.5 flex-shrink-0" />
                 <span>Quay lại</span>
               </button>
             )}
@@ -511,11 +522,11 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
               href={currentMeta.consoleUrl}
               target="_blank"
               rel="noreferrer"
-              className="btn-secondary text-xs flex items-center gap-1.5"
+              className="btn-secondary text-xs flex items-center gap-1.5 whitespace-nowrap flex-shrink-0"
               title={`Truy cập ${currentMeta.consoleName} để tạo API Key chính thức`}
             >
               <span>Lấy API Key</span>
-              <ExternalLink className="w-3 h-3 text-zinc-400" />
+              <ExternalLink className="w-3 h-3 text-zinc-400 flex-shrink-0" />
             </a>
           </div>
         </div>
@@ -859,8 +870,8 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
                   {
                     name: 'Google Gemini API',
                     url: 'https://aistudio.google.com/apikey',
-                    prefix: 'AIzaSy...',
-                    steps: 'Mở Google AI Studio -> Get API Key -> Create API key in new project -> Quét tự động Gemini 2.0/2.5 Flash & Native Audio.',
+                    prefix: 'AIzaSy... / AQ....',
+                    steps: 'Mở Google AI Studio -> Get API Key -> Dán Key (định dạng AIzaSy... hoặc AQ....) -> Quét tự động Gemini 3.8 Flash, 3.1 Pro & Native TTS.',
                   },
                   {
                     name: 'OpenAI GPT & Audio',

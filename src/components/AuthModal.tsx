@@ -357,7 +357,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <form onSubmit={handleLoginSubmit} className="space-y-3.5 text-xs">
               <div>
-                <label className="text-zinc-700 font-medium block mb-1">Mã Code Khách Hàng</label>
+                <label className="text-zinc-700 font-medium block mb-1">Mã Khách Hàng (Code)</label>
                 <div className="relative">
                   <User className="w-3.5 h-3.5 absolute left-3 top-2.5 text-zinc-400" />
                   <input
@@ -437,7 +437,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </button>
               </div>
 
-              {/* Tùy chọn Bạn chưa có tài khoản? Đăng kí ngay */}
+              {/* Tùy chọn Bạn chưa có tài khoản? Đăng ký ngay */}
               <div className="pt-3 text-center border-t border-black/[0.06]">
                 <span className="text-zinc-500 text-xs">Bạn chưa có tài khoản? </span>
                 <button
@@ -445,7 +445,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   onClick={() => setShowRegisterModal(true)}
                   className="text-zinc-950 font-semibold text-xs hover:underline cursor-pointer transition"
                 >
-                  Đăng kí ngay
+                  Đăng ký ngay
                 </button>
               </div>
             </form>

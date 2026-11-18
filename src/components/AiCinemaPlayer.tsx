@@ -53,6 +53,17 @@ import {
   VIETNAMESE_VOICE_PROFILES,
   ENGLISH_VOICE_PROFILES,
 } from '../services/voiceStudioService';
+import { fixWebmDuration } from '../utils/webmDurationFix';
+import {
+  renderThreeDStageToCanvas,
+  renderPixarCountrysideStageToCanvas,
+  renderMotherDuckAndDucklings3dStageToCanvas,
+} from '../utils/threeDStageRenderer';
+import { renderPaperArtStageToCanvas } from '../utils/paperArtStageRenderer';
+import {
+  applyGlSceneTransition,
+  pickSceneTransitionPreset,
+} from '../utils/glTransitionCompositor';
 
 interface AiCinemaPlayerProps {
   project: Project;
@@ -104,27 +115,44 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   const [activeVfx, setActiveVfx] = useState<VfxOverlayType>(() => 'vignette');
   const [anamoLetterbox, setAnamoLetterbox] = useState<boolean>(false);
   const [visualRenderMode, setVisualRenderMode] = useState<
-    'auto-genre' | 'news-24h' | 'hybrid-3d' | 'clean-photo'
-  >('auto-genre');
+    'auto-genre' | 'threejs-3d' | 'paper-art' | 'news-24h' | 'clean-photo'
+  >(() => {
+    const sig = `${project.title} ${(project.metadata?.tags || []).join(' ')} ${project.metadata?.description || ''}`;
+    if (/paper-art|tranh\s*giấy|cắt\s*giấy|rough\.?js|vẽ\s*tay/i.test(sig)) return 'paper-art';
+    if (/3d-presenter|3d-character|three\.?js|motion-transitions|gl-transitions/i.test(sig)) return 'threejs-3d';
+    return 'auto-genre';
+  });
   const [showBroadcastHud, setShowBroadcastHud] = useState<boolean>(false);
+
+  const glFromCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const glToCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lastGlSceneIdxRef = useRef<number>(-1);
 
   // File upload ref for custom B-roll media
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Image & Video B-roll preloading caches per scene ID
+  // Image & Video B-roll preloading caches per scene ID + Frame-Hold chống nhấp nháy khung đen
   const loadedImagesRef = useRef<Record<number, HTMLImageElement>>({});
   const loadedSecondaryImagesRef = useRef<Record<number, HTMLImageElement>>({});
   const loadedVideosRef = useRef<Record<number, HTMLVideoElement>>({});
+  const lastValidBackdropRef = useRef<HTMLVideoElement | HTMLImageElement | null>(null);
   const [loadedCount, setLoadedCount] = useState<number>(0);
   const [loadedVideosCount, setLoadedVideosCount] = useState<number>(0);
   const [regenVersion, setRegenVersion] = useState<number>(0);
 
-  // Real Video Export state
+  // Active GitHub Repo Skills (3D Character + Video Edit) đọc trực tiếp từ localStorage
+  const [show3dPresenterHud, setShow3dPresenterHud] = useState<boolean>(() =>
+    /3d|nhân vật 3d|presenter|mc ảo|sadtalker|liveportrait|three\.?js/i.test(
+      `${project.title} ${(project.metadata?.tags || []).join(' ')} ${project.metadata?.description || ''}`
+    )
+  );
+
+  // Real Video Export state (Mặc định 1x Chuẩn để khớp tuyệt đối 1:1 âm thanh & thời lượng)
   const [isExportingVideo, setIsExportingVideo] = useState<boolean>(false);
   const [exportProgress, setExportProgress] = useState<number>(0);
   const [exportStatusText, setExportStatusText] = useState<string>('');
   const [exportScope, setExportScope] = useState<'full' | 'current'>('full');
-  const [exportSpeedMultiplier, setExportSpeedMultiplier] = useState<1 | 2 | 4>(2);
+  const [exportSpeedMultiplier, setExportSpeedMultiplier] = useState<1 | 2 | 4>(1);
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
   const exportCancelRef = useRef<(() => void) | null>(null);
 
@@ -695,7 +723,9 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
     const renderFrame = (now: number) => {
       const rawDt = Math.max(0, (now - lastFrameTimeRef.current) / 1000);
-      const dt = Math.min(0.12, rawDt) * playbackSpeedRef.current;
+      // Không dùng clamp 0.12s quá nhỏ vì khi render 1080p WebGL/MediaRecorder tải nặng (rawDt > 0.15s)
+      // clamp 0.12s sẽ làm chậm đồng hồ hình ảnh so với Audio & MediaRecorder wall-clock timer!
+      const dt = Math.min(1.25, rawDt) * playbackSpeedRef.current;
       lastFrameTimeRef.current = now;
 
       if (isPlayingRef.current) {
@@ -1130,7 +1160,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     const hasVideo = Boolean(vid && vid.readyState >= 2 && vid.videoWidth > 0);
     const hasPrimaryImg = Boolean(img && img.complete && img.naturalWidth > 0);
     const hasSecImg = Boolean(secImg && secImg.complete && secImg.naturalWidth > 0);
-    const primaryMedia: HTMLVideoElement | HTMLImageElement | undefined = hasVideo
+    const candidateMedia: HTMLVideoElement | HTMLImageElement | undefined = hasVideo
       ? vid
       : hasPrimaryImg
         ? img
@@ -1138,10 +1168,16 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           ? secImg
           : undefined;
 
+    if (candidateMedia) {
+      lastValidBackdropRef.current = candidateMedia;
+    }
+
+    // Frame-Hold Buffer (LosslessCut/Editly): giữ khung hợp lệ cuối cùng thay vì chớp nền đen hoặc giật về frame 0
+    const primaryMedia = candidateMedia || lastValidBackdropRef.current || undefined;
     if (!primaryMedia) return false;
 
-    if (sceneElapsed < 0.48 && prevImg && prevImg.complete && prevImg.naturalWidth > 0) {
-      const blend = sceneElapsed / 0.48;
+    if (sceneElapsed < 0.55 && prevImg && prevImg.complete && prevImg.naturalWidth > 0 && prevImg !== primaryMedia) {
+      const blend = Math.min(1, sceneElapsed / 0.55);
       ctx.globalAlpha = 1.0;
       drawCoverMedia(ctx, prevImg, W, H);
       ctx.globalAlpha = blend;
@@ -1242,13 +1278,15 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       ctx.font = 'bold 10px "Inter", system-ui, sans-serif';
       ctx.fillText(`ĐỐI CHỨNG • ${citation.slice(0, 22).toUpperCase()}`, cardX + insetPad + 16, cardY + insetPad + 23);
 
+      const wordCnt = String(scene.voiceover || '').trim().split(/\s+/).filter(Boolean).length;
+      const scDur = Math.max(2, Math.round((scene.endSec || 8) - (scene.startSec || 0)));
       const metrics =
         scene.sceneMetrics && scene.sceneMetrics.length > 0
           ? scene.sceneMetrics
           : [
-              { label: 'CHỈ SỐ TĂNG TRƯỞNG', value: '88%', delta: '+14.2%' },
-              { label: 'ĐỘ TIN CẬY TƯ LIỆU', value: 'LIVE', delta: 'VERIFIED' },
-              { label: 'MỨC ĐỘ TÁC ĐỘNG', value: '92/100', delta: 'CAO' },
+              { label: 'NHỊP ĐỌC THOẠI', value: `${wordCnt} từ`, delta: `${scDur}s` },
+              { label: 'NGUỒN TƯ LIỆU', value: citation.slice(0, 14), delta: hasVideo ? 'VIDEO B-ROLL' : 'HD PHOTO' },
+              { label: 'CHẤT LƯỢNG XUẤT', value: `${W}×${H}`, delta: 'FULL HD' },
             ];
 
       const chartStartY = cardY + insetPad + insetH + 18;
@@ -2554,11 +2592,16 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     const breathX = Math.sin(clockSec * 1.6) * 1.2;
     const breathY = Math.cos(clockSec * 1.3) * 1.2;
 
+    const skip2dCameraCrop =
+      visualRenderMode === 'paper-art' || visualRenderMode === 'threejs-3d';
+
     ctx.save();
-    ctx.translate(W / 2 + tx + breathX, H / 2 + ty + breathY);
-    ctx.rotate(rot);
-    ctx.scale(scale, scale);
-    ctx.translate(-W / 2, -H / 2);
+    if (!skip2dCameraCrop) {
+      ctx.translate(W / 2 + tx + breathX, H / 2 + ty + breathY);
+      ctx.rotate(rot);
+      ctx.scale(scale, scale);
+      ctx.translate(-W / 2, -H / 2);
+    }
 
     // 3. Render Visual Layer based on Genre & Visual Render Mode (Moving <video> B-Roll + HD Internet Photos)
     const vid = loadedVideosRef.current[scene.id];
@@ -2570,116 +2613,278 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     const is3dAnimationProject =
       effectiveGenre === '3d-animation' || effectiveDomain === 'animation-3d';
 
+    const isMotherDuck3dFable =
+      is3dAnimationProject &&
+      /vịt\s*mẹ|đàn\s*vịt|vịt\s*con|lông\s*vàng|hvuA-jg9N7s|vit-me|dan-vit-con/i.test(
+        `${project.title} ${scene.visualPrompt || ''} ${scene.speakerId || ''}`
+      );
+
+    const isCountryside3dFable =
+      is3dAnimationProject &&
+      !isMotherDuck3dFable &&
+      /mất\s*bò|làm\s*chuồng|đàn\s*gà|gà\s*con|đồng\s*quê|chăn\s*trâu|be-ti|bo-vang|dan-ga-con/i.test(
+        `${project.title} ${scene.visualPrompt || ''} ${scene.speakerId || ''}`
+      );
+
+    const isPaperArtMode = visualRenderMode === 'paper-art';
+    const isThreeJs3dMode = visualRenderMode === 'threejs-3d';
+
     const isNewsOverlayActive =
       !is3dAnimationProject &&
+      !isPaperArtMode &&
       (visualRenderMode === 'news-24h' ||
         (visualRenderMode === 'auto-genre' &&
           (effectiveGenre === 'news-broadcast' || effectiveGenre === 'finance-analysis')));
 
     const allowHardware3dOverlays =
       isHardwareKeynoteProject &&
-      (visualRenderMode === 'hybrid-3d' || visualRenderMode === 'auto-genre');
+      (visualRenderMode === 'threejs-3d' || visualRenderMode === 'auto-genre');
 
-    const backdropDrawn = drawPrimaryMediaBackdrop(
-      ctx,
-      W,
-      H,
-      progress,
-      sceneElapsed,
-      vid,
-      img,
-      prevImg || undefined,
-      secImg
-    );
+    // Chế độ Vẽ Tranh Giấy (Rough.js + Paper-Cut) hoặc Three.js 3D WebGL Stage toàn màn hình
+    const useFullThreeJsStage = isThreeJs3dMode || isCountryside3dFable || isMotherDuck3dFable;
 
-    if (backdropDrawn) {
-      // Chỉ phủ đồ họa 3D linh kiện Apple khi dự án thực sự là phần cứng Apple Keynote!
-      if (allowHardware3dOverlays) {
-        const isExplodedScene =
-          scene.explodedView === true || scene.appleMotion3d === 'exploded-chip';
-        const isApertureScene =
-          scene.apertureBlades === true || scene.appleMotion3d === 'aperture-zoom';
+    const drawCoreStageToContext = (
+      targetCtx: CanvasRenderingContext2D,
+      tW: number,
+      tH: number,
+      tClock: number,
+      tIdx: number,
+      tScene: StoryboardScene,
+      tElapsed: number,
+      tProgress: number
+    ) => {
+      const tVid = loadedVideosRef.current[tScene.id];
+      const tImg = loadedImagesRef.current[tScene.id];
+      const tSecImg = loadedSecondaryImagesRef.current[tScene.id];
+      const tPrevScene = tIdx > 0 ? scenes[tIdx - 1] : null;
+      const tPrevImg = tPrevScene ? loadedImagesRef.current[tPrevScene.id] : null;
 
-        if (isExplodedScene) {
-          ctx.save();
-          ctx.fillStyle = 'rgba(3, 7, 18, 0.58)';
-          ctx.fillRect(0, 0, W, H);
-          drawAppleExplodedHardwareView(ctx, W, H, clockSec, progress);
-          ctx.restore();
-        } else if (isApertureScene) {
-          ctx.save();
-          ctx.fillStyle = 'rgba(3, 7, 18, 0.52)';
-          ctx.fillRect(0, 0, W, H);
-          drawAppleMechanicalApertureBlades(ctx, W, H, clockSec, progress);
-          ctx.restore();
-        } else if (scene.appleMotion3d && scene.appleMotion3d !== 'none') {
-          drawAppleKeynoteSubtleMotionOverlay(ctx, W, H, clockSec, progress, activeIdx);
+      targetCtx.save();
+      if (isPaperArtMode) {
+        renderPaperArtStageToCanvas(targetCtx, tW, tH, {
+          clockSec: tClock,
+          progress: tProgress,
+          sceneIdx: tIdx,
+          totalScenes: scenes.length,
+          headline: tScene.headline || project.title,
+          voiceover: tScene.voiceover || '',
+          domain: effectiveDomain,
+          subject: extractCleanSubject(project.title),
+        });
+        targetCtx.restore();
+        return;
+      }
+
+      if (isMotherDuck3dFable) {
+        const renderedDuck = renderMotherDuckAndDucklings3dStageToCanvas(targetCtx, tW, tH, {
+          clockSec: tClock,
+          progress: tProgress,
+          sceneIdx: tIdx,
+          cameraAngle: tScene.cameraAngle,
+          isSpeaking: isPlayingRef.current || exportScope === 'full',
+        });
+        if (renderedDuck) {
+          targetCtx.restore();
+          return;
+        }
+      }
+
+      if (isCountryside3dFable) {
+        const renderedFable = renderPixarCountrysideStageToCanvas(targetCtx, tW, tH, {
+          clockSec: tClock,
+          progress: tProgress,
+          sceneIdx: tIdx,
+          speakerId: tScene.speakerId,
+          cameraAngle: tScene.cameraAngle,
+          isSpeaking: isPlayingRef.current || exportScope === 'full',
+        });
+        if (renderedFable) {
+          targetCtx.restore();
+          return;
+        }
+      }
+
+      if (useFullThreeJsStage) {
+        const rendered3d = renderThreeDStageToCanvas(targetCtx, tW, tH, {
+          clockSec: tClock,
+          progress: tProgress,
+          sceneIdx: tIdx,
+          cameraMotion: tScene.cameraMotion || 'orbit',
+          isSpeaking: isPlayingRef.current || exportScope === 'full',
+          mode: 'full-stage',
+        });
+        if (rendered3d) {
+          targetCtx.restore();
+          return;
+        }
+      }
+
+      const drawn = drawPrimaryMediaBackdrop(
+        targetCtx,
+        tW,
+        tH,
+        tProgress,
+        tElapsed,
+        tVid,
+        tImg,
+        tPrevImg || undefined,
+        tSecImg
+      );
+
+      if (drawn) {
+        if (allowHardware3dOverlays) {
+          const isExplodedScene =
+            tScene.explodedView === true || tScene.appleMotion3d === 'exploded-chip';
+          const isApertureScene =
+            tScene.apertureBlades === true || tScene.appleMotion3d === 'aperture-zoom';
+
+          if (isExplodedScene) {
+            targetCtx.save();
+            targetCtx.fillStyle = 'rgba(3, 7, 18, 0.58)';
+            targetCtx.fillRect(0, 0, tW, tH);
+            drawAppleExplodedHardwareView(targetCtx, tW, tH, tClock, tProgress);
+            targetCtx.restore();
+          } else if (isApertureScene) {
+            targetCtx.save();
+            targetCtx.fillStyle = 'rgba(3, 7, 18, 0.52)';
+            targetCtx.fillRect(0, 0, tW, tH);
+            drawAppleMechanicalApertureBlades(targetCtx, tW, tH, tClock, tProgress);
+            targetCtx.restore();
+          } else if (tScene.appleMotion3d && tScene.appleMotion3d !== 'none') {
+            drawAppleKeynoteSubtleMotionOverlay(targetCtx, tW, tH, tClock, tProgress, tIdx);
+          }
+        } else if (is3dAnimationProject) {
+          const isInsectCountingStage =
+            /côn\s*trùng|cào\s*cào|châu\s*chấu|bọ\s*rùa|đếm\s*số|insect|grasshopper/i.test(
+              `${project.title} ${tScene.visualPrompt || ''}`
+            );
+          if (project.dialogueMode || tScene.speakerId || tScene.cameraAngle) {
+            draw3dDialogueCinemaStage(targetCtx, tW, tH, tClock, tIdx, tProgress, tScene);
+          } else if (isInsectCountingStage) {
+            draw3dAnimationInsectStage(targetCtx, tW, tH, tClock, tIdx, tProgress);
+          }
         }
       } else if (is3dAnimationProject) {
         const isInsectCountingStage =
           /côn\s*trùng|cào\s*cào|châu\s*chấu|bọ\s*rùa|đếm\s*số|insect|grasshopper/i.test(
-            `${project.title} ${scene.visualPrompt || ''}`
+            `${project.title} ${tScene.visualPrompt || ''}`
           );
-        if (project.dialogueMode || scene.speakerId || scene.cameraAngle) {
-          draw3dDialogueCinemaStage(ctx, W, H, clockSec, activeIdx, progress, scene);
+        if (project.dialogueMode || tScene.speakerId || tScene.cameraAngle) {
+          draw3dDialogueCinemaStage(targetCtx, tW, tH, tClock, tIdx, tProgress, tScene);
         } else if (isInsectCountingStage) {
-          draw3dAnimationInsectStage(ctx, W, H, clockSec, activeIdx, progress);
+          draw3dAnimationInsectStage(targetCtx, tW, tH, tClock, tIdx, tProgress);
+        } else {
+          drawCinematicSceneStage(targetCtx, tW, tH, tClock, tIdx, tProgress, tScene);
+        }
+      } else if (isHardwareKeynoteProject) {
+        drawCinematicSceneStage(targetCtx, tW, tH, tClock, tIdx, tProgress, tScene);
+      } else {
+        const renderedFallback3d = renderThreeDStageToCanvas(targetCtx, tW, tH, {
+          clockSec: tClock,
+          progress: tProgress,
+          sceneIdx: tIdx,
+          cameraMotion: tScene.cameraMotion || 'orbit',
+          isSpeaking: isPlayingRef.current,
+          mode: 'full-stage',
+        });
+        if (!renderedFallback3d) {
+          drawEditorialBroadcastStage(targetCtx, tW, tH, tClock, tScene);
         }
       }
-    } else if (is3dAnimationProject) {
-      const isInsectCountingStage =
-        /côn\s*trùng|cào\s*cào|châu\s*chấu|bọ\s*rùa|đếm\s*số|insect|grasshopper/i.test(
-          `${project.title} ${scene.visualPrompt || ''}`
-        );
-      if (project.dialogueMode || scene.speakerId || scene.cameraAngle) {
-        draw3dDialogueCinemaStage(ctx, W, H, clockSec, activeIdx, progress, scene);
-      } else if (isInsectCountingStage) {
-        draw3dAnimationInsectStage(ctx, W, H, clockSec, activeIdx, progress);
-      } else {
-        drawCinematicSceneStage(ctx, W, H, clockSec, activeIdx, progress, scene);
-      }
-    } else if (isHardwareKeynoteProject) {
-      drawCinematicSceneStage(ctx, W, H, clockSec, activeIdx, progress, scene);
-    } else {
-      // Trường quay đồ họa Thời sự / Phim tài liệu trong lúc nạp ảnh HD (tuyệt đối không hiện iPhone)
-      drawEditorialBroadcastStage(ctx, W, H, clockSec, scene);
-    }
+      targetCtx.restore();
+    };
 
-    // Subtle atmospheric bokeh particles over the frame (nhẹ hơn khi ở chế độ bản tin)
-    if (!isNewsOverlayActive) {
+    // GPU WebGL GL-Transitions giữa phân cảnh (thay cho cắt cứng hoặc mờ đơn điệu)
+    const transitionDuration = 0.72;
+    const prevTransitionScene = activeIdx > 0 ? scenes[activeIdx - 1] : null;
+    if (sceneElapsed < transitionDuration && prevTransitionScene && typeof document !== 'undefined') {
+      if (!glFromCanvasRef.current) glFromCanvasRef.current = document.createElement('canvas');
+      if (!glToCanvasRef.current) glToCanvasRef.current = document.createElement('canvas');
+      const fromC = glFromCanvasRef.current;
+      const toC = glToCanvasRef.current;
+      const tW = Math.min(1280, W);
+      const tH = Math.round((tW * H) / W);
+      if (fromC.width !== tW || fromC.height !== tH) {
+        fromC.width = tW;
+        fromC.height = tH;
+        toC.width = tW;
+        toC.height = tH;
+      }
+      const fCtx = fromC.getContext('2d');
+      const tCtx = toC.getContext('2d');
+      if (fCtx && tCtx) {
+        drawCoreStageToContext(
+          fCtx,
+          tW,
+          tH,
+          clockSec,
+          activeIdx - 1,
+          prevTransitionScene,
+          Math.max(1, (prevTransitionScene.endSec || 6) - (prevTransitionScene.startSec || 0)),
+          0.98
+        );
+        drawCoreStageToContext(tCtx, tW, tH, clockSec, activeIdx, scene, sceneElapsed, progress);
+        ctx.restore(); // thoát transform camera 1 giây để apply shader transition toàn khung chuẩn 1:1
+        applyGlSceneTransition(
+          ctx,
+          fromC,
+          toC,
+          W,
+          H,
+          sceneElapsed / transitionDuration,
+          pickSceneTransitionPreset(activeIdx, isPaperArtMode, scene.transition)
+        );
+        ctx.save();
+      } else {
+        drawCoreStageToContext(ctx, W, H, clockSec, activeIdx, scene, sceneElapsed, progress);
+      }
+    } else {
+      drawCoreStageToContext(ctx, W, H, clockSec, activeIdx, scene, sceneElapsed, progress);
+    }
+    lastGlSceneIdxRef.current = activeIdx;
+
+    const backdropDrawn = Boolean(vid || img || secImg || isPaperArtMode || useFullThreeJsStage);
+
+    // Subtle atmospheric bokeh particles over dark cinema frames only (không rắc bụi lên tranh giấy)
+    if (!isNewsOverlayActive && !isPaperArtMode) {
       drawAtmosphericParticles(ctx, W, H, clockSec, scene.lightingStyle || 'volumetric');
     }
 
     ctx.restore();
 
-    // 3B. Multi-Shot Beat 2 Split/PiP Evidence + Animated Telemetry Data Chart + Source Citation (1:1 Screen Coords)
+    // Chỉ phủ bảng đối chứng dữ liệu khi người dùng chủ động bật chế độ Bản Tin + HUD (xóa bỏ tình trạng dán đè Wikimedia xấu xí mặc định)
     if (
       backdropDrawn &&
+      isNewsOverlayActive &&
+      showBroadcastHud &&
       !is3dAnimationProject &&
       !allowHardware3dOverlays &&
-      visualRenderMode !== 'clean-photo'
+      !isPaperArtMode &&
+      !useFullThreeJsStage
     ) {
       drawMultiShotOverlayCards(ctx, W, H, scene, progress, clockSec, vid, img, secImg);
     }
 
-    // 4. Color Grading LUT Overlay
-    drawColorGradeLut(ctx, W, H, activeLut);
+    if (!isPaperArtMode) {
+      // 4. Color Grading LUT Overlay
+      drawColorGradeLut(ctx, W, H, activeLut);
 
-    // 5. Optical VFX Overlays (Film grain, light leaks, vignette, Apple lens flare)
-    drawVfxOverlay(ctx, W, H, clockSec, activeVfx);
+      // 5. Optical VFX Overlays (Film grain, light leaks, vignette, Apple lens flare)
+      drawVfxOverlay(ctx, W, H, clockSec, activeVfx);
 
-    // 6. Subtle Top & Bottom Broadcast Gradient Scrim for 100% Text Readability
-    const topScrim = ctx.createLinearGradient(0, 0, 0, H * 0.2);
-    topScrim.addColorStop(0, 'rgba(0, 0, 0, 0.48)');
-    topScrim.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = topScrim;
-    ctx.fillRect(0, 0, W, H * 0.2);
+      // 6. Subtle Top & Bottom Broadcast Gradient Scrim for 100% Text Readability
+      const topScrim = ctx.createLinearGradient(0, 0, 0, H * 0.2);
+      topScrim.addColorStop(0, 'rgba(0, 0, 0, 0.42)');
+      topScrim.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = topScrim;
+      ctx.fillRect(0, 0, W, H * 0.2);
 
-    const botScrim = ctx.createLinearGradient(0, H * 0.72, 0, H);
-    botScrim.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    botScrim.addColorStop(1, 'rgba(0, 0, 0, 0.74)');
-    ctx.fillStyle = botScrim;
-    ctx.fillRect(0, H * 0.72, W, H * 0.28);
+      const botScrim = ctx.createLinearGradient(0, H * 0.72, 0, H);
+      botScrim.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      botScrim.addColorStop(1, 'rgba(0, 0, 0, 0.68)');
+      ctx.fillStyle = botScrim;
+      ctx.fillRect(0, H * 0.72, W, H * 0.28);
+    }
 
     // 7. Cinema Letterbox 2.39:1
     if (anamoLetterbox && aspectRatio === '16:9') {
@@ -2690,9 +2895,24 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     }
 
     // 8. Gói Đồ Họa theo Thể Loại (Bản Tin 24h / HUD Kỹ thuật / Tiêu đề Điện ảnh tối giản)
-    if (isNewsOverlayActive) {
-      drawNewsBroadcastPackage(ctx, W, H, scene, activeIdx, scenes.length, progress, clockSec);
-      if (showBroadcastHud) {
+    if (!isPaperArtMode) {
+      if (isNewsOverlayActive) {
+        drawNewsBroadcastPackage(ctx, W, H, scene, activeIdx, scenes.length, progress, clockSec);
+        if (showBroadcastHud) {
+          drawDynamicContextCalloutCard(
+            ctx,
+            W,
+            H,
+            scene,
+            activeIdx,
+            scenes.length,
+            progress,
+            clockSec
+          );
+          drawLiveAudioSpectrumHud(ctx, W, H, clockSec, '#ef4444');
+        }
+      } else if (showBroadcastHud && !isCountryside3dFable && !isMotherDuck3dFable) {
+        drawCinemaHudAndHeadline(ctx, W, H, scene, activeIdx, scenes.length, progress);
         drawDynamicContextCalloutCard(
           ctx,
           W,
@@ -2703,26 +2923,18 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           progress,
           clockSec
         );
-        drawLiveAudioSpectrumHud(ctx, W, H, clockSec, '#ef4444');
+        drawLiveAudioSpectrumHud(ctx, W, H, clockSec, '#38bdf8');
+      } else if (visualRenderMode !== 'clean-photo') {
+        drawAppleMinimalSceneTitle(ctx, W, H, scene, activeIdx, scenes.length, sceneElapsed, sceneDur);
       }
-    } else if (showBroadcastHud) {
-      drawCinemaHudAndHeadline(ctx, W, H, scene, activeIdx, scenes.length, progress);
-      drawDynamicContextCalloutCard(
-        ctx,
-        W,
-        H,
-        scene,
-        activeIdx,
-        scenes.length,
-        progress,
-        clockSec
-      );
-      drawLiveAudioSpectrumHud(ctx, W, H, clockSec, '#38bdf8');
-    } else if (visualRenderMode !== 'clean-photo') {
-      drawAppleMinimalSceneTitle(ctx, W, H, scene, activeIdx, scenes.length, sceneElapsed, sceneDur);
     }
 
-    // 9. Kinetic Typography Subtitles
+    // 9. Three.js WebGL 3D AI Presenter Lip-Sync Overlay (chỉ hiện PiP khi đang phát B-Roll, tránh trùng nhân vật 3D toàn màn hình)
+    if (show3dPresenterHud && !is3dAnimationProject && !useFullThreeJsStage && !isPaperArtMode) {
+      draw3dAiPresenterOverlay(ctx, W, H, clockSec, scene);
+    }
+
+    // 10. Kinetic Typography Subtitles
     if (subtitleStyle !== 'off') {
       drawKineticSubtitles(
         ctx,
@@ -2801,26 +3013,183 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       alpha = Math.max(0, (fadeWindow - sceneElapsed) / 0.7);
     }
 
-    const padX = W * 0.05;
-    const topY = anamoLetterbox && aspectRatio === '16:9' ? H * 0.14 : H * 0.065;
+    const padX = W * 0.026;
+    // Đặt tiêu đề phân cảnh thấp hơn hẳn vùng badge BEAT (H * 0.032 + 28px) để tuyệt đối không đè chữ
+    const topY = anamoLetterbox && aspectRatio === '16:9' ? H * 0.165 : H * 0.095;
     const slideOffset = (1 - Math.min(1, sceneElapsed / 0.45)) * 14;
 
     ctx.save();
     ctx.globalAlpha = alpha;
 
     // Minimalist chapter indicator
-    ctx.font = `600 ${Math.max(10, Math.round(W * 0.011))}px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif`;
-    ctx.fillStyle = 'rgba(226, 232, 240, 0.75)';
-    ctx.letterSpacing = '1.5px';
+    ctx.font = `600 ${Math.max(11, Math.round(W * 0.011))}px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif`;
+    ctx.fillStyle = 'rgba(226, 232, 240, 0.88)';
     ctx.fillText(`0${sceneIdx + 1} / 0${totalScenes}`, padX, topY + slideOffset);
 
     // Editorial Apple Keynote Headline
-    ctx.font = `700 ${Math.max(16, Math.round(W * 0.024))}px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif`;
+    ctx.font = `700 ${Math.max(18, Math.round(W * 0.022))}px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif`;
     ctx.fillStyle = '#ffffff';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
-    ctx.shadowBlur = 12;
-    ctx.fillText(scene.headline.replace(/^\d+\.\s*/, ''), padX, topY + Math.max(22, H * 0.038) + slideOffset);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.72)';
+    ctx.shadowBlur = 10;
+    ctx.fillText(scene.headline.replace(/^\d+\.\s*/, '').slice(0, 62), padX, topY + Math.max(24, H * 0.038) + slideOffset);
 
+    ctx.restore();
+  };
+
+  // 3D AI PRESENTER & CHARACTER PIP OVERLAY (Thực thi thực tế Three.js WebGL2 3D Engine)
+  const draw3dAiPresenterOverlay = (
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    clockSec: number,
+    scene: StoryboardScene
+  ) => {
+    const renderedWebGl = renderThreeDStageToCanvas(ctx, W, H, {
+      clockSec,
+      progress: 0.5,
+      isSpeaking: isPlayingRef.current,
+      mode: 'pip-host',
+    });
+    if (renderedWebGl) return;
+
+    const isPortrait = W < H;
+    const cardW = isPortrait ? W * 0.24 : W * 0.14;
+    const cardH = cardW * 1.18;
+    const cx = W * 0.026 + cardW / 2;
+    const cy = H - H * 0.14 - cardH / 2;
+
+    ctx.save();
+    // 3D Studio Backdrop Card với hiệu ứng kính mờ & viền ánh sáng Rim-Light
+    const cardGrad = ctx.createLinearGradient(cx - cardW / 2, cy - cardH / 2, cx + cardW / 2, cy + cardH / 2);
+    cardGrad.addColorStop(0, 'rgba(15, 23, 42, 0.92)');
+    cardGrad.addColorStop(1, 'rgba(30, 41, 59, 0.88)');
+    ctx.fillStyle = cardGrad;
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+    ctx.lineWidth = Math.max(1.5, W * 0.0014);
+    ctx.beginPath();
+    ctx.roundRect(cx - cardW / 2, cy - cardH / 2, cardW, cardH, Math.round(cardW * 0.12));
+    ctx.fill();
+    ctx.stroke();
+
+    // Clip bên trong khung 3D Presenter
+    ctx.beginPath();
+    ctx.roundRect(cx - cardW / 2, cy - cardH / 2, cardW, cardH, Math.round(cardW * 0.12));
+    ctx.clip();
+
+    // 3D Perspective Grid & Volumetric Rim Light
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.16)';
+    ctx.lineWidth = 1;
+    for (let g = -2; g <= 2; g++) {
+      ctx.beginPath();
+      ctx.moveTo(cx + g * (cardW * 0.2), cy + cardH * 0.15);
+      ctx.lineTo(cx + g * (cardW * 0.36), cy + cardH * 0.52);
+      ctx.stroke();
+    }
+
+    // Chuyển động thở & nghiêng đầu 3D (LivePortrait motion retargeting)
+    const headBobY = Math.sin(clockSec * 2.4) * (cardH * 0.015);
+    const headTilt = Math.sin(clockSec * 1.4) * 0.04;
+    const avatarScale = cardW / 180;
+
+    ctx.translate(cx, cy + cardH * 0.06 + headBobY);
+    ctx.scale(avatarScale, avatarScale);
+    ctx.rotate(headTilt);
+
+    // Thân áo Vest 3D MC Studio
+    const suitGrad = ctx.createLinearGradient(-48, 20, 48, 88);
+    suitGrad.addColorStop(0, '#1e293b');
+    suitGrad.addColorStop(1, '#0f172a');
+    ctx.fillStyle = suitGrad;
+    ctx.beginPath();
+    ctx.roundRect(-52, 26, 104, 72, 26);
+    ctx.fill();
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath();
+    ctx.moveTo(-16, 26);
+    ctx.lineTo(0, 56);
+    ctx.lineTo(16, 26);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#0284c7';
+    ctx.beginPath();
+    ctx.moveTo(-5, 32);
+    ctx.lineTo(0, 62);
+    ctx.lineTo(5, 32);
+    ctx.closePath();
+    ctx.fill();
+
+    // Đầu & Khuôn mặt 3D tạo khối bằng Radial Gradient (Three.js shading)
+    const skinGrad = ctx.createRadialGradient(-10, -28, 6, 0, -18, 46);
+    skinGrad.addColorStop(0, '#fde6d2');
+    skinGrad.addColorStop(0.65, '#f3c19d');
+    skinGrad.addColorStop(1, '#d18e62');
+    ctx.fillStyle = skinGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, -18, 34, 40, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Tóc 3D
+    ctx.fillStyle = '#18181b';
+    ctx.beginPath();
+    ctx.ellipse(0, -44, 36, 20, -0.06, Math.PI, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(-34, -36, 6, 16, 3);
+    ctx.roundRect(28, -36, 6, 16, 3);
+    ctx.fill();
+
+    // Mắt chớp tự nhiên (SadTalker blink cycle)
+    const isBlink = Math.sin(clockSec * 1.9) > 0.96;
+    for (const s of [-1, 1]) {
+      ctx.save();
+      ctx.translate(s * 13, -22);
+      if (isBlink) {
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, 5, 0, Math.PI);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 6.5, 7.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.arc(0.5, 0.5, 3.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(-1, -1.2, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // Khẩu hình Lip-Sync đồng bộ theo nhịp giọng đọc Neural TTS
+    const speakingNow = isPlaying && Boolean(scene.voiceover?.trim());
+    const mouthOpen = speakingNow ? Math.max(1.5, Math.abs(Math.sin(clockSec * 14)) * 7.5) : 1.5;
+    ctx.fillStyle = '#7f1d1d';
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 8.5, mouthOpen, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (mouthOpen > 4) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(-5, 4 - mouthOpen * 0.7, 10, 2.2);
+    }
+
+    ctx.restore();
+
+    // Nhãn badge 3D AI Presenter phía dưới thẻ
+    ctx.save();
+    ctx.fillStyle = 'rgba(2, 132, 199, 0.92)';
+    ctx.beginPath();
+    ctx.roundRect(cx - cardW / 2 + 8, cy + cardH / 2 - 22, cardW - 16, 16, 4);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${Math.max(8.5, Math.round(cardW * 0.065))}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText('MC AI 3D • LIP-SYNC', cx, cy + cardH / 2 - 11);
     ctx.restore();
   };
 
@@ -4165,14 +4534,33 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     ratio: '16:9' | '9:16',
     avoidNewsLowerThird: boolean = false
   ) => {
-    const words = voiceover.trim().split(/\s+/).filter(Boolean);
+    // Split subtitles cleanly along Vietnamese clause punctuation first (avoid mid-clause orphan chunks)
+    const rawClauses = voiceover
+      .trim()
+      .split(/(?<=[,;:.!?])\s+/)
+      .map((c) => c.trim())
+      .filter(Boolean);
+    const maxChunkWords = ratio === '9:16' ? 5 : 8;
+    const phraseChunks: Array<{ words: string[]; startWordIdx: number }> = [];
+    let runningWordIdx = 0;
+    for (const clause of rawClauses) {
+      const cWords = clause.split(/\s+/).filter(Boolean);
+      for (let i = 0; i < cWords.length; i += maxChunkWords) {
+        const slice = cWords.slice(i, i + maxChunkWords);
+        phraseChunks.push({ words: slice, startWordIdx: runningWordIdx });
+        runningWordIdx += slice.length;
+      }
+    }
+    const words = phraseChunks.flatMap((c) => c.words);
     if (words.length === 0) return;
 
     const activeWordIndex = Math.min(words.length - 1, Math.floor(progress * words.length));
-    const chunkSize = ratio === '9:16' ? 5 : 8;
-    const chunkIndex = Math.floor(activeWordIndex / chunkSize);
-    const chunkStart = chunkIndex * chunkSize;
-    const chunkWords = words.slice(chunkStart, chunkStart + chunkSize);
+    const activePhrase =
+      phraseChunks.find(
+        (c) => activeWordIndex >= c.startWordIdx && activeWordIndex < c.startWordIdx + c.words.length
+      ) || phraseChunks[0];
+    const chunkStart = activePhrase.startWordIdx;
+    const chunkWords = activePhrase.words;
 
     const fontSize = ratio === '9:16' ? Math.round(W * 0.052) : Math.round(W * 0.026);
     let targetY = avoidNewsLowerThird ? H * 0.75 : H * 0.84;
@@ -4218,13 +4606,15 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
         ctx.save();
         if (isCurrent) {
-          ctx.fillStyle = '#ffffff';
-          ctx.shadowColor = 'rgba(255, 255, 255, 0.75)';
-          ctx.shadowBlur = 8;
+          ctx.fillStyle = '#38bdf8';
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+          ctx.shadowBlur = 2;
         } else if (isPast) {
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+          ctx.shadowBlur = 0;
         } else {
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.42)';
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.56)';
+          ctx.shadowBlur = 0;
         }
         ctx.fillText(word, cursorX, targetY);
         ctx.restore();
@@ -4374,7 +4764,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   };
 
   // Real Video Export with Complete Mixed Stereo Audio & Turbo Speed Multiplier
-  const handleExportFullTimelineVideo = () => {
+  const handleExportFullTimelineVideo = async () => {
     const canvas = canvasRef.current;
     if (!canvas || isExportingVideo) return;
 
@@ -4389,8 +4779,11 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         `Đang nạp trước Neural TTS & bộ trộn âm thanh (Tốc độ ${exportSpeedMultiplier}x)...`
       );
 
-      // Preload voiceover for all scenes
-      synthRef.current?.preloadScenesVoiceover(scenes);
+      // Nạp trước toàn bộ giọng đọc Neural TTS để đảm bảo âm thanh không bị mất ở giây 0
+      setExportProgress(2);
+      setExportStatusText('Đang nạp trước Neural TTS & luồng âm thanh 48kHz...');
+      await synthRef.current?.preloadScenesVoiceover(scenes);
+      await new Promise((r) => setTimeout(r, 450));
 
       // Resume synthesizer and start soundtrack
       synthRef.current?.resume();
@@ -4399,7 +4792,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       const canvasStream = canvas.captureStream(30);
       const audioTrack = synthRef.current?.getAudioStreamTrack();
 
-      const combinedTracks = [...canvasStream.getVideoTracks()];
+      const combinedTracks: MediaStreamTrack[] = [...canvasStream.getVideoTracks()];
       if (audioTrack) {
         combinedTracks.push(audioTrack);
       }
@@ -4414,7 +4807,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
       const recorder = new MediaRecorder(combinedStream, {
         mimeType,
-        videoBitsPerSecond: 6000000,
+        videoBitsPerSecond: 8000000,
         audioBitsPerSecond: 192000,
       });
 
@@ -4423,7 +4816,12 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         if (!isCancelled && e.data && e.data.size > 0) chunks.push(e.data);
       };
 
-      recorder.onstop = () => {
+      const targetDurationSec =
+        exportScope === 'current' ? Math.max(1, currentScene.endSec - currentScene.startSec) : Math.max(1, totalDuration);
+      const totalMs = Math.max(1000, Math.round((targetDurationSec * 1000) / exportSpeedMultiplier));
+      let actualStartMs = Date.now();
+
+      recorder.onstop = async () => {
         playbackSpeedRef.current = prevSpeed;
         exportCancelRef.current = null;
         synthRef.current?.stopCinematicSoundtrack();
@@ -4436,18 +4834,24 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           return;
         }
 
-        const blob = new Blob(chunks, { type: mimeType });
+        const rawBlob = new Blob(chunks, { type: mimeType });
+        const recordedDurationMs = Math.max(1000, Date.now() - actualStartMs);
+        const safeContainerDurationMs = Math.min(recordedDurationMs, Math.round(targetDurationSec * 1000) + 250);
+        // Vá EBML Duration Header để mọi trình phát đọc được tổng thời lượng & tua chính xác
+        const blob = await fixWebmDuration(rawBlob, safeContainerDurationMs);
         const url = URL.createObjectURL(blob);
         setIsExportingVideo(false);
         setExportProgress(100);
         setExportStatusText('Xuất bản thành công! Đang tải file về máy...');
 
-        const filename = `${project.code || 'SYNAPES'}_${project.title.slice(0, 24).replace(/\s+/g, '_')}_Master_HD.webm`;
+        const filename = `${project.code || 'SYNAPES'}_${project.title.slice(0, 24).replace(/\s+/g, '_')}_Master_FHD.webm`;
         (window as any).__SYNAPES_LAST_EXPORT = {
           filename,
           sizeBytes: blob.size,
           mimeType,
           durationSec: targetDurationSec,
+          recordedDurationMs,
+          resolution: `${canvas.width}x${canvas.height}`,
           completedAt: new Date().toISOString(),
         };
 
@@ -4469,13 +4873,10 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       seekToTime(exportScope === 'current' ? currentScene.startSec : 0);
       setIsPlaying(true);
 
+      actualStartMs = Date.now();
       recorder.start(250);
 
-      // Duration to record scaled by multiplier
-      const targetDurationSec =
-        exportScope === 'current' ? Math.max(1, currentScene.endSec - currentScene.startSec) : Math.max(1, totalDuration);
-      const totalMs = Math.max(1000, Math.round((targetDurationSec * 1000) / exportSpeedMultiplier));
-      const startMs = Date.now();
+      const startMs = actualStartMs;
 
       const timer = setInterval(() => {
         if (isCancelled) {
@@ -4579,6 +4980,44 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
             <span className="text-sky-300">{loadedCount}/{scenes.length} Ảnh HD</span>
           </div>
 
+          {/* Toggle Stage Mode (Three.js 3D / Rough.js Paper Art / Auto Cinema) */}
+          <div className="flex items-center gap-1 bg-zinc-800/90 p-0.5 rounded-lg border border-white/10">
+            {[
+              { id: 'auto-genre', label: 'Tự Động' },
+              { id: 'threejs-3d', label: '3D Three.js' },
+              { id: 'paper-art', label: 'Tranh Giấy' },
+              { id: 'clean-photo', label: 'Phim Sạch' },
+            ].map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setVisualRenderMode(m.id as any)}
+                className={`px-2 py-1 rounded-md text-[10.5px] font-semibold transition cursor-pointer ${
+                  visualRenderMode === m.id
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-zinc-300 hover:bg-zinc-700'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Toggle 3D AI Presenter Overlay */}
+          <button
+            type="button"
+            onClick={() => setShow3dPresenterHud((v) => !v)}
+            className={`px-2.5 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer border shadow-xs ${
+              show3dPresenterHud
+                ? 'bg-sky-950 text-sky-200 border-sky-500/50'
+                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-white/10'
+            }`}
+            title="Bật/Tắt MC Nhân vật AI 3D Lip-Sync trên video"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+            <span>MC 3D AI</span>
+          </button>
+
           {/* Export Video Master Button */}
           <button
             type="button"
@@ -4599,8 +5038,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       >
         <canvas
           ref={canvasRef}
-          width={aspectRatio === '16:9' ? 1280 : 720}
-          height={aspectRatio === '16:9' ? 720 : 1280}
+          width={aspectRatio === '16:9' ? 1920 : 1080}
+          height={aspectRatio === '16:9' ? 1080 : 1920}
           className="w-full h-full object-contain cursor-pointer"
           onClick={() => setIsPlaying((p) => !p)}
         />

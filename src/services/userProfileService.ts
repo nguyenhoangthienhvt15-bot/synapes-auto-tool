@@ -198,11 +198,24 @@ export function getUserProfile(
     const raw = localStorage.getItem(storageKey);
     if (raw) {
       const parsed: UserProfileData = JSON.parse(raw);
+      const rawCfg = parsed.aiConfig || EMPTY_AI_CONFIG;
+      const sanitizedGeminiKey =
+        rawCfg.gemini?.apiKey === 'AIzaSyA8B2C9D10E_DEMO_KEY_OFFICIAL'
+          ? ''
+          : rawCfg.gemini?.apiKey || '';
+      const sanitizedAiConfig = {
+        ...rawCfg,
+        gemini: {
+          ...rawCfg.gemini,
+          apiKey: sanitizedGeminiKey,
+          model: rawCfg.gemini?.model || 'gemini-3.8-flash',
+        },
+      };
       return {
         code: codeClean,
         name: parsed.name || fallbackName,
         email: parsed.email || fallbackEmail,
-        aiConfig: parsed.aiConfig || EMPTY_AI_CONFIG,
+        aiConfig: sanitizedAiConfig,
         channels: parsed.channels || getDisconnectedChannels(fallbackName, fallbackEmail),
         driveEmail: parsed.driveEmail || fallbackEmail,
         driveConnected: !!parsed.driveConnected,
@@ -292,6 +305,27 @@ export async function syncUserProfileToServer(
   }
 }
 
+function mergeProjectsServerFirst(
+  serverProjects: Project[] = [],
+  localProjects: Project[] = []
+): Project[] {
+  const merged: Project[] = [];
+  const seenIds = new Set<string>();
+  const seenTitles = new Set<string>();
+
+  for (const p of [...serverProjects, ...localProjects]) {
+    if (!p || !p.id) continue;
+    const normTitle = (p.title || '').trim().toLowerCase();
+    if (seenIds.has(p.id) || (normTitle && seenTitles.has(normTitle))) {
+      continue;
+    }
+    seenIds.add(p.id);
+    if (normTitle) seenTitles.add(normTitle);
+    merged.push(p);
+  }
+  return merged;
+}
+
 export async function restoreUserProfileFromServer(
   code: string
 ): Promise<{ success: boolean; profile?: UserProfileData; checksumValid?: boolean; updatedAt?: string; error?: string }> {
@@ -302,12 +336,33 @@ export async function restoreUserProfileFromServer(
     const data = await resp.json().catch(() => ({}));
     if (resp.ok && data?.success && data.profile) {
       const storageKey = `${USER_DATA_PREFIX}${codeClean}`;
+      const localProfile = getUserProfile(codeClean);
+      const serverProfile = data.profile as UserProfileData;
+      const mergedProjects = mergeProjectsServerFirst(
+        Array.isArray(serverProfile.projects) ? serverProfile.projects : [],
+        Array.isArray(localProfile.projects) ? localProfile.projects : []
+      );
+      const mergedAiConfig: AIProviderConfig = {
+        ...localProfile.aiConfig,
+        ...(serverProfile.aiConfig || {}),
+        gemini: {
+          ...localProfile.aiConfig?.gemini,
+          ...(serverProfile.aiConfig?.gemini || {}),
+          apiKey:
+            localProfile.aiConfig?.gemini?.apiKey ||
+            serverProfile.aiConfig?.gemini?.apiKey ||
+            '',
+        },
+      };
       const merged: UserProfileData = {
-        ...getUserProfile(codeClean),
-        ...data.profile,
+        ...localProfile,
+        ...serverProfile,
         code: codeClean,
+        aiConfig: mergedAiConfig,
+        projects: mergedProjects,
         preferences: {
-          ...(data.profile.preferences || {}),
+          ...(localProfile.preferences || {}),
+          ...(serverProfile.preferences || {}),
           lastServerBackupAt: data.updatedAt,
           lastBackupChecksum: data.sha256Checksum,
         },

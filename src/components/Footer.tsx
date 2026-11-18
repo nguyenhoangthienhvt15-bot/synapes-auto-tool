@@ -236,52 +236,16 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
             </a>
           </div>
 
-          {/* Huy hiệu pháp lý Bộ Công Thương & Bản quyền DMCA */}
-          <div className="pt-2 flex items-center flex-wrap gap-3">
-            {/* Logo Đã Thông Báo Bộ Công Thương */}
-            <a
-              href="http://online.gov.vn"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Đã thông báo Bộ Công Thương (online.gov.vn)"
-              className="inline-block hover:opacity-90 transition active:scale-95"
-            >
-              <img
-                src="/bct-da-thong-bao.png"
-                alt="Đã Thông Báo Bộ Công Thương"
-                className="h-8 w-auto object-contain"
-              />
-            </a>
-
-            {/* Logo Nói Không Với Hàng Giả - Bộ Công Thương */}
-            <a
-              href="http://online.gov.vn"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Nói Không Với Hàng Giả - Bộ Công Thương"
-              className="inline-block hover:opacity-90 transition active:scale-95"
-            >
-              <img
-                src="/bct-noi-khong-hang-gia.png"
-                alt="Nói Không Với Hàng Giả - Bộ Công Thương"
-                className="h-9 w-auto object-contain"
-              />
-            </a>
-
-            {/* Huy hiệu DMCA Protected Chính Thức */}
-            <a
-              href="https://www.dmca.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Chứng nhận bảo vệ bản quyền số DMCA Protected"
-              className="inline-block hover:opacity-90 transition active:scale-95"
-            >
-              <img
-                src="/dmca-protected.png"
-                alt="DMCA Protected"
-                className="h-7 w-auto object-contain rounded-xs"
-              />
-            </a>
+          {/* Thông báo tuân thủ & giấy phép mã nguồn mở */}
+          <div className="pt-2 flex items-center flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100 border border-black/[0.08] text-[10px] font-medium text-zinc-700">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Tuân thủ Chính sách Bảo mật &amp; BYOK</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100 border border-black/[0.08] text-[10px] font-medium text-zinc-700">
+              <CheckCircle2 className="w-3.5 h-3.5 text-zinc-700" />
+              <span>Open-Source Engine Attribution</span>
+            </span>
           </div>
         </div>
 

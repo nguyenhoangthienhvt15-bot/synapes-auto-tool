@@ -860,7 +860,7 @@ export const EngineerSheetView: React.FC<EngineerSheetViewProps> = ({
                 <input
                   type="email"
                   required
-                  placeholder="trolibaitap2021@gmail.com"
+                  placeholder="creator@studio.example.com"
                   value={newGmail}
                   onChange={(e) => setNewGmail(e.target.value)}
                   className="w-full bg-zinc-50 border border-black/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 focus:outline-none focus:bg-white focus:border-zinc-900"

@@ -1,0 +1,163 @@
+{
+  "_meta": {
+    "title": "Synapes Auto Video - Pixar 3D + IPAdapter FaceID + Wan2.1 I2V + LatentSync Production Graph",
+    "version": "7.0.0",
+    "targetHardware": "Kaggle Dual-T4 / RunPod / Railway Cloud GPU Worker (Zero Local VRAM)",
+    "githubIntegrations": [
+      "comfyanonymous/ComfyUI",
+      "cubiq/ComfyUI_IPAdapter_plus",
+      "Kijai/ComfyUI-WanVideoWrapper",
+      "bytedance/LatentSync"
+    ]
+  },
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "flux1-dev-fp8.safetensors"
+    }
+  },
+  "2": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "3D Pixar animation style, cute protagonist fox wearing crimson scarf, expressive big eyes, subsurface scattering fur, warm studio rim lighting, clean cinematic depth of field, 8k octane render",
+      "clip": ["1", 1]
+    }
+  },
+  "3": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "blurry, watermark, random text, deformed face, inconsistent character clothing, 2d flat clipart, lowres",
+      "clip": ["1", 1]
+    }
+  },
+  "4": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "character_consistency_anchor.png"
+    }
+  },
+  "5": {
+    "class_type": "IPAdapterUnifiedLoaderFaceID",
+    "inputs": {
+      "model": ["1", 0],
+      "preset": "FACEID PLUS V2",
+      "lora_strength": 0.65,
+      "provider": "CUDA"
+    }
+  },
+  "6": {
+    "class_type": "IPAdapterFaceID",
+    "inputs": {
+      "model": ["5", 0],
+      "ipadapter": ["5", 1],
+      "image": ["4", 0],
+      "weight": 0.85,
+      "weight_faceidv2": 0.9,
+      "weight_type": "linear",
+      "combine_embeds": "concat",
+      "start_at": 0.0,
+      "end_at": 1.0,
+      "embeds_scaling": "V only"
+    }
+  },
+  "7": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 1280,
+      "height": 720,
+      "batch_size": 1
+    }
+  },
+  "8": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["6", 0],
+      "positive": ["2", 0],
+      "negative": ["3", 0],
+      "latent_image": ["7", 0],
+      "seed": 7022006,
+      "steps": 24,
+      "cfg": 3.5,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1.0
+    }
+  },
+  "9": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["8", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "10": {
+    "class_type": "WanVideoModelLoader",
+    "inputs": {
+      "model": "Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors",
+      "base_precision": "fp16",
+      "quantization": "fp8_e4m3fn",
+      "load_device": "offload_device"
+    }
+  },
+  "11": {
+    "class_type": "WanVideoImageToVideoEncode",
+    "inputs": {
+      "vae": ["10", 1],
+      "start_image": ["9", 0],
+      "width": 1280,
+      "height": 720,
+      "num_frames": 81,
+      "noise_aug_strength": 0.02
+    }
+  },
+  "12": {
+    "class_type": "WanVideoSampler",
+    "inputs": {
+      "model": ["10", 0],
+      "image_embeds": ["11", 0],
+      "steps": 25,
+      "cfg": 5.0,
+      "shift": 5.0,
+      "seed": 7022006,
+      "scheduler": "unipc",
+      "force_offload": true
+    }
+  },
+  "13": {
+    "class_type": "WanVideoDecode",
+    "inputs": {
+      "vae": ["10", 1],
+      "samples": ["12", 0],
+      "enable_vae_tiling": true
+    }
+  },
+  "14": {
+    "class_type": "LoadAudio",
+    "inputs": {
+      "audio": "vietnamese_voice_track.wav"
+    }
+  },
+  "15": {
+    "class_type": "LatentSyncNode",
+    "inputs": {
+      "images": ["13", 0],
+      "audio": ["14", 0],
+      "seed": 7022006,
+      "lips_expression": 1.5,
+      "inference_steps": 20
+    }
+  },
+  "16": {
+    "class_type": "VHS_VideoCombine",
+    "inputs": {
+      "images": ["15", 0],
+      "audio": ["14", 0],
+      "frame_rate": 24,
+      "loop_count": 0,
+      "filename_prefix": "Synapes_Pixar3D_LipSync",
+      "format": "video/h264-mp4",
+      "pingpong": false,
+      "save_output": true
+    }
+  }
+}

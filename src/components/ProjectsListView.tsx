@@ -165,15 +165,15 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
             </span>
           </div>
           <p className="text-zinc-500 text-xs mt-0.5">
-            Phân loại rõ nét theo kênh phát sóng (YouTube, TikTok, Facebook) kèm biểu mở rộng thông số kỹ thuật, kịch bản và giờ đăng
+            Phân loại rõ nét theo kênh phát sóng (YouTube, TikTok, Facebook) kèm bảng thông số kỹ thuật mở rộng, kịch bản và giờ đăng
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={toggleExpandAll}
-            className="btn-secondary text-xs flex items-center gap-1.5 cursor-pointer"
-            title="Mở rộng / Thu gọn toàn bộ biểu chi tiết"
+            className="btn-secondary text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            title="Mở rộng / Thu gọn toàn bộ bảng chi tiết"
           >
             {projects.every((p) => expandedIds[p.id]) ? (
               <>

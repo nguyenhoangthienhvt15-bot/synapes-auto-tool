@@ -960,8 +960,18 @@ function extractFocusedEntityQueries(rawQuery = '') {
     'Phim', 'Tài', 'Liệu', 'Khoa', 'Học', 'Đột', 'Phá', 'Công', 'Nghệ', 'Cuộc', 'Đua',
     'Toàn', 'Cầu', 'Trung', 'Tâm', 'Năng', 'Lượng', 'Thế', 'Hệ', 'Mới', 'Trong', 'Kỷ', 'Nguyên',
     'Bản', 'Tin', 'Video', 'Kịch', 'Sẽ', 'Việc', 'Ông', 'Bà', 'Hơn', 'Năm', 'Người', 'Cũng', 'Khi', 'Tại', 'Với',
+    'Chiến', 'Lược', 'Edge', 'Silicon', 'Chip', 'Nhân', 'Vật', 'Dựng', 'Hoạt', 'Hình',
   ]);
   const foundSet = new Set();
+  // Ưu tiên ghép các cụm thuật ngữ công nghệ đa từ trước khi bắt thực thể đơn lẻ
+  const techPhrases = base.match(/(?:Edge\s*AI|Chip\s*Silicon|Silicon\s*NPU|Neural\s*Processing\s*Unit|Apple\s*Silicon|Three\.js|SadTalker|LivePortrait|MoviePy|Remotion|Manim)/giu) || [];
+  for (const tp of techPhrases) {
+    const cleanTp = tp.replace(/\s+/g, ' ').trim();
+    if (!foundSet.has(cleanTp.toLowerCase())) {
+      foundSet.add(cleanTp.toLowerCase());
+      entities.push(cleanTp);
+    }
+  }
   let m;
   while ((m = properRegex.exec(base)) !== null) {
     const phrase = m[1].trim();
@@ -994,7 +1004,10 @@ function extractFocusedEntityQueries(rawQuery = '') {
   return queries.length > 0 ? queries : [coreKw];
 }
 
-export async function fetchGoogleNewsRss(query) {
+const OFF_DOMAIN_TECH_NOISE_REGEX =
+  /đô\s*vật|wrestler|wwe|adam\s+(?:joseph\s+)?copeland|rated-r\s+superstar|tên\s+lửa|pac-3|patriot|chiến\s+hào|bouresches|trench|machine\s+guns|wwi|world\s+war/i;
+
+export async function fetchGoogleNewsRss(query, domainHint = '') {
   try {
     const coreKw = extractSearchKeywords(query);
     const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(coreKw)}&hl=vi&gl=VN&ceid=VN:vi`;
@@ -1008,13 +1021,17 @@ export async function fetchGoogleNewsRss(query) {
       itemMatches = xml2.match(/<item>([\s\S]*?)<\/item>/g) || [];
     }
 
+    const isTechLike = domainHint === 'ai-cyber' || domainHint === 'hardware' || /\b(?:edge\s*ai|npu|silicon|chip|ai|3d)\b/i.test(query);
     const headlines = [];
-    for (const itemXml of itemMatches.slice(0, 8)) {
+    for (const itemXml of itemMatches.slice(0, 10)) {
       const rawTitle = (itemXml.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
       const rawPubDate = (itemXml.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '';
       const rawSource = (itemXml.match(/<source[^>]*>([\s\S]*?)<\/source>/) || [])[1] || '';
       const cleanTitle = decodeXmlEntities(rawTitle).replace(/\s+-\s+[^-]+$/, '').trim();
       if (cleanTitle && cleanTitle.length > 10) {
+        if (isTechLike && OFF_DOMAIN_TECH_NOISE_REGEX.test(cleanTitle)) {
+          continue;
+        }
         headlines.push({
           title: cleanTitle,
           source: decodeXmlEntities(rawSource) || 'Tin tức Quốc tế',
@@ -1028,9 +1045,20 @@ export async function fetchGoogleNewsRss(query) {
   }
 }
 
-export async function fetchWikipediaContext(query, lang = 'vi') {
+export async function fetchWikipediaContext(query, lang = 'vi', domainHint = '') {
   try {
     const coreKw = lang === 'en' ? translateQueryToEnglishKeywords(query) : extractSearchKeywords(query);
+    if (!coreKw || coreKw.trim().length < 2) return { summary: '', images: [] };
+    const norm = (v) =>
+      String(v || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd');
+    const queryTokens = norm(coreKw)
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t.length >= 3 && !['hom', 'nay', 'gia', 'moi', 'nhat', 'ngay', 'thang', 'nam', 'cho', 'cua'].includes(t));
+
     const searchUrl = `https://${lang}.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(
       coreKw
     )}&gsrlimit=4&prop=extracts|pageimages&exintro=1&explaintext=1&exchars=550&piprop=original|thumbnail&pithumbsize=1280&format=json&origin=*`;
@@ -1039,8 +1067,19 @@ export async function fetchWikipediaContext(query, lang = 'vi') {
     const pages = Object.values(json?.query?.pages || {});
     const extracts = [];
     const images = [];
+    const isTechLike = domainHint === 'ai-cyber' || domainHint === 'hardware' || /\b(?:edge\s*ai|npu|silicon|chip|ai|3d)\b/i.test(query);
 
     for (const p of pages) {
+      const combinedText = `${p?.title || ''} ${p?.extract || ''}`;
+      if (isTechLike && OFF_DOMAIN_TECH_NOISE_REGEX.test(combinedText)) {
+        continue;
+      }
+      const titleNorm = norm(p?.title || '');
+      const extractNorm = norm(p?.extract || '');
+      if (queryTokens.length > 0) {
+        const hitCount = queryTokens.filter((tok) => titleNorm.includes(tok) || extractNorm.includes(tok)).length;
+        if (hitCount === 0) continue;
+      }
       if (p?.extract && p.extract.length > 30) {
         extracts.push(`${p.title}: ${p.extract.replace(/\s+/g, ' ').trim()}`);
       }
@@ -1050,7 +1089,7 @@ export async function fetchWikipediaContext(query, lang = 'vi') {
         imgUrl &&
         !/\.(svg|tif|djvu|pdf)$/i.test(imgUrl) &&
         !NON_TOPIC_MEDIA_TITLE_REGEX.test(safeWikiTitle) &&
-        !/\.(djvu|pdf)|scan|calligraphy|manuscript|newspaper|comet|tri%E1%BB%81u|l%E1%BB%87/i.test(imgUrl)
+        !/\.(djvu|pdf)|scan|calligraphy|manuscript|newspaper|comet|tri%E1%BB%81u|l%E1%BB%87|bouresches|trench|wrestler/i.test(imgUrl)
       ) {
         images.push({
           id: `wiki-page-${lang}-${p.pageid}`,
@@ -1071,6 +1110,10 @@ export async function fetchWikipediaContext(query, lang = 'vi') {
  * Ánh xạ từ khóa Tiếng Việt -> Tiếng Anh chuyên ngành (Unicode boundary chuẩn cho Tiếng Việt) để tìm nguồn ảnh/video chính xác từ Wikimedia & NASA.
  */
 const VI_TO_EN_TOPIC_MAP = [
+  [/edge\s*ai|trí\s*tuệ\s*nhân\s*tạo\s*(?:tại\s*)?biên/iu, 'edge computing artificial intelligence NPU'],
+  [/\bnpu\b|neural\s*processing|chip\s*silicon|silicon\s*npu/iu, 'neural processing unit semiconductor microchip'],
+  [/nhân\s*vật\s*3d|hoạt\s*hình\s*3d|3d\s*character|three\.?js|sadtalker/iu, '3D character animation rendering'],
+  [/edit\s*video|dựng\s*video|hậu\s*kỳ\s*video/iu, 'video editing timeline compositing'],
   [/(?<![\p{L}\p{N}])(?:bán dẫn|vi mạch|tiến trình 2nm|wafer|quang khắc|chip)(?![\p{L}\p{N}])/iu, 'semiconductor microchip wafer'],
   [/(?<![\p{L}\p{N}])(?:năng lượng hạt nhân|điện hạt nhân|lò phản ứng|hạt nhân sạch|smr)(?![\p{L}\p{N}])/iu, 'nuclear reactor clean energy'],
   [/(?<![\p{L}\p{N}])(?:trung tâm dữ liệu|siêu máy tính|server|data center|supercomputer)(?![\p{L}\p{N}])/iu, 'data center supercomputer'],
@@ -1091,7 +1134,7 @@ const VI_TO_EN_TOPIC_MAP = [
 ];
 
 const NON_TOPIC_MEDIA_TITLE_REGEX =
-  /screw|anchor|toy|cartoon|game|icon|logo|flag|pronunciation|spoken|wikipedia|album|song|romance|drama|meme|triều nguyễn|châu bản|tự điển|lệ làng|hương lệ|khải định|bảo đại|trung-kỳ|nam-kỳ|bắc-kỳ|htnb|tạp chí|newspaper|gazette|manuscript|calligraphy|sapèque|djvu|certificate|herbarium|specimen|streetcar|tramway|leica|comet|cheetah|viadukt|universidad/i;
+  /screw|anchor|toy|cartoon|game|icon|logo|flag|pronunciation|spoken|wikipedia|album|song|romance|drama|meme|triều nguyễn|châu bản|tự điển|lệ làng|hương lệ|khải định|bảo đại|trung-kỳ|nam-kỳ|bắc-kỳ|htnb|tạp chí|newspaper|gazette|manuscript|calligraphy|sapèque|djvu|certificate|herbarium|specimen|streetcar|tramway|leica|comet|cheetah|viadukt|universidad|university|college|lebanese|hofstadter|bouresches|trench|machine_guns|wrestler|copeland|textbook|bookcover|book_cover|flowchart|schematic|diagram|signature|coat_of_arms|seal_of|crest|emblem|screenshot|map_of|frequency|allocation|relative_phase|histogram|plot|waveform|spectrum|chart|graph/i;
 
 export function translateQueryToEnglishKeywords(rawQuery = '') {
   const q = String(rawQuery || '').trim();
@@ -1103,7 +1146,10 @@ export function translateQueryToEnglishKeywords(rawQuery = '') {
   }
   // Keep pure ASCII/English words >= 2 chars using Unicode-safe word boundaries (never split Vietnamese words like "phát")
   const asciiMatches = q.match(/(?<![\p{L}\p{N}])[A-Za-z][A-Za-z0-9]{1,}(?![\p{L}\p{N}])/gu) || [];
-  const noiseEn = new Set(['and', 'the', 'for', 'with', 'video', 'clip', 'news', 'phim', 'nam', 'cua', 'cho', 'vao']);
+  const noiseEn = new Set([
+    'and', 'the', 'for', 'with', 'video', 'clip', 'news', 'phim', 'nam', 'cua', 'cho', 'vao',
+    'nay', 'hom', 'ngay', 'thang', 'moi', 'nhat', 'gia', 'tai', 'trong', 'nhu', 'sau', 'truoc', 'khi',
+  ]);
   for (const w of asciiMatches) {
     const low = w.toLowerCase();
     if (!noiseEn.has(low) && w.length >= 2) {
@@ -1136,7 +1182,7 @@ export async function searchWikimediaImages(query, limit = 10) {
         try {
           const apiUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(
             kw + ' filetype:bitmap'
-          )}&gsrlimit=${Math.min(10, limit)}&prop=imageinfo&iiprop=url|mime|extmetadata&iiurlwidth=1280&format=json&origin=*`;
+          )}&gsrlimit=${Math.min(12, limit + 4)}&prop=imageinfo&iiprop=url|mime|size|extmetadata&iiurlwidth=1280&format=json&origin=*`;
           const raw = await fetchTextUrl(apiUrl, 4500);
           const json = JSON.parse(raw);
           const pages = Object.values(json?.query?.pages || {});
@@ -1144,6 +1190,11 @@ export async function searchWikimediaImages(query, limit = 10) {
             const ii = p?.imageinfo?.[0];
             const thumbUrl = ii?.thumburl || ii?.url;
             if (!thumbUrl || /\.(svg|gif|tif|djvu|pdf)$/i.test(thumbUrl)) {
+              continue;
+            }
+            const imgW = Number(ii?.width || 0);
+            const imgH = Number(ii?.height || 0);
+            if (imgW > 0 && imgH > 0 && (imgW < 720 || imgW < imgH * 1.05)) {
               continue;
             }
             const cleanImgTitle = String(p.title || '')
@@ -1891,6 +1942,7 @@ async function postJsonHttps(targetUrl, headers, bodyObj, timeoutMs = 25000) {
       targetUrl,
       {
         method: 'POST',
+        ...(parsed.protocol === 'https:' ? { family: 4 } : {}),
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(payload),
@@ -3064,23 +3116,129 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
+  // A0. REAL GITHUB REPOSITORY INSPECTOR & SKILL CAPABILITY MAPPER (/api/github-repo/inspect)
+  // Xác thực trực tiếp trên GitHub REST API, không chấp nhận repo giả mạo
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/github-repo/inspect' && req.method === 'POST') {
+    try {
+      const body = (await readJsonBody(req)) || {};
+      const rawRepo = String(body.repo || body.repoUrl || '').trim();
+      const match = rawRepo.match(/(?:https?:\/\/github\.com\/)?([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(?:\.git|\/)?$/i);
+      if (!match) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({
+          success: false,
+          error: 'Định dạng Repo GitHub không hợp lệ. Vui lòng nhập dạng owner/repo hoặc https://github.com/owner/repo.',
+        }));
+        return true;
+      }
+
+      const slug = match[1];
+      const ghUrl = `https://api.github.com/repos/${slug}`;
+      const ghRes = await fetch(ghUrl, {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'User-Agent': 'SynapesStudio/2.0',
+        },
+        signal: AbortSignal.timeout(7000),
+      });
+
+      if (!ghRes.ok) {
+        res.writeHead(ghRes.status === 404 ? 404 : 502, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({
+          success: false,
+          status: ghRes.status,
+          error: ghRes.status === 404
+            ? `Kho mã nguồn "${slug}" không tồn tại trên GitHub (HTTP 404). Hệ thống từ chối tích hợp repo ảo.`
+            : `GitHub API phản hồi HTTP ${ghRes.status}.`,
+        }));
+        return true;
+      }
+
+      const ghData = await ghRes.json();
+      const starsNum = Number(ghData.stargazers_count || 0);
+      const starsFmt = starsNum >= 1000 ? `${(starsNum / 1000).toFixed(1)}k ★` : `${starsNum} ★`;
+      const topics = Array.isArray(ghData.topics) ? ghData.topics : [];
+      const blobText = `${slug} ${ghData.description || ''} ${ghData.language || ''} ${topics.join(' ')}`.toLowerCase();
+
+      const detectedCapabilities = [];
+      if (/3d|three|blender|character|avatar|talking|sadtalker|liveportrait|face|pose/.test(blobText)) {
+        detectedCapabilities.push('3D Character & Lip-Sync');
+      }
+      if (/edit|ffmpeg|moviepy|cut|timeline|transition|editly|compositor|remotion/.test(blobText)) {
+        detectedCapabilities.push('Multi-Track Video Editing');
+      }
+      if (/subtitle|caption|whisper|lingo|tts|voice|dub/.test(blobText)) {
+        detectedCapabilities.push('Kinetic Subtitles & Audio Sync');
+      }
+      if (/manim|chart|animation|motion|canvas|webgl/.test(blobText)) {
+        detectedCapabilities.push('Vector Motion Graphics');
+      }
+      if (detectedCapabilities.length === 0) {
+        detectedCapabilities.push(ghData.language ? `${ghData.language} Engine` : 'Custom Video Pipeline');
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: true,
+        repo: ghData.full_name || slug,
+        repoUrl: ghData.html_url || `https://github.com/${slug}`,
+        stars: starsFmt,
+        stargazersCount: starsNum,
+        language: ghData.language || 'Multi-language',
+        description: ghData.description || 'Kho mã nguồn mở đã xác thực từ GitHub API.',
+        topics: topics.slice(0, 6),
+        defaultBranch: ghData.default_branch || 'main',
+        license: ghData.license?.spdx_id || 'Open Source',
+        capabilities: detectedCapabilities,
+        sampleVideoUrl: detectedCapabilities.includes('3D Character & Lip-Sync')
+          ? '/VIDEO_HOAT_HINH_3D_HOI_THOAI_20S.mp4'
+          : '/skill-samples/editly-sample.webm',
+      }));
+      return true;
+    } catch (err) {
+      res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        error: `Không thể kết nối GitHub API để xác thực repo: ${err?.message || String(err)}`,
+      }));
+      return true;
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // A. TOPIC RESEARCH ENDPOINT (/api/topic-research?q=...)
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/topic-research') {
     try {
       const parsedUrl = new URL(rawUrl, 'http://localhost');
       const q = (parsedUrl.searchParams.get('q') || '').trim();
+      if (!q) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            query: '',
+            error: 'Từ khóa tìm kiếm chủ đề không được để trống.',
+            news: [],
+            headlines: [],
+            visuals: [],
+            videos: [],
+            wikiSummary: '',
+          })
+        );
+        return true;
+      }
       const domain = classifyTopicDomain(q);
       const subQueries = extractFocusedEntityQueries(q);
       const enKw = translateQueryToEnglishKeywords(q);
-      const primaryKw = subQueries[0] || q;
+      const primaryKw = subQueries[0] || enKw || q;
       const secondaryKw = subQueries[1] || enKw;
 
       const [headlines, headlines2, viWiki, enWiki, commonsImgs, commonsImgs2, commonsVids, nasaVids] = await Promise.all([
-        fetchGoogleNewsRss(primaryKw),
-        secondaryKw ? fetchGoogleNewsRss(secondaryKw) : Promise.resolve([]),
-        fetchWikipediaContext(primaryKw, 'vi'),
-        fetchWikipediaContext(enKw || primaryKw, 'en'),
+        fetchGoogleNewsRss(primaryKw, domain),
+        secondaryKw ? fetchGoogleNewsRss(secondaryKw, domain) : Promise.resolve([]),
+        fetchWikipediaContext(primaryKw, 'vi', domain),
+        fetchWikipediaContext(enKw || primaryKw, 'en', domain),
         searchWikimediaImages(q, 10),
         secondaryKw ? searchWikimediaImages(secondaryKw, 6) : Promise.resolve([]),
         searchWikimediaVideos(q, 8),
@@ -3089,37 +3247,23 @@ export async function handleStudioApiRequest(req, res) {
           : Promise.resolve([]),
       ]);
 
-      const domainPool = (DOMAIN_PHOTO_POOLS[domain] || DOMAIN_PHOTO_POOLS.news).map((item, idx) => ({
-        id: `domain-${domain}-${idx}`,
-        title: item.title,
-        url: item.url,
-        proxyUrl: `/api/image-proxy?domain=${domain}&idx=${idx}&url=${encodeURIComponent(item.url)}`,
-        source: item.source,
-      }));
-
-      const domainVideoPool = (DOMAIN_VIDEO_BROLL_POOLS[domain] || DOMAIN_VIDEO_BROLL_POOLS.news || DOMAIN_VIDEO_BROLL_POOLS['ai-cyber']).map(
-        (item, idx) => ({
-          id: `domain-vid-${domain}-${idx}`,
-          title: item.title,
-          url: item.url,
-          proxyUrl: `/api/video-proxy?domain=${domain}&idx=${idx}&url=${encodeURIComponent(item.url)}`,
-          source: item.source,
-        })
-      );
-
       const seenTitles = new Set();
-      const mergedHeadlines = [...headlines, ...headlines2].filter((h) => {
+      const verifiedNews = [...headlines, ...headlines2].filter((h) => {
         const key = String(h?.title || '').toLowerCase().slice(0, 48);
         if (!key || seenTitles.has(key)) return false;
         seenTitles.add(key);
         return true;
       });
 
-      const realVisuals = [...commonsImgs, ...commonsImgs2];
-      const mergedVisuals = [...realVisuals, ...domainPool, ...enWiki.images, ...viWiki.images];
+      // Strict Data Provenance: Tách biệt 100% tư liệu thật, cấm trộn kho ảnh Unsplash hay stock fallback vào kết quả tìm kiếm!
+      const verifiedVisuals = [...commonsImgs, ...commonsImgs2, ...enWiki.images, ...viWiki.images].filter(
+        (v) => v?.url && !/unsplash\.com|placeholder|skill-samples/i.test(String(v.url))
+      );
       const seenVids = new Set();
-      const mergedVideos = [...commonsVids, ...nasaVids, ...domainVideoPool].filter((v) => {
-        if (!v?.proxyUrl || seenVids.has(v.url)) return false;
+      const verifiedVideos = [...commonsVids, ...nasaVids].filter((v) => {
+        if (!v?.proxyUrl || seenVids.has(v.url) || /unsplash\.com|skill-samples/i.test(String(v.url || ''))) {
+          return false;
+        }
         seenVids.add(v.url);
         return true;
       });
@@ -3131,18 +3275,20 @@ export async function handleStudioApiRequest(req, res) {
           englishKeywords: enKw,
           entities: subQueries,
           domain,
-          headlines: mergedHeadlines,
+          news: verifiedNews,
+          headlines: verifiedNews,
           wikiSummary: [viWiki.summary, enWiki.summary].filter(Boolean).join('\n'),
-          visuals: mergedVisuals.slice(0, 18),
-          videos: mergedVideos.slice(0, 10),
+          visuals: verifiedVisuals.slice(0, 18),
+          videos: verifiedVideos.slice(0, 10),
         })
       );
     } catch (err) {
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(
         JSON.stringify({
           query: '',
           domain: 'news',
+          news: [],
           headlines: [],
           wikiSummary: '',
           visuals: [],
@@ -3208,7 +3354,12 @@ export async function handleStudioApiRequest(req, res) {
   if (cleanUrl === '/api/video-broll-search') {
     try {
       const parsedUrl = new URL(rawUrl, 'http://localhost');
-      const q = (parsedUrl.searchParams.get('q') || 'Công nghệ toàn cầu').trim();
+      const q = (parsedUrl.searchParams.get('q') || '').trim();
+      if (!q) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ query: '', domain: 'news', count: 0, videos: [], error: 'Thiếu từ khóa B-Roll.' }));
+        return true;
+      }
       const domain = parsedUrl.searchParams.get('domain') || classifyTopicDomain(q);
       const enKw = translateQueryToEnglishKeywords(q);
 
@@ -3219,27 +3370,17 @@ export async function handleStudioApiRequest(req, res) {
           : Promise.resolve([]),
       ]);
 
-      const domainVids = (DOMAIN_VIDEO_BROLL_POOLS[domain] || DOMAIN_VIDEO_BROLL_POOLS.news || DOMAIN_VIDEO_BROLL_POOLS['ai-cyber']).map(
-        (item, idx) => ({
-          id: `domain-vid-${domain}-${idx}`,
-          title: item.title,
-          url: item.url,
-          proxyUrl: `/api/video-proxy?domain=${domain}&idx=${idx}&url=${encodeURIComponent(item.url)}`,
-          source: item.source,
-        })
-      );
-
       const seen = new Set();
-      const combined = [...commonsVids, ...nasaVids, ...domainVids].filter((v) => {
-        if (!v?.url || seen.has(v.url)) return false;
+      const verifiedVideosOnly = [...commonsVids, ...nasaVids].filter((v) => {
+        if (!v?.url || seen.has(v.url) || /unsplash\.com|skill-samples/i.test(String(v.url))) return false;
         seen.add(v.url);
         return true;
       });
 
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ query: q, englishKeywords: enKw, domain, count: combined.length, videos: combined }));
+      res.end(JSON.stringify({ query: q, englishKeywords: enKw, domain, count: verifiedVideosOnly.length, videos: verifiedVideosOnly }));
     } catch (err) {
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ query: '', domain: 'news', count: 0, videos: [], error: String(err) }));
     }
     return true;
@@ -3470,10 +3611,10 @@ export async function handleStudioApiRequest(req, res) {
         const secondaryKw = subQueries[1] || '';
 
         const [headlines1, headlines2, viWiki, enWiki] = await Promise.all([
-          fetchGoogleNewsRss(primaryKw),
-          secondaryKw ? fetchGoogleNewsRss(secondaryKw) : Promise.resolve([]),
-          fetchWikipediaContext(primaryKw, 'vi'),
-          fetchWikipediaContext(primaryKw, 'en'),
+          fetchGoogleNewsRss(primaryKw, domain),
+          secondaryKw ? fetchGoogleNewsRss(secondaryKw, domain) : Promise.resolve([]),
+          fetchWikipediaContext(primaryKw, 'vi', domain),
+          fetchWikipediaContext(enKw || primaryKw, 'en', domain),
         ]);
 
         const seenTitles = new Set();
@@ -3781,14 +3922,17 @@ export async function handleStudioApiRequest(req, res) {
         try {
           if (curProvider === 'gemini') {
             const base = (curEndpoint || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
-            const requestedMod = String(curModel || 'gemini-2.0-flash').replace(/^models\//, '').trim();
-            const isAliasOrPreview = /^(gemini-3\.[5-9]|gemma-4)/i.test(requestedMod);
+            const requestedMod = String(curModel || 'gemini-3.8-flash').replace(/^models\//, '').trim();
             const isNonScriptModel = /tts|imagen|-image|embedding|robotics|veo|audio|-live|aqa/i.test(requestedMod);
             const candidates = Array.from(
               new Set([
-                ...(!isNonScriptModel && !isAliasOrPreview ? [requestedMod] : []),
-                'gemini-2.0-flash',
+                ...(!isNonScriptModel && requestedMod ? [requestedMod] : []),
+                'gemini-3-flash-preview',
+                'gemini-3.5-flash',
+                'gemini-3.8-flash',
+                'gemini-3.1-pro-preview',
                 'gemini-2.5-flash',
+                'gemini-2.0-flash',
               ])
             );
 
@@ -3813,18 +3957,21 @@ export async function handleStudioApiRequest(req, res) {
 
             for (const mod of candidates) {
               const gUrl = `${base}/models/${encodeURIComponent(mod)}:generateContent?key=${encodeURIComponent(curKey)}`;
+              const supportsThinkBudget = /^(?:gemini-2\.5|gemini-3\.[5-9]|gemini-3-flash)/i.test(mod);
+              const genConfig = {
+                temperature: 0.65,
+                maxOutputTokens: 4500,
+                responseMimeType: 'application/json',
+                ...(supportsThinkBudget ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+              };
               let resp = await postJsonHttps(
                 gUrl,
                 {},
                 {
                   contents: [{ parts: geminiParts }],
-                  generationConfig: {
-                    temperature: 0.65,
-                    maxOutputTokens: 6500,
-                    responseMimeType: 'application/json',
-                  },
+                  generationConfig: genConfig,
                 },
-                14000
+                10000
               );
 
               if (resp.status === 400) {
@@ -3835,10 +3982,10 @@ export async function handleStudioApiRequest(req, res) {
                     contents: [{ parts: geminiParts }],
                     generationConfig: {
                       temperature: 0.65,
-                      maxOutputTokens: 6500,
+                      maxOutputTokens: 4500,
                     },
                   },
-                  14000
+                  10000
                 );
               }
 
@@ -6320,7 +6467,83 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   }
 
   // --------------------------------------------------------------------------
-  // SERVER-SIDE PLUGIN PROXY (/api/plugin/dispatch) — LOẠI BỎ LỖI CORS TRÌNH DUYỆT
+  // ASYNC RENDER JOB QUEUE & COMFYUI WORKER BRIDGE (/api/render-jobs/*)
+  // --------------------------------------------------------------------------
+  if (!globalThis.__SYNAPES_RENDER_JOBS) {
+    globalThis.__SYNAPES_RENDER_JOBS = new Map();
+  }
+  const RENDER_JOBS_MAP = globalThis.__SYNAPES_RENDER_JOBS;
+
+  if (cleanUrl === '/api/render-jobs/submit' && req.method === 'POST') {
+    try {
+      const body = sanitizePayloadValue((await readJsonBody(req)) || {}) || {};
+      const prompt = String(body.prompt || '').trim();
+      const workerUrl = String(body.workerUrl || process.env.COMFYUI_WORKER_URL || '').trim();
+      if (!prompt) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, error: 'Prompt render không được để trống.' }));
+        return true;
+      }
+      const jobId = `job_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+      const jobRecord = {
+        jobId,
+        status: 'queued',
+        provider: body.provider || (workerUrl ? 'comfyui-kaggle-gpu' : 'async-queue'),
+        prompt,
+        workerUrl,
+        createdAt: new Date().toISOString(),
+        videoUrl: '',
+      };
+
+      if (workerUrl && /^https:\/\//i.test(workerUrl)) {
+        const ctl = new AbortController();
+        const t = setTimeout(() => ctl.abort(), 30000);
+        try {
+          const wRes = await fetch(`${workerUrl.replace(/\/$/, '')}/prompt`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: body.workflow || { text: prompt }, client_id: jobId }),
+            signal: ctl.signal,
+          });
+          clearTimeout(t);
+          if (wRes.ok) {
+            const wJson = await wRes.json().catch(() => ({}));
+            jobRecord.status = 'processing';
+            jobRecord.upstreamPromptId = wJson.prompt_id || '';
+          }
+        } catch (workerErr) {
+          clearTimeout(t);
+          jobRecord.workerError = String(workerErr?.message || workerErr);
+        }
+      }
+
+      RENDER_JOBS_MAP.set(jobId, jobRecord);
+      res.writeHead(202, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: true, ...jobRecord }));
+      return true;
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: String(err?.message || err) }));
+      return true;
+    }
+  }
+
+  if (cleanUrl === '/api/render-jobs/status' && req.method === 'GET') {
+    const parsed = new URL(rawUrl, 'http://localhost');
+    const jobId = (parsed.searchParams.get('jobId') || '').trim();
+    const record = RENDER_JOBS_MAP.get(jobId);
+    if (!record) {
+      res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: 'Không tìm thấy Job ID.' }));
+      return true;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ success: true, ...record }));
+    return true;
+  }
+
+  // --------------------------------------------------------------------------
+  // SERVER-SIDE PLUGIN PROXY (/api/plugin/dispatch) — ASYNC QUEUE >= 60S
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/plugin/dispatch' && req.method === 'POST') {
     try {
@@ -6346,21 +6569,21 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       }
 
       if (!apiKey || apiKey.length < 10) {
-        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(
           JSON.stringify({
-            success: true,
+            success: false,
             dispatched: false,
-            mode: 'server_orchestration_ready',
+            mode: 'missing_api_token',
             provider,
-            message: 'Chưa cấu hình API Key thương mại riêng cho nhà cung cấp này; chuyển sang Pipeline dựng Cinema nội bộ.',
+            message: 'Thiếu API Key thương mại hợp lệ để khởi tạo tiến trình render video trên Plugin.',
           })
         );
         return true;
       }
 
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 3800);
+      const timer = setTimeout(() => controller.abort(), 60000);
       try {
         const upstreamRes = await fetch(endpoint, {
           method: 'POST',
@@ -6374,39 +6597,49 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         clearTimeout(timer);
         if (upstreamRes.ok) {
           const upstreamData = await upstreamRes.json().catch(() => ({}));
+          const jobId = upstreamData?.jobId || upstreamData?.task_id || `job_${Date.now()}`;
+          RENDER_JOBS_MAP.set(jobId, {
+            jobId,
+            status: upstreamData?.status || 'queued',
+            provider,
+            createdAt: new Date().toISOString(),
+            data: upstreamData,
+          });
           res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(
             JSON.stringify({
               success: true,
               dispatched: true,
+              jobId,
+              status: upstreamData?.status || 'queued',
               mode: 'live_api_verified',
               provider,
-              status: upstreamRes.status,
+              statusCode: upstreamRes.status,
               data: upstreamData,
             })
           );
           return true;
         }
-        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.writeHead(upstreamRes.status, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(
           JSON.stringify({
-            success: true,
+            success: false,
             dispatched: false,
-            mode: 'server_orchestration_ready',
+            mode: 'upstream_error',
             provider,
             upstreamStatus: upstreamRes.status,
-            message: `Provider HTTP ${upstreamRes.status} — Fallback an toàn về Pipeline Cinema SYNAPES.`,
+            message: `Plugin API trả về lỗi HTTP ${upstreamRes.status}`,
           })
         );
         return true;
       } catch (netErr) {
         clearTimeout(timer);
-        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(
           JSON.stringify({
-            success: true,
+            success: false,
             dispatched: false,
-            mode: 'server_orchestration_ready',
+            mode: 'network_error',
             provider,
             message: `Upstream timeout/network: ${String(netErr?.message || netErr)}`,
           })
