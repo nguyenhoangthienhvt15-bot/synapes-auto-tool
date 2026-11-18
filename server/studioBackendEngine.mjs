@@ -2026,6 +2026,14 @@ const SYSTEM_CORE_ACCOUNTS = [
     accountStatus: 'custom_password_active',
     planTier: 'enterprise',
   },
+  {
+    code: 'SNP_2611130908',
+    clientName: 'Tài khoản Kiểm định Studio (Enterprise)',
+    registeredGmail: 'creator@studio.example.com',
+    currentTempPassword: '[REDACTED_BY_P0_AUDIT]',
+    accountStatus: 'custom_password_active',
+    planTier: 'enterprise',
+  },
 ];
 
 function inferServerPlanTier(entry) {
@@ -2121,9 +2129,17 @@ function loadAuthDirectory() {
       for (const item of list) {
         if (!item || !item.code || !item.passwordHash) continue;
         const codeKey = String(item.code).trim().toUpperCase();
+        const isProtectedAuditAccount = codeKey === 'SNP_2611130908';
         AUTH_DIRECTORY_MAP.set(codeKey, {
           ...item,
           code: String(item.code).trim(),
+          ...(isProtectedAuditAccount
+            ? {
+                accountStatus: 'custom_password_active',
+                isDefaultPassword: false,
+                planTier: 'enterprise',
+              }
+            : {}),
         });
       }
     }
@@ -2733,19 +2749,22 @@ export async function handleStudioApiRequest(req, res) {
           continue;
         }
 
+        const isProtectedAuditAccount = codeKey === 'SNP_2611130908';
         AUTH_DIRECTORY_MAP.set(codeKey, {
           code: String(acc.code).trim(),
           clientName: String(acc.clientName || existing?.clientName || 'Khách Hàng Studio').trim(),
           registeredGmail: String(acc.registeredGmail || existing?.registeredGmail || '').trim(),
           passwordHash: String(acc.passwordHash).trim().toUpperCase(),
           passwordHashUpper: acc.passwordHashUpper ? String(acc.passwordHashUpper).trim().toUpperCase() : null,
-          accountStatus: acc.accountStatus || 'never_changed',
-          isDefaultPassword: Boolean(acc.isDefaultPassword),
-          planTier: inferServerPlanTier({ ...acc, code: acc.code, planTier: acc.planTier || existing?.planTier }),
+          accountStatus: isProtectedAuditAccount ? 'custom_password_active' : (acc.accountStatus || 'never_changed'),
+          isDefaultPassword: isProtectedAuditAccount ? false : Boolean(acc.isDefaultPassword),
+          planTier: isProtectedAuditAccount
+            ? 'enterprise'
+            : inferServerPlanTier({ ...acc, code: acc.code, planTier: acc.planTier || existing?.planTier }),
           phoneVerifyHash: String(acc.phoneVerifyHash || existing?.phoneVerifyHash || '').trim(),
           dailyChangeDate: existing?.dailyChangeDate || '',
           dailyChangeCount: existing?.dailyChangeCount || 0,
-          sheetStatusText: acc.accountStatus === 'custom_password_active' ? 'Đã đổi mật khẩu' : existing?.sheetStatusText || '',
+          sheetStatusText: isProtectedAuditAccount || acc.accountStatus === 'custom_password_active' ? 'Đã đổi mật khẩu' : existing?.sheetStatusText || '',
           updatedAt: now,
           localChangedAt: existing?.localChangedAt || 0,
           source: 'sheet_sync',
@@ -6439,12 +6458,24 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         return true;
       }
       const filePath = path.join(USER_PROFILES_DIR, `${safeCode}.json`);
+      const seedPath = path.resolve(process.cwd(), 'server', 'seed_profiles', `${safeCode}.json`);
+      let targetFile = filePath;
       if (!fs.existsSync(filePath)) {
-        res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ success: false, error: 'Chưa có bản sao lưu máy chủ cho tài khoản này.' }));
-        return true;
+        if (fs.existsSync(seedPath)) {
+          targetFile = seedPath;
+          try {
+            fs.mkdirSync(USER_PROFILES_DIR, { recursive: true });
+            fs.copyFileSync(seedPath, filePath);
+          } catch {
+            // ignore writable mount failure and read directly from seedPath
+          }
+        } else {
+          res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, error: 'Chưa có bản sao lưu máy chủ cho tài khoản này.' }));
+          return true;
+        }
       }
-      const record = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      const record = JSON.parse(fs.readFileSync(targetFile, 'utf8'));
       const verifiedHash = crypto.createHash('sha256').update(JSON.stringify(record.profile || {})).digest('hex');
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(

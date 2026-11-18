@@ -25,8 +25,9 @@ ENV PORT=10000
 COPY package*.json ./
 RUN npm ci --omit=dev --prefer-offline --no-audit || npm install --omit=dev
 
-# Copy built distribution and server
+# Copy built distribution and server + persisted seed data
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/data ./data
 COPY server.js ./
 COPY server ./server
 
