@@ -1377,16 +1377,246 @@ function generateBespokeMultiGenreScript(
 
   // 0. CHẾ ĐỘ HOẠT HÌNH 3D ĐỐI THOẠI ĐA NHÂN VẬT & SÁNG TẠO THEO PROMPT
   if (videoGenre === '3d-animation' || domain === 'animation-3d') {
-    const isMotherDuck3d = /vịt\s*mẹ|đàn\s*vịt|vịt\s*con|lông\s*vàng|hvuA-jg9N7s/i.test(
+    const isZodiac12Song3d = /12\s*con\s*giáp|mười\s*hai\s*con\s*giáp|tý\s*sửu\s*dần\s*mão|con\s*giáp|zodiac12/i.test(
       fullTextSignal
     );
-    const isCountrysideFable3d = !isMotherDuck3d && /mất\s*bò|làm\s*chuồng|đàn\s*gà|gà\s*con|đồng\s*quê|chăn\s*trâu|be-ti|bo-vang|dan-ga-con/i.test(
+    const isMotherDuck3d = !isZodiac12Song3d && /vịt\s*mẹ|đàn\s*vịt|vịt\s*con|lông\s*vàng|hvuA-jg9N7s/i.test(
+      fullTextSignal
+    );
+    const isCountrysideFable3d = !isZodiac12Song3d && !isMotherDuck3d && /mất\s*bò|làm\s*chuồng|đàn\s*gà|gà\s*con|đồng\s*quê|chăn\s*trâu|be-ti|bo-vang|dan-ga-con/i.test(
       fullTextSignal
     );
     const isRabbitDialogue = /thỏ\s*con|thỏ\s*hồng|bị\s*ốm|bác\s*sĩ\s*gấu/i.test(fullTextSignal);
     const isInsectCounting = /côn\s*trùng|cào\s*cào|châu\s*chấu|đếm\s*số|1\s*đến\s*10|một\s*đến\s*mười/i.test(
       fullTextSignal
     );
+
+    if (isZodiac12Song3d) {
+      const title = 'Bài Ca 12 Con Giáp Rộn Ràng Ngày Xuân (Hoạt Hình 3D Pixar Thiếu Nhi)';
+      const characterActors: CharacterActor[] = [
+        {
+          id: 'be-ca-si',
+          name: 'Bé Diệu Linh (Giọng Ca Thiếu Nhi 126BPM)',
+          roleDescription: 'Giọng hát trẻ con trong trẻo, lưu loát dẫn dắt bài ca 12 con giáp mùa xuân',
+          avatarUrl: '/zodiac-3d/zodiac_scene_01.jpg',
+          voiceId: 'vi-child-female',
+          voiceName: 'Bé Diệu Linh (Thiếu Nhi Trong Trẻo +23% Pitch)',
+          voiceSpeed: 1.08,
+          voicePitch: 1.24,
+          themeColor: '#f43f5e',
+          defaultEmotion: 'happy',
+        },
+        {
+          id: 'ty-suu',
+          name: 'Bạn Tý (Chuột Khăn Đỏ) & Bạn Sửu (Trâu Chuông Vàng)',
+          roleDescription: 'Chuột xám quàng khăn đỏ ôm phô mai vàng và Trâu con đeo chuông vàng gặm cỏ xanh',
+          avatarUrl: '/zodiac-3d/zodiac_scene_02.jpg',
+          voiceId: 'vi-child-female',
+          voiceName: 'Đồng Ca Thiếu Nhi • Tý & Sửu',
+          voiceSpeed: 1.08,
+          voicePitch: 1.22,
+          themeColor: '#f59e0b',
+          defaultEmotion: 'playful',
+        },
+        {
+          id: 'thin-ty',
+          name: 'Bạn Thìn (Rồng Đỏ Vàng) & Bạn Tỵ (Rắn Xanh Đội Mũ)',
+          roleDescription: 'Rồng con đỏ vàng bay trên mây ngũ sắc và Rắn xanh hiền lành đội mũ lưỡi trai đỏ vàng',
+          avatarUrl: '/zodiac-3d/zodiac_scene_04.jpg',
+          voiceId: 'vi-child-female',
+          voiceName: 'Đồng Ca Thiếu Nhi • Thìn & Tỵ',
+          voiceSpeed: 1.07,
+          voicePitch: 1.21,
+          themeColor: '#ef4444',
+          defaultEmotion: 'playful',
+        },
+        {
+          id: 'tuat-hoi',
+          name: 'Bạn Tuất (Cún Đốm) & Bạn Hợi (Heo Hồng Yếm Đỏ)',
+          roleDescription: 'Cún con đốm vàng đeo vòng cổ đỏ và Heo hồng mặc áo yếm đỏ cười tít mắt',
+          avatarUrl: '/zodiac-3d/zodiac_scene_07.jpg',
+          voiceId: 'vi-child-female',
+          voiceName: 'Đồng Ca Thiếu Nhi • Tuất & Hợi',
+          voiceSpeed: 1.08,
+          voicePitch: 1.23,
+          themeColor: '#ec4899',
+          defaultEmotion: 'happy',
+        },
+      ];
+
+      const zodiacScenes = [
+        {
+          sceneNumber: 1,
+          speakerId: 'be-ca-si',
+          speakerName: 'Mở Màn • Hội Xuân 12 Con Giáp',
+          cameraAngle: 'crane-up' as CameraDialogueAngle,
+          headline: '01. KHÚC HÁT MÙA XUÂN 12 CON GIÁP',
+          durationSec: 8,
+          voiceover:
+            'La la la! Hoa đào hoa mai nở thắm mùa xuân sang! Cùng bé hát vang bài ca mười hai con giáp thật rộn ràng, bạn nào cũng xinh xắn và đáng yêu quá đi thôi!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.24,
+          voiceSpeed: 1.08,
+          visualPrompt:
+            'Pixar 3D Vietnamese Spring festival courtyard with pink hoa dao, golden hoa mai, swaying lanterns, pastel rainbow clouds, and cute 3D baby zodiac friends waving joyfully',
+          imageUrl: '/zodiac-3d/zodiac_scene_01.jpg',
+          cameraMotion: 'dolly-in',
+          lightingStyle: 'golden-hour',
+          sfx: 'Spring Pentatonic Glockenspiel + Celesta Sparkle 126BPM',
+          transition: 'fade',
+        },
+        {
+          sceneNumber: 2,
+          speakerId: 'ty-suu',
+          speakerName: '01 & 02 • Tý (Chuột) & Sửu (Trâu)',
+          cameraAngle: 'two-shot' as CameraDialogueAngle,
+          headline: '02. BẠN TÝ KHĂN ĐỎ & BẠN SỬU CHUÔNG VÀNG',
+          durationSec: 10,
+          voiceover:
+            'Số một bạn Tý, chú chuột nhỏ quàng khăn đỏ xinh, tay ôm miếng phô mai vàng thơm nức mũi chít chít kêu vui! Số hai bạn Sửu, chú trâu ngoan đeo chuông vàng leng keng, chăm chỉ gặm cỏ xanh trên đồng quê!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.22,
+          voiceSpeed: 1.08,
+          visualPrompt:
+            'Pixar 3D close-up of grey baby mouse in knitted red scarf holding yellow cheese beside chubby baby buffalo with golden bell collar chewing green grass',
+          imageUrl: '/zodiac-3d/zodiac_scene_02.jpg',
+          cameraMotion: 'pan-right',
+          lightingStyle: 'golden-hour',
+          sfx: 'Cute Squeak + Golden Bell Chime + Marimba',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 3,
+          speakerId: 'be-ca-si',
+          speakerName: '03 & 04 • Dần (Hổ) & Mão (Mèo)',
+          cameraAngle: 'two-shot' as CameraDialogueAngle,
+          headline: '03. BẠN DẦN MÚA CA & BẠN MÃO VẪY TAY',
+          durationSec: 8,
+          voiceover:
+            'Số ba bạn Dần, chú hổ cam vằn đen đáng yêu, giơ hai bàn tay múa ca rộn rã! Số bốn bạn Mão, mèo vàng má hồng vẫy tay chào bé meo meo thật dịu dàng!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.23,
+          voiceSpeed: 1.08,
+          visualPrompt:
+            'Pixar 3D orange baby tiger cub waving both paws beside plump golden-and-cream kitten waving paw in glowing spring blossom grove',
+          imageUrl: '/zodiac-3d/zodiac_scene_03.jpg',
+          cameraMotion: 'orbit',
+          lightingStyle: 'golden-hour',
+          sfx: 'Playful Bounce + Soft Meow Chime',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 4,
+          speakerId: 'thin-ty',
+          speakerName: '05 & 06 • Thìn (Rồng) & Tỵ (Rắn)',
+          cameraAngle: 'low-angle' as CameraDialogueAngle,
+          headline: '04. BẠN THÌN BAY MÂY & BẠN TỴ ĐỘI MŨ',
+          durationSec: 8,
+          voiceover:
+            'Số năm bạn Thìn, rồng đỏ râu vàng bay lượn trên mây ngũ sắc lấp lánh! Số sáu bạn Tỵ, rắn xanh hiền lành đội mũ lưỡi trai đỏ vàng cười tươi ơi là tươi!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.21,
+          voiceSpeed: 1.07,
+          visualPrompt:
+            'Pixar 3D crimson-and-gold baby Eastern dragon floating on pastel rainbow cloud above smiling lime-green baby snake wearing red-yellow baseball cap',
+          imageUrl: '/zodiac-3d/zodiac_scene_04.jpg',
+          cameraMotion: 'crane-up',
+          lightingStyle: 'volumetric',
+          sfx: 'Magical Celesta Glissando + Cloud Sparkle',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 5,
+          speakerId: 'be-ca-si',
+          speakerName: '07 & 08 • Ngọ (Ngựa) & Mùi (Dê)',
+          cameraAngle: 'tracking-shot' as CameraDialogueAngle,
+          headline: '05. BẠN NGỌ PHI NHANH & BẠN MÙI LÔNG TRẮNG',
+          durationSec: 8,
+          voiceover:
+            'Số bảy bạn Ngọ, ngựa nâu phi nước đại lộc cộc hí vang giữa đồi hoa! Số tám bạn Mùi, dê trắng lông xù như mây bông, nhai lá non xanh mướt be be thật ngoan!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.24,
+          voiceSpeed: 1.08,
+          visualPrompt:
+            'Pixar 3D chestnut baby pony prancing on emerald daisy hill beside fluffy snow-white baby goat munching green leaves',
+          imageUrl: '/zodiac-3d/zodiac_scene_05.jpg',
+          cameraMotion: 'pan-left',
+          lightingStyle: 'golden-hour',
+          sfx: 'Woodblock Gallop Rhythm + Cheerful Glockenspiel',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 6,
+          speakerId: 'be-ca-si',
+          speakerName: '09 & 10 • Thân (Khỉ) & Dậu (Gà Trống)',
+          cameraAngle: 'two-shot' as CameraDialogueAngle,
+          headline: '06. BẠN THÂN ĂN CHUỐI & BẠN DẬU GÁY SÁNG',
+          durationSec: 8,
+          voiceover:
+            'Số chín bạn Thân, khỉ nâu tinh nghịch nháy mắt cầm quả chuối chín vàng ươm! Số mười bạn Dậu, gà trống đuôi cầu vồng rực rỡ cất tiếng gáy ò ó o đánh thức ông mặt trời!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.22,
+          voiceSpeed: 1.08,
+          visualPrompt:
+            'Pixar 3D winking brown baby monkey holding peeled yellow banana beside rustic fence with rainbow-tail rooster crowing at sunrise',
+          imageUrl: '/zodiac-3d/zodiac_scene_06.jpg',
+          cameraMotion: 'dolly-in',
+          lightingStyle: 'golden-hour',
+          sfx: 'Morning Rooster Chime + Playful Percussion',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 7,
+          speakerId: 'tuat-hoi',
+          speakerName: '11 & 12 • Tuất (Cún) & Hợi (Heo Hồng)',
+          cameraAngle: 'close-up' as CameraDialogueAngle,
+          headline: '07. BẠN TUẤT VÒNG ĐỎ & BẠN HỢI YẾM ĐỎ',
+          durationSec: 8,
+          voiceover:
+            'Mười một bạn Tuất, cún con đốm vàng đeo vòng cổ đỏ gâu gâu vẫy tay thân thiện! Mười hai bạn Hợi, bé heo hồng má phúng phính mặc áo yếm đỏ cười tít mắt thật dễ thương!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.23,
+          voiceSpeed: 1.08,
+          visualPrompt:
+            'Pixar 3D golden-white spotted puppy in red collar waving next to smiling pastel-pink baby piggy wearing embroidered crimson Vietnamese red yem apron',
+          imageUrl: '/zodiac-3d/zodiac_scene_07.jpg',
+          cameraMotion: 'orbit',
+          lightingStyle: 'golden-hour',
+          sfx: 'Happy Bark Bell + Warm Marimba Arpeggio',
+          transition: 'dissolve',
+        },
+        {
+          sceneNumber: 8,
+          speakerId: 'be-ca-si',
+          speakerName: 'Kết Màn • Đại Tiệc 12 Con Giáp',
+          cameraAngle: 'master-shot' as CameraDialogueAngle,
+          headline: '08. MƯỜI HAI CON GIÁP CA MÚA ĐÓN XUÂN',
+          durationSec: 9,
+          voiceover:
+            'Tý, Sửu, Dần, Mão, Thìn, Tỵ, Ngọ, Mùi, Thân, Dậu, Tuất, Hợi! Mười hai con giáp nắm tay nhau nhảy múa dưới hoa đào hoa mai, chúc bé luôn vui khỏe và học ngoan mỗi ngày nhé!',
+          voiceId: 'vi-child-female',
+          voicePitch: 1.25,
+          voiceSpeed: 1.06,
+          visualPrompt:
+            'Pixar 3D grand finale wide shot of all 12 adorable zodiac animals dancing together under blooming pink hoa dao, golden hoa mai, lanterns and rainbow clouds',
+          imageUrl: '/zodiac-3d/zodiac_scene_08.jpg',
+          cameraMotion: 'dolly-out',
+          lightingStyle: 'golden-hour',
+          sfx: 'Festive Vietnamese Spring Finale Fanfare 126BPM',
+          transition: 'fade',
+        },
+      ];
+
+      return {
+        title,
+        newsTicker: '',
+        musicGenre: 'Nhạc Thiếu Nhi Hội Xuân Ngũ Cung 126BPM (Glockenspiel & Marimba)',
+        tags: ['12ConGiap', 'BaiCa12ConGiap', 'HoatHinh3DPixar', 'NhacThieuNhi', 'MadeForKids'],
+        characterActors,
+        dialogueMode: true,
+        scenes: zodiacScenes,
+      };
+    }
 
     if (isMotherDuck3d) {
       const title = 'Vịt Mẹ Và Đàn Con — Vịt Con Lông Vàng 3D (Glow Studios Reference Pipeline)';
