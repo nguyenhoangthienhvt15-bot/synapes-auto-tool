@@ -217,7 +217,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
           </div>
 
           {/* Logo SYNAPES EDUCHECK */}
-          <div className="pt-0.5">
+          <div className="pt-0.5 flex flex-row flex-wrap items-center gap-3">
             <a
               href="https://synapeseducheck.onrender.com/"
               target="_blank"
@@ -228,6 +228,22 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
               <img
                 src="/synapes-educheck-logo.jpg"
                 alt="SYNAPES AUDIT"
+                className="w-12 h-12 object-contain rounded-md group-hover:scale-102 transition-transform duration-150"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/logo.jpg';
+                }}
+              />
+            </a>
+            <a
+              href="https://web-synapes-edu-production.up.railway.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Truy cập SYNAPES EDU — Nền tảng Học tập Trực tuyến"
+              className="inline-flex items-center justify-center p-2 rounded-lg bg-white hover:bg-zinc-50 border border-black/[0.08] hover:border-black/20 shadow-2xs transition group"
+            >
+              <img
+                src="/synapes-edu-logo.webp"
+                alt="SYNAPES EDU"
                 className="w-12 h-12 object-contain rounded-md group-hover:scale-102 transition-transform duration-150"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = '/logo.jpg';
