@@ -41,6 +41,10 @@ const ANIMATION_3D_SIGNALS = [
   'vẽ tranh giấy',
   'anime',
   'phiêu lưu',
+  '12 con giáp',
+  'mười hai con giáp',
+  'con giáp',
+  'nhạc thiếu nhi',
 ];
 
 const SCIENCE_MATH_SIGNALS = [

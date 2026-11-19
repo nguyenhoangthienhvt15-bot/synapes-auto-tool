@@ -2564,3 +2564,506 @@ export function renderMotherDuckAndDucklings3dStageToCanvas(
   targetCtx.restore();
   return true;
 }
+
+export interface Zodiac12StageOptions {
+  clockSec: number;
+  progress: number;
+  sceneIdx: number;
+  prevSceneIdx?: number;
+  sceneElapsedSec?: number;
+  vocalRms?: number;
+  isSpeaking?: boolean;
+}
+
+interface ZodiacPetal3D {
+  mesh: THREE.Mesh;
+  baseX: number;
+  baseY: number;
+  baseZ: number;
+  speedY: number;
+  driftX: number;
+  phase: number;
+  spinX: number;
+  spinY: number;
+  spinZ: number;
+}
+
+interface ZodiacSparkle3D {
+  mesh: THREE.Mesh;
+  baseX: number;
+  baseY: number;
+  baseZ: number;
+  speedY: number;
+  phase: number;
+  baseScale: number;
+}
+
+interface ZodiacNote3D {
+  group: THREE.Group;
+  baseX: number;
+  baseY: number;
+  baseZ: number;
+  phase: number;
+}
+
+interface Zodiac12RigHandles {
+  renderer: THREE.WebGLRenderer;
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  canvas: HTMLCanvasElement;
+  stagePivot: THREE.Group;
+  currPlane: THREE.Mesh;
+  currMat: THREE.MeshBasicMaterial;
+  prevPlane: THREE.Mesh;
+  prevMat: THREE.MeshBasicMaterial;
+  petals: ZodiacPetal3D[];
+  sparkles: ZodiacSparkle3D[];
+  notes: ZodiacNote3D[];
+  textures: Array<THREE.Texture | null>;
+  loadedFlags: boolean[];
+}
+
+const ZODIAC_SCENE_URLS = [
+  '/zodiac-3d/zodiac_scene_01.jpg',
+  '/zodiac-3d/zodiac_scene_02.jpg',
+  '/zodiac-3d/zodiac_scene_03.jpg',
+  '/zodiac-3d/zodiac_scene_04.jpg',
+  '/zodiac-3d/zodiac_scene_05.jpg',
+  '/zodiac-3d/zodiac_scene_06.jpg',
+  '/zodiac-3d/zodiac_scene_07.jpg',
+  '/zodiac-3d/zodiac_scene_08.jpg',
+];
+
+let cachedZodiac12Rig: Zodiac12RigHandles | null = null;
+
+function createSculptedDepthStageGeometry(): THREE.PlaneGeometry {
+  const geo = new THREE.PlaneGeometry(17.2, 9.675, 48, 28);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    // Subtle theatrical depth relief: central zodiac characters project gently forward while distant sky recesses
+    const subjectRelief = 0.68 * Math.exp(-(x * x) / 30 - ((y + 0.5) * (y + 0.5)) / 15);
+    const subtleEdgeCurve = 0.24 * Math.pow(Math.abs(x) / 8.6, 2.2);
+    pos.setZ(i, subjectRelief + subtleEdgeCurve);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function createPetalTexture(isApricotGold: boolean): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 64;
+  const ctx = c.getContext('2d');
+  if (!ctx) return null;
+  const grad = ctx.createRadialGradient(32, 26, 4, 32, 32, 28);
+  if (isApricotGold) {
+    grad.addColorStop(0, 'rgba(254, 249, 195, 0.98)');
+    grad.addColorStop(0.6, 'rgba(250, 204, 21, 0.94)');
+    grad.addColorStop(1, 'rgba(234, 179, 8, 0.0)');
+  } else {
+    grad.addColorStop(0, 'rgba(255, 241, 242, 0.98)');
+    grad.addColorStop(0.55, 'rgba(251, 113, 133, 0.92)');
+    grad.addColorStop(1, 'rgba(244, 63, 94, 0.0)');
+  }
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.ellipse(32, 32, 18, 26, 0.15, 0, Math.PI * 2);
+  ctx.fill();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function getOrCreateZodiac12Rig(width: number, height: number): Zodiac12RigHandles | null {
+  if (typeof document === 'undefined') return null;
+  if (!cachedZodiac12Rig) {
+    try {
+      const canvas = createOffscreenCanvas(width, height);
+      const renderer = new THREE.WebGLRenderer({
+        canvas,
+        alpha: false,
+        antialias: true,
+        preserveDrawingBuffer: true,
+        powerPreference: 'high-performance',
+      });
+      renderer.setPixelRatio(1);
+      renderer.setSize(width, height, false);
+      renderer.shadowMap.enabled = false;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.NoToneMapping;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xfff7ed);
+
+      const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100);
+      camera.position.set(0, 0, 12.2);
+
+      // Warm daylight for foreground 3D blossoms & musical notes
+      scene.add(new THREE.AmbientLight(0xfffbeb, 1.55));
+      const sun = new THREE.DirectionalLight(0xffedd5, 1.85);
+      sun.position.set(4, 8, 10);
+      scene.add(sun);
+
+      const stagePivot = new THREE.Group();
+      scene.add(stagePivot);
+
+      const stageGeo = createSculptedDepthStageGeometry();
+      const prevMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      });
+      const prevPlane = new THREE.Mesh(stageGeo, prevMat);
+      prevPlane.position.z = -0.06;
+      stagePivot.add(prevPlane);
+
+      const currMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 1,
+      });
+      const currPlane = new THREE.Mesh(stageGeo, currMat);
+      stagePivot.add(currPlane);
+
+      // Load all 8 Pixar 3D textures eagerly
+      const loader = new THREE.TextureLoader();
+      const textures: Array<THREE.Texture | null> = new Array(ZODIAC_SCENE_URLS.length).fill(null);
+      const loadedFlags: boolean[] = new Array(ZODIAC_SCENE_URLS.length).fill(false);
+
+      ZODIAC_SCENE_URLS.forEach((url, idx) => {
+        loader.load(
+          url,
+          (tex) => {
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.minFilter = THREE.LinearMipmapLinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.anisotropy = 4;
+            textures[idx] = tex;
+            loadedFlags[idx] = true;
+          },
+          undefined,
+          () => {
+            loadedFlags[idx] = true;
+          }
+        );
+      });
+
+      // 52 Sculpted 3D Spring Petals (Hoa Đào hồng & Hoa Mai vàng) drifting in real 3D parallax space
+      const pinkTex = createPetalTexture(false);
+      const goldTex = createPetalTexture(true);
+      const pinkPetalMat = new THREE.MeshBasicMaterial({
+        map: pinkTex || undefined,
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.9,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+      const goldPetalMat = new THREE.MeshBasicMaterial({
+        map: goldTex || undefined,
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.92,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+      const petalGeo = new THREE.PlaneGeometry(0.32, 0.36);
+      const petals: ZodiacPetal3D[] = [];
+      for (let i = 0; i < 52; i++) {
+        const isGold = i % 2 === 1;
+        const m = new THREE.Mesh(petalGeo, isGold ? goldPetalMat : pinkPetalMat);
+        const s = 0.65 + ((i * 37) % 100) / 110;
+        m.scale.setScalar(s);
+        scene.add(m);
+        petals.push({
+          mesh: m,
+          baseX: ((i * 2.71) % 18) - 9,
+          baseY: ((i * 1.93) % 12) - 6,
+          baseZ: 1.6 + ((i * 1.13) % 5.8),
+          speedY: 0.55 + ((i * 29) % 10) * 0.08,
+          driftX: 0.35 + ((i * 17) % 8) * 0.07,
+          phase: i * 0.73,
+          spinX: 0.9 + (i % 5) * 0.25,
+          spinY: 1.1 + (i % 4) * 0.3,
+          spinZ: 0.7 + (i % 3) * 0.28,
+        });
+      }
+
+      // 26 Floating Golden Spring Bokeh & Stardust Sparkles
+      const sparkMatA = new THREE.MeshBasicMaterial({
+        color: 0xfef08a,
+        transparent: true,
+        opacity: 0.65,
+        depthWrite: false,
+      });
+      const sparkMatB = new THREE.MeshBasicMaterial({
+        color: 0xfde047,
+        transparent: true,
+        opacity: 0.55,
+        depthWrite: false,
+      });
+      const sparkGeo = new THREE.SphereGeometry(0.085, 10, 10);
+      const sparkles: ZodiacSparkle3D[] = [];
+      for (let i = 0; i < 26; i++) {
+        const m = new THREE.Mesh(sparkGeo, i % 2 === 0 ? sparkMatA : sparkMatB);
+        scene.add(m);
+        sparkles.push({
+          mesh: m,
+          baseX: ((i * 3.17) % 16) - 8,
+          baseY: ((i * 2.11) % 10) - 5,
+          baseZ: 1.8 + ((i * 0.97) % 4.2),
+          speedY: 0.32 + (i % 5) * 0.07,
+          phase: i * 1.07,
+          baseScale: 0.55 + (i % 4) * 0.32,
+        });
+      }
+
+      // 6 Sculpted 3D Musical Notes gently dancing in upper sky margins on the 126 BPM beat
+      const noteColors = [0xf43f5e, 0xf59e0b, 0x06b6d4, 0xec4899, 0x10b981, 0xf97316];
+      const notes: ZodiacNote3D[] = [];
+      const noteAnchors = [
+        [-6.6, 3.2, 2.6],
+        [-5.4, 3.6, 2.3],
+        [5.6, 3.3, 2.5],
+        [6.7, 2.8, 2.8],
+        [-6.1, 2.1, 2.2],
+        [6.2, 2.0, 2.3],
+      ];
+      noteAnchors.forEach(([nx, ny, nz], idx) => {
+        const ng = new THREE.Group();
+        const nMat = new THREE.MeshPhysicalMaterial({
+          color: noteColors[idx % noteColors.length],
+          roughness: 0.22,
+          clearcoat: 0.9,
+          emissive: noteColors[idx % noteColors.length],
+          emissiveIntensity: 0.18,
+        });
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 12), nMat);
+        head.scale.set(1.22, 0.88, 0.72);
+        head.rotation.z = 0.28;
+        ng.add(head);
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.62, 10), nMat);
+        stem.position.set(0.14, 0.31, 0);
+        ng.add(stem);
+        const flag = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.038, 8, 14, Math.PI * 0.85), nMat);
+        flag.position.set(0.32, 0.45, 0);
+        flag.rotation.z = Math.PI * 0.65;
+        ng.add(flag);
+        ng.position.set(nx, ny, nz);
+        scene.add(ng);
+        notes.push({
+          group: ng,
+          baseX: nx,
+          baseY: ny,
+          baseZ: nz,
+          phase: idx * 1.15,
+        });
+      });
+
+      cachedZodiac12Rig = {
+        renderer,
+        scene,
+        camera,
+        canvas,
+        stagePivot,
+        currPlane,
+        currMat,
+        prevPlane,
+        prevMat,
+        petals,
+        sparkles,
+        notes,
+        textures,
+        loadedFlags,
+      };
+    } catch {
+      return null;
+    }
+  } else if (cachedZodiac12Rig.canvas.width !== width || cachedZodiac12Rig.canvas.height !== height) {
+    cachedZodiac12Rig.canvas.width = width;
+    cachedZodiac12Rig.canvas.height = height;
+    cachedZodiac12Rig.renderer.setSize(width, height, false);
+    cachedZodiac12Rig.camera.aspect = width / Math.max(1, height);
+    cachedZodiac12Rig.camera.updateProjectionMatrix();
+  }
+  return cachedZodiac12Rig;
+}
+
+/**
+ * Ensures all 8 Pixar 3D Zodiac textures are loaded into GPU memory before offline 1080p batch capture.
+ */
+export async function preloadZodiac12Textures(width = 1920, height = 1080): Promise<boolean> {
+  const rig = getOrCreateZodiac12Rig(width, height);
+  if (!rig) return false;
+  const start = Date.now();
+  while (rig.loadedFlags.some((f) => !f) && Date.now() - start < 15000) {
+    await new Promise((r) => setTimeout(r, 40));
+  }
+  return rig.textures.every((t) => Boolean(t));
+}
+
+/**
+ * Renders Pixar/Disney-grade "Bài Ca 12 Con Giáp Rộn Ràng Ngày Xuân" 3D WebGL2 Cinema Stage
+ * with sculpted depth relief, 126 BPM beat-synced elastic bounce, 3D drifting hoa đào/hoa mai petals,
+ * golden lantern bokeh orbs, 3D bouncing musical notes, and dreamy crossfade transitions.
+ */
+export function renderZodiac12Pixar3dStageToCanvas(
+  targetCtx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  options: Zodiac12StageOptions
+): boolean {
+  const W = Math.max(640, Math.round(width));
+  const H = Math.max(360, Math.round(height));
+  const rig = getOrCreateZodiac12Rig(W, H);
+  if (!rig) return false;
+
+  const {
+    clockSec,
+    progress,
+    sceneIdx,
+    prevSceneIdx,
+    sceneElapsedSec = 9.0,
+    vocalRms = 0.35,
+    isSpeaking = true,
+  } = options;
+
+  const idx = Math.max(0, Math.min(ZODIAC_SCENE_URLS.length - 1, sceneIdx));
+  const currTex = rig.textures[idx];
+  if (!currTex) return false;
+
+  if (rig.currMat.map !== currTex) {
+    rig.currMat.map = currTex;
+    rig.currMat.needsUpdate = true;
+  }
+
+  // Smooth dreamy crossfade from previous scene during first 0.55s
+  const fadeDur = 0.55;
+  const pIdx =
+    typeof prevSceneIdx === 'number' && prevSceneIdx >= 0 && prevSceneIdx !== idx
+      ? Math.min(ZODIAC_SCENE_URLS.length - 1, prevSceneIdx)
+      : idx > 0
+        ? idx - 1
+        : -1;
+  if (pIdx >= 0 && sceneElapsedSec < fadeDur && rig.textures[pIdx]) {
+    const t = Math.max(0, Math.min(1, sceneElapsedSec / fadeDur));
+    const smoothT = t * t * (3 - 2 * t);
+    if (rig.prevMat.map !== rig.textures[pIdx]) {
+      rig.prevMat.map = rig.textures[pIdx];
+      rig.prevMat.needsUpdate = true;
+    }
+    rig.prevPlane.visible = true;
+    rig.prevMat.opacity = 1 - smoothT;
+    rig.currMat.opacity = smoothT;
+  } else {
+    rig.prevPlane.visible = false;
+    rig.currMat.opacity = 1;
+  }
+
+  // 126 BPM joyful children's song beat + vocal RMS squash-and-stretch breathing!
+  const beatRad = clockSec * (126 / 60) * Math.PI;
+  const beatPulse = Math.pow(Math.abs(Math.sin(beatRad)), 2.2);
+  const voiceEnergy = isSpeaking ? Math.max(0.08, Math.min(1.0, vocalRms)) : 0.04;
+  const bounceY = (beatPulse * 0.065 + voiceEnergy * 0.045);
+  const scaleBreathY = 1.0 + beatPulse * 0.011 + voiceEnergy * 0.008;
+  const scaleBreathX = 1.0 - beatPulse * 0.005;
+
+  rig.stagePivot.position.y = bounceY;
+  rig.stagePivot.scale.set(scaleBreathX, scaleBreathY, 1.0);
+  rig.stagePivot.rotation.z = Math.sin(beatRad * 0.5) * 0.0085;
+
+  // Tailored 3D cinematic camera choreography per scene matching lyric flow (Left character -> Right character!)
+  const pEase = progress * progress * (3 - 2 * progress);
+  let camX = 0;
+  let camY = 0;
+  let camZ = 11.4;
+  let lookX = 0;
+  let lookY = -0.08;
+
+  if (idx === 0) {
+    // Scene 1: Grand Spring Courtyard Dolly-In & gentle upward reveal
+    camX = Math.sin(progress * Math.PI) * 0.35;
+    camY = 0.35 - pEase * 0.45;
+    camZ = 12.1 - pEase * 1.15;
+    lookX = 0;
+    lookY = -0.15;
+  } else if (idx === 1 || idx === 2 || idx === 4 || idx === 5 || idx === 6) {
+    // Duo Hero Scenes (Tý->Sửu, Dần->Mão, Ngọ->Mùi, Thân->Dậu, Tuất->Hợi): smooth pan following the song lyrics from left friend to right friend!
+    const dir = idx % 2 === 1 ? 1 : -1;
+    const sweep = (pEase - 0.5) * 1.45 * dir;
+    camX = sweep;
+    camY = 0.08 + Math.sin(progress * Math.PI) * 0.18;
+    camZ = 10.65 - Math.sin(progress * Math.PI) * 0.55;
+    lookX = sweep * 0.72;
+    lookY = -0.1;
+  } else if (idx === 3) {
+    // Scene 4 (Thìn floating high left -> Tỵ perched low right)
+    camX = -0.75 + pEase * 1.5;
+    camY = 0.42 - pEase * 0.62;
+    camZ = 10.85 - Math.sin(progress * Math.PI) * 0.5;
+    lookX = -0.5 + pEase * 1.0;
+    lookY = 0.25 - pEase * 0.45;
+  } else {
+    // Scene 8 (Grand Finale): Sweeping celebratory Dolly-Out revealing all 12 Zodiac friends dancing!
+    camX = Math.sin(progress * Math.PI * 1.5) * 0.42;
+    camY = -0.1 + pEase * 0.25;
+    camZ = 10.55 + pEase * 1.35;
+    lookX = 0;
+    lookY = -0.12;
+  }
+
+  rig.camera.position.set(camX, camY, camZ);
+  rig.camera.lookAt(lookX, lookY, 0);
+
+  // Animate 52 3D Hoa Đào & Hoa Mai petals drifting gracefully in 3D space
+  for (const pt of rig.petals) {
+    const fallSpan = 12.0;
+    const rawY = pt.baseY - clockSec * pt.speedY;
+    const wrappedY = ((((rawY + 6.0) % fallSpan) + fallSpan) % fallSpan) - 6.0;
+    const swayX = pt.baseX + Math.sin(clockSec * pt.driftX + pt.phase) * 1.35;
+    pt.mesh.position.set(swayX, wrappedY, pt.baseZ);
+    pt.mesh.rotation.set(
+      clockSec * pt.spinX + pt.phase,
+      clockSec * pt.spinY + pt.phase,
+      clockSec * pt.spinZ
+    );
+  }
+
+  // Animate 26 Floating Golden Lantern Bokeh & Sparkles
+  for (const sp of rig.sparkles) {
+    const riseSpan = 10.0;
+    const rawY = sp.baseY + clockSec * sp.speedY;
+    const wrappedY = ((((rawY + 5.0) % riseSpan) + riseSpan) % riseSpan) - 5.0;
+    sp.mesh.position.set(
+      sp.baseX + Math.cos(clockSec * 0.7 + sp.phase) * 0.55,
+      wrappedY,
+      sp.baseZ
+    );
+    const pulseS = sp.baseScale * (0.72 + 0.45 * Math.sin(clockSec * 3.8 + sp.phase) + beatPulse * 0.22);
+    sp.mesh.scale.setScalar(Math.max(0.2, pulseS));
+  }
+
+  // Animate 6 Sculpted 3D Musical Notes dancing happily to the 126 BPM beat!
+  for (const nt of rig.notes) {
+    const hop = Math.abs(Math.sin(beatRad + nt.phase)) * 0.34;
+    nt.group.position.set(
+      nt.baseX + Math.sin(clockSec * 1.2 + nt.phase) * 0.22,
+      nt.baseY + hop,
+      nt.baseZ
+    );
+    nt.group.rotation.y = Math.sin(clockSec * 2.1 + nt.phase) * 0.55;
+    nt.group.rotation.z = Math.cos(beatRad + nt.phase) * 0.16;
+    const noteScale = 0.88 + beatPulse * 0.22;
+    nt.group.scale.setScalar(noteScale);
+  }
+
+  rig.renderer.render(rig.scene, rig.camera);
+  targetCtx.save();
+  targetCtx.drawImage(rig.canvas, 0, 0, W, H);
+  targetCtx.restore();
+  return true;
+}

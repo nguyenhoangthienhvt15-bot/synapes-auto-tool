@@ -236,16 +236,34 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
             </a>
           </div>
 
-          {/* Thông báo tuân thủ & giấy phép mã nguồn mở */}
-          <div className="pt-2 flex items-center flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100 border border-black/[0.08] text-[10px] font-medium text-zinc-700">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Tuân thủ Chính sách Bảo mật &amp; BYOK</span>
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100 border border-black/[0.08] text-[10px] font-medium text-zinc-700">
-              <CheckCircle2 className="w-3.5 h-3.5 text-zinc-700" />
-              <span>Open-Source Engine Attribution</span>
-            </span>
+          {/* Chứng chỉ Bộ Công Thương & DMCA (Trải ngang) */}
+          <div className="pt-2 flex flex-row flex-nowrap items-center gap-3.5">
+            <a
+              href="https://online.gov.vn/"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Đã thông báo Bộ Công Thương"
+              className="inline-flex items-center shrink-0 hover:opacity-90 transition-opacity"
+            >
+              <img
+                src="/bct-da-thong-bao.png"
+                alt="Đã thông báo Bộ Công Thương"
+                className="h-9 sm:h-10 w-auto object-contain"
+              />
+            </a>
+            <a
+              href="https://www.dmca.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="DMCA Protected"
+              className="inline-flex items-center shrink-0 hover:opacity-90 transition-opacity"
+            >
+              <img
+                src="/dmca-protected-badge.jpg"
+                alt="DMCA Protected"
+                className="h-9 sm:h-10 w-auto object-contain mix-blend-multiply"
+              />
+            </a>
           </div>
         </div>
 

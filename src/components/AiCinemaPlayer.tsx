@@ -58,6 +58,7 @@ import {
   renderThreeDStageToCanvas,
   renderPixarCountrysideStageToCanvas,
   renderMotherDuckAndDucklings3dStageToCanvas,
+  renderZodiac12Pixar3dStageToCanvas,
 } from '../utils/threeDStageRenderer';
 import { renderPaperArtStageToCanvas } from '../utils/paperArtStageRenderer';
 import {
@@ -2613,14 +2614,22 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     const is3dAnimationProject =
       effectiveGenre === '3d-animation' || effectiveDomain === 'animation-3d';
 
+    const isZodiac12Song3d =
+      is3dAnimationProject &&
+      /12\s*con\s*giáp|mười\s*hai\s*con\s*giáp|tý\s*sửu\s*dần\s*mão|zodiac-3d|con\s*giáp/i.test(
+        `${project.title} ${scene.visualPrompt || ''} ${scene.imageUrl || ''} ${scene.speakerId || ''}`
+      );
+
     const isMotherDuck3dFable =
       is3dAnimationProject &&
+      !isZodiac12Song3d &&
       /vịt\s*mẹ|đàn\s*vịt|vịt\s*con|lông\s*vàng|hvuA-jg9N7s|vit-me|dan-vit-con/i.test(
         `${project.title} ${scene.visualPrompt || ''} ${scene.speakerId || ''}`
       );
 
     const isCountryside3dFable =
       is3dAnimationProject &&
+      !isZodiac12Song3d &&
       !isMotherDuck3dFable &&
       /mất\s*bò|làm\s*chuồng|đàn\s*gà|gà\s*con|đồng\s*quê|chăn\s*trâu|be-ti|bo-vang|dan-ga-con/i.test(
         `${project.title} ${scene.visualPrompt || ''} ${scene.speakerId || ''}`
@@ -2641,7 +2650,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       (visualRenderMode === 'threejs-3d' || visualRenderMode === 'auto-genre');
 
     // Chế độ Vẽ Tranh Giấy (Rough.js + Paper-Cut) hoặc Three.js 3D WebGL Stage toàn màn hình
-    const useFullThreeJsStage = isThreeJs3dMode || isCountryside3dFable || isMotherDuck3dFable;
+    const useFullThreeJsStage = isThreeJs3dMode || isCountryside3dFable || isMotherDuck3dFable || isZodiac12Song3d;
 
     const drawCoreStageToContext = (
       targetCtx: CanvasRenderingContext2D,
@@ -2673,6 +2682,21 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         });
         targetCtx.restore();
         return;
+      }
+
+      if (isZodiac12Song3d) {
+        const renderedZodiac = renderZodiac12Pixar3dStageToCanvas(targetCtx, tW, tH, {
+          clockSec: tClock,
+          progress: tProgress,
+          sceneIdx: tIdx,
+          prevSceneIdx: tIdx > 0 ? tIdx - 1 : -1,
+          sceneElapsedSec: tElapsed,
+          isSpeaking: isPlayingRef.current || exportScope === 'full',
+        });
+        if (renderedZodiac) {
+          targetCtx.restore();
+          return;
+        }
       }
 
       if (isMotherDuck3dFable) {
@@ -2911,7 +2935,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           );
           drawLiveAudioSpectrumHud(ctx, W, H, clockSec, '#ef4444');
         }
-      } else if (showBroadcastHud && !isCountryside3dFable && !isMotherDuck3dFable) {
+      } else if (showBroadcastHud && !isCountryside3dFable && !isMotherDuck3dFable && !isZodiac12Song3d) {
         drawCinemaHudAndHeadline(ctx, W, H, scene, activeIdx, scenes.length, progress);
         drawDynamicContextCalloutCard(
           ctx,
