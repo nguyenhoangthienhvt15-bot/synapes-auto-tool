@@ -18,6 +18,7 @@ import {
   synthesizeNeuralVoiceToWav,
   synthesizeMultiSpeakerAudiobookToWav,
   detectAudioSpeechSegmentsVAD,
+  computeBlobBiometricSimilarity,
   ReferenceVoiceAnalysis,
 } from '../services/voiceStudioService';
 
@@ -199,7 +200,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
   const [cloneOutputDuration, setCloneOutputDuration] = useState<number>(0);
   const [cloneOutputPeaks, setCloneOutputPeaks] = useState<number[]>([]);
   const [cloneOutputF0Hz, setCloneOutputF0Hz] = useState<number>(0);
-  const [cloneSpectralMatchScore, setCloneSpectralMatchScore] = useState<number>(95);
+  const [cloneSpectralMatchScore, setCloneSpectralMatchScore] = useState<number>(0);
   const [cloneOutputFormants, setCloneOutputFormants] = useState<[number, number, number, number]>([0, 0, 0, 0]);
   const [cloneOutputBark16, setCloneOutputBark16] = useState<number[]>([]);
   const [cloneF0MatchScore, setCloneF0MatchScore] = useState<number>(0);
@@ -489,7 +490,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
     setStatusMessage('');
     try {
       let generatedUrl = '';
-      let finalMatchScore = 95;
+      let finalMatchScore = 0;
       let finalOutputF0Hz = refAnalysis?.fundamentalHz || 130;
 
       // 1. If connected to external HTTPS Voice Plugin Server, upload actual reference audio via FormData
@@ -511,19 +512,19 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
           if (res.ok) {
             const blob = await res.blob();
             generatedUrl = URL.createObjectURL(blob);
-            const analysis = await analyzeReferenceAudioBuffer(blob).catch(() => null);
-            if (analysis) {
-              finalMatchScore = 98;
-              finalOutputF0Hz = analysis.fundamentalHz;
-              setCloneOutputDuration(analysis.durationSec);
-              setCloneOutputPeaks(analysis.waveformPeaks);
-              setCloneOutputF0Hz(analysis.fundamentalHz);
-              setCloneSpectralMatchScore(98);
-              setCloneOutputFormants(analysis.formantsHz);
-              setCloneOutputBark16(analysis.spectralEnvelopeDb);
-              setCloneF0MatchScore(98);
-              setCloneFormantMatchScore(98);
-              setCloneCepstralMatchScore(98);
+            const sim = await computeBlobBiometricSimilarity(refAnalysis, blob);
+            if (sim) {
+              finalMatchScore = sim.spectralMatchScore;
+              finalOutputF0Hz = sim.outputF0Hz;
+              setCloneOutputDuration(sim.durationSec);
+              setCloneOutputPeaks(sim.waveformPeaks);
+              setCloneOutputF0Hz(sim.outputF0Hz);
+              setCloneSpectralMatchScore(sim.spectralMatchScore);
+              setCloneOutputFormants(sim.outputFormantsHz);
+              setCloneOutputBark16(sim.outputBark16);
+              setCloneF0MatchScore(sim.f0MatchScore);
+              setCloneFormantMatchScore(sim.formantMatchScore);
+              setCloneCepstralMatchScore(sim.cepstralMatchScore);
             }
           }
         } catch { }
@@ -550,20 +551,20 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
           });
           if (res.ok) {
             const blob = await res.blob();
-            const rendered = await analyzeReferenceAudioBuffer(blob).catch(() => null);
+            const sim = await computeBlobBiometricSimilarity(refAnalysis, blob);
             generatedUrl = URL.createObjectURL(blob);
-            if (rendered) {
-              finalMatchScore = 96;
-              finalOutputF0Hz = rendered.fundamentalHz;
-              setCloneOutputDuration(rendered.durationSec);
-              setCloneOutputPeaks(rendered.waveformPeaks);
-              setCloneOutputF0Hz(rendered.fundamentalHz);
-              setCloneSpectralMatchScore(96);
-              setCloneOutputFormants(rendered.formantsHz);
-              setCloneOutputBark16(rendered.spectralEnvelopeDb);
-              setCloneF0MatchScore(96);
-              setCloneFormantMatchScore(96);
-              setCloneCepstralMatchScore(96);
+            if (sim) {
+              finalMatchScore = sim.spectralMatchScore;
+              finalOutputF0Hz = sim.outputF0Hz;
+              setCloneOutputDuration(sim.durationSec);
+              setCloneOutputPeaks(sim.waveformPeaks);
+              setCloneOutputF0Hz(sim.outputF0Hz);
+              setCloneSpectralMatchScore(sim.spectralMatchScore);
+              setCloneOutputFormants(sim.outputFormantsHz);
+              setCloneOutputBark16(sim.outputBark16);
+              setCloneF0MatchScore(sim.f0MatchScore);
+              setCloneFormantMatchScore(sim.formantMatchScore);
+              setCloneCepstralMatchScore(sim.cepstralMatchScore);
             }
           }
         } catch { }
@@ -586,20 +587,20 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
           });
           if (res.ok) {
             const blob = await res.blob();
-            const rendered = await analyzeReferenceAudioBuffer(blob).catch(() => null);
+            const sim = await computeBlobBiometricSimilarity(refAnalysis, blob);
             generatedUrl = URL.createObjectURL(blob);
-            if (rendered) {
-              finalMatchScore = 97;
-              finalOutputF0Hz = rendered.fundamentalHz;
-              setCloneOutputDuration(rendered.durationSec);
-              setCloneOutputPeaks(rendered.waveformPeaks);
-              setCloneOutputF0Hz(rendered.fundamentalHz);
-              setCloneSpectralMatchScore(97);
-              setCloneOutputFormants(rendered.formantsHz);
-              setCloneOutputBark16(rendered.spectralEnvelopeDb);
-              setCloneF0MatchScore(97);
-              setCloneFormantMatchScore(97);
-              setCloneCepstralMatchScore(97);
+            if (sim) {
+              finalMatchScore = sim.spectralMatchScore;
+              finalOutputF0Hz = sim.outputF0Hz;
+              setCloneOutputDuration(sim.durationSec);
+              setCloneOutputPeaks(sim.waveformPeaks);
+              setCloneOutputF0Hz(sim.outputF0Hz);
+              setCloneSpectralMatchScore(sim.spectralMatchScore);
+              setCloneOutputFormants(sim.outputFormantsHz);
+              setCloneOutputBark16(sim.outputBark16);
+              setCloneF0MatchScore(sim.f0MatchScore);
+              setCloneFormantMatchScore(sim.formantMatchScore);
+              setCloneCepstralMatchScore(sim.cepstralMatchScore);
             }
           }
         } catch { }
@@ -640,7 +641,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
           cloneEngine,
         });
         generatedUrl = renderedWav.url;
-        finalMatchScore = renderedWav.spectralMatchScore ?? 95;
+        finalMatchScore = renderedWav.spectralMatchScore ?? 0;
         finalOutputF0Hz = renderedWav.outputF0Hz || refAnalysis?.fundamentalHz || 130;
         setCloneOutputDuration(renderedWav.durationSec);
         setCloneOutputPeaks(renderedWav.waveformPeaks);
@@ -904,11 +905,11 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
           return custom ? buildVoiceProfileFromCustom(custom) : ALL_VOICE_PROFILES[0];
         })();
 
-      const resolvedSceneLang: VoiceLanguage = dubLanguage === 'vi' ? 'vi' : 'en';
+      const resolvedSceneLang: VoiceLanguage = dubLanguage as VoiceLanguage;
       const effectiveVoiceProfile: VoiceProfile =
-        resolvedSceneLang === 'en' && chosenProfile.language !== 'en'
+        chosenProfile.language !== resolvedSceneLang
           ? {
-              ...ENGLISH_VOICE_PROFILES[0],
+              ...(ALL_VOICE_PROFILES.find((v) => v.language === resolvedSceneLang) || ENGLISH_VOICE_PROFILES[0]),
               pitch: chosenProfile.pitch,
               rate: chosenProfile.rate,
             }
@@ -1048,9 +1049,15 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
       setWhisperDurationSec(vadResult.durationSec);
       setWhisperPeaks(vadResult.waveformPeaks);
       setWhisperSegments(vadResult.segments);
-      setStatusMessage(
-        `Đã phân tích sóng âm thực tế [${file.name}] (${vadResult.durationSec}s) & căn mốc ${vadResult.segments.length} phân đoạn phụ đề bằng Web Audio VAD.`
-      );
+      if (vadResult.isNonSpeechTone) {
+        setStatusMessage(
+          `⚠️ Từ chối tách phụ đề giả cho [${file.name}]: ${vadResult.toneReason || 'Sóng âm không phải tiếng nói.'}`
+        );
+      } else {
+        setStatusMessage(
+          `Đã phân tích sóng âm thực tế [${file.name}] (${vadResult.durationSec}s) & căn mốc ${vadResult.segments.length} phân đoạn bằng Web Audio Spectral-Flux VAD.`
+        );
+      }
     } catch (err) {
       setStatusMessage(`Không thể giải mã tệp âm thanh: ${String(err)}`);
     } finally {
@@ -1170,7 +1177,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                 ULTRA
               </span>
               <span className="text-[10px] font-mono text-zinc-500">
-                Neural 24kHz • Formant VTLN v4.0 • Multi-Speaker • Whisper VAD
+                Neural 24kHz • Formant VTLN v4.0 • 7-Lang Dubbing • Web Audio VAD
               </span>
             </div>
             <p className="text-[11px] text-zinc-500 mt-0.5 truncate">
@@ -1275,10 +1282,10 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                   onChange={(e) => setCloneEngine(e.target.value)}
                   className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-xs bg-white focus:outline-none focus:border-zinc-900"
                 >
-                  <optgroup label="SYNAPES Studio ULTRA Core (Formant-Warp v4.0)">
-                    <option value="qwen3-tts">Qwen3-TTS 1.7B Zero-Shot (Formant VTLN v4.0)</option>
-                    <option value="xttsv2">Coqui XTTSv2 Đa Ngôn Ngữ (Formant VTLN v4.0)</option>
-                    <option value="fish-speech">Fish Speech S1 Acoustic (Formant VTLN v4.0)</option>
+                  <optgroup label="SYNAPES Formant & VTLN DSP + Edge Neural Core (Local Browser DSP)">
+                    <option value="qwen3-tts">SYNAPES VTLN Neutral Clone (Formant-Warp v4.0)</option>
+                    <option value="xttsv2">SYNAPES Multilingual VTLN (Formant-Warp v4.0)</option>
+                    <option value="fish-speech">SYNAPES Acoustic High-Presence (Formant-Warp v4.0)</option>
                   </optgroup>
                   <optgroup label="Mô Hình Cloud BYOK Theo API Key Hệ Thống">
                     <option value="byok-gemini-audio">
@@ -1592,7 +1599,8 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                 </h3>
                 {cloneOutputUrl && (
                   <span className="px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold">
-                    F0: {cloneOutputF0Hz || refAnalysis?.fundamentalHz || 130}Hz • Giống giọng gốc {cloneSpectralMatchScore}%
+                    F0: {cloneOutputF0Hz || refAnalysis?.fundamentalHz || 130}Hz •{' '}
+                    {cloneSpectralMatchScore > 0 ? `Tương đồng đo thực: ${cloneSpectralMatchScore}%` : 'Chưa có mẫu đối chứng'}
                   </span>
                 )}
               </div>
@@ -1607,13 +1615,13 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                     <div className="p-2.5 rounded-md bg-white border border-zinc-200/90 space-y-2">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px] font-mono">
                         <div className="p-1.5 rounded bg-zinc-50 border border-zinc-100">
-                          <span className="text-zinc-400 block">F0 Gốc → Clone ({cloneF0MatchScore || cloneSpectralMatchScore}%):</span>
+                          <span className="text-zinc-400 block">F0 Gốc → Clone ({cloneF0MatchScore}%):</span>
                           <strong className="text-zinc-900">
                             {refAnalysis.fundamentalHz}Hz → {cloneOutputF0Hz || refAnalysis.fundamentalHz}Hz
                           </strong>
                         </div>
                         <div className="p-1.5 rounded bg-zinc-50 border border-zinc-100">
-                          <span className="text-zinc-400 block">Formants F1-F4 ({cloneFormantMatchScore || cloneSpectralMatchScore}%):</span>
+                          <span className="text-zinc-400 block">Formants F1-F4 ({cloneFormantMatchScore}%):</span>
                           <strong className="text-zinc-900 break-all">
                             [{refAnalysis.formantsHz.join('·')}] → [{(cloneOutputFormants[0] ? cloneOutputFormants : refAnalysis.formantsHz).join('·')}]Hz
                           </strong>
@@ -1621,7 +1629,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                         <div className="p-1.5 rounded bg-zinc-50 border border-zinc-100">
                           <span className="text-zinc-400 block">Cepstral 128-Band:</span>
                           <strong className="text-emerald-700">
-                            {cloneCepstralMatchScore || cloneSpectralMatchScore}% match
+                            {cloneCepstralMatchScore}% match
                           </strong>
                         </div>
                       </div>
@@ -2036,7 +2044,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                 onChange={(e) => setWhisperEngine(e.target.value as any)}
                 className="px-2.5 py-1.5 rounded-lg border border-zinc-200 text-xs bg-white"
               >
-                <option value="studio-vad-whisper">Studio Web Audio VAD + AI Alignment (24kHz)</option>
+                <option value="studio-vad-whisper">Studio Web Audio Energy + Spectral-Flux VAD (24kHz)</option>
                 <option value="groq-whisper">Groq Whisper Turbo (BYOK)</option>
                 <option value="openai-whisper">OpenAI Whisper-1 (BYOK)</option>
                 <option value="browser-live">Micro Trực Tiếp (Trình duyệt)</option>

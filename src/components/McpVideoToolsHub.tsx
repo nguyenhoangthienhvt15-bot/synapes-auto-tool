@@ -78,23 +78,30 @@ export const McpVideoToolsHub: React.FC<McpVideoToolsHubProps> = ({
 
   const handlePingServer = async (server: McpVideoServer) => {
     setPingStatus((prev) => ({ ...prev, [server.id]: 'pinging' }));
-    setStatusMessage(`Đang gửi tín hiệu kiểm tra giao thức JSON-RPC tới [${server.name}]...`);
+    setStatusMessage(`Đang kiểm tra worker & runtime thực tế cho [${server.name}]...`);
 
     try {
-      const res = await fetch('/api/system/health-watchdog');
-      if (res.ok) {
+      const res = await fetch('/api/mcp/verify-worker', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serverId: server.id,
+          command: server.sampleConfig?.command || '',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.reachable === true) {
         setPingStatus((prev) => ({ ...prev, [server.id]: 'success' }));
-        setStatusMessage(`✅ MCP Server [${server.name}] phản hồi thành công qua Watchdog! Sẵn sàng cấp quyền cho Agent.`);
+        setStatusMessage(`✅ Phát hiện runtime [${data.runtimeBinary || server.name}] đang sẵn sàng (${data.versionOutput || 'OK'}).`);
       } else {
         setPingStatus((prev) => ({ ...prev, [server.id]: 'idle' }));
-        setStatusMessage(`⚠️ Không nhận được phản hồi từ [${server.name}]. Vui lòng kiểm tra Docker container.`);
+        setStatusMessage(`ℹ️ ${data?.error || `Worker [${server.name}] chưa chạy trên máy chủ — chỉ mới ở mức đặc tả cấu hình MCP Blueprint.`}`);
       }
     } catch {
-      // Phản hồi kiểm tra cú pháp cấu hình
-      setPingStatus((prev) => ({ ...prev, [server.id]: 'success' }));
-      setStatusMessage(`✅ Giao thức cấu hình [${server.name}] hợp lệ (Chuẩn JSON-RPC 2.0 Stdio).`);
+      setPingStatus((prev) => ({ ...prev, [server.id]: 'idle' }));
+      setStatusMessage(`⚠️ Không thể kết nối máy chủ để xác minh worker [${server.name}].`);
     }
-    setTimeout(() => setStatusMessage(null), 4000);
+    setTimeout(() => setStatusMessage(null), 4500);
   };
 
   const fullCinematicPrompt = `${directorSubject}. ${directorMovement}. Shot on ${directorLens}. ${directorLighting}. ${directorPacing}.`;

@@ -4,10 +4,19 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import net from 'net';
+import { spawnSync } from 'child_process';
 import { dispatchCriticalIncident, CIRCUIT_BREAKERS } from './incidentReporter.mjs';
+import {
+  MODEL_3D_STYLE_CATALOG_SERVER,
+  validateMultiViewRequestServer,
+  runByokVisionConsistencyCheckServer,
+  dispatchByok3DReconstructionServer,
+} from './multiview3dOrchestrator.mjs';
 
 // Danh sách đen IP vi phạm bảo mật (Anti-DevTools & Tampering Blacklist)
 export const IP_BLACKLIST = new Map();
+// Danh sách IP được mở khóa hợp lệ bởi Master Key qua /api/security/unlock
+export const VERIFIED_UNLOCK_IPS = new Map();
 
 // Bảng kiểm soát tần suất thử nghiệm mở khóa & đăng nhập (Rate Limiter Shield)
 const UNLOCK_RATE_LIMITS = new Map(); // IP -> { failedAttempts: number, lockedUntil: number, firstAttemptAt: number }
@@ -1576,6 +1585,28 @@ function _formatEdgeTimestamp() {
   return new Date().toUTCString().replace('GMT', 'GMT+0000 (Coordinated Universal Time)');
 }
 
+const EDGE_LANG_MAP = {
+  vi: { xmlLang: 'vi-VN', defaultVoice: 'vi-VN-NamMinhNeural', tl: 'vi' },
+  en: { xmlLang: 'en-US', defaultVoice: 'en-US-GuyNeural', tl: 'en' },
+  ja: { xmlLang: 'ja-JP', defaultVoice: 'ja-JP-NanamiNeural', tl: 'ja' },
+  ko: { xmlLang: 'ko-KR', defaultVoice: 'ko-KR-SunHiNeural', tl: 'ko' },
+  zh: { xmlLang: 'zh-CN', defaultVoice: 'zh-CN-XiaoxiaoNeural', tl: 'zh-CN' },
+  fr: { xmlLang: 'fr-FR', defaultVoice: 'fr-FR-DeniseNeural', tl: 'fr' },
+  es: { xmlLang: 'es-ES', defaultVoice: 'es-ES-ElviraNeural', tl: 'es' },
+};
+
+function _resolveTtsLanguageMeta(langRaw = 'vi', voiceName = '') {
+  const vn = String(voiceName || '').toLowerCase();
+  for (const [code, meta] of Object.entries(EDGE_LANG_MAP)) {
+    if (vn.startsWith(`${code}-`) || vn.startsWith(meta.xmlLang.toLowerCase())) {
+      return { code, ...meta };
+    }
+  }
+  const clean = String(langRaw || 'vi').trim().toLowerCase().slice(0, 2);
+  const resolved = EDGE_LANG_MAP[clean] || EDGE_LANG_MAP.vi;
+  return { code: EDGE_LANG_MAP[clean] ? clean : 'vi', ...resolved };
+}
+
 function _buildEdgeSsmlMessages(reqId, text, voiceName, ratePct, pitchHz) {
   const ts = _formatEdgeTimestamp();
   const safeRate = _normalizeEdgeProsodyParam(ratePct, '%', -50, 80);
@@ -1595,7 +1626,7 @@ function _buildEdgeSsmlMessages(reqId, text, voiceName, ratePct, pitchHz) {
       },
     });
   const escapedText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const langCode = voiceName.startsWith('en') ? 'en-US' : 'vi-VN';
+  const langCode = _resolveTtsLanguageMeta('vi', voiceName).xmlLang;
   const ssml =
     `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${langCode}'>` +
     `<voice name='${voiceName}'>` +
@@ -1838,7 +1869,7 @@ async function synthesizeEdgeNeuralTts(text, voiceName, ratePct = '+0%', pitchHz
 function fetchGoogleNeuralTtsMp3(text, lang = 'vi') {
   return new Promise((resolve, reject) => {
     const safeText = text.slice(0, 195);
-    const tl = lang.startsWith('en') ? 'en' : 'vi';
+    const tl = _resolveTtsLanguageMeta(lang).tl;
     const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${tl}&q=${encodeURIComponent(safeText)}`;
     https
       .get(
@@ -1903,15 +1934,15 @@ function fetchOpenAiSpeech(apiKey, text, voice = 'onyx') {
 // ============================================================================
 const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024; // 10MB limit chống tấn công DoS tràn bộ nhớ RAM
 
-function readJsonBody(req) {
+function readJsonBody(req, maxBytes = MAX_REQUEST_BODY_BYTES) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let receivedBytes = 0;
     req.on('data', (c) => {
       receivedBytes += c.length;
-      if (receivedBytes > MAX_REQUEST_BODY_BYTES) {
+      if (receivedBytes > maxBytes) {
         req.destroy();
-        reject(new Error('Payload Too Large: Vượt quá giới hạn 10MB cho phép'));
+        reject(new Error(`Payload Too Large: Vượt quá giới hạn ${Math.round(maxBytes / (1024 * 1024))}MB cho phép`));
         return;
       }
       chunks.push(c);
@@ -2095,6 +2126,149 @@ function verifyServerAuthToken(token, expectedCode) {
   if (expectedCode && tokenCode.toUpperCase() !== String(expectedCode).trim().toUpperCase()) return false;
   const expectedSig = crypto.createHmac('sha256', AUTH_TOKEN_SECRET).update(`${tokenCode}.${expStr}`).digest('hex');
   return constantTimeVerify(providedSig, expectedSig);
+}
+
+const AES_MASTER_KEY = crypto
+  .createHash('sha256')
+  .update(`${AUTH_TOKEN_SECRET}::SYNAPES_AES256_GCM_STORAGE_V1`)
+  .digest();
+
+export function encryptSecretAes256Gcm(plaintext) {
+  const raw = String(plaintext || '').trim();
+  if (!raw) return '';
+  if (raw.startsWith('enc:gcm:v1:')) return raw;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', AES_MASTER_KEY, iv);
+  const encrypted = Buffer.concat([cipher.update(raw, 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  return `enc:gcm:v1:${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`;
+}
+
+export function decryptSecretAes256Gcm(encoded) {
+  const raw = String(encoded || '');
+  if (!raw) return '';
+  if (!raw.startsWith('enc:gcm:v1:')) return raw;
+  const parts = raw.split(':');
+  if (parts.length !== 6) return '';
+  try {
+    const iv = Buffer.from(parts[3], 'hex');
+    const authTag = Buffer.from(parts[4], 'hex');
+    const ciphertext = Buffer.from(parts[5], 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', AES_MASTER_KEY, iv);
+    decipher.setAuthTag(authTag);
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+  } catch {
+    return '';
+  }
+}
+
+function encryptProfileSecretsAtRest(profile) {
+  if (!profile || typeof profile !== 'object') return profile;
+  const cloned = JSON.parse(JSON.stringify(profile));
+  if (cloned.aiConfig && typeof cloned.aiConfig === 'object') {
+    for (const [, v] of Object.entries(cloned.aiConfig)) {
+      if (v && typeof v === 'object' && typeof v.apiKey === 'string' && v.apiKey.trim()) {
+        v.apiKey = encryptSecretAes256Gcm(v.apiKey);
+      }
+    }
+  }
+  if (Array.isArray(cloned.channels)) {
+    cloned.channels = cloned.channels.map((ch) => {
+      if (ch && typeof ch === 'object' && typeof ch.oauthToken === 'string' && ch.oauthToken.trim()) {
+        return { ...ch, oauthToken: encryptSecretAes256Gcm(ch.oauthToken) };
+      }
+      return ch;
+    });
+  }
+  return cloned;
+}
+
+function decryptProfileSecretsAtRest(profile) {
+  if (!profile || typeof profile !== 'object') return profile;
+  const cloned = JSON.parse(JSON.stringify(profile));
+  if (cloned.aiConfig && typeof cloned.aiConfig === 'object') {
+    for (const [, v] of Object.entries(cloned.aiConfig)) {
+      if (v && typeof v === 'object' && typeof v.apiKey === 'string' && v.apiKey.startsWith('enc:gcm:v1:')) {
+        v.apiKey = decryptSecretAes256Gcm(v.apiKey);
+      }
+    }
+  }
+  if (Array.isArray(cloned.channels)) {
+    cloned.channels = cloned.channels.map((ch) => {
+      if (ch && typeof ch === 'object' && typeof ch.oauthToken === 'string' && ch.oauthToken.startsWith('enc:gcm:v1:')) {
+        return { ...ch, oauthToken: decryptSecretAes256Gcm(ch.oauthToken) };
+      }
+      return ch;
+    });
+  }
+  return cloned;
+}
+
+function extractBearerToken(req, rawUrl = '') {
+  const authHdr = String(req.headers['authorization'] || req.headers['Authorization'] || '').trim();
+  if (authHdr.toLowerCase().startsWith('bearer ')) {
+    return authHdr.slice(7).trim();
+  }
+  const xTok = String(req.headers['x-synapes-auth-token'] || '').trim();
+  if (xTok) return xTok;
+  try {
+    const parsed = new URL(rawUrl, 'http://localhost');
+    return String(parsed.searchParams.get('authToken') || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function requireUserAuth(req, res, targetUserCode = '', rawUrl = '') {
+  const token = extractBearerToken(req, rawUrl);
+  if (!token) {
+    res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(
+      JSON.stringify({
+        success: false,
+        code: 'UNAUTHORIZED',
+        error: 'Thiếu Bearer Token xác thực phiên đăng nhập hợp lệ.',
+      })
+    );
+    return null;
+  }
+  const parts = token.trim().split('.');
+  if (parts.length !== 3) {
+    res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(
+      JSON.stringify({
+        success: false,
+        code: 'INVALID_TOKEN',
+        error: 'Bearer Token không đúng cấu trúc hoặc bị giả mạo.',
+      })
+    );
+    return null;
+  }
+  const tokenUserCode = parts[0].trim().toUpperCase();
+  if (!verifyServerAuthToken(token, tokenUserCode)) {
+    res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(
+      JSON.stringify({
+        success: false,
+        code: 'INVALID_SIGNATURE',
+        error: 'Chữ ký Bearer Token không hợp lệ hoặc phiên đăng nhập đã hết hạn.',
+      })
+    );
+    return null;
+  }
+  const expectedCode = String(targetUserCode || '').trim().toUpperCase();
+  if (expectedCode && expectedCode !== tokenUserCode) {
+    res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(
+      JSON.stringify({
+        success: false,
+        code: 'FORBIDDEN_CROSS_USER',
+        error: `Từ chối truy cập chéo tài khoản (Token ${tokenUserCode} không có quyền trên ${expectedCode}).`,
+      })
+    );
+    return null;
+  }
+  return { userCode: tokenUserCode, token };
 }
 
 const AUTH_DIRECTORY_MAP = new Map();
@@ -2454,7 +2628,7 @@ export async function handleStudioApiRequest(req, res) {
   } else {
     res.setHeader('Access-Control-Allow-Origin', 'https://synapes-auto-tool-web-service.onrender.com');
   }
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Synapes-Sync-Secret');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Synapes-Auth-Token, X-Requested-With, X-Synapes-Sync-Secret');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
 
   if (req.method === 'OPTIONS') {
@@ -2967,14 +3141,19 @@ export async function handleStudioApiRequest(req, res) {
       const enteredPassword = String(body.password || '').trim();
 
       // 2. Xác thực bằng hàm so sánh thời gian hằng số (Timing-Safe Comparison)
-      if (constantTimeVerify(enteredPassword, '[REDACTED_BY_P0_AUDIT]')) {
+      const masterUnlockKey = process.env.SYNAPES_MASTER_KEY || '[REDACTED_BY_P0_AUDIT]';
+      if (constantTimeVerify(enteredPassword, masterUnlockKey)) {
         recordUnlockSuccess(clientIp);
         IP_BLACKLIST.delete(clientIp);
+        VERIFIED_UNLOCK_IPS.set(clientIp, {
+          unlockedAt: Date.now(),
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+        });
 
         // Tạo chữ ký HMAC an toàn cho phiên
         const sessionToken = crypto
-          .createHmac('sha256', 'SYNAPES_SECURITY_HMAC_MASTER_2026')
-          .update(`${clientIp}::${Date.now()}::[REDACTED_BY_P0_AUDIT]`)
+          .createHmac('sha256', AUTH_TOKEN_SECRET)
+          .update(`${clientIp}::${Date.now()}::UNLOCK`)
           .digest('hex');
 
         console.log(`[SECURITY AUDIT] IP ${clientIp} đã được giải phóng thành công bằng Master Key.`);
@@ -3011,6 +3190,114 @@ export async function handleStudioApiRequest(req, res) {
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ success: false, error: String(err) }));
+      return true;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // TRẠNG THÁI MỞ KHÓA DEVTOOLS THEO IP (/api/security/unlock-status)
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/security/unlock-status' && req.method === 'GET') {
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
+    const entry = VERIFIED_UNLOCK_IPS.get(clientIp);
+    const unlocked = Boolean(entry && entry.expiresAt > Date.now());
+    if (entry && !unlocked) VERIFIED_UNLOCK_IPS.delete(clientIp);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ success: true, unlocked, clientIp }));
+    return true;
+  }
+
+  // --------------------------------------------------------------------------
+  // SINGLE SOURCE OF TRUTH CHO APPS SCRIPT (/api/system/apps-script-template)
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/system/apps-script-template' && req.method === 'GET') {
+    try {
+      const gasFile = path.resolve(process.cwd(), 'google-apps-script', 'Code.js');
+      if (!fs.existsSync(gasFile)) {
+        res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, error: 'Không tìm thấy nguồn chuẩn google-apps-script/Code.js.' }));
+        return true;
+      }
+      const code = fs.readFileSync(gasFile, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: true, source: 'google-apps-script/Code.js', bytes: Buffer.byteLength(code, 'utf8'), code }));
+      return true;
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: String(err?.message || err) }));
+      return true;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // KIỂM TRA CHÂN THỰC MCP WORKER (/api/mcp/verify-worker)
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/mcp/verify-worker' && req.method === 'POST') {
+    try {
+      const body = (await readJsonBody(req)) || {};
+      const serverId = String(body.serverId || '').trim();
+      const command = String(body.command || '').trim();
+      const endpointUrl = String(body.endpointUrl || '').trim();
+
+      if (endpointUrl) {
+        if (!isSafeExternalUrl(endpointUrl)) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, reachable: false, error: 'Endpoint URL không hợp lệ hoặc bị chặn bởi lớp SSRF Guard.' }));
+          return true;
+        }
+        try {
+          const probe = await fetch(endpointUrl, { method: 'GET', signal: AbortSignal.timeout(4000) });
+          res.writeHead(probe.ok ? 200 : 502, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: probe.ok, reachable: probe.ok, serverId, status: probe.status, mode: 'http_probe' }));
+          return true;
+        } catch (probeErr) {
+          res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, reachable: false, serverId, configured: false, error: `Không thể kết nối MCP HTTP endpoint: ${probeErr?.message || probeErr}` }));
+          return true;
+        }
+      }
+
+      // Allowlist kiểm tra binary runtime cục bộ an toàn (cấm mọi lệnh shell tùy ý)
+      const SAFE_RUNTIME_BINS = new Map([
+        ['ffmpeg', ['ffmpeg', ['-version']]],
+        ['node', ['node', ['-v']]],
+        ['python', ['python', ['--version']]],
+        ['uvx', ['uvx', ['--version']]],
+        ['uv', ['uv', ['--version']]],
+        ['npx', ['npx', ['--version']]],
+        ['docker', ['docker', ['--version']]],
+      ]);
+      const binEntry = SAFE_RUNTIME_BINS.get(command.toLowerCase());
+      if (binEntry) {
+        const probe = spawnSync(binEntry[0], binEntry[1], { encoding: 'utf8', timeout: 2500 });
+        if (probe.status === 0) {
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({
+            success: true,
+            reachable: true,
+            configured: true,
+            serverId,
+            runtimeBinary: binEntry[0],
+            versionOutput: String(probe.stdout || '').split('\n')[0].trim(),
+          }));
+          return true;
+        }
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          reachable: false,
+          configured: false,
+          serverId,
+          error: `Chưa phát hiện worker/runtime "${command || serverId}" đang chạy trên máy chủ. Đây là đặc tả cấu hình MCP Blueprint, chưa nối tiến trình thực thi.`,
+        })
+      );
+      return true;
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, reachable: false, error: String(err?.message || err) }));
       return true;
     }
   }
@@ -3411,12 +3698,24 @@ export async function handleStudioApiRequest(req, res) {
   if (cleanUrl === '/api/image-proxy') {
     try {
       const parsedUrl = new URL(rawUrl, 'http://localhost');
+      const explicitUrl = parsedUrl.searchParams.get('url');
+      if (explicitUrl && !isSafeExternalUrl(explicitUrl)) {
+        res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            code: 'SSRF_BLOCKED',
+            error: 'Từ chối chuyển tiếp địa chỉ nội bộ hoặc không hợp lệ (SSRF Protection).',
+          })
+        );
+        return true;
+      }
       const domain = parsedUrl.searchParams.get('domain') || 'news';
       const titleHint = parsedUrl.searchParams.get('title') || 'SYNAPES Broadcast Frame';
       const idx = Math.max(0, parseInt(parsedUrl.searchParams.get('idx') || '0', 10) || 0);
       const fallbackPool = DOMAIN_PHOTO_POOLS[domain] || DOMAIN_PHOTO_POOLS.news;
       const fallbackUrl = fallbackPool[idx % fallbackPool.length].url;
-      const targetUrl = parsedUrl.searchParams.get('url') || fallbackUrl;
+      const targetUrl = explicitUrl || fallbackUrl;
 
       if (IMAGE_PROXY_CACHE.has(targetUrl)) {
         const cached = IMAGE_PROXY_CACHE.get(targetUrl);
@@ -3585,9 +3884,9 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
-  // D. SERVER-SIDE LLM GENERATION PROXY & RESEARCH SYNTHESIZER (/api/llm-generate)
+  // D. SERVER-SIDE LLM GENERATION PROXY & RESEARCH SYNTHESIZER (/api/llm-generate | /api/ai-proxy)
   // --------------------------------------------------------------------------
-  if (cleanUrl === '/api/llm-generate' && req.method === 'POST') {
+  if ((cleanUrl === '/api/llm-generate' || cleanUrl === '/api/ai-proxy') && req.method === 'POST') {
     try {
       const body = await readJsonBody(req);
       const {
@@ -3626,7 +3925,8 @@ export async function handleStudioApiRequest(req, res) {
         const topicPrompt = String(rawPrompt || userPrompt || 'Tin tức công nghệ & doanh nghiệp').trim();
         const domain = reqDomain || classifyTopicDomain(topicPrompt);
         const subQueries = extractFocusedEntityQueries(topicPrompt);
-        const primaryKw = subQueries[0] || topicPrompt;
+        const enKw = translateQueryToEnglishKeywords(topicPrompt);
+        const primaryKw = subQueries[0] || enKw || topicPrompt;
         const secondaryKw = subQueries[1] || '';
 
         const [headlines1, headlines2, viWiki, enWiki] = await Promise.all([
@@ -3815,7 +4115,9 @@ export async function handleStudioApiRequest(req, res) {
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(
           JSON.stringify({
+            success: true,
             text: JSON.stringify(outPayload),
+            content: JSON.stringify(outPayload),
             actualModel: 'SYNAPES Server Research Director',
             domain,
             headlinesCount: mergedHeadlines.length,
@@ -3941,17 +4243,15 @@ export async function handleStudioApiRequest(req, res) {
         try {
           if (curProvider === 'gemini') {
             const base = (curEndpoint || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
-            const requestedMod = String(curModel || 'gemini-3.8-flash').replace(/^models\//, '').trim();
+            const requestedMod = String(curModel || 'gemini-2.5-flash').replace(/^models\//, '').trim();
             const isNonScriptModel = /tts|imagen|-image|embedding|robotics|veo|audio|-live|aqa/i.test(requestedMod);
             const candidates = Array.from(
               new Set([
                 ...(!isNonScriptModel && requestedMod ? [requestedMod] : []),
-                'gemini-3-flash-preview',
-                'gemini-3.5-flash',
-                'gemini-3.8-flash',
-                'gemini-3.1-pro-preview',
                 'gemini-2.5-flash',
+                'gemini-2.5-pro',
                 'gemini-2.0-flash',
+                'gemini-1.5-pro',
               ])
             );
 
@@ -4015,7 +4315,9 @@ export async function handleStudioApiRequest(req, res) {
                   res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
                   res.end(
                     JSON.stringify({
+                      success: true,
                       text: outText,
+                      content: outText,
                       actualModel: mod,
                       actualProvider: 'gemini',
                       tokenTelemetry: buildTokenTelemetry({
@@ -4073,7 +4375,9 @@ export async function handleStudioApiRequest(req, res) {
                 res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
                 res.end(
                   JSON.stringify({
+                    success: true,
                     text: outText,
+                    content: outText,
                     actualModel: cModel,
                     actualProvider: 'claude',
                     tokenTelemetry: buildTokenTelemetry({
@@ -4138,7 +4442,9 @@ export async function handleStudioApiRequest(req, res) {
               res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
               res.end(
                 JSON.stringify({
+                  success: true,
                   text: outText,
+                  content: outText,
                   actualModel: payload.model,
                   actualProvider: curProvider,
                   tokenTelemetry: buildTokenTelemetry({
@@ -4182,9 +4488,8 @@ export async function handleStudioApiRequest(req, res) {
       const parsedUrl = new URL(rawUrl, 'http://localhost');
       const text = (parsedUrl.searchParams.get('text') || 'Xin chào').trim();
       const lang = parsedUrl.searchParams.get('lang') || 'vi';
-      const voice =
-        parsedUrl.searchParams.get('voice') ||
-        (lang.startsWith('en') ? 'en-US-GuyNeural' : 'vi-VN-NamMinhNeural');
+      const langMeta = _resolveTtsLanguageMeta(lang, parsedUrl.searchParams.get('voice') || '');
+      const voice = parsedUrl.searchParams.get('voice') || langMeta.defaultVoice;
       const ratePct = _normalizeEdgeProsodyParam(parsedUrl.searchParams.get('rate') || '+0%', '%', -50, 80);
       const pitchHz = _normalizeEdgeProsodyParam(parsedUrl.searchParams.get('pitch') || '+0Hz', 'Hz', -65, 65);
       const openaiKey = parsedUrl.searchParams.get('openaiKey') || '';
@@ -5991,16 +6296,44 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/video-stitch' && req.method === 'POST') {
     try {
+      const auth = requireUserAuth(req, res, '', rawUrl);
+      if (!auth) return true;
+
       const body = await readJsonBody(req);
       const { projectId, clips, audioTrack, totalDurationSec } = body || {};
+      const safeProjId = String(projectId || `stitch_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '') || `stitch_${Date.now()}`;
 
       const now = new Date().toISOString();
       const jobTaskId = `stitch_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
-      // Kiểm tra cấu hình cụm Docker Worker (Redis / BullMQ / Celery / Headless FFmpeg)
+      // Kiểm tra thực tế FFmpeg binary và Docker Worker
       const isDockerWorkerConfigured = Boolean(process.env.DOCKER_WORKER_ENABLED || process.env.REDIS_HOST);
+      let ffmpegInstalled = false;
+      try {
+        const ffProbe = spawnSync('ffmpeg', ['-version'], { encoding: 'utf8', timeout: 2500 });
+        ffmpegInstalled = ffProbe.status === 0;
+      } catch {
+        ffmpegInstalled = false;
+      }
 
-      console.log(`[STITCH ENGINE] Nhận yêu cầu ghép timeline cho dự án: ${projectId || jobTaskId}, ${clips?.length || 0} phân cảnh`);
+      const manifestRecord = {
+        projectId: `stitch_master_${safeProjId}`,
+        sourceProjectId: safeProjId,
+        ownerUserCode: auth.userCode,
+        taskId: jobTaskId,
+        clipCount: Array.isArray(clips) ? clips.length : 0,
+        totalDurationSec: Number(totalDurationSec) || 0,
+        clips: Array.isArray(clips) ? clips : [],
+        audioTrack: audioTrack || null,
+        ffmpegInstalled,
+        dockerWorkerConfigured: isDockerWorkerConfigured,
+        updatedAt: now,
+      };
+      const stitchDir = path.resolve(process.cwd(), 'data', 'drive_archives');
+      fs.mkdirSync(stitchDir, { recursive: true });
+      fs.writeFileSync(path.join(stitchDir, `stitch_master_${safeProjId}.json`), JSON.stringify(manifestRecord, null, 2), 'utf8');
+
+      console.log(`[STITCH ENGINE] Đã lưu Master Timeline cho ${safeProjId} (${manifestRecord.clipCount} phân cảnh, FFmpeg=${ffmpegInstalled})`);
 
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
@@ -6010,14 +6343,21 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         JSON.stringify({
           success: true,
           taskId: jobTaskId,
-          projectId: projectId || jobTaskId,
-          totalDurationSec: totalDurationSec || 0,
-          clipCount: clips?.length || 0,
-          mode: isDockerWorkerConfigured ? 'docker_worker_queued' : 'timeline_assembly_ready',
+          projectId: safeProjId,
+          manifestUrl: `/api/drive/archive/stitch_master_${encodeURIComponent(safeProjId)}`,
+          totalDurationSec: manifestRecord.totalDurationSec,
+          clipCount: manifestRecord.clipCount,
+          ffmpegInstalled,
+          dockerWorkerConfigured: isDockerWorkerConfigured,
+          mode: ffmpegInstalled
+            ? 'ffmpeg_local_verified'
+            : isDockerWorkerConfigured
+              ? 'docker_worker_queued'
+              : 'timeline_manifest_persisted',
           capcutSupported: true,
-          message: isDockerWorkerConfigured
-            ? `Tác vụ ghép Master Video #${jobTaskId} đã được đưa vào hàng đợi Docker Worker thành công!`
-            : `Đã chuẩn hóa và liên kết thành công ${clips?.length || 0} phân cảnh vào Timeline Master. Sẵn sàng kết nối CapCut PC hoặc xuất qua Docker Worker!`,
+          message: ffmpegInstalled
+            ? `Đã lưu Timeline Master #${jobTaskId} (${manifestRecord.clipCount} phân cảnh) và xác nhận FFmpeg sẵn sàng trên máy chủ.`
+            : `Đã lưu thật Master Timeline Manifest (${manifestRecord.clipCount} phân cảnh) trên máy chủ. FFmpeg headless chưa cài đặt — đề xuất xuất gói dự án CapCut hoặc kết nối trình ghép trình duyệt WebCodecs.`,
           timestamp: now,
         })
       );
@@ -6052,32 +6392,106 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
   };
 
-  const validateCredentialToken = (tokenRaw) => {
+  const validateOAuthCredentialToken = async (tokenRaw, platform = 'google') => {
     const token = String(tokenRaw || '').trim();
     if (token.length < 16) {
-      return { valid: false, reason: 'Access Token / API Key phải có ít nhất 16 ký tự thực hợp lệ.' };
+      return { valid: false, statusCode: 400, reason: 'Access Token OAuth phải có ít nhất 16 ký tự hợp lệ.' };
     }
     if (/\s/.test(token)) {
-      return { valid: false, reason: 'Access Token không được chứa khoảng trắng.' };
+      return { valid: false, statusCode: 400, reason: 'Access Token không được chứa khoảng trắng.' };
     }
     const lower = token.toLowerCase();
-    const blockedDummy = ['demo', 'fake', 'sample', 'placeholder', 'test-token', 'test_token', 'example', '1234567890123456', 'synapes_demo'];
-    if (blockedDummy.some((w) => lower === w || lower.startsWith(`${w}_`) || lower.startsWith(`${w}-`))) {
-      return { valid: false, reason: 'Không chấp nhận Token giả lập / demo. Vui lòng nhập OAuth Access Token thực từ nhà phát triển.' };
+    const blockedDummy = ['demo', 'fake', 'sample', 'placeholder', 'test-token', 'test_token', 'example', '1234567890123456', 'synapes_demo', 'random', 'garbage'];
+    if (blockedDummy.some((w) => lower === w || lower.includes(w))) {
+      return { valid: false, statusCode: 401, reason: 'Từ chối Token giả lập/rác. Vui lòng nhập OAuth2 Access Token thực từ nhà phát triển.' };
     }
+
     const masked = token.length > 10 ? `${token.slice(0, 6)}...${token.slice(-4)}` : '****';
-    return { valid: true, token, masked };
+
+    // Hỗ trợ chữ ký HMAC cục bộ riêng cho luồng kiểm thử tích hợp được ký bởi Backend
+    const signedMatch = token.match(/^synapes_oauth_verified_([a-z0-9]+)_([a-f0-9]{16,64})$/i);
+    if (signedMatch) {
+      const expectedHmac = crypto.createHmac('sha256', AUTH_TOKEN_SECRET).update(`oauth:${signedMatch[1].toLowerCase()}`).digest('hex').slice(0, 24);
+      if (constantTimeVerify(signedMatch[2].toLowerCase(), expectedHmac)) {
+        return { valid: true, token, masked, verificationMode: 'hmac_signed_session' };
+      }
+      return { valid: false, statusCode: 401, reason: 'Chữ ký OAuth Token nội bộ không hợp lệ.' };
+    }
+
+    const pf = String(platform || '').toLowerCase();
+    if (pf === 'youtube' || pf === 'drive' || pf === 'google') {
+      const looksLikeGoogle = /^ya29\.[A-Za-z0-9\-_.]{18,}$/.test(token) || /^1\/\/[A-Za-z0-9\-_.]{20,}$/.test(token);
+      if (!looksLikeGoogle) {
+        return {
+          valid: false,
+          statusCode: 401,
+          reason: 'Token Google/YouTube/Drive không đúng định dạng OAuth 2.0 (phải bắt đầu bằng ya29. hoặc refresh token 1//).',
+        };
+      }
+      if (token.startsWith('ya29.')) {
+        try {
+          const checkRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(token)}`, {
+            signal: AbortSignal.timeout(4500),
+          });
+          if (!checkRes.ok) {
+            return {
+              valid: false,
+              statusCode: 401,
+              reason: `Máy chủ Google OAuth2 từ chối token (HTTP ${checkRes.status}). Token không tồn tại hoặc đã hết hạn.`,
+            };
+          }
+          return { valid: true, token, masked, verificationMode: 'google_tokeninfo_verified' };
+        } catch {
+          return {
+            valid: false,
+            statusCode: 401,
+            reason: 'Không thể xác thực Token trực tuyến với máy chủ Google OAuth2 (tokeninfo unreachable/invalid).',
+          };
+        }
+      }
+      return { valid: true, token, masked, verificationMode: 'google_refresh_format_verified' };
+    }
+
+    if (pf === 'facebook') {
+      if (!/^EAA[A-Za-z0-9|_.-]{25,}$/.test(token)) {
+        return { valid: false, statusCode: 401, reason: 'Token Facebook/Meta Graph API phải bắt đầu bằng tiền tố EAA hợp lệ.' };
+      }
+      try {
+        const fbRes = await fetch(`https://graph.facebook.com/me?fields=id&access_token=${encodeURIComponent(token)}`, {
+          signal: AbortSignal.timeout(4500),
+        });
+        if (!fbRes.ok) {
+          return { valid: false, statusCode: 401, reason: `Meta Graph API từ chối Access Token (HTTP ${fbRes.status}).` };
+        }
+        return { valid: true, token, masked, verificationMode: 'meta_graph_verified' };
+      } catch {
+        return { valid: false, statusCode: 401, reason: 'Không thể xác thực Token trực tuyến với Meta Graph API.' };
+      }
+    }
+
+    if (pf === 'tiktok') {
+      if (!/^(?:act|clt)\.[A-Za-z0-9\-_.]{20,}$/.test(token)) {
+        return { valid: false, statusCode: 401, reason: 'Token TikTok Open API phải bắt đầu bằng act. hoặc clt. hợp lệ.' };
+      }
+      return { valid: true, token, masked, verificationMode: 'tiktok_token_format_verified' };
+    }
+
+    return { valid: false, statusCode: 401, reason: 'Định dạng OAuth Token không được nền tảng hỗ trợ.' };
   };
 
   if (cleanUrl === '/api/channels/connect' && req.method === 'POST') {
     try {
       const body = (await readJsonBody(req)) || {};
-      const userCode = String(body.userCode || 'DEFAULT').trim().toUpperCase();
+      const requestedUserCode = String(body.userCode || '').trim().toUpperCase();
+      const auth = requireUserAuth(req, res, requestedUserCode, rawUrl);
+      if (!auth) return true;
+      const userCode = auth.userCode;
+
       const platform = String(body.platform || '').trim().toLowerCase();
       const channelName = String(body.channelName || '').trim();
       const handleOrUrl = String(body.handleOrUrl || '').trim();
       const emailOrId = String(body.emailOrId || '').trim();
-      const tokenCheck = validateCredentialToken(body.oauthToken);
+      const tokenCheck = await validateOAuthCredentialToken(body.oauthToken, platform);
 
       if (!['youtube', 'tiktok', 'facebook', 'drive'].includes(platform)) {
         res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -6095,8 +6509,8 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         return true;
       }
       if (!tokenCheck.valid) {
-        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ success: false, error: tokenCheck.reason }));
+        res.writeHead(tokenCheck.statusCode || 401, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, code: 'INVALID_OAUTH_TOKEN', error: tokenCheck.reason }));
         return true;
       }
 
@@ -6109,6 +6523,8 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         handleOrUrl,
         emailOrId,
         maskedToken: tokenCheck.masked,
+        encryptedOAuthToken: encryptSecretAes256Gcm(tokenCheck.token),
+        verificationMode: tokenCheck.verificationMode,
         tokenLength: tokenCheck.token.length,
         connectedAt: nowIso,
         status: 'connected',
@@ -6124,8 +6540,10 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
           handleOrUrl,
           emailOrId,
           maskedToken: tokenCheck.masked,
+          verificationMode: tokenCheck.verificationMode,
+          encryptedAtRest: true,
           connectedAt: nowIso,
-          message: `Đã xác thực và lưu kết nối ${platform.toUpperCase()} (${tokenCheck.masked}).`,
+          message: `Đã xác thực OAuth và mã hóa AES-256-GCM kết nối ${platform.toUpperCase()} (${tokenCheck.masked}).`,
         })
       );
       return true;
@@ -6139,7 +6557,10 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   if (cleanUrl === '/api/channels/disconnect' && req.method === 'POST') {
     try {
       const body = (await readJsonBody(req)) || {};
-      const userCode = String(body.userCode || 'DEFAULT').trim().toUpperCase();
+      const requestedUserCode = String(body.userCode || '').trim().toUpperCase();
+      const auth = requireUserAuth(req, res, requestedUserCode, rawUrl);
+      if (!auth) return true;
+      const userCode = auth.userCode;
       const platform = String(body.platform || '').trim().toLowerCase();
       const registry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
       if (registry[userCode] && registry[userCode][platform]) {
@@ -6159,7 +6580,10 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   if (cleanUrl === '/api/channels/verify-publish' && req.method === 'POST') {
     try {
       const body = (await readJsonBody(req)) || {};
-      const userCode = String(body.userCode || 'DEFAULT').trim().toUpperCase();
+      const requestedUserCode = String(body.userCode || '').trim().toUpperCase();
+      const auth = requireUserAuth(req, res, requestedUserCode, rawUrl);
+      if (!auth) return true;
+      const userCode = auth.userCode;
       const platform = String(body.platform || '').trim().toLowerCase();
       const projectId = String(body.projectId || '').trim();
       const registry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
@@ -6197,11 +6621,14 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   if (cleanUrl === '/api/drive/connect' && req.method === 'POST') {
     try {
       const body = (await readJsonBody(req)) || {};
-      const userCode = String(body.userCode || 'DEFAULT').trim().toUpperCase();
+      const requestedUserCode = String(body.userCode || '').trim().toUpperCase();
+      const auth = requireUserAuth(req, res, requestedUserCode, rawUrl);
+      if (!auth) return true;
+      const userCode = auth.userCode;
       const email = String(body.email || '').trim();
       const accountName = String(body.accountName || '').trim() || email.split('@')[0];
       const folderUrl = String(body.folderUrl || '').trim();
-      const tokenCheck = validateCredentialToken(body.oauthToken);
+      const tokenCheck = await validateOAuthCredentialToken(body.oauthToken, 'drive');
 
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -6209,8 +6636,8 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         return true;
       }
       if (!tokenCheck.valid) {
-        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ success: false, error: tokenCheck.reason }));
+        res.writeHead(tokenCheck.statusCode || 401, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, code: 'INVALID_OAUTH_TOKEN', error: tokenCheck.reason }));
         return true;
       }
       if (folderUrl && !/^https:\/\/drive\.google\.com\//i.test(folderUrl)) {
@@ -6226,6 +6653,8 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         accountName,
         folderUrl,
         maskedToken: tokenCheck.masked,
+        encryptedOAuthToken: encryptSecretAes256Gcm(tokenCheck.token),
+        verificationMode: tokenCheck.verificationMode,
         connectedAt: nowIso,
         connected: true,
       };
@@ -6240,6 +6669,8 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
           accountName,
           folderUrl,
           maskedToken: tokenCheck.masked,
+          verificationMode: tokenCheck.verificationMode,
+          encryptedAtRest: true,
           connectedAt: nowIso,
         })
       );
@@ -6254,7 +6685,10 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   if (cleanUrl === '/api/drive/disconnect' && req.method === 'POST') {
     try {
       const body = (await readJsonBody(req)) || {};
-      const userCode = String(body.userCode || 'DEFAULT').trim().toUpperCase();
+      const requestedUserCode = String(body.userCode || '').trim().toUpperCase();
+      const auth = requireUserAuth(req, res, requestedUserCode, rawUrl);
+      if (!auth) return true;
+      const userCode = auth.userCode;
       const driveReg = readJsonRegistry(DRIVE_REGISTRY_FILE, {});
       if (driveReg[userCode]) {
         delete driveReg[userCode];
@@ -6273,7 +6707,10 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   if (cleanUrl === '/api/drive/sync-project' && req.method === 'POST') {
     try {
       const body = (await readJsonBody(req)) || {};
-      const userCode = String(body.userCode || 'DEFAULT').trim().toUpperCase();
+      const requestedUserCode = String(body.userCode || '').trim().toUpperCase();
+      const auth = requireUserAuth(req, res, requestedUserCode, rawUrl);
+      if (!auth) return true;
+      const userCode = auth.userCode;
       const project = body.project || {};
       const rawId = String(project.id || '').trim();
       const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, '');
@@ -6303,14 +6740,21 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         return `${idx + 1}\n${formatSrtTime(start)} --> ${formatSrtTime(end)}\n${text}`;
       });
 
+      const isCloudConnected = Boolean(userDrive?.connected);
+      const storageMode = isCloudConnected && userDrive?.folderUrl
+        ? 'google_drive_oauth_and_server_aes256'
+        : 'server_aes256_archive';
+
       const archive = {
         projectId: safeId,
+        ownerUserCode: userCode,
+        storageMode,
         title: String(project.title || safeId),
         format: project.platformFormat || project.videoGenre || project.templateId || project.format || 'youtube',
         aspectRatio: project.aspectRatio || '16:9',
         syncedAt: new Date().toISOString(),
         driveEmail: userDrive?.email || body.driveEmail || '',
-        externalFolderUrl: userDrive?.folderUrl || '',
+        externalFolderUrl: isCloudConnected ? (userDrive?.folderUrl || '') : '',
         thumbnailUrl: project.thumbnailUrl || '',
         hasCustomAudio: Boolean(project.customAudioUrl),
         sceneCount: scenes.length,
@@ -6332,8 +6776,10 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       res.end(
         JSON.stringify({
           success: true,
+          storageMode,
+          isCloudDriveSynced: isCloudConnected,
           archiveUrl: `/api/drive/archive/${encodeURIComponent(safeId)}`,
-          externalFolderUrl: userDrive?.folderUrl || '',
+          externalFolderUrl: isCloudConnected ? (userDrive?.folderUrl || '') : '',
           syncedAt: archive.syncedAt,
           archive,
         })
@@ -6348,14 +6794,38 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
 
   if (cleanUrl.startsWith('/api/drive/archive/') && req.method === 'GET') {
     try {
-      const safeId = decodeURIComponent(cleanUrl.slice('/api/drive/archive/'.length)).replace(/[^a-zA-Z0-9_-]/g, '');
-      const archivePath = path.join(DRIVE_ARCHIVES_DIR, `${safeId}.json`);
-      if (!safeId || !fs.existsSync(archivePath)) {
+      const auth = requireUserAuth(req, res, '', rawUrl);
+      if (!auth) return true;
+
+      const rawSegment = cleanUrl.slice('/api/drive/archive/'.length);
+      let decodedSegment = rawSegment;
+      try {
+        decodedSegment = decodeURIComponent(rawSegment);
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, code: 'INVALID_ARCHIVE_ID', error: 'Mã Archive URL không hợp lệ.' }));
+        return true;
+      }
+      if (!decodedSegment || decodedSegment.includes('..') || decodedSegment.includes('/') || decodedSegment.includes('\\') || decodedSegment.includes('\0')) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, code: 'PATH_TRAVERSAL_BLOCKED', error: 'Từ chối truy vấn chứa ký tự điều hướng đường dẫn bất hợp pháp.' }));
+        return true;
+      }
+
+      const safeId = decodedSegment.replace(/[^a-zA-Z0-9_-]/g, '');
+      const baseDir = path.resolve(DRIVE_ARCHIVES_DIR);
+      const archivePath = path.resolve(baseDir, `${safeId}.json`);
+      if (!archivePath.startsWith(baseDir + path.sep) || !safeId || !fs.existsSync(archivePath)) {
         res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ success: false, error: 'Không tìm thấy gói lưu trữ cho dự án này.' }));
         return true;
       }
       const archive = JSON.parse(fs.readFileSync(archivePath, 'utf8'));
+      if (archive.ownerUserCode && String(archive.ownerUserCode).toUpperCase() !== auth.userCode) {
+        res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, code: 'FORBIDDEN_CROSS_USER', error: 'Không có quyền truy cập gói lưu trữ của tài khoản khác.' }));
+        return true;
+      }
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ success: true, archive }));
       return true;
@@ -6400,9 +6870,12 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         res.end(JSON.stringify({ success: false, error: 'Mã tài khoản không hợp lệ để sao lưu dữ liệu.' }));
         return true;
       }
+      const auth = requireUserAuth(req, res, safeCode, rawUrl);
+      if (!auth) return true;
 
-      const profileData = body.profile && typeof body.profile === 'object' ? body.profile : {};
-      const canonicalJson = JSON.stringify(profileData);
+      const rawProfileData = body.profile && typeof body.profile === 'object' ? body.profile : {};
+      const encryptedProfile = encryptProfileSecretsAtRest(rawProfileData);
+      const canonicalJson = JSON.stringify(encryptedProfile);
       const sha256Checksum = crypto.createHash('sha256').update(canonicalJson).digest('hex');
       const nowIso = new Date().toISOString();
 
@@ -6414,8 +6887,9 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         {
           timestamp: nowIso,
           checksum: sha256Checksum,
-          projectCount: Array.isArray(profileData.projects) ? profileData.projects.length : 0,
-          channelCount: Array.isArray(profileData.channels) ? profileData.channels.length : 0,
+          encryptedAtRest: true,
+          projectCount: Array.isArray(encryptedProfile.projects) ? encryptedProfile.projects.length : 0,
+          channelCount: Array.isArray(encryptedProfile.channels) ? encryptedProfile.channels.length : 0,
         },
         ...prevHistory,
       ].slice(0, 8);
@@ -6424,7 +6898,8 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         userCode: safeCode,
         updatedAt: nowIso,
         sha256Checksum,
-        profile: profileData,
+        encryptionAlgorithm: 'aes-256-gcm',
+        profile: encryptedProfile,
         backupHistory: nextHistory,
       };
       fs.writeFileSync(filePath, JSON.stringify(snapshotRecord, null, 2), 'utf8');
@@ -6436,6 +6911,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
           userCode: safeCode,
           updatedAt: nowIso,
           sha256Checksum,
+          encryptedAtRest: true,
           backupHistory: nextHistory,
         })
       );
@@ -6457,6 +6933,9 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         res.end(JSON.stringify({ success: false, error: 'Thiếu tham số mã tài khoản (?code=...).' }));
         return true;
       }
+      const auth = requireUserAuth(req, res, safeCode, rawUrl);
+      if (!auth) return true;
+
       const filePath = path.join(USER_PROFILES_DIR, `${safeCode}.json`);
       const seedPath = path.resolve(process.cwd(), 'server', 'seed_profiles', `${safeCode}.json`);
       let targetFile = filePath;
@@ -6477,6 +6956,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       }
       const record = JSON.parse(fs.readFileSync(targetFile, 'utf8'));
       const verifiedHash = crypto.createHash('sha256').update(JSON.stringify(record.profile || {})).digest('hex');
+      const decryptedProfile = decryptProfileSecretsAtRest(record.profile || {});
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(
         JSON.stringify({
@@ -6485,7 +6965,8 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
           updatedAt: record.updatedAt,
           sha256Checksum: record.sha256Checksum,
           checksumValid: verifiedHash === record.sha256Checksum,
-          profile: record.profile || {},
+          encryptedAtRest: true,
+          profile: decryptedProfile,
           backupHistory: record.backupHistory || [],
         })
       );
@@ -6571,6 +7052,91 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ success: true, ...record }));
     return true;
+  }
+
+  // --------------------------------------------------------------------------
+  // NGÀY 1: MULTI-VIEW 3D ASSET RECONSTRUCTION API (/api/assets-3d/*) — BYOK
+  // --------------------------------------------------------------------------
+  if (!globalThis.__SYNAPES_ASSETS_3D_JOBS) {
+    globalThis.__SYNAPES_ASSETS_3D_JOBS = new Map();
+  }
+  const ASSETS_3D_JOBS = globalThis.__SYNAPES_ASSETS_3D_JOBS;
+
+  if (cleanUrl === '/api/assets-3d/styles' && req.method === 'GET') {
+    const parsed = new URL(rawUrl, 'http://localhost');
+    const requestedTier = String(parsed.searchParams.get('planTier') || 'enterprise').toLowerCase();
+    const styles = MODEL_3D_STYLE_CATALOG_SERVER.map((s) => ({
+      ...s,
+      unlocked: requestedTier === 'enterprise' || s.requiredTier === 'personal',
+    }));
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ success: true, planTier: requestedTier, styles }));
+    return true;
+  }
+
+  if (cleanUrl === '/api/assets-3d/status' && req.method === 'GET') {
+    const parsed = new URL(rawUrl, 'http://localhost');
+    const jobId = (parsed.searchParams.get('jobId') || '').trim();
+    const manifest = ASSETS_3D_JOBS.get(jobId);
+    if (!manifest) {
+      res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: 'Không tìm thấy Manifest 3D cho Job ID này.' }));
+      return true;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ success: true, manifest }));
+    return true;
+  }
+
+  if (cleanUrl === '/api/assets-3d/reconstruct' && req.method === 'POST') {
+    try {
+      const body = sanitizePayloadValue((await readJsonBody(req, 24 * 1024 * 1024)) || {}) || {};
+      const validation = validateMultiViewRequestServer(body);
+      if (!validation.ok) {
+        res.writeHead(validation.httpStatus, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            code: validation.code,
+            error: validation.error,
+          })
+        );
+        return true;
+      }
+
+      const visionCheck = await runByokVisionConsistencyCheckServer(
+        body.byokLlm,
+        validation.parsedImages,
+        String(body.characterName || 'Nhân vật 3D'),
+        validation.styleMeta,
+        isSafeExternalUrl
+      );
+
+      while (ASSETS_3D_JOBS.size >= 200) {
+        const oldest = ASSETS_3D_JOBS.keys().next().value;
+        if (oldest !== undefined) ASSETS_3D_JOBS.delete(oldest);
+        else break;
+      }
+
+      const dispatchOutcome = await dispatchByok3DReconstructionServer({
+        body,
+        validation,
+        visionCheck,
+        isSafeExternalUrl,
+        assetsMap: ASSETS_3D_JOBS,
+        dataDir: path.resolve(process.cwd(), 'data'),
+      });
+
+      res.writeHead(dispatchOutcome.httpStatus, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(dispatchOutcome.payload));
+      return true;
+    } catch (err) {
+      const msg = String(err?.message || err);
+      const status = msg.includes('Payload Too Large') ? 413 : 500;
+      res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, code: 'RECONSTRUCT_ERROR', error: msg }));
+      return true;
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -6730,10 +7296,15 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       }),
     };
 
-    const events = Array.isArray(rawStore.events) ? rawStore.events : [];
+    const allEvents = Array.isArray(rawStore.events) ? rawStore.events : [];
     const chanReg = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
     const userCode = String(overrideCounts.userCode || '').trim().toUpperCase();
     const userChannels = (userCode && chanReg[userCode]) || {};
+
+    // Chỉ lọc sự kiện thuộc đúng tài khoản đang xem để chống trộn/thổi phồng số liệu
+    const events = userCode
+      ? allEvents.filter((ev) => String(ev.userCode || '').trim().toUpperCase() === userCode)
+      : [];
 
     let profileProjects = [];
     if (userCode) {
@@ -6762,17 +7333,47 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       } else if (typeof ev.slotIndex === 'number' && ev.slotIndex >= 0 && ev.slotIndex < 24) {
         idx = ev.slotIndex <= 6 ? [6, 10, 14, 18, 20, 22, 23][ev.slotIndex] : ev.slotIndex;
       }
-      slotBoosts[pf][idx] += Math.max(10, Number(ev.viewsDelta) || 45);
+      slotBoosts[pf][idx] += Math.max(1, Number(ev.viewsDelta) || 0);
     }
 
-    const ttMult = 1 + Math.min(4, ttVideos) * 0.28 + (userChannels.tiktok?.status === 'connected' ? 0.35 : 0);
-    const fbMult = 1 + Math.min(4, fbVideos) * 0.25 + (userChannels.facebook?.status === 'connected' ? 0.32 : 0);
-    const ytMult = 1 + Math.min(4, ytVideos) * 0.31 + (userChannels.youtube?.status === 'connected' ? 0.38 : 0);
+    const isTtConnected = userChannels.tiktok?.status === 'connected';
+    const isFbConnected = userChannels.facebook?.status === 'connected';
+    const isYtConnected = userChannels.youtube?.status === 'connected';
+
+    const ttBoostSum = slotBoosts.tiktok.reduce((a, b) => a + b, 0);
+    const fbBoostSum = slotBoosts.facebook.reduce((a, b) => a + b, 0);
+    const ytBoostSum = slotBoosts.youtube.reduce((a, b) => a + b, 0);
+
+    // Trung thực tuyệt đối: 0 video + chưa kết nối OAuth + 0 sự kiện = 0 lượt xem cá nhân
+    const hasTtPersonal = ttVideos > 0 || isTtConnected || ttBoostSum > 0;
+    const hasFbPersonal = fbVideos > 0 || isFbConnected || fbBoostSum > 0;
+    const hasYtPersonal = ytVideos > 0 || isYtConnected || ytBoostSum > 0;
+
+    const benchmarkSeries = slots.map((slot, idx) => {
+      const tiktok = Math.round(100 * baseWeights.tiktok[idx]);
+      const facebook = Math.round(100 * baseWeights.facebook[idx]);
+      const youtube = Math.round(100 * baseWeights.youtube[idx]);
+      return {
+        slot,
+        hour: idx,
+        tiktok,
+        facebook,
+        youtube,
+        total: tiktok + facebook + youtube,
+        isCurrentHour: idx === currentHour,
+      };
+    });
 
     const series = slots.map((slot, idx) => {
-      const tiktok = Math.round(420 * baseWeights.tiktok[idx] * ttMult + slotBoosts.tiktok[idx]);
-      const facebook = Math.round(330 * baseWeights.facebook[idx] * fbMult + slotBoosts.facebook[idx]);
-      const youtube = Math.round(390 * baseWeights.youtube[idx] * ytMult + slotBoosts.youtube[idx]);
+      const tiktok = hasTtPersonal
+        ? Math.round(slotBoosts.tiktok[idx] + (ttVideos > 0 || isTtConnected ? (ttVideos * 18 + (isTtConnected ? 24 : 0)) * baseWeights.tiktok[idx] : 0))
+        : 0;
+      const facebook = hasFbPersonal
+        ? Math.round(slotBoosts.facebook[idx] + (fbVideos > 0 || isFbConnected ? (fbVideos * 15 + (isFbConnected ? 20 : 0)) * baseWeights.facebook[idx] : 0))
+        : 0;
+      const youtube = hasYtPersonal
+        ? Math.round(slotBoosts.youtube[idx] + (ytVideos > 0 || isYtConnected ? (ytVideos * 20 + (isYtConnected ? 28 : 0)) * baseWeights.youtube[idx] : 0))
+        : 0;
       return {
         slot,
         hour: idx,
@@ -6790,10 +7391,12 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       youtube: series.reduce((acc, s) => acc + s.youtube, 0),
     };
     const grandTotal = totals.tiktok + totals.facebook + totals.youtube;
-    const peakPoint = [...series].sort((a, b) => b.total - a.total)[0] || series[20];
+    const benchmarkPeakPoint = [...benchmarkSeries].sort((a, b) => b.total - a.total)[0] || benchmarkSeries[20];
+    const peakPoint = grandTotal > 0 ? ([...series].sort((a, b) => b.total - a.total)[0] || benchmarkPeakPoint) : benchmarkPeakPoint;
 
     return {
       success: true,
+      hasPersonalData: grandTotal > 0,
       updatedAt: rawStore.updatedAt || new Date().toISOString(),
       eventCount: events.length,
       unit: '1h',
@@ -6806,20 +7409,21 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         timeStr: resolvedGeo.timeStr,
       },
       series,
+      benchmarkSeries,
       totals: { ...totals, all: grandTotal },
       activeVideos: { tiktok: ttVideos, facebook: fbVideos, youtube: ytVideos },
       connectedFlags: {
-        tiktok: userChannels.tiktok?.status === 'connected',
-        facebook: userChannels.facebook?.status === 'connected',
-        youtube: userChannels.youtube?.status === 'connected',
+        tiktok: isTtConnected,
+        facebook: isFbConnected,
+        youtube: isYtConnected,
       },
       engagementRate: {
-        tiktok: +(7.8 + Math.min(2.5, ttVideos * 0.4 + events.filter((e) => e.platform === 'tiktok').length * 0.15)).toFixed(1),
-        facebook: +(5.4 + Math.min(2.2, fbVideos * 0.35 + events.filter((e) => e.platform === 'facebook').length * 0.12)).toFixed(1),
-        youtube: +(6.6 + Math.min(2.4, ytVideos * 0.42 + events.filter((e) => e.platform === 'youtube').length * 0.18)).toFixed(1),
+        tiktok: hasTtPersonal ? +(4.5 + Math.min(4.5, ttVideos * 0.6 + events.filter((e) => e.platform === 'tiktok').length * 0.25)).toFixed(1) : 0,
+        facebook: hasFbPersonal ? +(3.8 + Math.min(4.0, fbVideos * 0.5 + events.filter((e) => e.platform === 'facebook').length * 0.2)).toFixed(1) : 0,
+        youtube: hasYtPersonal ? +(4.2 + Math.min(4.8, ytVideos * 0.65 + events.filter((e) => e.platform === 'youtube').length * 0.28)).toFixed(1) : 0,
       },
       peakWindow: peakPoint.slot,
-      peakTraffic: peakPoint.total,
+      peakTraffic: grandTotal > 0 ? peakPoint.total : 0,
     };
   };
 
@@ -6852,6 +7456,9 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   if (cleanUrl === '/api/analytics/platform-traffic' && req.method === 'POST') {
     try {
       const body = sanitizePayloadValue((await readJsonBody(req)) || {}) || {};
+      const auth = requireUserAuth(req, res, body.userCode || '', rawUrl);
+      if (!auth) return true;
+
       const store = readJsonRegistry(PLATFORM_TRAFFIC_FILE, { events: [] });
       if (!Array.isArray(store.events)) store.events = [];
 
@@ -6866,6 +7473,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         const pf = String(pfRaw || '').toLowerCase();
         if (!['tiktok', 'facebook', 'youtube'].includes(pf)) continue;
         store.events.push({
+          userCode: auth.userCode,
           platform: pf,
           eventType: String(body.eventType || 'project_activity').slice(0, 60),
           projectId: String(body.projectId || '').slice(0, 64),
@@ -6879,7 +7487,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       store.updatedAt = new Date().toISOString();
       writeJsonRegistry(PLATFORM_TRAFFIC_FILE, store);
 
-      const summary = buildRealTrafficSummary(store, { userCode: body.userCode || '' }, geoInfo);
+      const summary = buildRealTrafficSummary(store, { userCode: auth.userCode }, geoInfo);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(summary));
       return true;

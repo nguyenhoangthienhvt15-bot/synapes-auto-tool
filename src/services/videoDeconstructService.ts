@@ -99,11 +99,11 @@ export async function deconstructVideoDna(options: {
         ? config.claude?.model || 'claude-3-5-sonnet-20241022'
         : activeProvider === 'openai'
           ? config.openai?.model || 'gpt-4o-mini'
-          : config.gemini?.model || 'gemini-3.6-flash';
+          : config.gemini?.model || 'gemini-2.5-flash';
 
   const geminiKey = config.gemini?.apiKey || (activeProvider === 'gemini' ? activeKey : '') || '';
   const geminiEndpoint = 'https://generativelanguage.googleapis.com/v1beta';
-  const geminiModel = config.gemini?.model || 'gemini-3.6-flash';
+  const geminiModel = config.gemini?.model || 'gemini-2.5-flash';
 
   // 1. Ưu tiên gọi Backend Engine (/api/video-deconstruct) để trích xuất Chapters thật, Thời lượng thật, Thumbnail Vision & Hypit SVML
   onProgress?.('Đang trích xuất Metadata, Chapters, Thumbnail Vision & bóc tách Hypit SVML...', 40);

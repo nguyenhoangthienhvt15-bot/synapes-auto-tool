@@ -164,14 +164,14 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
   const hasDeepSeekKey = Boolean(config.deepseek?.apiKey && config.deepseek.apiKey.length > 5);
   const hasAnyByokKey = hasGeminiKey || hasOpenAIKey || hasClaudeKey || hasDeepSeekKey;
   const activeKeyName = hasGeminiKey
-    ? `Gemini AI (${config.gemini?.model || 'gemini-3.6-flash'} • BYOK)`
+    ? `Gemini AI (${config.gemini?.model || 'gemini-2.5-flash'} • BYOK)`
     : hasOpenAIKey
       ? `OpenAI GPT (${config.openai?.model || 'gpt-4o-mini'} • BYOK)`
       : hasDeepSeekKey
         ? 'DeepSeek API (BYOK Sẵn Sàng)'
         : hasClaudeKey
           ? 'Claude API (BYOK Sẵn Sàng)'
-          : 'Zero-Mock Semantic Engine (Tự Động)';
+          : 'oEmbed Metadata Parser (Chế độ cơ bản • Khuyên nhập BYOK Key)';
 
   const handleSaveQuickKey = (key: string) => {
     const trimmed = key.trim();
@@ -641,17 +641,17 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
               <span className="font-semibold">Mẫu video thử nghiệm nhanh:</span>
               <button
                 type="button"
-                onClick={() => handleSelectSample('https://www.youtube.com/shorts/sample-hook-viral')}
+                onClick={() => handleSelectSample('https://www.youtube.com/watch?v=M7lc1UVf-VE')}
                 className="text-indigo-600 hover:underline cursor-pointer"
               >
-                [1. Mẫu Shorts Hook 3s Viral]
+                [1. Mẫu YouTube Developers Demo]
               </button>
               <button
                 type="button"
-                onClick={() => handleSelectSample('https://www.youtube.com/watch?v=sample-tech-review')}
+                onClick={() => handleSelectSample('https://www.youtube.com/watch?v=aqz-KE-bpKQ')}
                 className="text-indigo-600 hover:underline cursor-pointer"
               >
-                [2. Mẫu Review Chuyên Sâu]
+                [2. Mẫu Big Buck Bunny 4K Open Source]
               </button>
             </div>
           </div>

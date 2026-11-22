@@ -70,6 +70,12 @@ export const EMPTY_AI_CONFIG: AIProviderConfig = {
     outputMapping: '{"video_url": "data.video_url"}',
     timeoutSeconds: 120,
   },
+  threeDEngine: {
+    provider: 'huggingface-zerogpu',
+    apiKey: '',
+    workerUrl: '',
+    modelId: 'tencent/Hunyuan3D-2mv',
+  },
 };
 
 export const getDisconnectedChannels = (
@@ -208,7 +214,7 @@ export function getUserProfile(
         gemini: {
           ...rawCfg.gemini,
           apiKey: sanitizedGeminiKey,
-          model: rawCfg.gemini?.model || 'gemini-3.8-flash',
+          model: rawCfg.gemini?.model || 'gemini-2.5-flash',
         },
       };
       return {
@@ -263,6 +269,41 @@ export function getUserProfile(
  */
 const syncTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+export function getAuthHeaders(userCode?: string): Record<string, string> {
+  try {
+    let code = String(userCode || '').trim().toUpperCase();
+    let token = '';
+    if (code) {
+      token = sessionStorage.getItem(`synapes_auth_token_${code}`) || localStorage.getItem(`synapes_auth_token_${code}`) || '';
+    }
+    if (!token) {
+      const activeRaw = localStorage.getItem('synapes_active_user_v1');
+      if (activeRaw) {
+        const activeUser = JSON.parse(activeRaw);
+        const activeCode = String(activeUser?.code || '').trim().toUpperCase();
+        if (activeCode) {
+          token =
+            sessionStorage.getItem(`synapes_auth_token_${activeCode}`) ||
+            localStorage.getItem(`synapes_auth_token_${activeCode}`) ||
+            '';
+        }
+      }
+    }
+    if (!token) {
+      token = sessionStorage.getItem('synapes_auth_token') || '';
+    }
+    if (token) {
+      return {
+        Authorization: `Bearer ${token}`,
+        'X-Synapes-Auth-Token': token,
+      };
+    }
+  } catch {
+    // ignore storage access issues
+  }
+  return {};
+}
+
 export async function syncUserProfileToServer(
   code: string,
   explicitData?: UserProfileData
@@ -273,7 +314,10 @@ export async function syncUserProfileToServer(
   try {
     const resp = await fetch('/api/user/profile-backup', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(codeClean),
+      },
       body: JSON.stringify({ userCode: codeClean, profile: payload }),
     });
     const data = await resp.json().catch(() => ({}));
@@ -332,7 +376,12 @@ export async function restoreUserProfileFromServer(
   const codeClean = (code || '').trim().toUpperCase();
   if (!codeClean) return { success: false, error: 'Thiếu mã tài khoản.' };
   try {
-    const resp = await fetch(`/api/user/profile-backup?code=${encodeURIComponent(codeClean)}`);
+    const resp = await fetch(`/api/user/profile-backup?code=${encodeURIComponent(codeClean)}`, {
+      method: 'GET',
+      headers: {
+        ...getAuthHeaders(codeClean),
+      },
+    });
     const data = await resp.json().catch(() => ({}));
     if (resp.ok && data?.success && data.profile) {
       const storageKey = `${USER_DATA_PREFIX}${codeClean}`;
@@ -415,25 +464,69 @@ export function saveUserProfile(
   const codeClean = code.trim().toUpperCase();
   const storageKey = `${USER_DATA_PREFIX}${codeClean}`;
 
+  // Đọc trực tiếp từ localStorage thay vì gọi getUserProfile() để tránh đệ quy vô hạn khi chưa có bản ghi
+  let existing: UserProfileData = {
+    code: codeClean,
+    name: '',
+    email: '',
+    aiConfig: { ...EMPTY_AI_CONFIG },
+    channels: getDisconnectedChannels(),
+    driveEmail: '',
+    driveConnected: false,
+    projects: [],
+  };
   try {
-    const existing = getUserProfile(codeClean);
-    const updated: UserProfileData = {
-      ...existing,
-      ...data,
-      code: codeClean,
-    };
-    localStorage.setItem(storageKey, JSON.stringify(updated));
-
-    const prevTimer = syncTimers.get(codeClean);
-    if (prevTimer) clearTimeout(prevTimer);
-    syncTimers.set(
-      codeClean,
-      setTimeout(() => {
-        void syncUserProfileToServer(codeClean, updated);
-      }, 650)
-    );
-  } catch (err) {
-    console.warn(`Could not save user profile for ${codeClean}`, err);
+    const raw = localStorage.getItem(storageKey);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        existing = { ...existing, ...parsed };
+      }
+    }
+  } catch {
+    // ignore corrupt stored JSON and overwrite cleanly
   }
+
+  const updated: UserProfileData = {
+    ...existing,
+    ...data,
+    code: codeClean,
+  };
+
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+  } catch (err) {
+    console.warn(`LocalStorage quota exceeded for ${codeClean}, pruning transient media cache & syncing immediately`, err);
+    try {
+      const prunedProjects = (updated.projects || []).map((p, idx) =>
+        idx > 5
+          ? {
+              ...p,
+              customAudioUrl: p.customAudioUrl?.startsWith('data:') ? '' : p.customAudioUrl,
+              storyboard: (p.storyboard || []).map((s) => ({
+                ...s,
+                imageUrl: s.imageUrl?.startsWith('data:') ? '' : s.imageUrl,
+                customAudioUrl: s.customAudioUrl?.startsWith('data:') ? '' : s.customAudioUrl,
+                customMediaUrl: s.customMediaUrl?.startsWith('data:') ? '' : s.customMediaUrl,
+              })),
+            }
+          : p
+      );
+      localStorage.setItem(storageKey, JSON.stringify({ ...updated, projects: prunedProjects }));
+    } catch {
+      // ignore if still full; immediate server sync preserves data
+    }
+    void syncUserProfileToServer(codeClean, updated);
+    return;
+  }
+
+  const prevTimer = syncTimers.get(codeClean);
+  if (prevTimer) clearTimeout(prevTimer);
+  syncTimers.set(
+    codeClean,
+    setTimeout(() => {
+      void syncUserProfileToServer(codeClean, updated);
+    }, 650)
+  );
 }
 

@@ -94,9 +94,10 @@ export function exportToCapCutDraft(project: Project): CapCutDraftContent {
     const videoMatId = `mat_video_${index + 1}`;
     const textMatId = `mat_text_${index + 1}`;
 
+    const safeVideoRel = `Resources/local_media/scene_${sc.sceneNumber || index + 1}.mp4`;
     videoMaterials.push({
       id: videoMatId,
-      path: sc.clipUrl || project.videoUrl || '',
+      path: sc.clipUrl && !sc.clipUrl.startsWith('http') ? sc.clipUrl : safeVideoRel,
       duration: sceneDurMicro,
       material_name: `Cảnh ${sc.sceneNumber || index + 1}: ${sc.headline || 'Footage'}`,
     });
@@ -146,9 +147,12 @@ export function exportToCapCutDraft(project: Project): CapCutDraftContent {
 
   if (project.voiceoverTrack?.audioUrl || (project.musicTrack as any)?.audioUrl) {
     const audioMatId = 'mat_audio_main';
+    const rawAudio = project.voiceoverTrack?.audioUrl || (project.musicTrack as any)?.audioUrl || '';
     audioMaterials.push({
       id: audioMatId,
-      path: project.voiceoverTrack?.audioUrl || (project.musicTrack as any)?.audioUrl || '',
+      path: rawAudio.startsWith('http') || rawAudio.startsWith('data:') || rawAudio.startsWith('blob:')
+        ? 'Resources/local_media/audio_master.wav'
+        : rawAudio,
       duration: currentMicrosec,
       name: project.voiceoverTrack?.voiceName || project.musicTrack?.name || 'Audio Track',
     });
@@ -197,20 +201,68 @@ export function exportToCapCutDraft(project: Project): CapCutDraftContent {
   };
 }
 
+export interface CapCutDraftMetaInfo {
+  draft_id: string;
+  draft_name: string;
+  draft_fold_path: string;
+  draft_root_path: string;
+  tm_draft_create: number;
+  tm_draft_modified: number;
+  tm_duration: number;
+}
+
+export function exportCapCutProjectPackage(project: Project): {
+  draftContent: CapCutDraftContent;
+  draftMetaInfo: CapCutDraftMetaInfo;
+  readmeImport: string;
+} {
+  const draftContent = exportToCapCutDraft(project);
+  const nowMicro = Date.now() * 1000;
+  const draftId = `synapes_${(project.code || project.id || 'project').replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  const draftMetaInfo: CapCutDraftMetaInfo = {
+    draft_id: draftId,
+    draft_name: project.title || `SYNAPES ${project.code || ''}`.trim(),
+    draft_fold_path: '',
+    draft_root_path: 'Resources/local_media/',
+    tm_draft_create: nowMicro,
+    tm_draft_modified: nowMicro,
+    tm_duration: draftContent.duration,
+  };
+  const readmeImport = [
+    `HUONG DAN NHAP DU AN VAO CAPCUT PC (${draftId})`,
+    `1. Tao thu muc moi trong thu muc CapCut Drafts cua ban (vd: ${draftId}/).`,
+    `2. Dat file draft_content.json va draft_meta_info.json vao thu muc do (doi ten bo hau to _${project.code || 'SYNAPES'} thanh ten chuan).`,
+    `3. Tao thu muc con Resources/local_media/ ben trong va chep cac file scene_1.mp4, audio_master.wav (neu co) vao dung ten tuong doi.`,
+    `4. Khoi dong lai CapCut PC de nhan du an tu dong.`,
+  ].join('\n');
+  return { draftContent, draftMetaInfo, readmeImport };
+}
+
 /**
- * Tải file draft_content.json về máy tính để kéo thả vào thư mục CapCut Drafts
+ * Tải bộ gói CapCut PC chuẩn gồm draft_content.json, draft_meta_info.json và README hướng dẫn import
  */
 export function downloadCapCutDraftFile(project: Project): void {
   if (typeof window === 'undefined') return;
 
-  const draftData = exportToCapCutDraft(project);
-  const blob = new Blob([JSON.stringify(draftData, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `draft_content_${project.code || 'SYNAPES'}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const { draftContent, draftMetaInfo, readmeImport } = exportCapCutProjectPackage(project);
+  const codeTag = project.code || 'SYNAPES';
+  const files: Array<{ name: string; content: string; type: string }> = [
+    { name: `draft_content_${codeTag}.json`, content: JSON.stringify(draftContent, null, 2), type: 'application/json' },
+    { name: `draft_meta_info_${codeTag}.json`, content: JSON.stringify(draftMetaInfo, null, 2), type: 'application/json' },
+    { name: `README_CAPCUT_IMPORT_${codeTag}.txt`, content: readmeImport, type: 'text/plain;charset=utf-8' },
+  ];
+
+  files.forEach((f, idx) => {
+    setTimeout(() => {
+      const blob = new Blob([f.content], { type: f.type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = f.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, idx * 120);
+  });
 }

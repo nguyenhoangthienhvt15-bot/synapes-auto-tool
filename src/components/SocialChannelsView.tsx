@@ -4,6 +4,7 @@ import {
   LogIn, LogOut, UploadCloud, Check, AlertCircle, X, Sparkles, Video, Play
 } from 'lucide-react';
 import { ConnectedChannelAccount, UserAccount } from '../types';
+import { getAuthHeaders } from '../services/userProfileService';
 
 interface SocialChannelsViewProps {
   currentUser?: UserAccount | null;
@@ -179,9 +180,12 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
     try {
       const resp = await fetch('/api/channels/connect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(currentUser?.code),
+        },
         body: JSON.stringify({
-          userCode: currentUser?.code || 'DEFAULT',
+          userCode: currentUser?.code || '',
           platform: plat,
           channelName: channelNameClean,
           handleOrUrl: handleClean,
@@ -254,9 +258,12 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
     try {
       await fetch('/api/channels/disconnect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(currentUser?.code),
+        },
         body: JSON.stringify({
-          userCode: currentUser?.code || 'DEFAULT',
+          userCode: currentUser?.code || '',
           platform: platformMap[channelId] || channelId,
         }),
       });
@@ -287,9 +294,12 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
     try {
       const resp = await fetch('/api/channels/verify-publish', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(currentUser?.code),
+        },
         body: JSON.stringify({
-          userCode: currentUser?.code || 'DEFAULT',
+          userCode: currentUser?.code || '',
           platform: channel.platform,
         }),
       });
@@ -376,7 +386,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
 
         <span className="text-[11px] font-mono px-2.5 py-1 rounded bg-zinc-100 text-zinc-700 border border-zinc-200 flex items-center gap-1.5 self-start sm:self-auto">
           <ShieldCheck className="w-3.5 h-3.5 text-zinc-700" />
-          <span>OAuth 2.0 Encrypted (AES-256)</span>
+          <span>OAuth Verified • AES-256-GCM Server Encryption</span>
         </span>
       </div>
 

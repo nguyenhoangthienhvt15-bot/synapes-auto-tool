@@ -39,6 +39,7 @@ export const SYSTEM_CORE_VIDEO_REPOS: CoreVideoRepo[] = [
     roleInEngine: '[ĐÃ CÀI RUNTIME] Dựng trực tiếp nhân vật 3D có xương hàm Lip-Sync, ánh sáng PBR Studio 3 điểm và sân khấu 3D Orbit/Dolly qua WebGLRenderer.',
     capabilities: ['WebGL2 3D Runtime', '3D Character Rig', 'ACESFilmic PBR Lighting'],
     enabled: true,
+    integrationType: 'runtime',
     sampleVideoUrl: '/VIDEO_HOAT_HINH_3D_HOI_THOAI_20S.mp4',
   },
   {
@@ -50,6 +51,7 @@ export const SYSTEM_CORE_VIDEO_REPOS: CoreVideoRepo[] = [
     roleInEngine: '[ĐÃ CÀI RUNTIME] Vẽ tay minh họa nét mực/chì hachure, họa tiết cắt giấy phân tầng có bóng đổ trên giấy mỹ thuật kraft theo tiến trình từng giây.',
     capabilities: ['Hand-Drawn Paper Art', 'Cut-Paper Parallax', 'Progressive Ink Sketch'],
     enabled: true,
+    integrationType: 'runtime',
     sampleVideoUrl: '/skill-samples/manim-sample.webm',
   },
   {
@@ -61,6 +63,7 @@ export const SYSTEM_CORE_VIDEO_REPOS: CoreVideoRepo[] = [
     roleInEngine: '[ĐÃ CÀI RUNTIME] Thực thi 227 Shader chuyển cảnh WebGL (CrossZoom, PaperFold, InvertedPageCurl, DirectionalWarp, Swirl, RadialWipe) mượt 60fps.',
     capabilities: ['WebGL GLSL Shaders', 'PaperFold & PageCurl', 'CrossZoom & Warp'],
     enabled: true,
+    integrationType: 'runtime',
     sampleVideoUrl: '/skill-samples/editly-sample.webm',
   },
   {
@@ -72,6 +75,7 @@ export const SYSTEM_CORE_VIDEO_REPOS: CoreVideoRepo[] = [
     roleInEngine: '[ĐÃ CÀI RUNTIME] Điều khiển đường cong gia tốc Back/Power3.inOut cho chữ nổi, hoạt họa minh họa vẽ giấy và chuyển cảnh điện ảnh mượt.',
     capabilities: ['Spring & Elastic Easing', 'Kinetic Typography', 'Scene Staggering'],
     enabled: true,
+    integrationType: 'runtime',
     sampleVideoUrl: '/skill-samples/remotion-sample.webm',
   },
   {
@@ -83,6 +87,7 @@ export const SYSTEM_CORE_VIDEO_REPOS: CoreVideoRepo[] = [
     roleInEngine: '[ĐÃ CÀI RUNTIME] Kết xuất hoạt họa vector đa lớp nhẹ, sắc nét trên mọi độ phân giải 1080p/4K.',
     capabilities: ['Vector Motion', 'After Effects JSON', 'Crisp 1080p Scaling'],
     enabled: true,
+    integrationType: 'runtime',
     sampleVideoUrl: '/skill-samples/remotion-sample.webm',
   },
   {
@@ -94,6 +99,7 @@ export const SYSTEM_CORE_VIDEO_REPOS: CoreVideoRepo[] = [
     roleInEngine: 'Tích hợp đồng bộ khẩu hình nhân vật 3D theo biên độ giọng nói Neural TTS, chớp mắt tự nhiên và biểu cảm khuôn mặt.',
     capabilities: ['Audio-Driven Lip-Sync', '3D Head Pose', 'Micro-Expression'],
     enabled: true,
+    integrationType: 'blueprint',
     sampleVideoUrl: '/VIDEO_HOAT_HINH_3D_THO_CON_BI_OM_HOI_THOAI_DA_GIONG_24S.mp4',
   },
   {
@@ -105,6 +111,7 @@ export const SYSTEM_CORE_VIDEO_REPOS: CoreVideoRepo[] = [
     roleInEngine: 'Tích hợp chuyển động đầu, nhịp thở và ánh mắt linh hoạt cho MC ảo 3D & nhân vật hoạt hình đa giọng.',
     capabilities: ['3D Avatar Retargeting', 'Eye Blink & Gaze', 'Smooth Head Motion'],
     enabled: true,
+    integrationType: 'blueprint',
     sampleVideoUrl: '/VIDEO_HOAT_HINH_3D_CON_TRUNG_NHAY_MUA_HAT_DEM_SO_1_DEN_10.mp4',
   },
   {
@@ -116,6 +123,7 @@ export const SYSTEM_CORE_VIDEO_REPOS: CoreVideoRepo[] = [
     roleInEngine: 'Tích hợp quy trình biên tập NLE đa lớp: cắt ghép nhịp Beat, lớp phủ Lower-Third, Picture-in-Picture và chỉnh màu LUT.',
     capabilities: ['Multi-Track NLE', 'Color LUT Grading', 'PiP & Lower-Third'],
     enabled: true,
+    integrationType: 'blueprint',
     sampleVideoUrl: '/skill-samples/editly-sample.webm',
   },
   {
@@ -127,6 +135,7 @@ export const SYSTEM_CORE_VIDEO_REPOS: CoreVideoRepo[] = [
     roleInEngine: 'Tích hợp kỹ năng cắt chuyển cảnh chuẩn nhịp âm thanh, loại bỏ khoảng lặng và giữ khung hình mượt không chớp đen.',
     capabilities: ['Beat-Sync Scene Cut', 'Frame-Hold Buffer', 'Zero-Blackout Trim'],
     enabled: true,
+    integrationType: 'blueprint',
     sampleVideoUrl: '/skill-samples/shortgpt-sample.webm',
   },
   {
@@ -138,6 +147,7 @@ export const SYSTEM_CORE_VIDEO_REPOS: CoreVideoRepo[] = [
     roleInEngine: 'Tích hợp Engine Kinetic Typography, Progress Pill & Layout Đa Lớp React Canvas vào AiCinemaPlayer.',
     capabilities: ['Kinetic Subtitles', 'Keyframed Motion UI', 'Multi-Track Audio/Visual Sync'],
     enabled: true,
+    integrationType: 'blueprint',
     sampleVideoUrl: '/skill-samples/remotion-sample.webm',
   },
   {
@@ -149,6 +159,7 @@ export const SYSTEM_CORE_VIDEO_REPOS: CoreVideoRepo[] = [
     roleInEngine: 'Tích hợp Pipeline Sinh Kịch Bản + Thu Thập B-Roll Thực Tế theo ngữ cảnh + Voiceover Neural 24kHz tự động.',
     capabilities: ['Context-Aware Research', 'Auto B-Roll Fetcher', 'Edge Neural TTS'],
     enabled: true,
+    integrationType: 'blueprint',
     sampleVideoUrl: '/skill-samples/moneyprinter-sample.webm',
   },
   {
@@ -160,6 +171,7 @@ export const SYSTEM_CORE_VIDEO_REPOS: CoreVideoRepo[] = [
     roleInEngine: 'Tích hợp thuật toán đồ họa số liệu, biểu đồ chuyển động mượt và thẻ HUD chỉ số phân cảnh vào Lõi Render.',
     capabilities: ['HUD Metric Cards', 'Curve & Chart Animation', 'High-Contrast Vector'],
     enabled: true,
+    integrationType: 'blueprint',
     sampleVideoUrl: '/skill-samples/manim-sample.webm',
   },
   {
@@ -171,6 +183,7 @@ export const SYSTEM_CORE_VIDEO_REPOS: CoreVideoRepo[] = [
     roleInEngine: 'Tích hợp chuẩn phân câu phụ đề Netflix theo cụm nghĩa tự nhiên + Đồng bộ thuyết minh & Lồng tiếng đa ngôn ngữ.',
     capabilities: ['Semantic Line-Break', 'Voice Clone Alignment', 'Multi-Language MT'],
     enabled: true,
+    integrationType: 'blueprint',
     sampleVideoUrl: '/skill-samples/videolingo-sample.webm',
   },
   {
@@ -182,6 +195,7 @@ export const SYSTEM_CORE_VIDEO_REPOS: CoreVideoRepo[] = [
     roleInEngine: 'Tích hợp công thức Hook 3s đầu, tiết tấu cắt cảnh 2.5s–4s và tối ưu tỷ lệ giữ chân (Retention Curve).',
     capabilities: ['3s Visual Hook', 'Fast B-Roll Pacing', 'Auto SFX Stingers'],
     enabled: true,
+    integrationType: 'blueprint',
     sampleVideoUrl: '/skill-samples/shortgpt-sample.webm',
   },
   {
@@ -193,6 +207,7 @@ export const SYSTEM_CORE_VIDEO_REPOS: CoreVideoRepo[] = [
     roleInEngine: 'Tích hợp chuỗi chuyển cảnh GL Dissolve/Directional Wipe & Ken Burns Dolly/Orbit chống ảnh tĩnh vào lõi Canvas.',
     capabilities: ['Ken Burns 60fps', 'GL Transitions', 'Auto LUFS Audio Ducking'],
     enabled: true,
+    integrationType: 'blueprint',
     sampleVideoUrl: '/skill-samples/editly-sample.webm',
   },
 ];
@@ -792,7 +807,7 @@ export const DEFAULT_AI_CONFIG: AIProviderConfig = {
   activeProvider: 'gemini',
   gemini: {
     apiKey: '',
-    model: 'gemini-3.8-flash',
+    model: 'gemini-2.5-flash',
     ttsVoice: 'vi-VN-Standard-B (Nam Bắc chuẩn)',
   },
   openai: {
@@ -823,6 +838,12 @@ export const DEFAULT_AI_CONFIG: AIProviderConfig = {
     inputMapping: '{"prompt": "{prompt}", "duration": {duration}, "aspect_ratio": "{aspect_ratio}"}',
     outputMapping: '{"video_url": "data.video_url"}',
     timeoutSeconds: 120,
+  },
+  threeDEngine: {
+    provider: 'huggingface-zerogpu',
+    apiKey: '',
+    workerUrl: '',
+    modelId: 'tencent/Hunyuan3D-2mv',
   },
 };
 

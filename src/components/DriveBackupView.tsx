@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Project, UserAccount } from '../types';
+import { getAuthHeaders } from '../services/userProfileService';
 import { HardDrive, ExternalLink, CheckCircle2, Folder, ArrowLeft, LogIn, X, Check, ShieldCheck, AlertCircle, Download, FileText, Film, CloudUpload } from 'lucide-react';
 
 interface DriveBackupViewProps {
@@ -171,9 +172,12 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
     try {
       const resp = await fetch('/api/drive/connect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(currentUser?.code),
+        },
         body: JSON.stringify({
-          userCode: currentUser?.code || 'DEFAULT',
+          userCode: currentUser?.code || '',
           email,
           accountName,
           oauthToken: token,
@@ -210,8 +214,11 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
       try {
         await fetch('/api/drive/disconnect', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userCode: currentUser?.code || 'DEFAULT' }),
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(currentUser?.code),
+          },
+          body: JSON.stringify({ userCode: currentUser?.code || '' }),
         });
       } catch {
         // ignore network disconnect cleanup error
@@ -223,18 +230,16 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
   };
 
   const handleSyncProject = async (proj: Project) => {
-    if (!isConnected) {
-      showToast('⚠️ Vui lòng đăng nhập & xác thực OAuth Token Google Drive trước khi đồng bộ.');
-      handleOpenLoginModal();
-      return;
-    }
     setIsSyncingProjectId(proj.id);
     try {
       const resp = await fetch('/api/drive/sync-project', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(currentUser?.code),
+        },
         body: JSON.stringify({
-          userCode: currentUser?.code || 'DEFAULT',
+          userCode: currentUser?.code || '',
           driveEmail,
           project: proj,
         }),
@@ -242,7 +247,11 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data?.success) {
         setSyncedProjectsMap((prev) => ({ ...prev, [proj.id]: data.syncedAt || new Date().toISOString() }));
-        showToast(`✅ Đã đồng bộ gói dữ liệu & phụ đề SRT của [${proj.title}] lên kho lưu trữ!`);
+        const storageLabel =
+          data.storageMode === 'google_drive_oauth_and_server_aes256'
+            ? 'Google Drive OAuth & Kho Lưu Trữ Máy Chủ AES-256'
+            : 'Kho Lưu Trữ Máy Chủ AES-256 (Archive Cục Bộ Có Xác Thực)';
+        showToast(`✅ Đã đồng bộ gói dữ liệu & phụ đề SRT của [${proj.title}] lên ${storageLabel}!`);
       } else {
         showToast(`⚠️ ${data?.error || 'Không thể đồng bộ dự án lúc này.'}`);
       }
@@ -255,7 +264,12 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
 
   const handleOpenArchivePreview = async (proj: Project) => {
     try {
-      const resp = await fetch(`/api/drive/archive/${encodeURIComponent(proj.id)}`);
+      const resp = await fetch(`/api/drive/archive/${encodeURIComponent(proj.id)}`, {
+        method: 'GET',
+        headers: {
+          ...getAuthHeaders(currentUser?.code),
+        },
+      });
       const data = await resp.json().catch(() => null);
       if (resp.ok && data?.success && data.archive) {
         setArchiveModalData({ project: proj, archive: data.archive });
@@ -371,15 +385,21 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
             </button>
           )}
 
-          <a
-            href={driveFolderUrl || 'https://drive.google.com/drive/my-drive'}
-            target="_blank"
-            rel="noreferrer"
-            className="btn-secondary flex items-center gap-1.5 self-start sm:self-auto text-xs"
-          >
-            <span>Mở Google Drive</span>
-            <ExternalLink className="w-3.5 h-3.5 text-zinc-400" />
-          </a>
+          {isConnected && driveFolderUrl ? (
+            <a
+              href={driveFolderUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-secondary flex items-center gap-1.5 self-start sm:self-auto text-xs"
+            >
+              <span>Mở Google Drive Đã Liên Kết</span>
+              <ExternalLink className="w-3.5 h-3.5 text-zinc-400" />
+            </a>
+          ) : (
+            <span className="text-[11px] font-mono px-2.5 py-1.5 rounded bg-zinc-100 text-zinc-600 border border-black/[0.06] self-start sm:self-auto">
+              Kho Lưu Trữ Máy Chủ AES-256
+            </span>
+          )}
         </div>
       </div>
 

@@ -15,6 +15,7 @@ import {
   X
 } from 'lucide-react';
 import { downloadCapCutDraftFile } from '../services/capcutDraftExporter';
+import { getAuthHeaders } from '../services/userProfileService';
 
 interface LocalStitcherClip {
   id: string;
@@ -165,10 +166,14 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
       };
     });
 
+    let stitchFeedback = `Đã liên kết ${clips.length} phân cảnh vào Timeline Master.`;
     try {
-      await fetch('/api/video-stitch', {
+      const resp = await fetch('/api/video-stitch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify({
           projectId: project.id,
           clips,
@@ -176,12 +181,16 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
           audioTrack: project.musicTrack,
         }),
       });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && data?.success) {
+        stitchFeedback = data.message || stitchFeedback;
+      }
     } catch {
-      // Offline fallback
+      // Offline fallback: lưu metadata cục bộ trên Timeline
     }
 
     setProcessPercent(100);
-    setProcessStep(`Đã liên kết hoàn tất ${clips.length} phân cảnh vào Timeline Master!`);
+    setProcessStep(stitchFeedback);
 
     // Lưu trữ metadata vào project
     project.storyboard = updatedScenes;

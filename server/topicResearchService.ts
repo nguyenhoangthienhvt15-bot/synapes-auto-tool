@@ -49,14 +49,56 @@ function normalizeAsciiForMatch(s: string): string {
     .replace(/đ/g, 'd');
 }
 
-function extractCoreTokens(query: string): string[] {
+const DISAMBIGUATION_BLOCK_TERMS = new Set([
+  'wwe', 'wrestler', 'wrestling', 'adam joseph copeland', 'copeland', 'smackdown', 'raw',
+  'pac-3', 'patriot', 'ten lua', 'missile', 'fighter jet', 'nfl', 'nba', 'mlb',
+]);
+
+function extractCoreTokensAndBigrams(query: string): {
+  coreTokens: string[];
+  bigrams: string[];
+  queryHasBlockedTerm: boolean;
+} {
   const stop = new Set([
     've', 'cua', 'cho', 'voi', 'cac', 'nhung', 'la', 'va', 'hom', 'nay', 'ngay',
     'thang', 'nam', 'moi', 'nhat', 'trong', 'tai', 'video', 'clip', 'tin', 'tuc',
   ]);
-  return normalizeAsciiForMatch(query)
-    .split(/[^a-z0-9]+/)
-    .filter((t) => t.length >= 3 && !stop.has(t));
+  const norm = normalizeAsciiForMatch(query);
+  const allTokens = norm.split(/[^a-z0-9]+/).filter((t) => t.length >= 2 && !stop.has(t));
+  const coreTokens = allTokens.filter((t) => t.length >= 2);
+  const bigrams: string[] = [];
+  for (let i = 0; i < coreTokens.length - 1; i++) {
+    bigrams.push(`${coreTokens[i]} ${coreTokens[i + 1]}`);
+  }
+  const queryHasBlockedTerm = Array.from(DISAMBIGUATION_BLOCK_TERMS).some((term) => norm.includes(term));
+  return { coreTokens, bigrams, queryHasBlockedTerm };
+}
+
+function isEntityMatchStrict(
+  haystackRaw: string,
+  coreTokens: string[],
+  bigrams: string[],
+  queryHasBlockedTerm: boolean
+): boolean {
+  const hay = normalizeAsciiForMatch(haystackRaw);
+  if (!hay) return false;
+  if (!queryHasBlockedTerm) {
+    for (const bad of DISAMBIGUATION_BLOCK_TERMS) {
+      if (hay.includes(bad)) return false;
+    }
+  }
+  if (bigrams.some((bg) => hay.includes(bg))) {
+    return true;
+  }
+  if (coreTokens.length === 0) return true;
+  const matchedCount = coreTokens.filter((tok) => {
+    if (tok.length <= 2) {
+      return new RegExp(`(?:^|[^a-z0-9])${tok}(?:$|[^a-z0-9])`).test(hay);
+    }
+    return hay.includes(tok);
+  }).length;
+  const minRequired = coreTokens.length >= 2 ? 2 : 1;
+  return matchedCount >= minRequired;
 }
 
 function extractTag(xmlBlock: string, tag: string): string {
@@ -77,7 +119,7 @@ export async function researchTopic(query: string): Promise<TopicResearchResult>
     throw new Error('Từ khóa tìm kiếm chủ đề không được để trống (Fail-Fast).');
   }
 
-  const coreTokens = extractCoreTokens(cleanQuery);
+  const { coreTokens, bigrams, queryHasBlockedTerm } = extractCoreTokensAndBigrams(cleanQuery);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 18000);
 
@@ -91,14 +133,12 @@ export async function researchTopic(query: string): Promise<TopicResearchResult>
     const rssXml = await rssRes.text();
     const itemMatches = rssXml.match(/<item>([\s\S]*?)<\/item>/gi) || [];
     const news: Array<z.infer<typeof VerifiedNewsItemSchema>> = [];
-    for (const block of itemMatches.slice(0, 12)) {
+    for (const block of itemMatches.slice(0, 14)) {
       const title = extractTag(block, 'title');
       const url = extractTag(block, 'link');
       const source = extractTag(block, 'source') || 'Google News';
       const publishedAt = extractTag(block, 'pubDate');
-      const hay = normalizeAsciiForMatch(`${title} ${url}`);
-      const relevant =
-        coreTokens.length === 0 || coreTokens.some((tok) => hay.includes(tok));
+      const relevant = isEntityMatchStrict(`${title} ${url}`, coreTokens, bigrams, queryHasBlockedTerm);
       if (title && url && relevant) {
         news.push({
           title,
@@ -110,10 +150,10 @@ export async function researchTopic(query: string): Promise<TopicResearchResult>
       }
     }
 
-    // 2. Gọi Wikipedia tiếng Việt thật (chỉ nhận bài khớp thực thể, không lấy bài lạc đề)
+    // 2. Gọi Wikipedia tiếng Việt thật (lọc nghiêm ngặt theo bigram + đa từ khóa, chống nhầm thực thể)
     const wikiUrl = `https://vi.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(
       cleanQuery
-    )}&gsrlimit=3&prop=extracts|pageimages&exintro=1&explaintext=1&exchars=500&piprop=original|thumbnail&pithumbsize=1280&format=json&origin=*`;
+    )}&gsrlimit=4&prop=extracts|pageimages&exintro=1&explaintext=1&exchars=500&piprop=original|thumbnail&pithumbsize=1280&format=json&origin=*`;
     const wikiRes = await fetch(wikiUrl, { signal: controller.signal });
     if (!wikiRes.ok) {
       throw new Error(`Truy vấn Wikipedia that bai (HTTP ${wikiRes.status} ${wikiRes.statusText})`);
@@ -124,10 +164,12 @@ export async function researchTopic(query: string): Promise<TopicResearchResult>
     const visuals: Array<z.infer<typeof VerifiedMediaItemSchema>> = [];
 
     for (const p of wikiPages) {
-      const titleNorm = normalizeAsciiForMatch(p?.title || '');
-      const extractNorm = normalizeAsciiForMatch(p?.extract || '');
-      const matchesEntity =
-        coreTokens.length > 0 && coreTokens.some((tok) => titleNorm.includes(tok) || extractNorm.includes(tok));
+      const matchesEntity = isEntityMatchStrict(
+        `${p?.title || ''} ${p?.extract || ''}`,
+        coreTokens,
+        bigrams,
+        queryHasBlockedTerm
+      );
       if (!matchesEntity) continue;
       if (p?.extract && String(p.extract).trim().length > 20) {
         wikiParts.push(`${p.title}: ${String(p.extract).replace(/\s+/g, ' ').trim()}`);
@@ -160,6 +202,11 @@ export async function researchTopic(query: string): Promise<TopicResearchResult>
     const commonsJson = (await commonsRes.json()) as any;
     const commonsPages = Object.values(commonsJson?.query?.pages || {}) as any[];
     for (const cp of commonsPages) {
+      const cpTitle = String(cp.title || '').replace(/^File:/i, '').replace(/\.[^.]+$/, '');
+      if (!queryHasBlockedTerm) {
+        const cpNorm = normalizeAsciiForMatch(cpTitle);
+        if (Array.from(DISAMBIGUATION_BLOCK_TERMS).some((bad) => cpNorm.includes(bad))) continue;
+      }
       const info = cp?.imageinfo?.[0];
       const u = info?.thumburl || info?.url;
       if (
@@ -170,7 +217,7 @@ export async function researchTopic(query: string): Promise<TopicResearchResult>
       ) {
         visuals.push({
           id: `commons-${cp.pageid}`,
-          title: String(cp.title || '').replace(/^File:/i, '').replace(/\.[^.]+$/, ''),
+          title: cpTitle,
           url: u,
           proxyUrl: `/api/image-proxy?url=${encodeURIComponent(u)}`,
           source: 'Wikimedia Commons',

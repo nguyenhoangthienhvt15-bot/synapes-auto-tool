@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { AIProviderConfig, AIProviderId, UserAccount } from '../types';
+import { AIProviderConfig, AIProviderId, Byok3DEngineProvider, UserAccount } from '../types';
 import {
   Cpu, Key, CheckCircle2, Sparkles, RefreshCw,
-  ExternalLink, Eye, EyeOff, ShieldCheck, Check, ArrowLeft, Radio, AlertCircle, LogIn
+  ExternalLink, Eye, EyeOff, ShieldCheck, Check, ArrowLeft, Radio, AlertCircle, LogIn, Box
 } from 'lucide-react';
 import {
   discoverModelsFromKey,
@@ -13,6 +13,7 @@ import {
   detectPluginBrand,
   PLUGIN_PRESETS,
   PluginPreset,
+  BYOK_3D_ENGINE_PRESETS,
 } from '../services/aiModelDiscoveryService';
 import { ProviderBrandLogo, AiModelDropdown } from './AiProviderDropdown';
 
@@ -59,7 +60,7 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
   }, [config]);
 
   const [models, setModels] = useState<Record<string, string>>({
-    gemini: config.gemini?.model || 'gemini-3.8-flash',
+    gemini: config.gemini?.model || 'gemini-2.5-flash',
     openai: config.openai?.model || 'gpt-4o',
     claude: config.claude?.model || 'claude-3-7-sonnet-20250219',
     deepseek: config.deepseek?.model || 'deepseek-chat',
@@ -80,6 +81,25 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
   const [showKey, setShowKey] = useState<Record<string, boolean>>({});
   const [testResult, setTestResult] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
+
+  // BYOK 3D Mesh & Auto-Rig Engine config (Ngày 1)
+  const [threeDProvider, setThreeDProvider] = useState<Byok3DEngineProvider>(
+    config.threeDEngine?.provider || 'huggingface-zerogpu'
+  );
+  const [threeDApiKey, setThreeDApiKey] = useState<string>(config.threeDEngine?.apiKey || '');
+  const [threeDWorkerUrl, setThreeDWorkerUrl] = useState<string>(config.threeDEngine?.workerUrl || '');
+  const [threeDModelId, setThreeDModelId] = useState<string>(
+    config.threeDEngine?.modelId || 'tencent/Hunyuan3D-2mv'
+  );
+
+  useEffect(() => {
+    if (config.threeDEngine) {
+      setThreeDProvider(config.threeDEngine.provider || 'huggingface-zerogpu');
+      setThreeDApiKey(config.threeDEngine.apiKey || '');
+      setThreeDWorkerUrl(config.threeDEngine.workerUrl || '');
+      setThreeDModelId(config.threeDEngine.modelId || 'tencent/Hunyuan3D-2mv');
+    }
+  }, [config.threeDEngine]);
 
   useEffect(() => {
     if (initialProvider && PROVIDERS.some((p) => p.id === initialProvider)) {
@@ -194,6 +214,13 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
               endpointUrl: endpoints.plugin.trim(),
               apiToken: nextKeys.plugin.trim(),
             },
+            threeDEngine: {
+              provider: threeDProvider,
+              apiKey: threeDApiKey.trim(),
+              workerUrl: threeDWorkerUrl.trim(),
+              modelId: threeDModelId,
+              verifiedAt: config.threeDEngine?.verifiedAt,
+            },
           });
         }
         return { success: true, message: res.message };
@@ -306,6 +333,13 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
         endpointUrl: endpoints.plugin.trim(),
         name: models.plugin,
       },
+      threeDEngine: {
+        provider: threeDProvider,
+        apiKey: threeDApiKey.trim(),
+        workerUrl: threeDWorkerUrl.trim(),
+        modelId: threeDModelId,
+        verifiedAt: new Date().toISOString(),
+      },
     };
 
     onUpdateConfig(updated);
@@ -318,10 +352,39 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
       ...config,
       mode: activeProvider,
       activeProvider: activeProvider,
+      threeDEngine: {
+        provider: threeDProvider,
+        apiKey: threeDApiKey.trim(),
+        workerUrl: threeDWorkerUrl.trim(),
+        modelId: threeDModelId,
+        verifiedAt: config.threeDEngine?.verifiedAt,
+      },
     };
     onUpdateConfig(updated);
     setTestResult(`Đã kích hoạt [${currentMeta.name}] làm động cơ AI sản xuất video mặc định.`);
     setTimeout(() => setTestResult(null), 3500);
+  };
+
+  const handleSave3DEngineOnly = () => {
+    if (!currentUser || !currentUser.isLoggedIn) {
+      setTestResult('⚠️ Bạn cần đăng nhập tài khoản Studio để lưu cấu hình Động cơ 3D (BYOK).');
+      if (onOpenLogin) onOpenLogin();
+      return;
+    }
+    const updated: AIProviderConfig = {
+      ...config,
+      threeDEngine: {
+        provider: threeDProvider,
+        apiKey: threeDApiKey.trim(),
+        workerUrl: threeDWorkerUrl.trim(),
+        modelId: threeDModelId,
+        verifiedAt: new Date().toISOString(),
+      },
+    };
+    onUpdateConfig(updated);
+    const active3DPreset = BYOK_3D_ENGINE_PRESETS.find((p) => p.id === threeDProvider);
+    setTestResult(`✓ Đã lưu cấu hình Động cơ 3D BYOK [${active3DPreset?.name || threeDProvider}].`);
+    setTimeout(() => setTestResult(null), 4000);
   };
 
   const handleTestConnection = async () => {
@@ -852,6 +915,143 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
               </div>
             </div>
           )}
+
+          {/* Động cơ Dựng Mô hình 3D Thực thụ (BYOK Multi-View 1–5 Ảnh -> .GLB) */}
+          <div className="p-4 rounded-xl bg-zinc-50/90 border border-indigo-200/80 space-y-3.5 shadow-2xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center flex-shrink-0">
+                  <Box className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-zinc-950">
+                    Động cơ Dựng Mô hình 3D Thực thụ (BYOK Multi-View 1–5 Ảnh → .GLB)
+                  </div>
+                  <div className="text-[11px] text-zinc-500">
+                    Mọi tiến trình tái tạo lưới 3D &amp; Auto-Rig xương đều khai thác bằng Token / Worker URL riêng của bạn
+                  </div>
+                </div>
+              </div>
+              <span
+                className={`text-[10px] font-mono px-2 py-0.5 rounded border font-semibold ${
+                  threeDApiKey.trim().length > 5 || threeDWorkerUrl.trim().startsWith('https://')
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                }`}
+              >
+                {threeDApiKey.trim().length > 5 || threeDWorkerUrl.trim().startsWith('https://')
+                  ? '3D BYOK Ready ✓'
+                  : 'Chưa gắn Key / Worker 3D'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+              {BYOK_3D_ENGINE_PRESETS.map((preset) => {
+                const isSel = threeDProvider === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => {
+                      setThreeDProvider(preset.id);
+                      setThreeDModelId(preset.defaultModel);
+                    }}
+                    className={`p-2.5 rounded-lg border text-left transition cursor-pointer ${
+                      isSel
+                        ? 'bg-white border-indigo-600 ring-2 ring-indigo-600/15 shadow-xs'
+                        : 'bg-white/70 hover:bg-white border-black/[0.08]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[11px] font-bold text-zinc-950 truncate">
+                        {preset.name.split(' (')[0]}
+                      </span>
+                      {preset.isFreeTierAvailable && (
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-mono font-bold">
+                          FREE
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-zinc-500 truncate mt-0.5">{preset.defaultModel}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {(() => {
+              const active3D =
+                BYOK_3D_ENGINE_PRESETS.find((p) => p.id === threeDProvider) || BYOK_3D_ENGINE_PRESETS[0];
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end pt-1">
+                  <div className="md:col-span-4 space-y-1">
+                    <label className="text-[11px] font-medium text-zinc-700 block">
+                      Model 3D Thực thi
+                    </label>
+                    <select
+                      value={threeDModelId}
+                      onChange={(e) => setThreeDModelId(e.target.value)}
+                      className="w-full bg-white border border-black/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-900 focus:outline-none focus:border-indigo-600"
+                    >
+                      {active3D.models.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.tag})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {active3D.requiresWorkerUrl ? (
+                    <div className="md:col-span-5 space-y-1">
+                      <label className="text-[11px] font-medium text-zinc-700 block">
+                        Kaggle 2×T4 / ComfyUI 3D Worker HTTPS URL *
+                      </label>
+                      <input
+                        type="url"
+                        value={threeDWorkerUrl}
+                        onChange={(e) => setThreeDWorkerUrl(e.target.value)}
+                        placeholder={active3D.defaultEndpoint}
+                        className="w-full bg-white border border-black/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-900 focus:outline-none focus:border-indigo-600"
+                      />
+                    </div>
+                  ) : (
+                    <div className="md:col-span-5 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-medium text-zinc-700">
+                          {active3D.id === 'huggingface-zerogpu' ? 'Hugging Face Access Token (hf_...)' : 'API Key Nhà cung cấp 3D'} *
+                        </label>
+                        <a
+                          href={active3D.consoleUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] text-indigo-600 hover:underline inline-flex items-center gap-0.5 font-mono"
+                        >
+                          <span>Lấy Token</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      </div>
+                      <input
+                        type="password"
+                        value={threeDApiKey}
+                        onChange={(e) => setThreeDApiKey(e.target.value)}
+                        placeholder={active3D.keyPlaceholder}
+                        className="w-full bg-white border border-black/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-900 focus:outline-none focus:border-indigo-600"
+                      />
+                    </div>
+                  )}
+
+                  <div className="md:col-span-3 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSave3DEngineOnly}
+                      className="w-full px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition cursor-pointer shadow-2xs"
+                    >
+                      Lưu Động cơ 3D (BYOK)
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
 
           {/* Cẩm nang hướng dẫn chi tiết lấy API Key cho mọi nhà cung cấp AI */}
           <div className="p-4 rounded-xl bg-zinc-50/90 border border-black/[0.08] space-y-3">

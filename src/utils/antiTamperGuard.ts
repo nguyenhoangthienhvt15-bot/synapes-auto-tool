@@ -1,27 +1,36 @@
 /**
- * synapes-anti-tamper.ts - Lớp Bảo vệ Chống Soi Mã Nguồn & DevTools Tampering
- * Tích hợp Cổng Mở Khóa Master Khẩn Cấp ([REDACTED_BY_P0_AUDIT]) theo Nghiệm Thu Phiên V
+ * antiTamperGuard.ts - Lớp Bảo vệ Chống Soi Mã Nguồn & Tampering
+ * Xác thực mở khóa Master Key thuần Server-Side qua /api/security/unlock & /api/security/unlock-status
  * Chủ trì dự án: KS. Nguyễn Hoàng Thiện (nguyenhoangthien.hvt.15@gmail.com)
  */
 
 export function initAntiTamperGuard(): void {
   if (typeof window === 'undefined') return;
 
-  // Cho phép bỏ qua kiểm tra trong môi trường test tự động hoặc khi đã có cờ Master Override
-  if (
-    (window as any).__SYNAPES_DEV_MODE__ ||
-    window.location.search.includes('bypass_anti_tamper=1') ||
-    localStorage.getItem('synapes_dev_bypass') === '1' ||
-    sessionStorage.getItem('synapes_dev_bypass') === '1'
-  ) {
+  // Chỉ cho phép bỏ qua đồng bộ trong test harness nội bộ (__SYNAPES_DEV_MODE__)
+  if ((window as any).__SYNAPES_DEV_MODE__ === true) {
     return;
   }
 
+  let isUnlockedOnServer = false;
   let devtoolsDetected = false;
   let violationCount = 0;
 
+  // Kiểm tra trạng thái mở khóa IP thực tế từ backend (không tin cậy query param hay localStorage)
+  fetch('/api/security/unlock-status', { method: 'GET', cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      if (data && data.unlocked === true) {
+        isUnlockedOnServer = true;
+      }
+    })
+    .catch(() => {
+      // ignore offline check
+    });
+
   // 1. Vô hiệu hóa phím tắt soi mã nguồn (F12, Ctrl+Shift+I/J/C, Ctrl+U, Ctrl+S)
   window.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (isUnlockedOnServer) return;
     const isCmdOrCtrl = e.ctrlKey || e.metaKey;
     const isShift = e.shiftKey;
 
@@ -39,32 +48,30 @@ export function initAntiTamperGuard(): void {
 
   // 2. Chặn chuột phải (Context Menu)
   window.addEventListener('contextmenu', (e: MouseEvent) => {
+    if (isUnlockedOnServer) return;
     e.preventDefault();
     return false;
   }, true);
 
-  // 3. Giám sát docked DevTools nhẹ nhàng (không gây khựng CPU hay khóa nhầm khi thu phóng / chuyển tab)
-  const guardStartedAt = Date.now();
-  const dockedThreshold = 340;
-  setInterval(() => {
-    if (devtoolsDetected) return;
-    if (Date.now() - guardStartedAt < 6000) return;
-    if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
-    if (window.outerWidth < 900 || window.outerHeight < 600) return;
-
-    const widthThreshold = window.outerWidth - window.innerWidth > dockedThreshold;
-    const heightThreshold = window.outerHeight - window.innerHeight > dockedThreshold;
-    if (widthThreshold || heightThreshold) {
-      triggerViolation('devtools_dock_detected');
-    } else if (violationCount > 0) {
-      violationCount = 0;
-    }
-  }, 5000);
+  // 3. Loại bỏ giám sát outerWidth - innerWidth > 340 để không khóa nhầm khi chia đôi cửa sổ trình duyệt
 
   // Hàm xử lý khi phát hiện hành vi vi phạm
   async function triggerViolation(reason: string): Promise<void> {
+    if (isUnlockedOnServer || (window as any).__SYNAPES_DEV_MODE__ === true) return;
     violationCount++;
     if (violationCount >= 2 && !devtoolsDetected) {
+      try {
+        const statusResp = await fetch('/api/security/unlock-status', { cache: 'no-store' });
+        if (statusResp.ok) {
+          const statusData = await statusResp.json();
+          if (statusData?.unlocked === true) {
+            isUnlockedOnServer = true;
+            return;
+          }
+        }
+      } catch {
+        // continue with lock overlay
+      }
       devtoolsDetected = true;
       const incidentCode = `SEC-${Date.now().toString(36).toUpperCase()}`;
 
@@ -145,19 +152,14 @@ export function initAntiTamperGuard(): void {
           const data = await resp.json().catch(() => ({}));
 
           if (resp.ok && data.success) {
+            isUnlockedOnServer = true;
             feedback.style.display = 'block';
             feedback.style.color = '#4ade80';
-            feedback.innerText = '✓ Xác thực thành công. Đang giải phóng IP và tải lại hệ thống...';
-
-            try {
-              localStorage.setItem('synapes_dev_bypass', '1');
-              sessionStorage.setItem('synapes_dev_bypass', '1');
-              if (data.token) localStorage.setItem('synapes_bypass_token', data.token);
-            } catch { }
+            feedback.innerText = '✓ Xác thực máy chủ thành công. Đang tải lại giao diện sạch...';
 
             setTimeout(() => {
-              window.location.href = window.location.origin + window.location.pathname + '?bypass_anti_tamper=1';
-            }, 600);
+              window.location.href = window.location.origin + window.location.pathname;
+            }, 500);
             return;
           }
 
@@ -172,31 +174,9 @@ export function initAntiTamperGuard(): void {
           feedback.style.color = '#f87171';
           feedback.innerText = '✕ ' + (data.error || 'Mật mã Master không chính xác.');
         } catch {
-          // 2. Dự phòng ngoại tuyến (Offline Cryptographic Verification)
-          try {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(pass);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-
-            // Hash chuẩn SHA-256 của Master Key
-            if (hashHex === '0a45ddc25271095c13715e2349bfb98525839a9c7e0620036aaeb6b238f93931') {
-              feedback.style.display = 'block';
-              feedback.style.color = '#4ade80';
-              feedback.innerText = '✓ Xác thực ngoại tuyến thành công. Đang tải lại hệ thống...';
-              localStorage.setItem('synapes_dev_bypass', '1');
-              sessionStorage.setItem('synapes_dev_bypass', '1');
-              setTimeout(() => {
-                window.location.href = window.location.origin + window.location.pathname + '?bypass_anti_tamper=1';
-              }, 600);
-              return;
-            }
-          } catch { }
-
           feedback.style.display = 'block';
           feedback.style.color = '#f87171';
-          feedback.innerText = '✕ Mật mã Master không chính xác hoặc máy chủ không phản hồi.';
+          feedback.innerText = '✕ Không thể kết nối máy chủ xác thực /api/security/unlock. Không hỗ trợ vượt khóa ngoại tuyến.';
         }
       };
 

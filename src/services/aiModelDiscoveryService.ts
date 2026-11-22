@@ -1,4 +1,4 @@
-import type { AIProviderId, AIProviderConfig } from '../types';
+import type { AIProviderId, AIProviderConfig, Byok3DEngineProvider } from '../types';
 
 export interface DiscoveredModel {
   id: string;
@@ -144,6 +144,109 @@ export const PLUGIN_PRESETS: PluginPreset[] = [
   }
 ];
 
+export interface Byok3DEnginePreset {
+  id: Byok3DEngineProvider;
+  name: string;
+  vendor: string;
+  isFreeTierAvailable: boolean;
+  requiresWorkerUrl: boolean;
+  requiresApiKey: boolean;
+  defaultEndpoint: string;
+  defaultModel: string;
+  models: Array<{ id: string; name: string; tag: string }>;
+  keyPlaceholder: string;
+  consoleUrl: string;
+  description: string;
+}
+
+export const BYOK_3D_ENGINE_PRESETS: Byok3DEnginePreset[] = [
+  {
+    id: 'huggingface-zerogpu',
+    name: 'Hugging Face ZeroGPU (Hunyuan3D-2mv / TRELLIS.2)',
+    vendor: 'Hugging Face Spaces (Miễn phí với HF Token)',
+    isFreeTierAvailable: true,
+    requiresWorkerUrl: false,
+    requiresApiKey: true,
+    defaultEndpoint: 'https://huggingface.co',
+    defaultModel: 'tencent/Hunyuan3D-2mv',
+    models: [
+      { id: 'tencent/Hunyuan3D-2mv', name: 'Hunyuan3D-2mv (2–3 góc ảnh chuẩn)', tag: 'Miễn phí • Mesh + PBR sạch' },
+      { id: 'JeffreyXiang/TRELLIS', name: 'TRELLIS.2 Multi-Image (1 hoặc 4–5 ảnh)', tag: 'Miễn phí • SLat PBR 360°' },
+    ],
+    keyPlaceholder: 'hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    consoleUrl: 'https://huggingface.co/settings/tokens',
+    description: 'Khai thác trực tiếp Token Hugging Face cá nhân (BYOK) để xác thực và điều phối dựng lưới .GLB trên ZeroGPU.',
+  },
+  {
+    id: 'comfyui-kaggle-worker',
+    name: 'Kaggle 2×T4 / ComfyUI 3D Worker',
+    vendor: 'Kaggle 30h GPU/tuần • Colab • Self-Host',
+    isFreeTierAvailable: true,
+    requiresWorkerUrl: true,
+    requiresApiKey: false,
+    defaultEndpoint: 'https://your-3d-worker.trycloudflare.com',
+    defaultModel: 'hunyuan3d-2mv-unirig',
+    models: [
+      { id: 'hunyuan3d-2mv-unirig', name: 'Hunyuan3D-2mv + UniRig Auto-Rig', tag: '2×T4 Free • Xuất .GLB có xương' },
+      { id: 'trellis2-multiview-unirig', name: 'TRELLIS.2 + RMBG-2.0 + UniRig', tag: '4–5 ảnh full 360° + PBR' },
+    ],
+    keyPlaceholder: 'Worker Bearer Secret (tùy chọn nếu có)',
+    consoleUrl: 'https://www.kaggle.com/code',
+    description: 'Chạy file kaggle_workers/multiview_3d_worker.py qua Cloudflare Tunnel HTTPS để dựng + gắn xương tự động miễn phí.',
+  },
+  {
+    id: 'tripo3d-api',
+    name: 'Tripo3D Multi-View API v2',
+    vendor: 'Tripo AI (BYOK Commercial Key)',
+    isFreeTierAvailable: false,
+    requiresWorkerUrl: false,
+    requiresApiKey: true,
+    defaultEndpoint: 'https://api.tripo3d.ai/v2/openapi/task',
+    defaultModel: 'v2.5-20250123',
+    models: [
+      { id: 'v2.5-20250123', name: 'Tripo v2.5 Multi-View', tag: 'Tạo lưới .GLB tốc độ cao' },
+      { id: 'v2.0-20240919', name: 'Tripo v2.0 Stable', tag: 'Ổn định đa góc' },
+    ],
+    keyPlaceholder: 'tsk_xxxxxxxxxxxxxxxxxxxx',
+    consoleUrl: 'https://platform.tripo3d.ai/',
+    description: 'Gửi tối đa 4–5 góc ảnh trực tiếp bằng API Key Tripo3D của người dùng.',
+  },
+  {
+    id: 'meshy-api',
+    name: 'Meshy Multi-Image to 3D',
+    vendor: 'Meshy AI (BYOK Commercial Key)',
+    isFreeTierAvailable: false,
+    requiresWorkerUrl: false,
+    requiresApiKey: true,
+    defaultEndpoint: 'https://api.meshy.ai/openapi/v1/multi-image-to-3d',
+    defaultModel: 'meshy-5',
+    models: [
+      { id: 'meshy-5', name: 'Meshy-5 Multi-Image', tag: 'PBR chi tiết + topology sạch' },
+      { id: 'meshy-4', name: 'Meshy-4 Standard', tag: 'Tương thích rộng' },
+    ],
+    keyPlaceholder: 'msy_xxxxxxxxxxxxxxxxxxxx',
+    consoleUrl: 'https://www.meshy.ai/api',
+    description: 'Gửi chuỗi ảnh đa góc trực tiếp bằng API Key Meshy cá nhân của người dùng.',
+  },
+  {
+    id: 'fal-ai',
+    name: 'Fal.ai TRELLIS / Hunyuan3D',
+    vendor: 'Fal.ai Queue API (BYOK)',
+    isFreeTierAvailable: false,
+    requiresWorkerUrl: false,
+    requiresApiKey: true,
+    defaultEndpoint: 'https://queue.fal.run/fal-ai/trellis/multi',
+    defaultModel: 'fal-ai/trellis/multi',
+    models: [
+      { id: 'fal-ai/trellis/multi', name: 'Fal TRELLIS Multi-View', tag: '1–5 ảnh → .GLB nhanh' },
+      { id: 'fal-ai/hunyuan3d/v2/multi-view', name: 'Fal Hunyuan3D v2 Multi-View', tag: 'Nhân vật 3D độ nét cao' },
+    ],
+    keyPlaceholder: 'key_id:key_secret',
+    consoleUrl: 'https://fal.ai/dashboard/keys',
+    description: 'Điều phối trực tiếp Fal.ai Queue API bằng chính Key của người dùng.',
+  },
+];
+
 export const PROVIDERS: ProviderMeta[] = [
   {
     id: 'gemini',
@@ -154,8 +257,8 @@ export const PROVIDERS: ProviderMeta[] = [
     defaultModel: 'gemini-3-flash-preview',
     models: [
       { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', tag: 'Khuyên dùng 2026 • Siêu tốc ~2.3s' },
-      { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', tag: 'Nhanh & Ổn định đa phương thức' },
-      { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', tag: 'Thế hệ mới nhất 11/2026' },
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: 'Nhanh & Ổn định đa phương thức' },
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', tag: 'Suy luận & Kịch bản chuyên sâu' },
       { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview', tag: 'Suy luận kịch bản & Đạo diễn chuyên sâu' },
       { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Legacy)', tag: 'Tương thích Key thế hệ cũ' },
       { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Legacy)', tag: 'Tương thích dự phòng' },
@@ -559,12 +662,10 @@ export async function discoverModelsFromKey(
 
         if (supportsGenerate && lowerId.includes('gemini')) {
           const isRec =
-            lowerId === 'gemini-3.8-flash' ||
-            lowerId === 'gemini-3.1-pro-preview' ||
-            lowerId === 'gemini-3-flash-preview' ||
-            lowerId === 'gemini-3.6-flash' ||
-            lowerId === 'gemini-3.5-flash' ||
-            lowerId === 'gemini-2.5-flash';
+            lowerId === 'gemini-2.5-flash' ||
+            lowerId === 'gemini-2.5-pro' ||
+            lowerId === 'gemini-2.0-flash' ||
+            lowerId === 'gemini-1.5-pro';
 
           filtered.push({
             id,

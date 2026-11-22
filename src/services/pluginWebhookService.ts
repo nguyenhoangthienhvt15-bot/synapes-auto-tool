@@ -373,9 +373,9 @@ export async function dispatchScriptToPluginEngine(
     },
     aiSource: {
       type: 'plugin',
-      name: `${pluginName}`,
-      model: `${scriptModelName}`,
-      pluginUrl: endpoint,
+      name: remoteSuccess ? `${pluginName}` : `${pluginName} (Chế độ Fallback Studio • Chưa kết nối Webhook ngoài)`,
+      model: remoteSuccess ? `${scriptModelName}` : `${scriptModelName} • Fallback Blueprint`,
+      pluginUrl: remoteSuccess ? endpoint : '',
     },
     ...(scriptResult.tokenTelemetry ? { tokenTelemetry: scriptResult.tokenTelemetry } : {}),
     createdAt: now.toISOString(),
@@ -389,7 +389,7 @@ export async function dispatchScriptToPluginEngine(
     pluginName,
     message: remoteSuccess
       ? `Đã đồng bộ trực tiếp với máy chủ ${pluginName}. Video đã được gửi về Bàn Chờ Duyệt!`
-      : `Hệ thống đang xếp hàng đợi tác vụ render từ ${pluginName}. Video sẽ được xử lý trong 2-3 phút, kịch bản phân cảnh đã sẵn sàng tại Bàn Chờ Duyệt!`,
+      : `Không kết nối được Plugin ngoài [${pluginName}] — hệ thống đã tự động chuyển về hàng đợi kịch bản nội bộ tại Bàn Chờ Duyệt (không gán nhãn render ngoài giả lập).`,
   };
 }
 

@@ -86,17 +86,17 @@ function computeLocalTrafficSnapshot(
   const ytConn = channels.some((c) => c.platform === 'youtube' && c.status === 'connected');
 
   const curHour = new Date().getHours();
-  const ttMult = 1 + Math.min(4, ttCount) * 0.28 + (ttConn ? 0.35 : 0);
-  const fbMult = 1 + Math.min(4, fbCount) * 0.25 + (fbConn ? 0.32 : 0);
-  const ytMult = 1 + Math.min(4, ytCount) * 0.31 + (ytConn ? 0.38 : 0);
+  const hasTt = ttCount > 0 || ttConn;
+  const hasFb = fbCount > 0 || fbConn;
+  const hasYt = ytCount > 0 || ytConn;
 
   const series: TrafficTimePoint[] = DEFAULT_SLOTS.map((slot, h) => {
     const ttW = h >= 19 && h <= 22 ? 1.65 : h === 12 ? 1.2 : h >= 17 ? 1.25 : h >= 7 ? 0.72 : 0.35;
     const fbW = h >= 20 && h <= 21 ? 1.48 : h === 12 || h === 13 ? 1.32 : h >= 8 ? 0.8 : 0.3;
     const ytW = h >= 19 && h <= 22 ? 1.62 : h >= 11 && h <= 13 ? 0.98 : h >= 7 ? 0.68 : 0.32;
-    const tiktok = Math.round(420 * ttW * ttMult);
-    const facebook = Math.round(330 * fbW * fbMult);
-    const youtube = Math.round(390 * ytW * ytMult);
+    const tiktok = hasTt ? Math.round((ttCount * 18 + (ttConn ? 24 : 0)) * ttW) : 0;
+    const facebook = hasFb ? Math.round((fbCount * 15 + (fbConn ? 20 : 0)) * fbW) : 0;
+    const youtube = hasYt ? Math.round((ytCount * 20 + (ytConn ? 28 : 0)) * ytW) : 0;
     return {
       slot,
       hour: h,
@@ -114,7 +114,7 @@ function computeLocalTrafficSnapshot(
     youtube: series.reduce((acc, s) => acc + s.youtube, 0),
     all: series.reduce((acc, s) => acc + s.total, 0),
   };
-  const peak = [...series].sort((a, b) => b.total - a.total)[0] || series[20];
+  const peak = totals.all > 0 ? ([...series].sort((a, b) => b.total - a.total)[0] || series[20]) : series[20];
 
   return {
     success: true,
@@ -131,12 +131,12 @@ function computeLocalTrafficSnapshot(
     totals,
     activeVideos: { tiktok: ttCount, facebook: fbCount, youtube: ytCount },
     engagementRate: {
-      tiktok: +(7.8 + ttCount * 0.4).toFixed(1),
-      facebook: +(5.4 + fbCount * 0.35).toFixed(1),
-      youtube: +(6.6 + ytCount * 0.42).toFixed(1),
+      tiktok: hasTt ? +(4.5 + Math.min(4.5, ttCount * 0.6)).toFixed(1) : 0,
+      facebook: hasFb ? +(3.8 + Math.min(4.0, fbCount * 0.5)).toFixed(1) : 0,
+      youtube: hasYt ? +(4.2 + Math.min(4.8, ytCount * 0.65)).toFixed(1) : 0,
     },
-    peakWindow: peak.slot,
-    peakTraffic: peak.total,
+    peakWindow: '20:00',
+    peakTraffic: totals.all > 0 ? peak.total : 0,
   };
 }
 
@@ -251,7 +251,8 @@ export const MiniPeakHoursAreaChart: React.FC<MiniPeakHoursAreaChartProps> = ({
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
           <span className="text-[10.5px] font-bold text-[#141413] tracking-tight truncate">
-            {traffic.geo?.countryName || 'Việt Nam'} • Ước tính giờ vàng
+            {traffic.geo?.countryName || 'Việt Nam'} •{' '}
+            {traffic.totals.all > 0 ? 'Lưu lượng cá nhân' : '0 lượt xem (Chờ kết nối kênh)'}
           </span>
         </div>
         <span className="text-[9px] font-mono font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.5 rounded flex-shrink-0">

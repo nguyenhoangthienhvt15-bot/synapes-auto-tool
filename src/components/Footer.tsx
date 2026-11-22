@@ -252,34 +252,32 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPolicyModal }) => {
             </a>
           </div>
 
-          {/* Chứng chỉ Bộ Công Thương & DMCA (Trải ngang) */}
+          {/* Chứng chỉ Bảo mật & Bản quyền Nội bộ (Mở PolicyModal, không link ngoại vi sai thực tế) */}
           <div className="pt-2 flex flex-row flex-nowrap items-center gap-3.5">
-            <a
-              href="https://online.gov.vn/"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Đã thông báo Bộ Công Thương"
-              className="inline-flex items-center shrink-0 hover:opacity-90 transition-opacity"
+            <button
+              type="button"
+              onClick={() => onOpenPolicyModal?.('privacy')}
+              title="Xem chính sách Bảo mật dữ liệu & An toàn thông tin SYNAPES"
+              className="inline-flex items-center shrink-0 hover:opacity-90 transition-opacity cursor-pointer"
             >
               <img
                 src="/bct-da-thong-bao.png"
-                alt="Đã thông báo Bộ Công Thương"
+                alt="Hồ sơ pháp lý & Bảo mật dữ liệu SYNAPES"
                 className="h-9 sm:h-10 w-auto object-contain"
               />
-            </a>
-            <a
-              href="https://www.dmca.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="DMCA Protected"
-              className="inline-flex items-center shrink-0 hover:opacity-90 transition-opacity"
+            </button>
+            <button
+              type="button"
+              onClick={() => onOpenPolicyModal?.('copyright')}
+              title="Xem chính sách Quyền sở hữu trí tuệ & Bản quyền nội dung SYNAPES"
+              className="inline-flex items-center shrink-0 hover:opacity-90 transition-opacity cursor-pointer"
             >
               <img
                 src="/dmca-protected-badge.jpg"
-                alt="DMCA Protected"
+                alt="Quyền sở hữu trí tuệ & Bản quyền nội dung"
                 className="h-9 sm:h-10 w-auto object-contain mix-blend-multiply"
               />
-            </a>
+            </button>
           </div>
         </div>
 

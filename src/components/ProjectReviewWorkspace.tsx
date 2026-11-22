@@ -15,6 +15,7 @@ import {
   extractCleanSubject,
 } from '../services/aiScriptGeneratorService';
 import { ProviderBrandLogo } from './AiProviderDropdown';
+import { getAuthHeaders } from '../services/userProfileService';
 import {
   Volume2, CheckCircle2, Clock,
   Edit3, Film, ExternalLink, Smartphone, Monitor,
@@ -172,7 +173,7 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
     setActiveSceneId(newId);
   };
 
-  const handleStartPublishing = (
+  const handleStartPublishing = async (
     isScheduled: boolean = false,
     pickedDateStr?: string,
     pickedTimeStr?: string
@@ -184,26 +185,93 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
     const scheduledLabel = `${tStr}, ${formattedDate} (Lịch phát sóng)`;
 
     setIsPublishingModalOpen(true);
+    setIsPublishComplete(false);
+    setPublishProgress(20);
+    setPublishStepText('Đang xác thực OAuth Token kênh đích và đồng bộ gói lưu trữ máy chủ AES-256...');
+
+    const headers = {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    };
+
+    const verifiedChannels: string[] = [];
+    const failedChannels: string[] = [];
+    const verifiedPublishedUrls: Record<string, string> = {};
+
+    const targets = Array.isArray(project.targetChannels) && project.targetChannels.length > 0
+      ? project.targetChannels
+      : ['youtube'];
+
+    for (let i = 0; i < targets.length; i++) {
+      const pf = targets[i];
+      setPublishProgress(25 + Math.round(((i + 1) / targets.length) * 40));
+      try {
+        const resp = await fetch('/api/channels/verify-publish', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            platform: pf,
+            projectId: project.id,
+          }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok && data?.success) {
+          verifiedChannels.push(pf);
+          if (data.handleOrUrl) {
+            verifiedPublishedUrls[pf] = data.handleOrUrl;
+          }
+        } else {
+          failedChannels.push(`${pf.toUpperCase()} (${data?.error || 'Chưa xác thực OAuth'})`);
+        }
+      } catch {
+        failedChannels.push(`${pf.toUpperCase()} (Lỗi kết nối kiểm định OAuth)`);
+      }
+    }
+
+    setPublishProgress(80);
+    let realArchiveUrl = project.driveBackupUrl || '';
+    try {
+      const syncResp = await fetch('/api/drive/sync-project', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ project }),
+      });
+      const syncData = await syncResp.json().catch(() => ({}));
+      if (syncResp.ok && syncData?.success) {
+        realArchiveUrl = syncData.externalFolderUrl || syncData.archiveUrl || realArchiveUrl;
+      }
+    } catch {
+      // keep existing realArchiveUrl without fabricating Google Drive URLs
+    }
+
     setPublishProgress(100);
+    setIsPublishComplete(true);
+
+    if (verifiedChannels.length === 0) {
+      setPublishStepText(
+        `Chưa thể xuất bản ra MXH vì chưa có kênh nào xác thực OAuth 2.0 hợp lệ (${failedChannels.join('; ')}). Đã lưu gói dự án trung thực vào Kho Lưu Trữ Máy Chủ AES-256${realArchiveUrl ? ` (${realArchiveUrl})` : ''}.`
+      );
+      if (realArchiveUrl) {
+        onUpdateProject({
+          ...project,
+          driveBackupUrl: realArchiveUrl,
+        });
+      }
+      return;
+    }
+
     setPublishStepText(
       isScheduled
-        ? `Đã duyệt hẹn giờ xuất bản vào lúc ${tStr} ngày ${formattedDate} và đồng bộ sang Lịch Phát Sóng!`
-        : 'Đã duyệt xuất bản ngay và đồng bộ trạng thái hoàn tất!'
+        ? `Đã xác thực OAuth cho [${verifiedChannels.join(', ')}] và duyệt hẹn giờ vào lúc ${tStr} ngày ${formattedDate}!`
+        : `Đã xác thực OAuth và đồng bộ xuất bản thật cho [${verifiedChannels.join(', ')}]${failedChannels.length > 0 ? `. Bỏ qua kênh chưa kết nối: ${failedChannels.join(', ')}` : ''}.`
     );
-    setIsPublishComplete(true);
 
     const updated: Project = {
       ...project,
       status: isScheduled ? 'scheduled' : 'published',
       scheduledTime: isScheduled ? scheduledLabel : undefined,
-      driveBackupUrl:
-        project.driveBackupUrl ||
-        `https://drive.google.com/drive/folders/SYNAPES_Drive_${project.code || project.id}`,
-      publishedUrls: {
-        youtube: 'https://youtube.com/watch?v=sample_ai_video',
-        tiktok: 'https://tiktok.com/@creator/video/sample_ai_short',
-        facebook: 'https://facebook.com/reel/sample_ai_reel',
-      },
+      driveBackupUrl: realArchiveUrl || undefined,
+      publishedUrls: verifiedPublishedUrls,
     };
     onUpdateProject(updated);
   };
@@ -1127,7 +1195,9 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                 <CheckCircle2 className="w-5 h-5 text-emerald-600" />
               </div>
               <h3 className="text-sm font-bold text-zinc-900">
-                {isPublishComplete ? 'Xuất Bản Thành Công' : 'Đang Đăng Tải Đa Nền Tảng...'}
+                {isPublishComplete
+                  ? (publishStepText.startsWith('Chưa thể') ? 'Đã Lưu Archive Máy Chủ (Chờ OAuth)' : 'Xuất Bản Thành Công')
+                  : 'Đang Xác Thực OAuth & Đồng Bộ...'}
               </h3>
               <p className="text-zinc-500 text-xs mt-1 font-mono">{publishStepText}</p>
             </div>
@@ -1184,7 +1254,7 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                     }}
                     className="btn-secondary text-xs flex items-center gap-1 cursor-pointer"
                   >
-                    <span>Kho Drive Archive</span>
+                    <span>Kho Lưu Trữ AES-256</span>
                     <ExternalLink className="w-3 h-3 text-zinc-500" />
                   </button>
                 </div>

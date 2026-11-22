@@ -365,9 +365,83 @@ export const ENGLISH_VOICE_PROFILES: VoiceProfile[] = [
   },
 ];
 
+export const MULTILINGUAL_VOICE_PROFILES: VoiceProfile[] = [
+  {
+    id: 'ja-nanami-female',
+    name: 'Nanami (Tiếng Nhật Chuẩn)',
+    language: 'ja',
+    gender: 'Nữ',
+    region: 'Tokyo Standard',
+    toneTag: 'Tự nhiên • Trong sáng',
+    description: 'Giọng nữ Nhật Bản chuẩn Tokyo (ja-JP-NanamiNeural) cho lồng tiếng & video công nghệ.',
+    sampleSentence: 'こんにちは、SYNAPES Studioのマルチ言語吹き替えデモです。',
+    pitch: 1.0,
+    rate: 1.0,
+    neuralVoiceId: 'ja-JP-NanamiNeural',
+    dspDetuneCents: 0,
+  },
+  {
+    id: 'ko-sunhi-female',
+    name: 'SunHi (Tiếng Hàn Quốc)',
+    language: 'ko',
+    gender: 'Nữ',
+    region: 'Seoul Standard',
+    toneTag: 'Hiện đại • Truyền cảm',
+    description: 'Giọng nữ Hàn Quốc chuẩn Seoul (ko-KR-SunHiNeural) cho K-Culture & review.',
+    sampleSentence: '안녕하세요, SYNAPES 스튜디오 다국어 더빙 테스트입니다.',
+    pitch: 1.0,
+    rate: 1.0,
+    neuralVoiceId: 'ko-KR-SunHiNeural',
+    dspDetuneCents: 0,
+  },
+  {
+    id: 'zh-xiaoxiao-female',
+    name: 'Xiaoxiao (Tiếng Trung Phổ Thông)',
+    language: 'zh',
+    gender: 'Nữ',
+    region: 'Beijing Mandarin',
+    toneTag: 'Chuyên nghiệp • Mạch lạc',
+    description: 'Giọng nữ tiếng Trung phổ thông (zh-CN-XiaoxiaoNeural) cho bản tin & lồng tiếng đa ngữ.',
+    sampleSentence: '您好，欢迎来到 SYNAPES 智能语音配音实验室。',
+    pitch: 1.0,
+    rate: 1.0,
+    neuralVoiceId: 'zh-CN-XiaoxiaoNeural',
+    dspDetuneCents: 0,
+  },
+  {
+    id: 'fr-denise-female',
+    name: 'Denise (Tiếng Pháp)',
+    language: 'fr',
+    gender: 'Nữ',
+    region: 'Paris Studio',
+    toneTag: 'Thanh lịch • Biên tập',
+    description: 'Giọng nữ tiếng Pháp chuẩn Paris (fr-FR-DeniseNeural).',
+    sampleSentence: 'Bonjour, bienvenue dans le studio de doublage multilingue SYNAPES.',
+    pitch: 1.0,
+    rate: 1.0,
+    neuralVoiceId: 'fr-FR-DeniseNeural',
+    dspDetuneCents: 0,
+  },
+  {
+    id: 'es-elvira-female',
+    name: 'Elvira (Tiếng Tây Ban Nha)',
+    language: 'es',
+    gender: 'Nữ',
+    region: 'Madrid Studio',
+    toneTag: 'Năng lượng • Rõ nét',
+    description: 'Giọng nữ tiếng Tây Ban Nha chuẩn Madrid (es-ES-ElviraNeural).',
+    sampleSentence: 'Hola, bienvenidos al laboratorio de doblaje multilingüe de SYNAPES Studio.',
+    pitch: 1.0,
+    rate: 1.0,
+    neuralVoiceId: 'es-ES-ElviraNeural',
+    dspDetuneCents: 0,
+  },
+];
+
 export const ALL_VOICE_PROFILES: VoiceProfile[] = [
   ...VIETNAMESE_VOICE_PROFILES,
   ...ENGLISH_VOICE_PROFILES,
+  ...MULTILINGUAL_VOICE_PROFILES,
 ];
 
 // Global Web Audio context & active audition state
@@ -507,7 +581,10 @@ export function resolveVoiceProfileById(voiceId?: string, language: VoiceLanguag
       };
     }
   }
-  return language === 'en' ? ENGLISH_VOICE_PROFILES[0] : VIETNAMESE_VOICE_PROFILES[0];
+  return (
+    ALL_VOICE_PROFILES.find((v) => v.language === language) ||
+    (language === 'en' ? ENGLISH_VOICE_PROFILES[0] : VIETNAMESE_VOICE_PROFILES[0])
+  );
 }
 
 /**
@@ -975,9 +1052,19 @@ function fallbackBrowserSpeech(
   try {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(textToSpeak);
-    utterance.lang = profile.language === 'en' ? 'en-US' : 'vi-VN';
+    const langBcp47Map: Record<VoiceLanguage, string> = {
+      vi: 'vi-VN',
+      en: 'en-US',
+      ja: 'ja-JP',
+      ko: 'ko-KR',
+      zh: 'zh-CN',
+      fr: 'fr-FR',
+      es: 'es-ES',
+    };
+    const bcp47 = langBcp47Map[profile.language] || 'vi-VN';
+    const langPrefix = bcp47.split('-')[0];
+    utterance.lang = bcp47;
     const voices = window.speechSynthesis.getVoices();
-    const langPrefix = profile.language === 'en' ? 'en' : 'vi';
     const langVoices = voices.filter((v) => v.lang.toLowerCase().startsWith(langPrefix));
     if (langVoices.length > 0) {
       // Pick distinct index if multiple voices exist
@@ -2426,7 +2513,7 @@ function applyStftSourceFilterVoiceClone(
 /**
  * Đo điểm tương đồng sinh trắc học thực tế (0..100%) giữa Tệp Mẫu Gốc và Tệp WAV Nhân Bản vừa xuất
  */
-function computeBiometricCloneSimilarity(
+export function computeBiometricCloneSimilarity(
   refAnalysis: ReferenceVoiceAnalysis,
   outCh0: Float32Array,
   sr: number
@@ -2760,11 +2847,60 @@ export async function synthesizeNeuralVoiceToAudioBuffer(
     outputF0Hz,
     outputFormantsHz: outSpec.formantsHz,
     outputSpectralEnvelope16: outSpec.bark16Db,
-    spectralMatchScore: 95,
-    f0MatchScore: 96,
-    formantMatchScore: 95,
-    cepstralMatchScore: 95,
+    spectralMatchScore: 0,
+    f0MatchScore: 0,
+    formantMatchScore: 0,
+    cepstralMatchScore: 0,
   };
+}
+
+/**
+ * Đo điểm tương đồng sinh trắc học thực tế từ Blob âm thanh bất kỳ so với mẫu tham chiếu (không dùng con số hardcoded).
+ */
+export async function computeBlobBiometricSimilarity(
+  refAnalysis: ReferenceVoiceAnalysis | null,
+  audioBlob: Blob
+): Promise<{
+  durationSec: number;
+  waveformPeaks: number[];
+  outputF0Hz: number;
+  outputFormantsHz: [number, number, number, number];
+  outputBark16: number[];
+  f0MatchScore: number;
+  formantMatchScore: number;
+  cepstralMatchScore: number;
+  spectralMatchScore: number;
+} | null> {
+  try {
+    const { ctx } = getOrCreateAuditionContext();
+    const buf = await audioBlob.arrayBuffer();
+    const decoded = await ctx.decodeAudioData(buf.slice(0));
+    const ch0 = decoded.getChannelData(0);
+    const peaks = computeWaveformPeaks(decoded, 42);
+    if (refAnalysis) {
+      const sim = computeBiometricCloneSimilarity(refAnalysis, ch0, decoded.sampleRate);
+      return {
+        durationSec: Number(decoded.duration.toFixed(2)),
+        waveformPeaks: peaks,
+        ...sim,
+      };
+    }
+    const { medianHz } = estimateTrueGlottalF0(ch0, decoded.sampleRate);
+    const spec = extractCepstralSpectralAndFormants(ch0, decoded.sampleRate, medianHz);
+    return {
+      durationSec: Number(decoded.duration.toFixed(2)),
+      waveformPeaks: peaks,
+      outputF0Hz: medianHz,
+      outputFormantsHz: spec.formantsHz,
+      outputBark16: spec.bark16Db,
+      f0MatchScore: 0,
+      formantMatchScore: 0,
+      cepstralMatchScore: 0,
+      spectralMatchScore: 0,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -2926,6 +3062,8 @@ export async function detectAudioSpeechSegmentsVAD(
   candidateLines: string[] = []
 ): Promise<{
   durationSec: number;
+  isNonSpeechTone?: boolean;
+  toneReason?: string;
   segments: { id: number; startSec: number; endSec: number; text: string }[];
   waveformPeaks: number[];
 }> {
@@ -2936,22 +3074,51 @@ export async function detectAudioSpeechSegmentsVAD(
   const data = decoded.getChannelData(0);
   const sr = decoded.sampleRate;
 
-  // Scan 50ms windows for voiced energy regions
+  // Quét các cửa sổ 50ms kiểm tra cả biên độ RMS và biến thiên Zero-Crossing Rate (ZCR) để loại sóng đơn âm/nhiễu tĩnh
   const winSamples = Math.max(1, Math.floor(sr * 0.05));
   const numWins = Math.floor(data.length / winSamples);
   const rmsList: number[] = [];
+  const zcrList: number[] = [];
   let maxRms = 0.001;
 
   for (let w = 0; w < numWins; w++) {
     let sum = 0;
+    let zc = 0;
     const base = w * winSamples;
-    for (let i = 0; i < winSamples; i += 2) {
+    for (let i = 0; i < winSamples; i++) {
       const v = data[base + i];
       sum += v * v;
+      if (i > 0 && ((v >= 0 && data[base + i - 1] < 0) || (v < 0 && data[base + i - 1] >= 0))) {
+        zc++;
+      }
     }
-    const r = Math.sqrt((sum * 2) / winSamples);
+    const r = Math.sqrt(sum / winSamples);
     if (r > maxRms) maxRms = r;
     rmsList.push(r);
+    zcrList.push(zc / winSamples);
+  }
+
+  // Phát hiện sóng sine đơn âm hoặc nhiễu ổn định (không có ngữ âm/ngắt quãng thực sự)
+  if (rmsList.length >= 6) {
+    const rmsMean = rmsList.reduce((a, b) => a + b, 0) / rmsList.length;
+    const rmsStd = Math.sqrt(rmsList.reduce((a, b) => a + (b - rmsMean) ** 2, 0) / rmsList.length);
+    const zcrMean = zcrList.reduce((a, b) => a + b, 0) / zcrList.length;
+    const zcrStd = Math.sqrt(zcrList.reduce((a, b) => a + (b - zcrMean) ** 2, 0) / zcrList.length);
+    const rmsCv = rmsStd / Math.max(0.0001, rmsMean);
+    const zcrCv = zcrStd / Math.max(0.0001, zcrMean);
+
+    if ((rmsCv < 0.08 && zcrCv < 0.06) || rmsMean < 0.002) {
+      return {
+        durationSec,
+        isNonSpeechTone: true,
+        toneReason:
+          rmsMean < 0.002
+            ? 'Tệp âm thanh hầu như im lặng (RMS < 0.002), không phát hiện tiếng nói.'
+            : `Phát hiện sóng âm đơn tần / nhiễu tĩnh liên tục (RMS CV=${rmsCv.toFixed(3)}, ZCR CV=${zcrCv.toFixed(3)}) — không phải phổ giọng nói con người.`,
+        segments: [],
+        waveformPeaks: computeWaveformPeaks(decoded, 48),
+      };
+    }
   }
 
   const threshold = Math.max(0.008, maxRms * 0.14);

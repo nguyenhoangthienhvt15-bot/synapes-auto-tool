@@ -12,7 +12,7 @@ import {
 } from './services/googleSheetService';
 import {
   getActiveSession, setActiveSession, clearActiveSession,
-  getUserProfile, saveUserProfile, EMPTY_AI_CONFIG, getDisconnectedChannels,
+  getUserProfile, saveUserProfile, EMPTY_AI_CONFIG, getDisconnectedChannels, getAuthHeaders,
   syncUserProfileToServer, restoreUserProfileFromServer, exportUserProfileBackupFile
 } from './services/userProfileService';
 
@@ -267,6 +267,7 @@ export function App() {
             localStorage.setItem(`synapes_explicit_login_${userAccount.code}`, 'true');
             if (authData.authToken) {
               sessionStorage.setItem(`synapes_auth_token_${userAccount.code.toUpperCase()}`, authData.authToken);
+              sessionStorage.setItem('synapes_auth_token', authData.authToken);
             }
           } catch { }
 
@@ -319,7 +320,7 @@ export function App() {
           code: approved.assignedCode,
           clientName: approved.fullName,
           registeredGmail: approved.email,
-          currentTempPassword: approved.assignedPassword || '[REDACTED_BY_P0_AUDIT]',
+          currentTempPassword: approved.assignedPassword || '',
           lastIssuedTime: approved.registeredAt,
           accountStatus: 'never_changed',
           engineerNotes: 'Hồ sơ duyệt từ hệ thống',
@@ -402,6 +403,7 @@ export function App() {
       if (currentUser?.code) {
         sessionStorage.removeItem(`synapes_auth_token_${currentUser.code.toUpperCase()}`);
       }
+      sessionStorage.removeItem('synapes_auth_token');
     } catch { }
     clearActiveSession();
     setCurrentUser(null);
@@ -499,7 +501,10 @@ export function App() {
     try {
       void fetch('/api/analytics/platform-traffic', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(currentUser?.code),
+        },
         body: JSON.stringify({
           userCode: currentUser?.code || '',
           platforms: newProject.targetChannels || ['youtube'],
@@ -516,15 +521,7 @@ export function App() {
   };
 
   const handleUpdateProject = (updatedProj: Project) => {
-    const finalProj: Project =
-      updatedProj.status === 'published'
-        ? {
-            ...updatedProj,
-            driveBackupUrl:
-              updatedProj.driveBackupUrl ||
-              `https://drive.google.com/drive/u/0/folders/SYNAPES_Published_Archive_${updatedProj.id}`,
-          }
-        : updatedProj;
+    const finalProj: Project = updatedProj;
 
     const updated = projects.map((p) => (p.id === finalProj.id ? finalProj : p));
     setProjects(updated);
@@ -532,28 +529,13 @@ export function App() {
       setSelectedProject(finalProj);
     }
 
-    const nextDriveConnected = isDriveConnected || finalProj.status === 'published';
-    const nextDriveEmail =
-      driveEmail || currentUser?.email || (finalProj.status === 'published' ? 'studio.archive@gmail.com' : '');
-
-    if (finalProj.status === 'published') {
-      if (!isDriveConnected) setIsDriveConnected(true);
-      if (!driveEmail && nextDriveEmail) setDriveEmail(nextDriveEmail);
-      try {
-        localStorage.setItem('synapes_drive_connected', 'true');
-        if (nextDriveEmail) {
-          localStorage.setItem('synapes_drive_email', nextDriveEmail);
-        }
-      } catch { }
-    }
-
     if (currentUser?.code) {
       saveUserProfile(currentUser.code, {
         aiConfig,
         projects: updated,
         channels,
-        driveEmail: nextDriveEmail,
-        driveConnected: nextDriveConnected,
+        driveEmail,
+        driveConnected: isDriveConnected,
       });
     }
 
@@ -561,7 +543,10 @@ export function App() {
       try {
         void fetch('/api/analytics/platform-traffic', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(currentUser?.code),
+          },
           body: JSON.stringify({
             userCode: currentUser?.code || '',
             platforms: finalProj.targetChannels || ['youtube'],
@@ -962,6 +947,7 @@ export function App() {
           <CreateProjectModal
             skills={skills}
             aiConfig={aiConfig}
+            userPlanTier={effectivePlanTier}
             onUpdateAiConfig={handleUpdateAiConfig}
             onClose={() => setIsCreateModalOpen(false)}
             onCreateProject={handleCreateProject}

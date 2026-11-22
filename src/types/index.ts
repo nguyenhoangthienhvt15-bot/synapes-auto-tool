@@ -30,7 +30,7 @@ export type ProjectStatus =
   | 'published'        // Đã xuất bản
   | 'rejected';        // Cần sửa lại
 
-export type VoiceLanguage = 'vi' | 'en';
+export type VoiceLanguage = 'vi' | 'en' | 'ja' | 'ko' | 'zh' | 'fr' | 'es';
 
 export interface VoiceFormantEQ {
   lowShelfHz: number;
@@ -196,6 +196,9 @@ export interface Project {
   }>;
   characterActors?: CharacterActor[];
   dialogueMode?: boolean;
+  model3dStyle?: Model3DStyleId;
+  multiViewReferences?: MultiViewReferenceImage[];
+  character3dAssets?: Asset3DManifest[];
   storyboard: StoryboardScene[];
   metadata: ProjectMetadata;
   aiSource: {
@@ -259,6 +262,7 @@ export interface CoreVideoRepo {
   roleInEngine: string;
   capabilities: string[];
   enabled: boolean;
+  integrationType?: 'runtime' | 'blueprint';
   sampleVideoUrl?: string;
 }
 
@@ -379,6 +383,7 @@ export interface AIProviderConfig {
     outputMapping: string;
     timeoutSeconds: number;
   };
+  threeDEngine?: Byok3DEngineConfig;
 }
 
 export interface DeconstructedScene {
@@ -584,6 +589,88 @@ export interface UserRegistrationSheetRow {
   isFinalDelivered: boolean;
   emailStatus: string;
   notes: string;
+}
+
+// ============================================================================
+// NGÀY 1: HẠ TẦNG MULTI-VIEW 3D (1–5 ẢNH), 6 CHUẨN 3D THEO GÓI & BYOK 3D ENGINE
+// ============================================================================
+
+export type Model3DStyleId =
+  | '3d-cartoon'
+  | '3d-isometric'
+  | '3d-claymation'
+  | 'low-poly-3d'
+  | 'cel-shading-npr'
+  | 'stylized-3d';
+
+export type CharacterViewSlot = 'front' | 'back' | 'left' | 'right' | 'detail';
+
+export type Byok3DEngineProvider =
+  | 'huggingface-zerogpu'
+  | 'comfyui-kaggle-worker'
+  | 'tripo3d-api'
+  | 'meshy-api'
+  | 'fal-ai';
+
+export interface MultiViewReferenceImage {
+  id: string;
+  slot: CharacterViewSlot;
+  name: string;
+  mimeType: 'image/png';
+  dataUrl: string;
+  width: number;
+  height: number;
+  sizeBytes: number;
+  laplacianSharpness: number;
+  sha256: string;
+  dinov2SimilarityToFront?: number;
+}
+
+export interface Byok3DEngineConfig {
+  provider: Byok3DEngineProvider;
+  apiKey: string;
+  workerUrl?: string;
+  modelId?: string;
+  verifiedAt?: string;
+}
+
+export interface Character3DBuildRequest {
+  characterId: string;
+  characterName: string;
+  role: 'protagonist' | 'supporting' | 'prop';
+  styleId: Model3DStyleId;
+  planTier: ContractCategory;
+  referenceImages: MultiViewReferenceImage[];
+  targetPolyCount: number;
+  autoRig: boolean;
+  sourcePrompt?: string;
+}
+
+export interface Asset3DManifest {
+  assetId: string;
+  jobId: string;
+  characterId: string;
+  characterName: string;
+  styleId: Model3DStyleId;
+  engine: string;
+  provider: Byok3DEngineProvider;
+  sourceViewCount: number;
+  sourceImageHashes: string[];
+  geometryConfidencePct: number;
+  glbUrl?: string;
+  remoteTaskId?: string;
+  rigBoneCount?: number;
+  polyCount?: number;
+  approvalStatus: 'pending' | 'reconstructing' | 'ready_for_review' | 'approved' | 'rejected' | 'failed';
+  qcReport?: {
+    passed: boolean;
+    warnings: string[];
+    visionConsistencyNote?: string;
+    averageSharpness: number;
+  };
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 

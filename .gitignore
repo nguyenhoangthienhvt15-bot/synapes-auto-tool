@@ -45,4 +45,7 @@ data/incidents/
 data/mail_outbox/
 data/audit_project_bunny_phien_7.json
 data/user_profiles/SNP_2611092202.json
+data/assets_3d_manifests.json
+__pycache__/
+*.pyc
 .github/workflows/

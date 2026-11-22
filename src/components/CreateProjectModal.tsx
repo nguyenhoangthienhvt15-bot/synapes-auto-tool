@@ -7,6 +7,10 @@ import {
   StoryboardScene,
   SocialPlatformFormatId,
   PlatformFormatPreset,
+  ContractCategory,
+  Model3DStyleId,
+  MultiViewReferenceImage,
+  Asset3DManifest,
 } from '../types';
 import {
   Sparkles,
@@ -60,10 +64,13 @@ import { dispatchScriptToPluginEngine } from '../services/pluginWebhookService';
 import { routeSemanticPipeline } from '../services/semanticPipelineRouter';
 import { runMultiAgentWritersRoom, WritersRoomSessionResult } from '../services/multiAgentWritersRoom';
 import { AiProviderDropdown, AiModelDropdown, ProviderBrandLogo } from './AiProviderDropdown';
+import { MultiView3DBuilderSection } from './MultiView3DBuilderSection';
+import { getDefault3DStyleForTier } from '../services/multiView3dService';
 
 interface CreateProjectModalProps {
   skills: Skill[];
   aiConfig: AIProviderConfig;
+  userPlanTier?: ContractCategory;
   onClose: () => void;
   onCreateProject: (project: Project) => void;
   onOpenAiSettings?: (provider?: AIProviderId) => void;
@@ -186,6 +193,7 @@ function recalculatePreviewTimeline(scenes: StoryboardScene[]): StoryboardScene[
 export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   skills: initialSkills,
   aiConfig,
+  userPlanTier = 'personal',
   onClose,
   onCreateProject,
   onOpenAiSettings,
@@ -209,6 +217,26 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [imageMotionMode, setImageMotionMode] = useState<
     'consistent-anchor' | 'hybrid-scenes' | 'distribute-gallery'
   >('hybrid-scenes');
+
+  // Ngày 1: Thiết lập Multi-View 3D (1–5 ảnh Lossless PNG) & 6 Chuẩn 3D theo gói
+  const [is3DBuilderExpanded, setIs3DBuilderExpanded] = useState(false);
+  const [has3DToggledManually, setHas3DToggledManually] = useState(false);
+  const [selected3DStyleId, setSelected3DStyleId] = useState<Model3DStyleId>(() =>
+    getDefault3DStyleForTier(userPlanTier)
+  );
+  const [multiViewReferences, setMultiViewReferences] = useState<MultiViewReferenceImage[]>([]);
+  const [character3dAssets, setCharacter3dAssets] = useState<Asset3DManifest[]>([]);
+
+  useEffect(() => {
+    if (has3DToggledManually) return;
+    const lowerPrompt = promptText.toLowerCase();
+    const looksLike3D = /\b3d\b|hoạt hình|pixar|isometric|claymation|low-poly|cel-shading|stylized/.test(
+      lowerPrompt
+    );
+    if (looksLike3D && !is3DBuilderExpanded) {
+      setIs3DBuilderExpanded(true);
+    }
+  }, [promptText, has3DToggledManually, is3DBuilderExpanded]);
 
   const handleDurationMinutesChange = (rawVal: string) => {
     const parsed = parseInt(rawVal || '0', 10);
@@ -910,7 +938,17 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       });
 
       if (!isMountedRef.current || controller.signal.aborted) return;
-      onCreateProject(result.project);
+      const enrichedProject: Project = {
+        ...result.project,
+        ...(multiViewReferences.length > 0 || is3DBuilderExpanded || character3dAssets.length > 0
+          ? {
+              model3dStyle: selected3DStyleId,
+              multiViewReferences,
+              character3dAssets,
+            }
+          : {}),
+      };
+      onCreateProject(enrichedProject);
       setIsGenerating(false);
       onClose();
     } catch (err: any) {
@@ -1958,6 +1996,31 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* 5C. HẠ TẦNG MULTI-VIEW 3D (1–5 ẢNH) & 6 CHUẨN 3D THEO GÓI (BYOK) */}
+            <MultiView3DBuilderSection
+              userPlanTier={userPlanTier}
+              aiConfig={aiConfig}
+              onUpdateAiConfig={onUpdateAiConfig}
+              onOpenAiSettings={onOpenAiSettings}
+              promptText={promptText}
+              isExpanded={is3DBuilderExpanded}
+              onToggleExpand={() => {
+                setHas3DToggledManually(true);
+                setIs3DBuilderExpanded((prev) => !prev);
+              }}
+              selectedStyleId={selected3DStyleId}
+              onChangeStyleId={setSelected3DStyleId}
+              referenceImages={multiViewReferences}
+              onChangeReferenceImages={setMultiViewReferences}
+              builtAssets={character3dAssets}
+              onAssetBuilt={(manifest) =>
+                setCharacter3dAssets((prev) => [
+                  manifest,
+                  ...prev.filter((item) => item.jobId !== manifest.jobId),
+                ])
+              }
+            />
 
             {/* Thanh tiến trình khi đang tạo */}
             {isGenerating && (

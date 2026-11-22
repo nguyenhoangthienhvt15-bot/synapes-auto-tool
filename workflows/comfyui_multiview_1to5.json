@@ -1,0 +1,121 @@
+{
+  "_meta": {
+    "title": "SYNAPES 3D Studio - Multi-View (1 to 5 Images) -> RMBG-2.0 -> Hunyuan3D-2mv / TRELLIS.2 -> UniRig -> SaveGLB",
+    "version": "1.0.0",
+    "day": "Day 1 Sprint Graph",
+    "targetHardware": "Kaggle 2xT4 / Colab Pro / Cloud GPU Worker (BYOK HF Token)",
+    "supportedStyles": {
+      "personal": ["3d-cartoon", "3d-isometric", "3d-claymation"],
+      "enterprise": ["low-poly-3d", "cel-shading-npr", "stylized-3d"]
+    }
+  },
+  "1": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "slot_1_front.png",
+      "slot": "front",
+      "required": true
+    }
+  },
+  "2": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "slot_2_back.png",
+      "slot": "back",
+      "required": false
+    }
+  },
+  "3": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "slot_3_left.png",
+      "slot": "left",
+      "required": false
+    }
+  },
+  "4": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "slot_4_right.png",
+      "slot": "right",
+      "required": false
+    }
+  },
+  "5": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "slot_5_detail.png",
+      "slot": "detail",
+      "required": false
+    }
+  },
+  "6": {
+    "class_type": "RMBG2_MultiViewCutout",
+    "inputs": {
+      "model": "briaai/RMBG-2.0",
+      "fallback_model": "ZhengPeng7/BiRefNet",
+      "min_laplacian_sharpness": 80.0,
+      "images": [
+        ["1", 0],
+        ["2", 0],
+        ["3", 0],
+        ["4", 0],
+        ["5", 0]
+      ]
+    }
+  },
+  "7": {
+    "class_type": "DINOv2_ConsistencyGate",
+    "inputs": {
+      "backbone": "facebook/dinov2-small",
+      "min_cosine_similarity": 0.72,
+      "front_anchor": ["6", 0],
+      "secondary_views": ["6", 1]
+    }
+  },
+  "8": {
+    "class_type": "Hunyuan3D2MV_MultiViewMesh",
+    "inputs": {
+      "active_when_views": [2, 3],
+      "checkpoint": "tencent/Hunyuan3D-2mv",
+      "octree_resolution": 320,
+      "inference_steps": 35,
+      "views": ["7", 0]
+    }
+  },
+  "9": {
+    "class_type": "Trellis2_MultiImageMesh",
+    "inputs": {
+      "active_when_views": [1, 4, 5],
+      "checkpoint": "JeffreyXiang/TRELLIS-image-large",
+      "texture_size": 1024,
+      "views": ["7", 0]
+    }
+  },
+  "10": {
+    "class_type": "StyleShaderProfileTag",
+    "inputs": {
+      "style_id": "3d-cartoon",
+      "target_poly_count": 36000,
+      "mesh_candidates": [
+        ["8", 0],
+        ["9", 0]
+      ]
+    }
+  },
+  "11": {
+    "class_type": "UniRig_AutoRigHumanoidQuadruped",
+    "inputs": {
+      "mesh": ["10", 0],
+      "target_bone_count": 52,
+      "decimate_max_tris": 40000
+    }
+  },
+  "12": {
+    "class_type": "SaveGLB",
+    "inputs": {
+      "rigged_asset": ["11", 0],
+      "filename_prefix": "SYNAPES_3D_MULTIVIEW_ASSET"
+    }
+  }
+}

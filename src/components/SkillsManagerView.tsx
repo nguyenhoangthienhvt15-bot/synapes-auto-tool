@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CoreVideoRepo, Skill } from '../types';
-import { SYSTEM_CORE_VIDEO_REPOS } from '../data/mockData';
+import { MCP_VIDEO_SERVERS, SYSTEM_CORE_VIDEO_REPOS } from '../data/mockData';
+import { McpVideoToolsHub } from './McpVideoToolsHub';
 import { Sparkles, Plus, Upload, Trash2, X, Play, GitBranch, ExternalLink, CheckCircle2, Cpu, Film } from 'lucide-react';
 
 export const CORE_VIDEO_REPOS_STORAGE_KEY = 'synapes_core_video_repos_v1';
@@ -20,6 +21,7 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddRepoModal, setShowAddRepoModal] = useState(false);
+  const [skillsSubTab, setSkillsSubTab] = useState<'skills' | 'mcp'>('skills');
   const [activeSampleVideo, setActiveSampleVideo] = useState<{ title: string; url: string; subtitle: string } | null>(null);
 
   const [coreRepos, setCoreRepos] = useState<CoreVideoRepo[]>(() => {
@@ -244,6 +246,42 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
         </div>
       </div>
 
+      {/* Sub-Navigation between Skills/Core Engines and Embedded MCP Video Tools Hub */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-zinc-100/80 p-1.5 rounded-xl border border-black/[0.06]">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setSkillsSubTab('skills')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              skillsSubTab === 'skills'
+                ? 'bg-zinc-950 text-white shadow-2xs'
+                : 'text-zinc-600 hover:text-zinc-950 hover:bg-white/70'
+            }`}
+          >
+            Kho Skills &amp; Core Engines ({coreRepos.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setSkillsSubTab('mcp')}
+            data-testid="skills-tab-mcp-hub"
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              skillsSubTab === 'mcp'
+                ? 'bg-zinc-950 text-white shadow-2xs'
+                : 'text-zinc-600 hover:text-zinc-950 hover:bg-white/70'
+            }`}
+          >
+            MCP Video Tools Hub &amp; Director ({MCP_VIDEO_SERVERS.length})
+          </button>
+        </div>
+        <span className="text-[10.5px] font-mono text-zinc-600 px-2">
+          Minh bạch kiến trúc: 5 NPM Runtime Thực Thi • 10 Prompt Blueprint Tham Chiếu • MCP Worker Check
+        </span>
+      </div>
+
+      {skillsSubTab === 'mcp' ? (
+        <McpVideoToolsHub servers={MCP_VIDEO_SERVERS} />
+      ) : (
+        <>
       {/* SECTION 1: CORE GITHUB VIDEO REPOS DIRECTLY INJECTED INTO ENGINE */}
       <div className="studio-card p-4 sm:p-5 space-y-3 border-emerald-500/20 bg-gradient-to-br from-emerald-50/30 via-white to-white">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/[0.06] pb-2.5">
@@ -251,25 +289,30 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
             <Cpu className="w-4 h-4 text-emerald-700" />
             <div>
               <h3 className="text-xs font-bold text-zinc-950 uppercase tracking-wide">
-                Core Video &amp; 3D Character Engines Tích Hợp Trực Tiếp (GitHub Verified)
+                Core Video &amp; 3D Character Engines (Phân Tách Runtime Thực Thi &amp; Prompt Blueprint)
               </h3>
               <p className="text-[11px] text-zinc-500">
-                Các thư viện dựng video NLE, hoạt hình nhân vật 3D &amp; đồ họa mã nguồn mở được kết nối trực tiếp vào AiCinemaPlayer và bộ sinh kịch bản
+                Hiển thị minh bạch 5 thư viện NPM đã cài Runtime thực thi trực tiếp (Three.js, Rough.js, GL-Transitions, GSAP, Lottie) và 10 kho repo mẫu kiến trúc Prompt Blueprint
               </p>
             </div>
           </div>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-            Đang kích hoạt: {coreRepos.filter((r) => r.enabled).length}/{coreRepos.length} Engines
+            5 NPM Runtime • {coreRepos.length - 5} Prompt Blueprint
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {coreRepos.map((repo) => (
+          {coreRepos.map((repo) => {
+            const isRuntimeInstalled =
+              repo.integrationType === 'runtime' || repo.roleInEngine.includes('[ĐÃ CÀI RUNTIME]');
+            return (
             <div
               key={repo.id}
               className={`p-3.5 rounded-xl border transition flex flex-col justify-between gap-2.5 ${
                 repo.enabled
-                  ? 'bg-white border-emerald-300/80 shadow-2xs'
+                  ? isRuntimeInstalled
+                    ? 'bg-white border-emerald-300/80 shadow-2xs'
+                    : 'bg-white border-slate-200 shadow-2xs'
                   : 'bg-zinc-50/70 border-black/[0.06] opacity-75'
               }`}
             >
@@ -280,6 +323,15 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
                       <span className="text-xs font-bold text-zinc-950 truncate">{repo.repo}</span>
                       <span className="px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[9.5px] font-mono font-semibold">
                         {repo.stars}
+                      </span>
+                      <span
+                        className={`px-1.5 py-0.2 rounded text-[9px] font-mono font-bold border ${
+                          isRuntimeInstalled
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                        }`}
+                      >
+                        {isRuntimeInstalled ? 'RUNTIME ACTIVE ✓' : 'PROMPT BLUEPRINT ✓'}
                       </span>
                     </div>
                     <div className="text-[11px] font-medium text-emerald-800 mt-0.5">{repo.title}</div>
@@ -328,7 +380,9 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
                     <span>Xem Video Demo</span>
                   </button>
                 ) : (
-                  <span className="text-zinc-400 font-mono">Engine Lõi</span>
+                  <span className="text-zinc-400 font-mono">
+                    {isRuntimeInstalled ? 'NPM Runtime' : 'Blueprint'}
+                  </span>
                 )}
                 <a
                   href={repo.repoUrl}
@@ -341,7 +395,8 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
                 </a>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -628,6 +683,8 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
             </form>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
