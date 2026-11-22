@@ -30,6 +30,8 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/data ./data
 COPY server.js ./
 COPY server ./server
+COPY google-apps-script ./google-apps-script
+COPY workflows ./workflows
 
 EXPOSE 10000
 
