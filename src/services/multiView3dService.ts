@@ -9,6 +9,7 @@ import type {
   Model3DStyleId,
   MultiViewReferenceImage,
 } from '../types';
+import { getAuthHeaders } from './userProfileService';
 
 export interface Model3DStyleMeta {
   id: Model3DStyleId;
@@ -466,7 +467,10 @@ export async function submitMultiView3DReconstruction(
 
   const response = await fetch('/api/assets-3d/reconstruct', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
     body: JSON.stringify({
       ...request,
       byokLlm,
@@ -489,14 +493,72 @@ export async function submitMultiView3DReconstruction(
 }
 
 export async function fetchAsset3DJobStatus(
-  jobId: string
+  jobId: string,
+  byok3dKey?: string
 ): Promise<{ success: boolean; manifest?: Asset3DManifest; error?: string }> {
   const cleanId = encodeURIComponent(jobId.trim());
-  const resp = await fetch(`/api/assets-3d/status?jobId=${cleanId}`);
+  const headers: Record<string, string> = {
+    ...getAuthHeaders(),
+  };
+  if (byok3dKey && byok3dKey.trim()) {
+    headers['X-Byok-3D-Key'] = byok3dKey.trim();
+  }
+  const resp = await fetch(`/api/assets-3d/status?jobId=${cleanId}`, {
+    method: 'GET',
+    headers,
+  });
   const data = await resp.json().catch(() => ({}));
   return {
     success: Boolean(data?.success),
     manifest: data?.manifest,
     error: data?.error,
   };
+}
+
+export interface WorkerHealthResponse {
+  success: boolean;
+  healthy: boolean;
+  latencyMs?: number;
+  error?: string;
+  worker?: {
+    status?: string;
+    version?: string;
+    cuda_available?: boolean;
+    gpu?: string;
+    vram_gb?: number;
+    tunnel_url?: string;
+    supported_styles?: string[];
+  };
+}
+
+export async function checkByok3DWorkerHealth(
+  workerUrl: string,
+  apiKey?: string
+): Promise<WorkerHealthResponse> {
+  const resp = await fetch('/api/assets-3d/worker-health', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      workerUrl: workerUrl.trim(),
+      apiKey: (apiKey || '').trim(),
+    }),
+  });
+  const data = await resp.json().catch(() => ({}));
+  return {
+    success: Boolean(data?.success),
+    healthy: Boolean(data?.healthy),
+    latencyMs: data?.latencyMs,
+    error: data?.error,
+    worker: data?.worker,
+  };
+}
+
+export function buildAuthenticatedGlbProxyUrl(jobId: string): string {
+  const hdrs = getAuthHeaders();
+  const bearer = hdrs['X-Synapes-Auth-Token'] || '';
+  const base = `/api/assets-3d/glb-proxy?jobId=${encodeURIComponent(jobId.trim())}`;
+  return bearer ? `${base}&authToken=${encodeURIComponent(bearer)}` : base;
 }

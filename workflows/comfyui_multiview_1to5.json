@@ -1,10 +1,18 @@
 {
   "_meta": {
-    "title": "SYNAPES 3D Studio - Multi-View (1 to 5 Images) -> RMBG-2.0 -> Hunyuan3D-2mv / TRELLIS.2 -> UniRig -> SaveGLB",
-    "version": "1.0.0",
-    "day": "Day 1 Sprint Graph",
+    "title": "SYNAPES 3D Studio - Multi-View (1 to 5 Images) -> RMBG-2.0 -> Hunyuan3D-2mv / TRELLIS.2 -> UniRig -> GLB Inspector -> SaveGLB",
+    "version": "2.0.0",
+    "day": "Day 2 Production Worker Graph (All 6 LABS Styles Unlocked)",
     "targetHardware": "Kaggle 2xT4 / Colab Pro / Cloud GPU Worker (BYOK HF Token)",
     "supportedStyles": {
+      "labsUnlocked": [
+        "3d-cartoon",
+        "3d-isometric",
+        "3d-claymation",
+        "low-poly-3d",
+        "cel-shading-npr",
+        "stylized-3d"
+      ],
       "personal": ["3d-cartoon", "3d-isometric", "3d-claymation"],
       "enterprise": ["low-poly-3d", "cel-shading-npr", "stylized-3d"]
     }
@@ -116,6 +124,23 @@
     "inputs": {
       "rigged_asset": ["11", 0],
       "filename_prefix": "SYNAPES_3D_MULTIVIEW_ASSET"
+    }
+  },
+  "13": {
+    "class_type": "GLB_BinaryInspector_And_StyleTag",
+    "inputs": {
+      "glb_path": ["12", 0],
+      "style_profile": ["10", 0],
+      "verify_magic_header": "glTF",
+      "inject_extras_metadata": true
+    }
+  },
+  "14": {
+    "class_type": "PublishGLB_R2_Or_LocalArtifact",
+    "inputs": {
+      "validated_glb": ["13", 0],
+      "prefer_r2_if_configured": true,
+      "fallback_route": "/api/artifacts/{filename}"
     }
   }
 }

@@ -342,6 +342,17 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   ).trim();
   const isPluginConnected =
     effectivePluginToken.length > 5 && effectivePluginEndpoint.length > 0;
+  const hasActiveLlmKey = getProviderApiKey(selectedProvider, aiConfig).trim().length > 5;
+  const has3DByokConfig =
+    aiConfig.threeDEngine?.provider === 'comfyui-kaggle-worker'
+      ? /^https:\/\//i.test((aiConfig.threeDEngine?.workerUrl || '').trim())
+      : (aiConfig.threeDEngine?.apiKey || '').trim().length > 5;
+  const isPure3DWorkflow =
+    is3DBuilderExpanded ||
+    multiViewReferences.length > 0 ||
+    character3dAssets.length > 0 ||
+    /\b3d\b|hoạt hình 3d|pixar|isometric|claymation|low-poly|cel-shading|stylized/i.test(promptText);
+  const canStartWorkflow = isPluginConnected || (isPure3DWorkflow && (hasActiveLlmKey || has3DByokConfig));
 
   const [pluginModelsList, setPluginModelsList] = useState<DiscoveredModel[]>(() =>
     getProviderModels('plugin', aiConfig)
@@ -687,9 +698,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     const finalPrompt = promptText.trim();
     if (!finalPrompt) return;
 
-    if (!isPluginConnected) {
+    if (!canStartWorkflow) {
       setKeyErrorNotice(
-        'Bắt buộc phải kết nối Plugin tạo video (API Token & Endpoint) trước khi tạo kịch bản hoặc khởi tạo video.'
+        isPure3DWorkflow
+          ? 'Dự án 3D thuần BYOK cần ít nhất 1 LLM API Key (Gemini/OpenAI...), 3D Engine Key/Worker ở mục 5B, hoặc Token Plugin ở mục 3.'
+          : 'Bắt buộc phải kết nối Plugin tạo video (API Token & Endpoint) trước khi tạo kịch bản hoặc khởi tạo video.'
       );
       return;
     }
@@ -834,9 +847,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     const finalPrompt = promptText.trim();
     if (!finalPrompt) return;
 
-    if (!isPluginConnected) {
+    if (!canStartWorkflow) {
       setKeyErrorNotice(
-        'Bắt buộc phải kết nối Plugin tạo video (API Token & Endpoint) trước khi gửi tạo dự án.'
+        isPure3DWorkflow
+          ? 'Dự án 3D thuần BYOK cần ít nhất 1 LLM API Key, 3D Engine Key/Worker ở mục 5B, hoặc Token Plugin ở mục 3.'
+          : 'Bắt buộc phải kết nối Plugin tạo video (API Token & Endpoint) trước khi gửi tạo dự án.'
       );
       return;
     }
@@ -967,8 +982,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       const enrichedProject: Project = {
         ...result.project,
         ...customBgmPatch,
-        ...(multiViewReferences.length > 0 || is3DBuilderExpanded || character3dAssets.length > 0
+        ...(isPure3DWorkflow
           ? {
+              videoGenre: '3d-animation' as const,
+              lockWikimediaSearch: true,
               model3dStyle: selected3DStyleId,
               multiViewReferences,
               character3dAssets,
@@ -2129,19 +2146,23 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               </div>
             )}
 
-            {!isPluginConnected && (
+            {!canStartWorkflow && (
               <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[11px] flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5">
                   <AlertCircle className="w-3.5 h-3.5 text-rose-600 flex-shrink-0" />
-                  <span>Bắt buộc kết nối Plugin ở mục 3 trước khi gợi ý kịch bản hoặc khởi tạo video.</span>
+                  <span>
+                    {isPure3DWorkflow
+                      ? 'Dự án 3D: Cần nhập LLM Key / 3D Engine Key (Mục 5B) hoặc kết nối Plugin (Mục 3) để khởi tạo.'
+                      : 'Bắt buộc kết nối Plugin ở mục 3 trước khi gợi ý kịch bản hoặc khởi tạo video.'}
+                  </span>
                 </div>
                 {onOpenAiSettings && (
                   <button
                     type="button"
-                    onClick={() => onOpenAiSettings('plugin')}
+                    onClick={() => onOpenAiSettings(isPure3DWorkflow ? 'gemini' : 'plugin')}
                     className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold text-[10.5px] whitespace-nowrap cursor-pointer"
                   >
-                    Kết nối Plugin
+                    {isPure3DWorkflow ? 'Cài đặt Keys' : 'Kết nối Plugin'}
                   </button>
                 )}
               </div>
@@ -2162,30 +2183,36 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 <button
                   type="button"
                   onClick={handleSuggestScript}
-                  disabled={isGenerating || !promptText.trim() || !isPluginConnected}
+                  disabled={isGenerating || !promptText.trim() || !canStartWorkflow}
                   className="px-3.5 py-1.5 rounded-lg bg-white hover:bg-zinc-100 text-zinc-800 text-xs font-semibold border border-black/[0.12] transition flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
                   title={
-                    isPluginConnected
-                      ? 'Cho phép Model AI viết kịch bản phân cảnh để bạn duyệt trước khi gửi sang Plugin'
-                      : 'Cần kết nối Plugin trước'
+                    canStartWorkflow
+                      ? 'Cho phép Model AI viết kịch bản phân cảnh để bạn duyệt trước khi dựng video'
+                      : 'Cần kết nối Plugin hoặc BYOK Key (3D)'
                   }
                 >
                   <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
                   <span>Model AI Gợi Ý Kịch Bản</span>
                 </button>
 
-                {/* Nút 2: Gửi thẳng sang Plugin và chuyển về Hàng Chờ Duyệt */}
+                {/* Nút 2: Gửi thẳng sang Plugin / Hàng chờ dựng 3D BYOK */}
                 <button
                   type="submit"
-                  disabled={isGenerating || !promptText.trim() || !isPluginConnected}
+                  disabled={isGenerating || !promptText.trim() || !canStartWorkflow}
                   className={
-                    isGenerating || !promptText.trim() || !isPluginConnected
+                    isGenerating || !promptText.trim() || !canStartWorkflow
                       ? 'px-3.5 py-1.5 rounded-lg bg-zinc-200 text-zinc-400 text-xs font-medium cursor-not-allowed border border-black/5 flex items-center gap-1.5'
                       : 'btn-primary cursor-pointer flex items-center gap-1.5 px-4 py-1.5'
                   }
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>{isGenerating ? 'Đang Khởi Tạo...' : 'Gửi Plugin & Chờ Duyệt'}</span>
+                  <span>
+                    {isGenerating
+                      ? 'Đang Khởi Tạo...'
+                      : isPure3DWorkflow && !isPluginConnected
+                        ? 'Khởi Tạo Phim 3D (BYOK)'
+                        : 'Gửi Plugin & Chờ Duyệt'}
+                  </span>
                 </button>
               </div>
             </div>
@@ -2416,12 +2443,16 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               <button
                 type="button"
                 onClick={handleDispatchScriptToPlugin}
-                disabled={isGenerating || !isPluginConnected}
+                disabled={isGenerating || !canStartWorkflow}
                 className="btn-primary cursor-pointer flex items-center gap-2 px-5 py-2 font-bold shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="w-4 h-4 text-emerald-400" />
                 <span>
-                  {isGenerating ? 'Đang Tạo Video Qua Plugin...' : 'Gửi Sang Plugin & Chuyển Về Chờ Duyệt'}
+                  {isGenerating
+                    ? 'Đang Khởi Tạo Phim...'
+                    : isPure3DWorkflow && !isPluginConnected
+                      ? 'Khởi Tạo Dự Án 3D & Chờ Duyệt'
+                      : 'Gửi Sang Plugin & Chuyển Về Chờ Duyệt'}
                 </span>
               </button>
             </div>

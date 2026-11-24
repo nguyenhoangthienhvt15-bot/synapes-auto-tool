@@ -463,7 +463,7 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
           <div>
             <div className="flex items-center gap-2.5">
               <h2 className="text-base font-bold text-zinc-950 tracking-tight">{project.title}</h2>
-              {project.status === 'pending_approval' ? (
+              {project.status === 'pending_approval' || (project.status as string) === 'pending' ? (
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-zinc-100 text-zinc-800 border border-zinc-200 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                   Chờ duyệt
@@ -525,7 +525,7 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
       </div>
 
       {/* Pending Approval Inspection Banner (Bàn làm việc Chờ Duyệt) */}
-      {project.status === 'pending_approval' && (
+      {(project.status === 'pending_approval' || (project.status as string) === 'pending') && (
         <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/25 text-zinc-900 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
           <div className="flex items-start md:items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white border border-amber-300 flex items-center justify-center shadow-xs flex-shrink-0">

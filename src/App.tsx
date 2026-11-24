@@ -718,7 +718,9 @@ export function App() {
           onSelectView={(v) => {
             setActiveView(v);
             if (v === 'pending-approval') {
-              const pending = projects.find((p) => p.status === 'pending_approval');
+              const pending = projects.find(
+                (p) => p.status === 'pending_approval' || (p.status as string) === 'pending'
+              );
               if (pending) setSelectedProject(pending);
             }
           }}
@@ -760,7 +762,14 @@ export function App() {
                     Tài khoản của bạn chưa có dự án video nào. Nhấn nút bên dưới để tạo kịch bản từ Prompt và bắt đầu sản xuất.
                   </p>
                   <button
-                    onClick={() => setIsCreateModalOpen(true)}
+                    onClick={() => {
+                      if (!currentUser || !currentUser.isLoggedIn) {
+                        showToast('⚠️ Vui lòng đăng nhập tài khoản để tạo và lưu dự án video.');
+                        setIsAuthModalOpen(true);
+                        return;
+                      }
+                      setIsCreateModalOpen(true);
+                    }}
                     className="btn-primary inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -786,7 +795,14 @@ export function App() {
                     setSelectedProject(p);
                     setActiveView('review');
                   }}
-                  onCreateNewProject={() => setIsCreateModalOpen(true)}
+                  onCreateNewProject={() => {
+                    if (!currentUser || !currentUser.isLoggedIn) {
+                      showToast('⚠️ Vui lòng đăng nhập tài khoản để tạo và lưu dự án video.');
+                      setIsAuthModalOpen(true);
+                      return;
+                    }
+                    setIsCreateModalOpen(true);
+                  }}
                   onUpdateProject={handleUpdateProject}
                   onDeleteProject={handleDeleteProject}
                   onOpenSchedule={(p) => {

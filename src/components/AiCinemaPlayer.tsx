@@ -524,10 +524,12 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     };
 
     const isPure3dStageProject =
-      effectiveGenre === '3d-animation' || effectiveDomain === 'animation-3d';
+      Boolean(project.lockWikimediaSearch) ||
+      effectiveGenre === '3d-animation' ||
+      effectiveDomain === 'animation-3d';
 
     scenes.forEach((sc, idx) => {
-      // Các dự án hoạt hình 3D dựng cảnh bằng WebGL/Canvas3D toàn màn hình: bỏ qua fetch Wikimedia/B-roll trừ khi cảnh có ảnh/video tùy chỉnh
+      // P0-4 Fix: Dự án hoạt hình 3D dựng cảnh bằng WebGL/Canvas3D toàn màn hình -> khóa triệt để tìm B-Roll / ảnh stock Wikimedia
       if (isPure3dStageProject && !sc.customMediaUrl && !sc.imageUrl && !sc.clipUrl) {
         return;
       }
@@ -542,23 +544,27 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           effectiveDomain
         );
 
-      loadCorsImage(rawSource, idx, (imgEl) => markImgLoaded(sc.id, imgEl), true);
+      if (!isPure3dStageProject || sc.customMediaUrl || sc.imageUrl) {
+        loadCorsImage(rawSource, idx, (imgEl) => markImgLoaded(sc.id, imgEl), !isPure3dStageProject);
+      }
 
-      // Preload distinct secondary evidence photo for Beat 2 Split/PiP
-      const secSource =
-        sc.secondaryImageUrl ||
-        curatedPool[(idx + Math.max(1, Math.floor(curatedPool.length / 2))) % curatedPool.length];
-      loadCorsImage(
-        secSource,
-        idx + 5,
-        (secEl) => {
-          if (!isMounted) return;
-          loadedSecondaryImagesRef.current[sc.id] = secEl;
-        },
-        false
-      );
+      // Preload distinct secondary evidence photo for Beat 2 Split/PiP (bỏ qua nếu là dự án thuần 3D)
+      if (!isPure3dStageProject) {
+        const secSource =
+          sc.secondaryImageUrl ||
+          curatedPool[(idx + Math.max(1, Math.floor(curatedPool.length / 2))) % curatedPool.length];
+        loadCorsImage(
+          secSource,
+          idx + 5,
+          (secEl) => {
+            if (!isMounted) return;
+            loadedSecondaryImagesRef.current[sc.id] = secEl;
+          },
+          false
+        );
+      }
 
-      // Preload live streaming B-Roll Video: ưu tiên clipUrl / video tải lên; không ghi đè bằng pool chung nếu cảnh đã có ảnh HD riêng
+      // Preload live streaming B-Roll Video: ưu tiên clipUrl / video tải lên; khóa hoàn toàn pool B-roll nếu là phim 3D
       const hasExplicitScenePhoto =
         Boolean(sc.imageUrl && sc.imageUrl.trim()) ||
         Boolean(sc.customMediaUrl && sc.customMediaType !== 'video');
@@ -567,7 +573,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           ? sc.customMediaUrl
           : sc.clipUrl
             ? sc.clipUrl
-            : !hasExplicitScenePhoto
+            : !isPure3dStageProject && !hasExplicitScenePhoto
               ? `/api/video-proxy?domain=${encodeURIComponent(effectiveDomain)}&idx=${idx}`
               : '';
       if (rawVideoSrc && !sc.customMediaUrl) {

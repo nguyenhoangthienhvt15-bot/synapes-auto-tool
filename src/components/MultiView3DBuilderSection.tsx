@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AIProviderConfig,
   AIProviderId,
@@ -10,13 +10,16 @@ import {
   MultiViewReferenceImage,
 } from '../types';
 import {
+  Activity,
   Box,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   Cpu,
+  Download,
   ExternalLink,
   Key,
+  RefreshCw,
   ShieldAlert,
   Sparkles,
   Trash2,
@@ -24,7 +27,10 @@ import {
 } from 'lucide-react';
 import { BYOK_3D_ENGINE_PRESETS } from '../services/aiModelDiscoveryService';
 import {
+  buildAuthenticatedGlbProxyUrl,
+  checkByok3DWorkerHealth,
   computeGeometryConfidence,
+  fetchAsset3DJobStatus,
   is3DStyleAllowedForTier,
   MODEL_3D_STYLE_CATALOG,
   prepareMultiViewLosslessSlot,
@@ -32,6 +38,7 @@ import {
   resolveActiveByokLlmCredentials,
   submitMultiView3DReconstruction,
   VIEW_SLOT_DEFINITIONS,
+  WorkerHealthResponse,
 } from '../services/multiView3dService';
 
 interface MultiView3DBuilderSectionProps {
@@ -78,6 +85,75 @@ export const MultiView3DBuilderSection: React.FC<MultiView3DBuilderSectionProps>
   const [slotError, setSlotError] = useState<string | null>(null);
   const [isReconstructing, setIsReconstructing] = useState(false);
   const [buildResponse, setBuildResponse] = useState<Reconstruct3DResponse | null>(null);
+  const [isCheckingWorker, setIsCheckingWorker] = useState(false);
+  const [workerHealth, setWorkerHealth] = useState<WorkerHealthResponse | null>(null);
+  const [isPollingStatus, setIsPollingStatus] = useState(false);
+
+  const activeManifest = buildResponse?.manifest || builtAssets[0] || null;
+
+  useEffect(() => {
+    if (!activeManifest || activeManifest.approvalStatus !== 'reconstructing') {
+      return;
+    }
+    let cancelled = false;
+    let ticks = 0;
+    const pollOnce = async () => {
+      if (cancelled || ticks >= 24) return;
+      ticks += 1;
+      try {
+        const res = await fetchAsset3DJobStatus(activeManifest.jobId, inline3DApiKey);
+        if (!cancelled && res.success && res.manifest) {
+          setBuildResponse((prev) => (prev ? { ...prev, manifest: res.manifest } : prev));
+          onAssetBuilt(res.manifest);
+        }
+      } catch {
+        // ignore transient polling error
+      }
+    };
+    const timer = window.setInterval(pollOnce, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [activeManifest?.jobId, activeManifest?.approvalStatus, inline3DApiKey]);
+
+  const handleTestWorkerHealth = async () => {
+    if (!/^https:\/\//i.test(effectiveWorkerUrl)) {
+      setWorkerHealth({
+        success: false,
+        healthy: false,
+        error: 'Worker URL phải dùng HTTPS công khai (ví dụ https://xxx.trycloudflare.com).',
+      });
+      return;
+    }
+    setIsCheckingWorker(true);
+    try {
+      const res = await checkByok3DWorkerHealth(effectiveWorkerUrl, effective3DKey);
+      setWorkerHealth(res);
+    } catch (err: any) {
+      setWorkerHealth({
+        success: false,
+        healthy: false,
+        error: err?.message || 'Lỗi kiểm tra Worker GPU.',
+      });
+    } finally {
+      setIsCheckingWorker(false);
+    }
+  };
+
+  const handleRefreshJobStatus = async () => {
+    if (!activeManifest) return;
+    setIsPollingStatus(true);
+    try {
+      const res = await fetchAsset3DJobStatus(activeManifest.jobId, effective3DKey);
+      if (res.success && res.manifest) {
+        setBuildResponse((prev) => (prev ? { ...prev, manifest: res.manifest } : prev));
+        onAssetBuilt(res.manifest);
+      }
+    } finally {
+      setIsPollingStatus(false);
+    }
+  };
 
   const confidence = computeGeometryConfidence(referenceImages);
   const byokLlm = resolveActiveByokLlmCredentials(aiConfig);
@@ -504,6 +580,18 @@ export const MultiView3DBuilderSection: React.FC<MultiView3DBuilderSectionProps>
               </div>
 
               <div className="sm:col-span-3 flex items-center justify-between sm:justify-end gap-2">
+                {active3DPreset.requiresWorkerUrl && (
+                  <button
+                    type="button"
+                    disabled={isCheckingWorker}
+                    onClick={handleTestWorkerHealth}
+                    className="px-2 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-[9.5px] font-semibold inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    title="Kiểm tra kết nối trực tiếp Worker GPU Kaggle 2×T4"
+                  >
+                    <Activity className="w-2.5 h-2.5" />
+                    <span>{isCheckingWorker ? 'Đang ping...' : 'Test GPU'}</span>
+                  </button>
+                )}
                 <a
                   href={active3DPreset.consoleUrl}
                   target="_blank"
@@ -524,6 +612,25 @@ export const MultiView3DBuilderSection: React.FC<MultiView3DBuilderSectionProps>
                 </span>
               </div>
             </div>
+
+            {active3DPreset.requiresWorkerUrl && (
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-zinc-600 bg-white/80 border border-black/[0.06] rounded-lg px-2.5 py-1.5">
+                <span>
+                  Notebook Kaggle 2×T4: <code className="font-mono text-indigo-700">kaggle_workers/SYNAPES_Day2_MultiView_3D_2xT4.ipynb</code>
+                </span>
+                {workerHealth && (
+                  <span
+                    className={`font-mono font-semibold ${
+                      workerHealth.healthy ? 'text-emerald-700' : 'text-rose-700'
+                    }`}
+                  >
+                    {workerHealth.healthy
+                      ? `${workerHealth.worker?.gpu || 'GPU Ready'} • ${workerHealth.worker?.cuda_available ? 'CUDA ✓' : 'CPU'} • ${workerHealth.latencyMs ?? 0}ms`
+                      : workerHealth.error || 'Worker không phản hồi'}
+                  </span>
+                )}
+              </div>
+            )}
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-1">
               <input
@@ -606,8 +713,36 @@ export const MultiView3DBuilderSection: React.FC<MultiView3DBuilderSectionProps>
           )}
 
           {builtAssets.length > 0 && (
-            <div className="text-[10.5px] font-mono text-emerald-800 bg-emerald-50/70 border border-emerald-200 rounded-lg px-2.5 py-1.5">
-              Đã gắn {builtAssets.length} manifest mô hình 3D vào dự án ({builtAssets[builtAssets.length - 1].jobId}).
+            <div className="text-[10.5px] font-mono text-emerald-900 bg-emerald-50/70 border border-emerald-200 rounded-lg px-2.5 py-2 space-y-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  Manifest 3D: <strong>{builtAssets[0].jobId}</strong> • Trạng thái:{' '}
+                  <strong className="uppercase">{builtAssets[0].pipelineStage || builtAssets[0].approvalStatus}</strong>
+                  {typeof builtAssets[0].polyCount === 'number' && ` • ${builtAssets[0].polyCount.toLocaleString()} tris`}
+                  {typeof builtAssets[0].rigBoneCount === 'number' && ` • ${builtAssets[0].rigBoneCount} xương`}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={isPollingStatus}
+                    onClick={handleRefreshJobStatus}
+                    className="px-2 py-0.5 rounded bg-white hover:bg-emerald-100 border border-emerald-300 text-emerald-800 text-[10px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isPollingStatus ? 'animate-spin' : ''}`} />
+                    <span>Làm mới trạng thái</span>
+                  </button>
+                  {builtAssets[0].glbUrl && (
+                    <a
+                      href={buildAuthenticatedGlbProxyUrl(builtAssets[0].jobId)}
+                      download={`${builtAssets[0].jobId}.glb`}
+                      className="px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-semibold inline-flex items-center gap-1"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>Tải .GLB</span>
+                    </a>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>

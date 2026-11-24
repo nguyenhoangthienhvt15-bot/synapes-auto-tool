@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import http from 'node:http';
 import crypto from 'node:crypto';
+import dns from 'node:dns';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
@@ -10,7 +11,7 @@ import {
   resolveActiveByokLlmCredentials,
 } from '../src/services/multiView3dService';
 import { EMPTY_AI_CONFIG } from '../src/services/userProfileService';
-import { handleStudioApiRequest } from '../server/studioBackendEngine.mjs';
+import { handleStudioApiRequest, issueServerAuthToken } from '../server/studioBackendEngine.mjs';
 
 function makePngDataUrl(seedByte: number): { dataUrl: string; expectedSha256: string } {
   // Minimal valid binary buffer (36 bytes) wrapped as PNG Data URL for server byte + SHA-256 verification
@@ -28,23 +29,25 @@ function localHttpJson(
   port: number,
   method: 'GET' | 'POST',
   urlPath: string,
-  payload?: unknown
+  payload?: unknown,
+  token: string = issueServerAuthToken('VIP-001')
 ): Promise<{ status: number; json: any }> {
   return new Promise((resolve, reject) => {
     const bodyStr = payload !== undefined ? JSON.stringify(payload) : '';
+    const headers: Record<string, string | number> = {
+      Authorization: `Bearer ${token}`,
+    };
+    if (payload !== undefined) {
+      headers['Content-Type'] = 'application/json';
+      headers['Content-Length'] = Buffer.byteLength(bodyStr);
+    }
     const req = http.request(
       {
         hostname: '127.0.0.1',
         port,
         path: urlPath,
         method,
-        headers:
-          payload !== undefined
-            ? {
-                'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(bodyStr),
-              }
-            : {},
+        headers,
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -284,6 +287,7 @@ describe('Day 1 — Multi-View 3D (1-5 Views), 3 vs 6 Style Tiering & BYOK Execu
     const v2 = makePngDataUrl(72);
     const v3 = makePngDataUrl(73);
 
+    vi.spyOn(dns.promises, 'lookup').mockResolvedValue([{ address: '104.21.45.12', family: 4 }] as any);
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any) => {
       const target = String(url);
       if (target.includes('generativelanguage.googleapis.com')) {

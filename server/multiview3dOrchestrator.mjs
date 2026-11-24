@@ -191,7 +191,74 @@ export function validateMultiViewRequestServer(body) {
   };
 }
 
-export async function runByokVisionConsistencyCheckServer(byokLlm, parsedImages, characterName, styleMeta, isSafeExternalUrl) {
+const ephemeralJobAuthMap = new Map();
+
+function saveEphemeralJobAuth(jobId, creds) {
+  while (ephemeralJobAuthMap.size >= 200) {
+    const oldest = ephemeralJobAuthMap.keys().next().value;
+    if (oldest !== undefined) ephemeralJobAuthMap.delete(oldest);
+    else break;
+  }
+  ephemeralJobAuthMap.set(jobId, { ...creds, savedAt: Date.now() });
+}
+
+async function checkUrlSafety(targetUrl, safeUrlChecker) {
+  if (!safeUrlChecker) return { ok: true };
+  const result = await safeUrlChecker(targetUrl);
+  if (typeof result === 'boolean') {
+    return { ok: result, reason: result ? 'OK' : 'URL_BLOCKED' };
+  }
+  return {
+    ok: Boolean(result?.ok),
+    reason: String(result?.reason || (result?.ok ? 'OK' : 'URL_BLOCKED')),
+  };
+}
+
+function normalizeHfSpaceHost(spaceJson, targetRepo) {
+  const rawHost = String(spaceJson?.host || '').trim();
+  if (rawHost) {
+    return /^https?:\/\//i.test(rawHost) ? rawHost.replace(/\/+$/, '') : `https://${rawHost.replace(/\/+$/, '')}`;
+  }
+  const slug = targetRepo.toLowerCase().replace('/', '-').replace(/[^a-z0-9-]/g, '-');
+  return `https://${slug}.hf.space`;
+}
+
+function extractGlbUrlFromGradioPayload(node, spaceHost) {
+  if (!node) return '';
+  if (typeof node === 'string') {
+    const s = node.trim();
+    if (/\.glb(\?|$)/i.test(s)) {
+      if (/^https:\/\//i.test(s)) return s;
+      if (s.startsWith('/')) return `${spaceHost}${s}`;
+      return `${spaceHost}/gradio_api/file=${s.replace(/^\/+/, '')}`;
+    }
+    return '';
+  }
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const hit = extractGlbUrlFromGradioPayload(item, spaceHost);
+      if (hit) return hit;
+    }
+    return '';
+  }
+  if (typeof node === 'object') {
+    for (const key of ['url', 'path', 'glb_url', 'value']) {
+      if (key in node) {
+        const hit = extractGlbUrlFromGradioPayload(node[key], spaceHost);
+        if (hit) return hit;
+      }
+    }
+    for (const val of Object.values(node)) {
+      if (val && (typeof val === 'object' || typeof val === 'string')) {
+        const hit = extractGlbUrlFromGradioPayload(val, spaceHost);
+        if (hit) return hit;
+      }
+    }
+  }
+  return '';
+}
+
+export async function runByokVisionConsistencyCheckServer(byokLlm, parsedImages, characterName, styleMeta, safeUrlChecker) {
   const provider = String(byokLlm?.provider || '').trim().toLowerCase();
   const apiKey = String(byokLlm?.apiKey || '').trim();
   if (!apiKey || apiKey.length < 10) {
@@ -210,7 +277,8 @@ export async function runByokVisionConsistencyCheckServer(byokLlm, parsedImages,
   try {
     if (provider === 'gemini') {
       const model = encodeURIComponent(String(byokLlm?.model || 'gemini-2.5-flash').trim());
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      // P1-3 Security Fix: Truyền Gemini API Key qua header x-goog-api-key thay cho query string ?key=
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
       const parts = [
         { text: prompt },
         ...parsedImages.map((img) => ({
@@ -222,7 +290,10 @@ export async function runByokVisionConsistencyCheckServer(byokLlm, parsedImages,
       ];
       const resp = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
         body: JSON.stringify({
           contents: [{ parts }],
           generationConfig: { maxOutputTokens: 180, temperature: 0.2 },
@@ -241,9 +312,10 @@ export async function runByokVisionConsistencyCheckServer(byokLlm, parsedImages,
     if (provider === 'openai') {
       const base = String(byokLlm?.endpointUrl || 'https://api.openai.com/v1').trim().replace(/\/+$/, '');
       const url = `${base}/chat/completions`;
-      if (!isSafeExternalUrl(url)) {
+      const urlSafety = await checkUrlSafety(url, safeUrlChecker);
+      if (!urlSafety.ok) {
         clearTimeout(timeout);
-        return { note: '', warning: 'Endpoint BYOK OpenAI không hợp lệ theo chính sách SSRF.' };
+        return { note: '', warning: `Endpoint BYOK OpenAI bị chặn theo chính sách SSRF/DNS (${urlSafety.reason}).` };
       }
       const resp = await fetch(url, {
         method: 'POST',
@@ -300,9 +372,11 @@ function persistAssetManifestMetadata(manifest, dataDir) {
       const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
       if (Array.isArray(parsed)) list = parsed;
     }
+    // Never write user API tokens or sensitive secrets into persistent disk manifest files
     const cleanRecord = {
       assetId: manifest.assetId,
       jobId: manifest.jobId,
+      ownerUserCode: manifest.ownerUserCode || '',
       characterId: manifest.characterId,
       characterName: manifest.characterName,
       styleId: manifest.styleId,
@@ -312,8 +386,17 @@ function persistAssetManifestMetadata(manifest, dataDir) {
       sourceImageHashes: manifest.sourceImageHashes,
       geometryConfidencePct: manifest.geometryConfidencePct,
       glbUrl: manifest.glbUrl || '',
+      polyCount: manifest.polyCount,
+      rigBoneCount: manifest.rigBoneCount,
+      pipelineStage: manifest.pipelineStage || '',
+      progressPct: typeof manifest.progressPct === 'number' ? manifest.progressPct : undefined,
+      dinov2Scores: manifest.dinov2Scores,
       remoteTaskId: manifest.remoteTaskId || '',
+      gradioSpaceHost: manifest.gradioSpaceHost || '',
+      gradioEventUrl: manifest.gradioEventUrl || '',
+      workerBaseUrl: manifest.workerBaseUrl || '',
       approvalStatus: manifest.approvalStatus,
+      errorMessage: manifest.errorMessage || '',
       qcReport: manifest.qcReport,
       createdAt: manifest.createdAt,
       updatedAt: manifest.updatedAt,
@@ -331,9 +414,12 @@ export async function dispatchByok3DReconstructionServer({
   validation,
   visionCheck,
   isSafeExternalUrl,
+  resolveAndValidateSafeUrl,
   assetsMap,
   dataDir,
+  ownerUserCode = '',
 }) {
+  const safeUrlChecker = resolveAndValidateSafeUrl || isSafeExternalUrl;
   const { styleMeta, parsedImages, sourceImageHashes, geometryConfidencePct, recommendedEngine, qcReport } = validation;
   const fullQcReport = {
     ...qcReport,
@@ -373,15 +459,20 @@ export async function dispatchByok3DReconstructionServer({
     };
   }
 
-  // Branch 1: Kaggle 2xT4 / Self-Hosted ComfyUI 3D Worker
+  // Branch 1: Kaggle 2xT4 / Self-Hosted ComfyUI 3D Worker (P1-2 DNS Rebinding Safe)
   if (provider === 'comfyui-kaggle-worker') {
-    if (!/^https:\/\//i.test(workerUrl) || !isSafeExternalUrl(workerUrl)) {
+    const cleanWorkerBase = workerUrl.replace(/\/+$/, '');
+    const urlSafety = /^https:\/\//i.test(cleanWorkerBase)
+      ? await checkUrlSafety(cleanWorkerBase, safeUrlChecker)
+      : { ok: false, reason: 'HTTPS_REQUIRED' };
+
+    if (!urlSafety.ok) {
       return {
         httpStatus: 403,
         payload: {
           success: false,
           code: 'SSRF_BLOCKED_WORKER_URL',
-          error: 'Chính sách bảo mật SSRF: Worker URL 3D bắt buộc dùng giao thức HTTPS công khai hợp lệ (ví dụ *.trycloudflare.com).',
+          error: `Chính sách bảo mật SSRF/DNS (${urlSafety.reason}): Worker URL 3D bắt buộc dùng HTTPS công khai hợp lệ và không trỏ về IP nội bộ.`,
           sourceImageHashes,
           geometryConfidencePct,
           recommendedEngine,
@@ -403,7 +494,7 @@ export async function dispatchByok3DReconstructionServer({
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 30000);
     try {
-      const targetEndpoint = `${workerUrl.replace(/\/+$/, '')}/api/reconstruct-3d`;
+      const targetEndpoint = `${cleanWorkerBase}/api/reconstruct-3d`;
       const headers = { 'Content-Type': 'application/json' };
       if (apiKey.length > 0) {
         headers.Authorization = `Bearer ${apiKey}`;
@@ -417,6 +508,7 @@ export async function dispatchByok3DReconstructionServer({
           style_id: styleMeta.id,
           target_poly_count: styleMeta.targetPolyCount,
           auto_rig: Boolean(body?.autoRig ?? true),
+          async_mode: Boolean(body?.asyncMode ?? false),
           views: parsedImages.map((img) => ({ slot: img.slot, mime_type: img.mimeType, data_url: img.dataUrl })),
           workflow: workflowTemplate,
         }),
@@ -441,26 +533,41 @@ export async function dispatchByok3DReconstructionServer({
       }
 
       const wJson = await wRes.json().catch(() => ({}));
+      const rawGlbUrl = typeof wJson?.glb_url === 'string' && wJson.glb_url ? wJson.glb_url : '';
+      const resolvedGlbUrl = rawGlbUrl
+        ? /^https?:\/\//i.test(rawGlbUrl)
+          ? rawGlbUrl
+          : `${cleanWorkerBase}${rawGlbUrl.startsWith('/') ? rawGlbUrl : `/${rawGlbUrl}`}`
+        : undefined;
+
       const manifest = {
         assetId,
         jobId,
+        ownerUserCode,
         characterId,
         characterName,
         styleId: styleMeta.id,
-        engine: modelId || recommendedEngine,
+        engine: wJson?.engine || modelId || recommendedEngine,
         provider,
         sourceViewCount: parsedImages.length,
         sourceImageHashes,
         geometryConfidencePct,
-        glbUrl: typeof wJson?.glb_url === 'string' && wJson.glb_url ? wJson.glb_url : undefined,
+        glbUrl: resolvedGlbUrl,
+        workerBaseUrl: cleanWorkerBase,
         remoteTaskId: String(wJson?.task_id || wJson?.job_id || jobId),
         rigBoneCount: typeof wJson?.rig_bone_count === 'number' ? wJson.rig_bone_count : undefined,
         polyCount: typeof wJson?.poly_count === 'number' ? wJson.poly_count : undefined,
-        approvalStatus: wJson?.glb_url ? 'ready_for_review' : 'reconstructing',
+        dinov2Scores: wJson?.dinov2_scores && typeof wJson.dinov2_scores === 'object' ? wJson.dinov2_scores : undefined,
+        pipelineStage: String(wJson?.stage || (resolvedGlbUrl ? 'glb_ready' : 'queued_on_worker')),
+        progressPct: typeof wJson?.progress_pct === 'number' ? wJson.progress_pct : (resolvedGlbUrl ? 100 : 15),
+        approvalStatus: resolvedGlbUrl ? 'ready_for_review' : 'reconstructing',
         qcReport: fullQcReport,
         createdAt: nowIso,
         updatedAt: nowIso,
       };
+      if (apiKey) {
+        saveEphemeralJobAuth(jobId, { provider, apiKey, workerBaseUrl: cleanWorkerBase });
+      }
       assetsMap.set(jobId, manifest);
       persistAssetManifestMetadata(manifest, dataDir);
       return {
@@ -491,11 +598,11 @@ export async function dispatchByok3DReconstructionServer({
     }
   }
 
-  // Branch 2: Hugging Face ZeroGPU (BYOK HF Token Verification + Real Space Dispatch)
+  // Branch 2: Hugging Face ZeroGPU (P0-2 Real Gradio /upload + /call Dispatch + SSE Queue)
   if (provider === 'huggingface-zerogpu') {
     const hfWhoamiUrl = 'https://huggingface.co/api/whoami-v2';
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
+    const timer = setTimeout(() => controller.abort(), 28000);
     try {
       const authRes = await fetch(hfWhoamiUrl, {
         method: 'GET',
@@ -527,11 +634,11 @@ export async function dispatchByok3DReconstructionServer({
         headers: { Authorization: `Bearer ${apiKey}` },
         signal: controller.signal,
       });
-      clearTimeout(timer);
       const spaceJson = spaceRes.ok ? await spaceRes.json().catch(() => ({})) : {};
       const runtimeStage = String(spaceJson?.runtime?.stage || 'UNKNOWN');
 
       if (!spaceRes.ok || runtimeStage === 'SLEEPING' || runtimeStage === 'PAUSED' || runtimeStage === 'BUILD_ERROR') {
+        clearTimeout(timer);
         return {
           httpStatus: 503,
           payload: {
@@ -546,9 +653,145 @@ export async function dispatchByok3DReconstructionServer({
         };
       }
 
+      // P0-2 Step A: Validate Space Host and Upload PNG reference views to Gradio /gradio_api/upload
+      const spaceHost = normalizeHfSpaceHost(spaceJson, targetRepo);
+      const hostSafety = await checkUrlSafety(spaceHost, safeUrlChecker);
+      if (!hostSafety.ok) {
+        clearTimeout(timer);
+        return {
+          httpStatus: 403,
+          payload: {
+            success: false,
+            code: 'SSRF_BLOCKED_HF_SPACE',
+            error: `Host Space Hugging Face bị từ chối theo chính sách SSRF/DNS (${hostSafety.reason}).`,
+            sourceImageHashes,
+            geometryConfidencePct,
+            recommendedEngine,
+            qcReport: fullQcReport,
+          },
+        };
+      }
+
+      const form = new FormData();
+      parsedImages.forEach((img, idx) => {
+        const bin = Buffer.from(img.base64, 'base64');
+        const ext = img.mimeType.includes('webp') ? 'webp' : img.mimeType.includes('jpeg') ? 'jpg' : 'png';
+        form.append('files', new Blob([bin], { type: img.mimeType }), `${img.slot}_${idx}.${ext}`);
+      });
+
+      const uploadRes = await fetch(`${spaceHost}/gradio_api/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+        signal: controller.signal,
+      });
+
+      if (!uploadRes.ok) {
+        clearTimeout(timer);
+        const upErr = await uploadRes.text().catch(() => '');
+        return {
+          httpStatus: uploadRes.status >= 400 ? uploadRes.status : 502,
+          payload: {
+            success: false,
+            code: 'HF_GRADIO_DISPATCH_FAILED',
+            error: `Không thể tải ${parsedImages.length} ảnh lên Gradio Space ${targetRepo} (HTTP ${uploadRes.status}): ${upErr.slice(0, 180)}`,
+            sourceImageHashes,
+            geometryConfidencePct,
+            recommendedEngine,
+            qcReport: fullQcReport,
+          },
+        };
+      }
+
+      const uploadedPaths = await uploadRes.json().catch(() => []);
+      if (!Array.isArray(uploadedPaths) || uploadedPaths.length === 0) {
+        clearTimeout(timer);
+        return {
+          httpStatus: 502,
+          payload: {
+            success: false,
+            code: 'HF_GRADIO_DISPATCH_FAILED',
+            error: `Gradio Space ${targetRepo} không trả về đường dẫn tệp sau khi upload.`,
+            sourceImageHashes,
+            geometryConfidencePct,
+            recommendedEngine,
+            qcReport: fullQcReport,
+          },
+        };
+      }
+
+      const fileMetaBySlot = {};
+      parsedImages.forEach((img, idx) => {
+        const upPath = String(uploadedPaths[idx] || uploadedPaths[0]);
+        fileMetaBySlot[img.slot] = { path: upPath, meta: { _type: 'gradio.FileData' } };
+      });
+
+      const gradioFnName = targetRepo === 'tencent/Hunyuan3D-2mv' ? 'generation_all' : 'image_to_3d';
+      const callPayloadData =
+        targetRepo === 'tencent/Hunyuan3D-2mv'
+          ? [
+              characterName,
+              fileMetaBySlot.front || null,
+              fileMetaBySlot.back || null,
+              fileMetaBySlot.left || null,
+              fileMetaBySlot.right || null,
+              30,
+              7.5,
+              1,
+              256,
+              true,
+            ]
+          : [fileMetaBySlot.front || Object.values(fileMetaBySlot)[0], 1, 7.5, 12];
+
+      const callRes = await fetch(`${spaceHost}/gradio_api/call/${gradioFnName}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ data: callPayloadData }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+
+      if (!callRes.ok) {
+        const callErr = await callRes.text().catch(() => '');
+        return {
+          httpStatus: callRes.status >= 400 ? callRes.status : 502,
+          payload: {
+            success: false,
+            code: 'HF_GRADIO_DISPATCH_FAILED',
+            error: `Space ${targetRepo} từ chối xếp hàng ZeroGPU (HTTP ${callRes.status}): ${callErr.slice(0, 180)}`,
+            sourceImageHashes,
+            geometryConfidencePct,
+            recommendedEngine,
+            qcReport: fullQcReport,
+          },
+        };
+      }
+
+      const callJson = await callRes.json().catch(() => ({}));
+      const eventId = String(callJson?.event_id || '').trim();
+      if (!eventId) {
+        return {
+          httpStatus: 502,
+          payload: {
+            success: false,
+            code: 'HF_GRADIO_DISPATCH_FAILED',
+            error: `Space ${targetRepo} không trả về event_id Gradio hợp lệ.`,
+            sourceImageHashes,
+            geometryConfidencePct,
+            recommendedEngine,
+            qcReport: fullQcReport,
+          },
+        };
+      }
+
+      const gradioEventUrl = `${spaceHost}/gradio_api/call/${gradioFnName}/${encodeURIComponent(eventId)}`;
       const manifest = {
         assetId,
         jobId,
+        ownerUserCode,
         characterId,
         characterName,
         styleId: styleMeta.id,
@@ -557,18 +800,23 @@ export async function dispatchByok3DReconstructionServer({
         sourceViewCount: parsedImages.length,
         sourceImageHashes,
         geometryConfidencePct,
-        remoteTaskId: `${targetRepo}:${jobId}`,
+        remoteTaskId: eventId,
+        gradioSpaceHost: spaceHost,
+        gradioEventUrl,
+        pipelineStage: 'queued_on_hf_zerogpu',
+        progressPct: 25,
         approvalStatus: 'reconstructing',
         qcReport: {
           ...fullQcReport,
           warnings: [
             ...fullQcReport.warnings,
-            `HF Account @${hfUser?.name || 'verified'} & Space ${targetRepo} (${runtimeStage}) đã xác thực; hàng đợi ZeroGPU đang xử lý.`,
+            `HF Account @${hfUser?.name || 'verified'} đã đẩy ${parsedImages.length} ảnh vào Gradio Queue ${targetRepo} (event_id=${eventId}).`,
           ],
         },
         createdAt: nowIso,
         updatedAt: nowIso,
       };
+      saveEphemeralJobAuth(jobId, { provider, apiKey });
       assetsMap.set(jobId, manifest);
       persistAssetManifestMetadata(manifest, dataDir);
       return {
@@ -606,13 +854,14 @@ export async function dispatchByok3DReconstructionServer({
     'fal-ai': `https://queue.fal.run/${(modelId || 'fal-ai/trellis/multi').replace(/^\/+/, '')}`,
   };
   const upstreamUrl = commercialEndpoints[provider];
-  if (!upstreamUrl || !isSafeExternalUrl(upstreamUrl)) {
+  const upstreamSafety = upstreamUrl ? await checkUrlSafety(upstreamUrl, safeUrlChecker) : { ok: false, reason: 'UNSUPPORTED' };
+  if (!upstreamUrl || !upstreamSafety.ok) {
     return {
       httpStatus: 400,
       payload: {
         success: false,
         code: 'UNSUPPORTED_3D_PROVIDER',
-        error: `Nhà cung cấp 3D "${provider}" không được hỗ trợ.`,
+        error: `Nhà cung cấp 3D "${provider}" không được hỗ trợ hoặc không an toàn.`,
         sourceImageHashes,
         geometryConfidencePct,
         recommendedEngine,
@@ -668,6 +917,7 @@ export async function dispatchByok3DReconstructionServer({
     const manifest = {
       assetId,
       jobId,
+      ownerUserCode,
       characterId,
       characterName,
       styleId: styleMeta.id,
@@ -677,11 +927,14 @@ export async function dispatchByok3DReconstructionServer({
       sourceImageHashes,
       geometryConfidencePct,
       remoteTaskId,
+      pipelineStage: 'queued_on_provider',
+      progressPct: 20,
       approvalStatus: 'reconstructing',
       qcReport: fullQcReport,
       createdAt: nowIso,
       updatedAt: nowIso,
     };
+    saveEphemeralJobAuth(jobId, { provider, apiKey, statusUrl: String(apiData?.status_url || '') });
     assetsMap.set(jobId, manifest);
     persistAssetManifestMetadata(manifest, dataDir);
     return {
@@ -710,4 +963,139 @@ export async function dispatchByok3DReconstructionServer({
       },
     };
   }
+}
+
+export async function pollAsset3DJobStatusServer({
+  manifest,
+  assetsMap,
+  dataDir,
+  resolveAndValidateSafeUrl,
+  isSafeExternalUrl,
+  apiKeyOverride = '',
+}) {
+  if (!manifest || manifest.approvalStatus !== 'reconstructing') {
+    return manifest;
+  }
+  const safeUrlChecker = resolveAndValidateSafeUrl || isSafeExternalUrl;
+  const cachedCreds = ephemeralJobAuthMap.get(manifest.jobId) || {};
+  const tokenToUse = (apiKeyOverride || cachedCreds.apiKey || '').trim();
+  const nextManifest = { ...manifest };
+
+  // 1. Poll Hugging Face Gradio SSE Stream (/gradio_api/call/<fn>/<event_id>)
+  if (manifest.provider === 'huggingface-zerogpu' && manifest.gradioEventUrl) {
+    const urlCheck = await checkUrlSafety(manifest.gradioEventUrl, safeUrlChecker);
+    if (!urlCheck.ok) return nextManifest;
+
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 5000);
+    try {
+      const headers = { Accept: 'text/event-stream' };
+      if (tokenToUse) headers.Authorization = `Bearer ${tokenToUse}`;
+      const sseRes = await fetch(manifest.gradioEventUrl, { headers, signal: ctl.signal });
+      const sseText = await sseRes.text().catch(() => '');
+      clearTimeout(timer);
+
+      if (sseText) {
+        const lines = sseText.split(/\r?\n/);
+        let lastEvent = '';
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (line.startsWith('event:')) {
+            lastEvent = line.slice(6).trim().toLowerCase();
+          } else if (line.startsWith('data:')) {
+            const payloadStr = line.slice(5).trim();
+            if (lastEvent === 'error') {
+              nextManifest.approvalStatus = 'failed';
+              nextManifest.pipelineStage = 'hf_gradio_error';
+              nextManifest.errorMessage = payloadStr.slice(0, 240);
+            } else if (lastEvent === 'complete' || lastEvent === 'generating') {
+              try {
+                const parsedData = JSON.parse(payloadStr);
+                const glbUrl = extractGlbUrlFromGradioPayload(parsedData, manifest.gradioSpaceHost || '');
+                if (glbUrl && lastEvent === 'complete') {
+                  nextManifest.glbUrl = glbUrl;
+                  nextManifest.approvalStatus = 'ready_for_review';
+                  nextManifest.pipelineStage = 'glb_ready';
+                  nextManifest.progressPct = 100;
+                }
+              } catch {
+                // ignore partial JSON chunk
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      clearTimeout(timer);
+    }
+  } else if (manifest.provider === 'comfyui-kaggle-worker' && manifest.workerBaseUrl && manifest.remoteTaskId) {
+    // 2. Poll Kaggle / FastAPI Worker (/api/jobs/<job_id>)
+    const jobStatusUrl = `${manifest.workerBaseUrl.replace(/\/+$/, '')}/api/jobs/${encodeURIComponent(manifest.remoteTaskId)}`;
+    const urlCheck = await checkUrlSafety(jobStatusUrl, safeUrlChecker);
+    if (urlCheck.ok) {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 5000);
+      try {
+        const headers = {};
+        if (tokenToUse) headers.Authorization = `Bearer ${tokenToUse}`;
+        const wRes = await fetch(jobStatusUrl, { headers, signal: ctl.signal });
+        clearTimeout(timer);
+        if (wRes.ok) {
+          const wData = await wRes.json().catch(() => ({}));
+          if (wData.stage) nextManifest.pipelineStage = String(wData.stage);
+          if (typeof wData.progress_pct === 'number') nextManifest.progressPct = wData.progress_pct;
+          if (typeof wData.poly_count === 'number') nextManifest.polyCount = wData.poly_count;
+          if (typeof wData.rig_bone_count === 'number') nextManifest.rigBoneCount = wData.rig_bone_count;
+          if (wData.dinov2_scores && typeof wData.dinov2_scores === 'object') {
+            nextManifest.dinov2Scores = wData.dinov2_scores;
+          }
+          if (typeof wData.glb_url === 'string' && wData.glb_url) {
+            nextManifest.glbUrl = /^https?:\/\//i.test(wData.glb_url)
+              ? wData.glb_url
+              : `${manifest.workerBaseUrl.replace(/\/+$/, '')}${wData.glb_url.startsWith('/') ? wData.glb_url : `/${wData.glb_url}`}`;
+            nextManifest.approvalStatus = 'ready_for_review';
+            nextManifest.pipelineStage = 'glb_ready';
+            nextManifest.progressPct = 100;
+          } else if (wData.status === 'failed') {
+            nextManifest.approvalStatus = 'failed';
+            nextManifest.errorMessage = String(wData.error || 'Kaggle 3D worker execution failed.');
+          }
+        }
+      } catch {
+        clearTimeout(timer);
+      }
+    }
+  } else if (cachedCreds.statusUrl && tokenToUse) {
+    // 3. Poll Commercial BYOK provider status URL
+    const urlCheck = await checkUrlSafety(cachedCreds.statusUrl, safeUrlChecker);
+    if (urlCheck.ok) {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 5000);
+      try {
+        const authHeader = manifest.provider === 'fal-ai' ? `Key ${tokenToUse}` : `Bearer ${tokenToUse}`;
+        const pRes = await fetch(cachedCreds.statusUrl, {
+          headers: { Authorization: authHeader },
+          signal: ctl.signal,
+        });
+        clearTimeout(timer);
+        if (pRes.ok) {
+          const pJson = await pRes.json().catch(() => ({}));
+          const glbHit = extractGlbUrlFromGradioPayload(pJson, '');
+          if (glbHit) {
+            nextManifest.glbUrl = glbHit;
+            nextManifest.approvalStatus = 'ready_for_review';
+            nextManifest.pipelineStage = 'glb_ready';
+            nextManifest.progressPct = 100;
+          }
+        }
+      } catch {
+        clearTimeout(timer);
+      }
+    }
+  }
+
+  nextManifest.updatedAt = new Date().toISOString();
+  assetsMap.set(nextManifest.jobId, nextManifest);
+  persistAssetManifestMetadata(nextManifest, dataDir);
+  return nextManifest;
 }

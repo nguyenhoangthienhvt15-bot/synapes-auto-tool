@@ -613,16 +613,19 @@ export async function discoverModelsFromKey(
   const timeoutId = setTimeout(() => controller.abort(), 9000);
 
   try {
-    // 1. GOOGLE GEMINI API
+    // 1. GOOGLE GEMINI API (P1-3: Truyền key qua Header x-goog-api-key thay cho query string)
     if (provider === 'gemini') {
       const baseEndpoint = (endpointUrl || 'https://generativelanguage.googleapis.com/v1beta')
         .trim()
         .replace(/\/+$/, '');
-      const url = `${baseEndpoint}/models?key=${encodeURIComponent(cleanKey)}`;
+      const url = `${baseEndpoint}/models`;
 
       const resp = await fetch(url, {
         method: 'GET',
-        headers: { Accept: 'application/json' },
+        headers: {
+          Accept: 'application/json',
+          'x-goog-api-key': cleanKey,
+        },
         signal: controller.signal,
       });
 

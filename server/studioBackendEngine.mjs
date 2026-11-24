@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import net from 'net';
+import dns from 'dns';
 import { spawnSync } from 'child_process';
 import { dispatchCriticalIncident, CIRCUIT_BREAKERS } from './incidentReporter.mjs';
 import {
@@ -11,6 +12,7 @@ import {
   validateMultiViewRequestServer,
   runByokVisionConsistencyCheckServer,
   dispatchByok3DReconstructionServer,
+  pollAsset3DJobStatusServer,
 } from './multiview3dOrchestrator.mjs';
 
 // Danh sách đen IP vi phạm bảo mật (Anti-DevTools & Tampering Blacklist)
@@ -815,6 +817,87 @@ export function isSafeExternalUrl(rawUrl) {
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Kiểm tra IPv4/IPv6 xem có nằm trong dải Private, Loopback, Link-Local, CGNAT hay Cloud Metadata không.
+ */
+export function isPrivateOrReservedIp(ip) {
+  const clean = String(ip || '').trim().toLowerCase().replace(/^\[|\]$/g, '');
+  const ipType = net.isIP(clean);
+  if (ipType === 4) {
+    const parts = clean.split('.').map((p) => parseInt(p, 10));
+    if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return true;
+    const [b1, b2, b3] = parts;
+    if (b1 === 0) return true;
+    if (b1 === 10) return true;
+    if (b1 === 100 && b2 >= 64 && b2 <= 127) return true; // CGNAT 100.64/10
+    if (b1 === 127) return true; // Loopback
+    if (b1 === 169 && b2 === 254) return true; // Link-local & AWS/GCP Metadata
+    if (b1 === 172 && b2 >= 16 && b2 <= 31) return true;
+    if (b1 === 192 && b2 === 168) return true;
+    if (b1 === 192 && b2 === 0 && b3 === 2) return true;
+    if (b1 === 198 && b2 === 51 && b3 === 100) return true;
+    if (b1 === 203 && b2 === 0 && b3 === 113) return true;
+    if (b1 >= 224) return true; // Multicast & Reserved
+    return false;
+  }
+  if (ipType === 6) {
+    if (clean === '::' || clean === '::1') return true;
+    if (/^fe[89ab]/.test(clean)) return true; // Link-local fe80::/10
+    if (/^(fc|fd)/.test(clean)) return true; // Unique local fc00::/7
+    if (clean.includes('::ffff:')) {
+      const v4Part = clean.split('::ffff:').pop() || '';
+      return net.isIP(v4Part) === 4 ? isPrivateOrReservedIp(v4Part) : true;
+    }
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Chống tấn công DNS Rebinding SSRF (P1-2): Phân giải DNS thực tế và chặn nếu tên miền trỏ về IP nội bộ/metadata.
+ */
+export async function resolveAndValidateSafeUrl(rawUrl, options = {}) {
+  if (!isSafeExternalUrl(rawUrl)) {
+    return { ok: false, reason: 'URL_BLOCKED_STATIC', addresses: [] };
+  }
+  try {
+    const parsed = new URL(rawUrl);
+    let hostname = parsed.hostname.toLowerCase();
+    if (hostname.startsWith('[') && hostname.endsWith(']')) {
+      hostname = hostname.slice(1, -1);
+    }
+    if (net.isIP(hostname)) {
+      const blocked = isPrivateOrReservedIp(hostname);
+      return {
+        ok: !blocked,
+        reason: blocked ? 'IP_PRIVATE_OR_RESERVED' : 'OK',
+        addresses: [hostname],
+      };
+    }
+
+    const timeoutMs = Number(options.timeoutMs || 3500);
+    const lookupPromise = dns.promises.lookup(hostname, { all: true });
+    const records = await Promise.race([
+      lookupPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('DNS_TIMEOUT')), timeoutMs)),
+    ]);
+
+    if (!Array.isArray(records) || records.length === 0) {
+      return { ok: false, reason: 'DNS_NO_RECORDS', addresses: [] };
+    }
+
+    const addresses = records.map((r) => String(r?.address || '')).filter(Boolean);
+    for (const addr of addresses) {
+      if (isPrivateOrReservedIp(addr)) {
+        return { ok: false, reason: 'DNS_REBINDING_PRIVATE_IP', addresses };
+      }
+    }
+    return { ok: true, reason: 'OK', addresses };
+  } catch (err) {
+    return { ok: false, reason: `DNS_LOOKUP_FAILED:${String(err?.code || err?.message || 'ERR')}`, addresses: [] };
   }
 }
 
@@ -2274,7 +2357,7 @@ function computeServerPhoneVerifyHash(email, phoneDigits) {
     .toUpperCase();
 }
 
-function issueServerAuthToken(code) {
+export function issueServerAuthToken(code) {
   const codeNorm = String(code || '').trim().toUpperCase();
   const exp = Date.now() + 7 * 24 * 60 * 60 * 1000;
   const payload = `${codeNorm}.${exp}`;
@@ -7024,7 +7107,12 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   const sanitizePayloadValue = (val, depth = 0) => {
     if (depth > 8) return undefined;
     if (typeof val === 'string') {
-      return val.replace(/<\s*script[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '').slice(0, 120000);
+      const cleaned = val.replace(/<\s*script[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '');
+      // P0-1 Fix: Exempt valid raster image Data URLs from 120KB slice so high-res PNGs keep exact SHA-256
+      if (/^data:image\/(png|webp|jpeg);base64,/i.test(cleaned)) {
+        return cleaned.slice(0, 16000000);
+      }
+      return cleaned.slice(0, 120000);
     }
     if (typeof val === 'number' || typeof val === 'boolean' || val === null) return val;
     if (Array.isArray(val)) return val.slice(0, 200).map((item) => sanitizePayloadValue(item, depth + 1));
@@ -7255,6 +7343,9 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   }
 
   if (cleanUrl === '/api/assets-3d/status' && req.method === 'GET') {
+    const auth = requireUserAuth(req, res, '', rawUrl);
+    if (!auth) return true;
+
     const parsed = new URL(rawUrl, 'http://localhost');
     const jobId = (parsed.searchParams.get('jobId') || '').trim();
     const manifest = ASSETS_3D_JOBS.get(jobId);
@@ -7263,12 +7354,173 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       res.end(JSON.stringify({ success: false, error: 'Không tìm thấy Manifest 3D cho Job ID này.' }));
       return true;
     }
+    if (manifest.ownerUserCode && String(manifest.ownerUserCode).toUpperCase() !== auth.userCode) {
+      res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, code: 'FORBIDDEN_CROSS_USER', error: 'Không có quyền xem Manifest 3D của tài khoản khác.' }));
+      return true;
+    }
+
+    const updatedManifest = await pollAsset3DJobStatusServer({
+      manifest,
+      assetsMap: ASSETS_3D_JOBS,
+      dataDir: path.resolve(process.cwd(), 'data'),
+      resolveAndValidateSafeUrl,
+      isSafeExternalUrl,
+      apiKeyOverride: String(req.headers['x-byok-3d-key'] || '').trim(),
+    });
+
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ success: true, manifest }));
+    res.end(JSON.stringify({ success: true, manifest: updatedManifest }));
     return true;
   }
 
+  if (cleanUrl === '/api/assets-3d/worker-health' && req.method === 'POST') {
+    const auth = requireUserAuth(req, res, '', rawUrl);
+    if (!auth) return true;
+
+    try {
+      const body = sanitizePayloadValue((await readJsonBody(req)) || {}) || {};
+      const workerUrl = String(body.workerUrl || '').trim().replace(/\/+$/, '');
+      const apiKey = String(body.apiKey || '').trim();
+      if (!/^https:\/\//i.test(workerUrl)) {
+        res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, code: 'SSRF_BLOCKED_WORKER_URL', error: 'Worker URL bắt buộc dùng HTTPS công khai.' }));
+        return true;
+      }
+
+      const safety = await resolveAndValidateSafeUrl(workerUrl);
+      if (!safety.ok) {
+        res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            code: 'SSRF_BLOCKED_WORKER_URL',
+            error: `Worker URL bị từ chối bởi bộ lọc SSRF/DNS (${safety.reason}).`,
+          })
+        );
+        return true;
+      }
+
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 8000);
+      const t0 = Date.now();
+      try {
+        const headers = { Accept: 'application/json' };
+        if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+        const hRes = await fetch(`${workerUrl}/health`, { method: 'GET', headers, signal: ctl.signal });
+        clearTimeout(timer);
+        const latencyMs = Date.now() - t0;
+        if (!hRes.ok) {
+          const errTxt = await hRes.text().catch(() => '');
+          res.writeHead(hRes.status >= 400 ? hRes.status : 502, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(
+            JSON.stringify({
+              success: false,
+              healthy: false,
+              latencyMs,
+              code: 'WORKER_HEALTH_ERROR',
+              error: `Worker trả về HTTP ${hRes.status}: ${errTxt.slice(0, 160)}`,
+            })
+          );
+          return true;
+        }
+        const workerInfo = await hRes.json().catch(() => ({}));
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: true, healthy: true, latencyMs, worker: workerInfo }));
+        return true;
+      } catch (netErr) {
+        clearTimeout(timer);
+        res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            healthy: false,
+            code: 'WORKER_UNREACHABLE',
+            error: `Không kết nối được tới ${workerUrl}/health (${String(netErr?.message || netErr)})`,
+          })
+        );
+        return true;
+      }
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: String(err?.message || err) }));
+      return true;
+    }
+  }
+
+  if (cleanUrl === '/api/assets-3d/glb-proxy' && req.method === 'GET') {
+    const auth = requireUserAuth(req, res, '', rawUrl);
+    if (!auth) return true;
+
+    try {
+      const parsed = new URL(rawUrl, 'http://localhost');
+      const jobId = (parsed.searchParams.get('jobId') || '').trim();
+      const manifest = ASSETS_3D_JOBS.get(jobId);
+      if (!manifest || !manifest.glbUrl) {
+        res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, error: 'Chưa có URL tệp .GLB hợp lệ cho Job ID này.' }));
+        return true;
+      }
+      if (manifest.ownerUserCode && String(manifest.ownerUserCode).toUpperCase() !== auth.userCode) {
+        res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, code: 'FORBIDDEN_CROSS_USER', error: 'Không có quyền tải mô hình 3D của tài khoản khác.' }));
+        return true;
+      }
+
+      const safety = await resolveAndValidateSafeUrl(manifest.glbUrl);
+      if (!safety.ok) {
+        res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, code: 'SSRF_BLOCKED_GLB_URL', error: `URL .GLB bị chặn (${safety.reason}).` }));
+        return true;
+      }
+
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 25000);
+      try {
+        const upstream = await fetch(manifest.glbUrl, { signal: ctl.signal });
+        clearTimeout(timer);
+        if (!upstream.ok) {
+          res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, error: `Upstream GLB trả về HTTP ${upstream.status}` }));
+          return true;
+        }
+        const ab = await upstream.arrayBuffer();
+        if (ab.byteLength > 64 * 1024 * 1024) {
+          res.writeHead(413, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, error: 'Tệp .GLB vượt quá giới hạn 64MB.' }));
+          return true;
+        }
+        const buf = Buffer.from(ab);
+        const magic = buf.length >= 12 ? buf.subarray(0, 4).toString('ascii') : '';
+        if (magic !== 'glTF') {
+          res.writeHead(422, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, code: 'INVALID_GLB_BINARY', error: 'Dữ liệu trả về không phải tệp nhị phân glTF 2.0 (.glb) hợp lệ.' }));
+          return true;
+        }
+        res.writeHead(200, {
+          'Content-Type': 'model/gltf-binary',
+          'Content-Length': String(buf.length),
+          'Cache-Control': 'private, max-age=600',
+        });
+        res.end(buf);
+        return true;
+      } catch (fetchErr) {
+        clearTimeout(timer);
+        res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, error: `Lỗi tải .GLB: ${String(fetchErr?.message || fetchErr)}` }));
+        return true;
+      }
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: String(err?.message || err) }));
+      return true;
+    }
+  }
+
   if (cleanUrl === '/api/assets-3d/reconstruct' && req.method === 'POST') {
+    const auth = requireUserAuth(req, res, '', rawUrl);
+    if (!auth) return true;
+
     try {
       const body = sanitizePayloadValue((await readJsonBody(req, 24 * 1024 * 1024)) || {}) || {};
       const validation = validateMultiViewRequestServer(body);
@@ -7289,7 +7541,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         validation.parsedImages,
         String(body.characterName || 'Nhân vật 3D'),
         validation.styleMeta,
-        isSafeExternalUrl
+        resolveAndValidateSafeUrl
       );
 
       while (ASSETS_3D_JOBS.size >= 200) {
@@ -7303,8 +7555,10 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         validation,
         visionCheck,
         isSafeExternalUrl,
+        resolveAndValidateSafeUrl,
         assetsMap: ASSETS_3D_JOBS,
         dataDir: path.resolve(process.cwd(), 'data'),
+        ownerUserCode: auth.userCode,
       });
 
       res.writeHead(dispatchOutcome.httpStatus, { 'Content-Type': 'application/json; charset=utf-8' });

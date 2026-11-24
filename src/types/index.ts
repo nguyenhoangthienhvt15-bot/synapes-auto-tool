@@ -220,6 +220,7 @@ export interface Project {
   model3dStyle?: Model3DStyleId;
   multiViewReferences?: MultiViewReferenceImage[];
   character3dAssets?: Asset3DManifest[];
+  lockWikimediaSearch?: boolean;
   storyboard: StoryboardScene[];
   metadata: ProjectMetadata;
   aiSource: {
@@ -682,7 +683,12 @@ export interface Asset3DManifest {
   remoteTaskId?: string;
   rigBoneCount?: number;
   polyCount?: number;
+  pipelineStage?: string;
+  progressPct?: number;
+  dinov2Scores?: Record<string, number>;
+  workerBaseUrl?: string;
   approvalStatus: 'pending' | 'reconstructing' | 'ready_for_review' | 'approved' | 'rejected' | 'failed';
+  errorMessage?: string;
   qcReport?: {
     passed: boolean;
     warnings: string[];
