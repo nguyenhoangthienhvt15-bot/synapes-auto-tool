@@ -478,14 +478,14 @@ export const DOMAIN_PHOTO_POOLS = {
 export const DOMAIN_VIDEO_BROLL_POOLS = {
   'ai-cyber': [
     {
-      title: 'Microchip Silicon Wafer & Semiconductor Architecture',
-      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a5/Zoom_Into_a_Microchip.webm/Zoom_Into_a_Microchip.webm.480p.vp9.webm',
-      source: 'Wikimedia Commons Video',
+      title: 'Semiconductor Chip Assembly at NXP Cleanroom Facility',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/c/cf/Ouderen_maken_chips_bij_NXP.webm/Ouderen_maken_chips_bij_NXP.webm.480p.vp9.webm',
+      source: 'NXP / Wikimedia Commons Video',
     },
     {
-      title: 'Semiconductor Chip Assembly at NXP Facility',
-      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/c/cf/Ouderen_maken_chips_bij_NXP.webm/Ouderen_maken_chips_bij_NXP.webm.480p.vp9.webm',
-      source: 'Wikimedia Commons Video',
+      title: 'Modern AI Infrastructure & Smart Metropolis 4K Skyline',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/75/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons 4K Timelapse',
     },
     {
       title: 'Autonomous Photovoltaic Micro Robot',
@@ -522,27 +522,22 @@ export const DOMAIN_VIDEO_BROLL_POOLS = {
   ],
   finance: [
     {
-      title: 'Global Financial Market Index Dynamics Visualization',
-      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/f/f6/Dow_Jones_Sonification-_February_2008.webm/Dow_Jones_Sonification-_February_2008.webm.480p.vp9.webm',
+      title: 'Urban Financial District Timelapse Footage',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/75/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons 4K Timelapse',
+    },
+    {
+      title: 'Semiconductor Industrial Production & Global Tech Supply Chain',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/c/cf/Ouderen_maken_chips_bij_NXP.webm/Ouderen_maken_chips_bij_NXP.webm.480p.vp9.webm',
       source: 'Wikimedia Commons Archive',
     },
     {
-      title: 'Urban Financial District Timelapse Footage',
-      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/75/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm.480p.vp9.webm',
-      source: 'Wikimedia Commons 4K Downscale',
-    },
-    {
-      title: 'High-Speed Cloud Server & Fintech Infrastructure',
-      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a5/Zoom_Into_a_Microchip.webm/Zoom_Into_a_Microchip.webm.480p.vp9.webm',
-      source: 'Wikimedia Commons Tech',
+      title: 'Global Macroeconomic Trade Routes & Orbital Earth View',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a3/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm.480p.vp9.webm',
+      source: 'NASA Galileo Archive',
     },
   ],
   news: [
-    {
-      title: 'International Policy Press Briefing & Broadcast',
-      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/d/d9/Cynhadledd_i%27r_Wasg_Press_Conference_-_06.01.21.webm/Cynhadledd_i%27r_Wasg_Press_Conference_-_06.01.21.webm.480p.vp9.webm',
-      source: 'Public Broadcast Archive',
-    },
     {
       title: 'Global Metropolis Architectural Timelapse',
       url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/75/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm.480p.vp9.webm',
@@ -553,29 +548,39 @@ export const DOMAIN_VIDEO_BROLL_POOLS = {
       url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a3/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm.480p.vp9.webm',
       source: 'NASA Earth Archive',
     },
+    {
+      title: 'Cleanroom High-Tech Semiconductor Manufacturing Hub',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/c/cf/Ouderen_maken_chips_bij_NXP.webm/Ouderen_maken_chips_bij_NXP.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons Industrial',
+    },
   ],
   geopolitics: [
-    {
-      title: 'Diplomatic Summit Press Briefing Footage',
-      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/e/e7/Cynhadledd_i%27r_Wasg_Press_Conference_-_04.01.21.webm/Cynhadledd_i%27r_Wasg_Press_Conference_-_04.01.21.webm.480p.vp9.webm',
-      source: 'Public Policy Commons',
-    },
     {
       title: 'Global Orbital Telemetry & Geostrategic View',
       url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a3/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm/Earth_rotation_during_Galileo_flyby_%28ap070514%29.webm.480p.vp9.webm',
       source: 'NASA / Wikimedia Commons',
     },
+    {
+      title: 'Metropolitan Infrastructure & Global Trade Panorama',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/75/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm/2160p_Demo_-_3840x2160_pixel_4k_Video_-_a_timelapse_project_by_Florian_Friedrich.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons 4K Timelapse',
+    },
   ],
   hardware: [
-    {
-      title: 'Precision Microchip Wafer Macro Zoom',
-      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a5/Zoom_Into_a_Microchip.webm/Zoom_Into_a_Microchip.webm.480p.vp9.webm',
-      source: 'Wikimedia Commons Hardware',
-    },
     {
       title: 'Cleanroom Silicon Fabrication & Assembly',
       url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/c/cf/Ouderen_maken_chips_bij_NXP.webm/Ouderen_maken_chips_bij_NXP.webm.480p.vp9.webm',
       source: 'NXP / Wikimedia Commons',
+    },
+    {
+      title: 'Autonomous Robotics Hardware Platform',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/d/d0/The_Iris_Robot_of_the_Bureau_of_Fire_Protection.webm/The_Iris_Robot_of_the_Bureau_of_Fire_Protection.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons Hardware',
+    },
+    {
+      title: 'Photovoltaic Micro Hardware Prototype',
+      url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/1/12/Photovoltaic_bug_mini_robot.webm/Photovoltaic_bug_mini_robot.webm.480p.vp9.webm',
+      source: 'Wikimedia Commons Hardware',
     },
   ],
   history: [
@@ -1142,8 +1147,11 @@ const VI_TO_EN_TOPIC_MAP = [
   [/(?<![\p{L}\p{N}])(?:lịch sử|di sản|cổ đại)(?![\p{L}\p{N}])/iu, 'ancient architecture heritage'],
 ];
 
-const NON_TOPIC_MEDIA_TITLE_REGEX =
-  /screw|anchor|toy|cartoon|game|icon|logo|flag|pronunciation|spoken|wikipedia|album|song|romance|drama|meme|triều nguyễn|châu bản|tự điển|lệ làng|hương lệ|khải định|bảo đại|trung-kỳ|nam-kỳ|bắc-kỳ|htnb|tạp chí|newspaper|gazette|manuscript|calligraphy|sapèque|djvu|certificate|herbarium|specimen|streetcar|tramway|leica|comet|cheetah|viadukt|universidad|university|college|lebanese|hofstadter|bouresches|trench|machine_guns|wrestler|copeland|textbook|bookcover|book_cover|flowchart|schematic|diagram|signature|coat_of_arms|seal_of|crest|emblem|screenshot|map_of|frequency|allocation|relative_phase|histogram|plot|waveform|spectrum|chart|graph/i;
+export const NON_TOPIC_MEDIA_TITLE_REGEX =
+  /screw|anchor|toy|cartoon|game|icon|logo|flag|pronunciation|spoken|wikipedia|album|song|romance|drama|meme|triều nguyễn|châu bản|tự điển|lệ làng|hương lệ|khải định|bảo đại|trung-kỳ|nam-kỳ|bắc-kỳ|htnb|tạp chí|newspaper|gazette|manuscript|calligraphy|sapèque|djvu|certificate|herbarium|specimen|streetcar|tramway|leica|comet|cheetah|viadukt|universidad|university|college|lebanese|hofstadter|bouresches|trench|machine_guns|wrestler|copeland|textbook|bookcover|book_cover|flowchart|schematic|diagram|signature|coat_of_arms|seal_of|crest|emblem|screenshot|map_of|frequency|allocation|relative_phase|histogram|plot|waveform|spectrum|chart|graph|geforce|gt218|8400gs|quadro|radeon|spec|specs|specification|datasheet|infobox|comparison|benchmark|table|slide|presentation|pinout|die_shot|list_of|timeline_of|unicode|font|typeface|text_only|transcript|subtitles|black_screen|zoom_into_a_microchip|cynhadledd|sonification/i;
+
+const PHOTO_REALISM_BOOST_REGEX =
+  /photo|portrait|conference|keynote|headquarters|campus|factory|event|stage|press|launch|interview|server|datacenter|chip|wafer|silicon|cleanroom|robot|laboratory|stadium/i;
 
 export function translateQueryToEnglishKeywords(rawQuery = '') {
   const q = String(rawQuery || '').trim();
@@ -1210,10 +1218,15 @@ export async function searchWikimediaImages(query, limit = 10) {
               .replace(/^File:/i, '')
               .replace(/\.[a-z0-9]+$/i, '')
               .replace(/_/g, ' ');
+            const extMetaBlob = `${ii?.extmetadata?.Categories?.value || ''} ${ii?.extmetadata?.ImageDescription?.value || ''}`
+              .replace(/<[^>]+>/g, ' ')
+              .toLowerCase();
             if (NON_TOPIC_MEDIA_TITLE_REGEX.test(cleanImgTitle)) continue;
+            if (/specs?|datasheet|infobox|benchmark|comparison\s+table|black\s+screen|screenshots?|tables\b/i.test(extMetaBlob)) continue;
             const lowTitle = cleanImgTitle.toLowerCase();
-            const score = enTokens.reduce((acc, tok) => acc + (lowTitle.includes(tok) ? 1 : 0), 0);
+            let score = enTokens.reduce((acc, tok) => acc + (lowTitle.includes(tok) ? 1 : 0), 0);
             if (enTokens.length >= 2 && score === 0) continue;
+            if (PHOTO_REALISM_BOOST_REGEX.test(`${lowTitle} ${extMetaBlob}`)) score += 2;
             if (seenUrls.has(thumbUrl)) continue;
             seenUrls.add(thumbUrl);
             scoredResults.push({
@@ -1607,6 +1620,15 @@ function _resolveTtsLanguageMeta(langRaw = 'vi', voiceName = '') {
   return { code: EDGE_LANG_MAP[clean] ? clean : 'vi', ...resolved };
 }
 
+function _normalizeVietnameseProsodyText(text = '') {
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*([,;:.!?])\s*/g, '$1 ')
+    .replace(/\s*—\s*/g, ', ')
+    .replace(/\.{3,}/g, '... ')
+    .trim();
+}
+
 function _buildEdgeSsmlMessages(reqId, text, voiceName, ratePct, pitchHz) {
   const ts = _formatEdgeTimestamp();
   const safeRate = _normalizeEdgeProsodyParam(ratePct, '%', -50, 80);
@@ -1625,7 +1647,8 @@ function _buildEdgeSsmlMessages(reqId, text, voiceName, ratePct, pitchHz) {
         },
       },
     });
-  const escapedText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const naturalText = _normalizeVietnameseProsodyText(text);
+  const escapedText = naturalText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const langCode = _resolveTtsLanguageMeta('vi', voiceName).xmlLang;
   const ssml =
     `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${langCode}'>` +
@@ -1898,7 +1921,7 @@ function fetchGoogleNeuralTtsMp3(text, lang = 'vi') {
 function fetchOpenAiSpeech(apiKey, text, voice = 'onyx') {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify({
-      model: 'tts-1',
+      model: 'tts-1-hd',
       input: text,
       voice,
       response_format: 'mp3',
@@ -1917,6 +1940,46 @@ function fetchOpenAiSpeech(apiKey, text, voice = 'onyx') {
         if (resp.statusCode !== 200) {
           resp.resume();
           return reject(new Error(`OpenAI TTS HTTP ${resp.statusCode}`));
+        }
+        const chunks = [];
+        resp.on('data', (c) => chunks.push(c));
+        resp.on('end', () => resolve(Buffer.concat(chunks)));
+      }
+    );
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+function fetchElevenLabsSpeech(apiKey, text, voiceId = '21m00Tcm4TlvDq8ikWAM') {
+  return new Promise((resolve, reject) => {
+    const cleanVoiceId = String(voiceId || '21m00Tcm4TlvDq8ikWAM').replace(/[^A-Za-z0-9_-]/g, '') || '21m00Tcm4TlvDq8ikWAM';
+    const payload = JSON.stringify({
+      text,
+      model_id: 'eleven_multilingual_v2',
+      voice_settings: {
+        stability: 0.48,
+        similarity_boost: 0.78,
+        style: 0.25,
+        use_speaker_boost: true,
+      },
+    });
+    const req = https.request(
+      `https://api.elevenlabs.io/v1/text-to-speech/${cleanVoiceId}`,
+      {
+        method: 'POST',
+        headers: {
+          'xi-api-key': apiKey,
+          'Content-Type': 'application/json',
+          Accept: 'audio/mpeg',
+          'Content-Length': Buffer.byteLength(payload),
+        },
+      },
+      (resp) => {
+        if (resp.statusCode !== 200) {
+          resp.resume();
+          return reject(new Error(`ElevenLabs TTS HTTP ${resp.statusCode}`));
         }
         const chunks = [];
         resp.on('data', (c) => chunks.push(c));
@@ -4481,24 +4544,37 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
-  // E. NEURAL TTS ENDPOINT (/api/tts)
+  // E. NEURAL TTS ENDPOINT (/api/tts — supports GET & POST + BYOK OpenAI HD / ElevenLabs / Edge Neural)
   // --------------------------------------------------------------------------
-  if (cleanUrl === '/api/tts') {
+  if (cleanUrl === '/api/tts' && (req.method === 'GET' || req.method === 'POST')) {
     try {
       const parsedUrl = new URL(rawUrl, 'http://localhost');
-      const text = (parsedUrl.searchParams.get('text') || 'Xin chào').trim();
-      const lang = parsedUrl.searchParams.get('lang') || 'vi';
-      const langMeta = _resolveTtsLanguageMeta(lang, parsedUrl.searchParams.get('voice') || '');
-      const voice = parsedUrl.searchParams.get('voice') || langMeta.defaultVoice;
-      const ratePct = _normalizeEdgeProsodyParam(parsedUrl.searchParams.get('rate') || '+0%', '%', -50, 80);
-      const pitchHz = _normalizeEdgeProsodyParam(parsedUrl.searchParams.get('pitch') || '+0Hz', 'Hz', -65, 65);
-      const openaiKey = parsedUrl.searchParams.get('openaiKey') || '';
-      const openaiVoice = parsedUrl.searchParams.get('openaiVoice') || 'onyx';
+      const postBody = req.method === 'POST' ? ((await readJsonBody(req, 512 * 1024)) || {}) : {};
+      const text = String(postBody.text || parsedUrl.searchParams.get('text') || 'Xin chào').trim();
+      const lang = String(postBody.lang || parsedUrl.searchParams.get('lang') || 'vi');
+      const reqVoice = String(postBody.voice || parsedUrl.searchParams.get('voice') || '');
+      const langMeta = _resolveTtsLanguageMeta(lang, reqVoice);
+      const voice = reqVoice || langMeta.defaultVoice;
+      const ratePct = _normalizeEdgeProsodyParam(postBody.rate || parsedUrl.searchParams.get('rate') || '+0%', '%', -50, 80);
+      const pitchHz = _normalizeEdgeProsodyParam(postBody.pitch || parsedUrl.searchParams.get('pitch') || '+0Hz', 'Hz', -65, 65);
+      const openaiKey = String(postBody.openaiKey || req.headers['x-openai-api-key'] || parsedUrl.searchParams.get('openaiKey') || '').trim();
+      const openaiVoice = String(postBody.openaiVoice || parsedUrl.searchParams.get('openaiVoice') || 'onyx').trim();
+      const elevenlabsKey = String(postBody.elevenlabsKey || req.headers['xi-api-key'] || parsedUrl.searchParams.get('elevenlabsKey') || '').trim();
+      const elevenlabsVoiceId = String(postBody.elevenlabsVoiceId || parsedUrl.searchParams.get('elevenlabsVoiceId') || '21m00Tcm4TlvDq8ikWAM').trim();
 
       let mp3Buffer = null;
       let engineUsed = 'edge-neural';
 
-      if (openaiKey && openaiKey.startsWith('sk-')) {
+      if (elevenlabsKey.length > 10) {
+        try {
+          mp3Buffer = await fetchElevenLabsSpeech(elevenlabsKey, text, elevenlabsVoiceId);
+          engineUsed = 'elevenlabs-studio';
+        } catch {
+          mp3Buffer = null;
+        }
+      }
+
+      if (!mp3Buffer && openaiKey && openaiKey.startsWith('sk-')) {
         try {
           mp3Buffer = await fetchOpenAiSpeech(openaiKey, text, openaiVoice);
           engineUsed = 'openai-studio-hd';

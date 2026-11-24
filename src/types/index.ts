@@ -39,6 +39,13 @@ export interface VoiceFormantEQ {
   midGainDb: number;
   highShelfHz: number;
   highGainDb: number;
+  highPassHz?: number;
+  boxCutHz?: number;
+  boxCutDb?: number;
+  deEsserHz?: number;
+  deEsserDb?: number;
+  tubeWarmth?: number;
+  presenceQ?: number;
 }
 
 export interface VoiceProfile {
@@ -56,6 +63,10 @@ export interface VoiceProfile {
   neuralVoiceId?: string;
   geminiVoiceName?: string;
   openaiVoiceName?: string;
+  elevenlabsVoiceId?: string;
+  nativePitchHz?: number;
+  breathPauseMs?: number;
+  personaStyle?: string;
   dspDetuneCents?: number;
   formantEq?: VoiceFormantEQ;
   acousticSignature?: string;
@@ -79,6 +90,7 @@ export type VfxOverlayType = 'film-grain' | 'light-leak' | 'vignette' | 'anamorp
 export type SubtitleStyle = 'hormozi' | 'capcut' | 'netflix' | 'cyberpunk' | 'apple-minimal' | 'off';
 export type SubtitlePosition = 'bottom' | 'center' | 'top';
 export type VideoGenre = 'news-broadcast' | 'documentary' | 'apple-keynote' | 'finance-analysis' | 'viral-social' | '3d-animation';
+export type EditSkillPresetId = 'cinema-doc' | 'broadcast-24h' | 'viral-retention' | 'apple-keynote' | 'storytelling-3d';
 export type CameraDialogueAngle = 'master-shot' | 'shot-reverse-shot' | 'over-the-shoulder' | 'close-up-speaker' | 'two-shot';
 
 export interface CharacterActor {
@@ -139,7 +151,8 @@ export interface StoryboardScene {
   vfxOverlay?: VfxOverlayType;
   sfx?: string;
   headline?: string;
-  transition?: 'cut' | 'fade' | 'dissolve';
+  transition?: string;
+  editSkillPreset?: EditSkillPresetId;
   voiceId?: string;
   voiceLanguage?: VoiceLanguage;
   voiceSpeed?: number;
@@ -181,7 +194,15 @@ export interface Project {
     name: string;
     license: string;
     volume: number;
+    customBgmUrl?: string;
+    customBgmFileName?: string;
+    customBgmDurationSec?: number;
+    loop?: boolean;
+    fadeInSec?: number;
+    fadeOutSec?: number;
+    duckingEnabled?: boolean;
   };
+  editSkillPreset?: EditSkillPresetId;
   voiceoverTrack?: {
     name: string;
     voiceName: string;

@@ -271,7 +271,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     name: string;
     size: number;
     objectUrl: string;
+    dataUrl?: string;
+    durationSec?: number;
   } | null>(null);
+  const [attachedAudioRole, setAttachedAudioRole] = useState<'bgm' | 'voiceover'>('bgm');
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -920,7 +923,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         targetChannels: [selectedPlatformPreset.platform],
         attachedImageDataUrl: attachedImage?.dataUrl,
         attachedImages,
-        attachedAudioUrl: attachedAudio?.objectUrl,
+        attachedAudioUrl: attachedAudioRole === 'voiceover' ? attachedAudio?.objectUrl : undefined,
         signal: controller.signal,
         scriptModelName: selectedPluginModel ? `${selectedModel} → ${selectedPluginModel}` : selectedModel,
         scriptProviderName: provMeta?.name || selectedProvider,
@@ -938,8 +941,32 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       });
 
       if (!isMountedRef.current || controller.signal.aborted) return;
+      const customBgmPatch =
+        attachedAudio && attachedAudioRole === 'bgm'
+          ? {
+              musicTrack: {
+                ...(result.project.musicTrack || {
+                  name: attachedAudio.name,
+                  license: 'User Uploaded Audio',
+                  volume: 24,
+                }),
+                name: attachedAudio.name,
+                license: 'Tệp nhạc nền của bạn (MP3/WAV)',
+                volume: result.project.musicTrack?.volume ?? 24,
+                customBgmUrl: attachedAudio.dataUrl || attachedAudio.objectUrl,
+                customBgmFileName: attachedAudio.name,
+                customBgmDurationSec: attachedAudio.durationSec,
+                loop: true,
+                fadeInSec: 0.5,
+                fadeOutSec: 0.6,
+                duckingEnabled: true,
+              },
+            }
+          : {};
+
       const enrichedProject: Project = {
         ...result.project,
+        ...customBgmPatch,
         ...(multiViewReferences.length > 0 || is3DBuilderExpanded || character3dAssets.length > 0
           ? {
               model3dStyle: selected3DStyleId,
@@ -1930,24 +1957,61 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                   />
                 </div>
 
-                {/* 5B. Đính kèm Tệp Âm Thanh */}
+                {/* 5B. Đính kèm Tệp Âm Thanh (Nhạc nền MP3 / Giọng đọc Master) */}
                 <div className="p-3 rounded-xl border border-black/[0.08] bg-zinc-50/70 space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="font-semibold text-zinc-900 text-[11px] flex items-center gap-1.5">
                       <Music className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Tệp âm thanh / Voice (MP3, WAV, AAC)</span>
+                      <span>Tệp âm thanh (MP3, WAV, OGG, M4A, AAC)</span>
                     </span>
+                    <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-black/[0.08]">
+                      <button
+                        type="button"
+                        data-testid="create-audio-role-bgm"
+                        onClick={() => setAttachedAudioRole('bgm')}
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold transition cursor-pointer ${
+                          attachedAudioRole === 'bgm'
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'text-zinc-600 hover:text-zinc-900'
+                        }`}
+                      >
+                        Nhạc nền (BGM)
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="create-audio-role-voiceover"
+                        onClick={() => setAttachedAudioRole('voiceover')}
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold transition cursor-pointer ${
+                          attachedAudioRole === 'voiceover'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'text-zinc-600 hover:text-zinc-900'
+                        }`}
+                      >
+                        Giọng đọc Master
+                      </button>
+                    </div>
                   </div>
                   {attachedAudio ? (
                     <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-black/[0.08] shadow-2xs">
                       <div className="flex items-center gap-2 min-w-0">
                         <Music className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
                         <div className="min-w-0">
-                          <div className="text-[11px] font-mono text-zinc-900 truncate">
-                            {attachedAudio.name}
+                          <div className="text-[11px] font-mono text-zinc-900 truncate flex items-center gap-1.5">
+                            <span>{attachedAudio.name}</span>
+                            <span
+                              className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                attachedAudioRole === 'bgm'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-indigo-100 text-indigo-800'
+                              }`}
+                            >
+                              {attachedAudioRole === 'bgm' ? 'BGM Auto-Ducking' : 'Voice Master'}
+                            </span>
                           </div>
                           <div className="text-[10px] text-emerald-600 font-medium">
-                            {(attachedAudio.size / 1024).toFixed(0)} KB • Đã nạp Audio Track
+                            {(attachedAudio.size / 1024).toFixed(0)} KB
+                            {attachedAudio.durationSec ? ` • ${attachedAudio.durationSec}s` : ''} •{' '}
+                            {attachedAudio.dataUrl ? 'Đã lưu bền vững' : 'Đã nạp Audio Track'}
                           </div>
                         </div>
                       </div>
@@ -1974,13 +2038,15 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                       className="w-full py-2 px-3 rounded-lg bg-white hover:bg-zinc-100 text-zinc-700 border border-black/[0.1] text-[11px] font-medium flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs"
                     >
                       <Upload className="w-3.5 h-3.5 text-zinc-500" />
-                      <span>Chọn tệp âm thanh từ máy</span>
+                      <span>
+                        Chọn tệp {attachedAudioRole === 'bgm' ? 'nhạc nền MP3/WAV' : 'giọng đọc Master'} từ máy
+                      </span>
                     </button>
                   )}
                   <input
                     ref={audioInputRef}
                     type="file"
-                    accept="audio/*"
+                    accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
@@ -1991,6 +2057,31 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                       const objectUrl = URL.createObjectURL(file);
                       attachedAudioUrlRef.current = objectUrl;
                       setAttachedAudio({ name: file.name, size: file.size, objectUrl });
+
+                      // Đọc DataURL nếu <= 8MB + đo thời lượng AudioContext để không mất nhạc khi reload
+                      if (file.size <= 8 * 1024 * 1024) {
+                        const reader = new FileReader();
+                        reader.onload = async (ev) => {
+                          const dataUrl = typeof ev.target?.result === 'string' ? ev.target.result : undefined;
+                          let durationSec: number | undefined;
+                          try {
+                            const arr = await file.arrayBuffer();
+                            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+                            if (AudioCtx) {
+                              const ctx = new AudioCtx();
+                              const decoded = await ctx.decodeAudioData(arr);
+                              durationSec = Number(decoded.duration.toFixed(1));
+                              ctx.close().catch(() => {});
+                            }
+                          } catch { }
+                          setAttachedAudio((prev) =>
+                            prev && prev.objectUrl === objectUrl
+                              ? { ...prev, dataUrl, durationSec }
+                              : prev
+                          );
+                        };
+                        reader.readAsDataURL(file);
+                      }
                     }}
                   />
                 </div>

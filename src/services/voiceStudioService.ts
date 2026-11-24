@@ -1,4 +1,4 @@
-import { VoiceProfile, VoiceLanguage } from '../types';
+import { StoryboardScene, VoiceProfile, VoiceLanguage } from '../types';
 
 export const VIETNAMESE_VOICE_PROFILES: VoiceProfile[] = [
   {
@@ -9,217 +9,378 @@ export const VIETNAMESE_VOICE_PROFILES: VoiceProfile[] = [
     region: 'Toàn Quốc (Apple Commercial)',
     toneTag: 'Đĩnh đạc • Sang trọng • Keynote Master',
     description:
-      'Chất giọng phát thanh viên chính thức giới thiệu sản phẩm Apple tại Việt Nam: âm sắc trầm ấm, phát âm tròn vành rõ chữ, nhịp điệu thong thả, tự tin, chuẩn âm hưởng video quảng cáo điện ảnh.',
+      'Chất giọng nam quảng cáo sản phẩm cao cấp: SSML -10Hz trầm ấm, nhịp thong thả 0.94x, nhấn ngực 165Hz & Tube Warmth tinh tế.',
     sampleSentence:
       'Chào mừng bạn đến với kỷ nguyên công nghệ tiếp theo. Thiết kế nguyên khối Titan chuẩn hàng không vũ trụ và siêu vi xử lý thế hệ mới.',
-    pitch: 0.82,
-    rate: 0.98,
+    pitch: 0.92,
+    rate: 0.94,
     isRecommended: true,
     neuralVoiceId: 'vi-VN-NamMinhNeural',
     geminiVoiceName: 'Charon',
     openaiVoiceName: 'onyx',
-    dspDetuneCents: -420,
-    acousticSignature: '95Hz Deep Baritone • Apple Master EQ • Đen Sâu Obsidian',
+    elevenlabsVoiceId: 'pNInz6obpgDQGcFmaJgB',
+    nativePitchHz: -10,
+    breathPauseMs: 240,
+    personaStyle: 'keynote-luxury',
+    dspDetuneCents: -280,
+    acousticSignature: '98Hz Deep Baritone • SSML -10Hz • Chest +5.5dB • Air +3.2dB',
     formantEq: {
-      lowShelfHz: 180,
-      lowGainDb: 7.5,
-      midPeakingHz: 1250,
-      midGainDb: -1.5,
-      highShelfHz: 4500,
-      highGainDb: 2.5,
+      highPassHz: 82,
+      lowShelfHz: 165,
+      lowGainDb: 5.5,
+      boxCutHz: 380,
+      boxCutDb: -3.0,
+      midPeakingHz: 1350,
+      midGainDb: 2.0,
+      presenceQ: 1.2,
+      deEsserHz: 6800,
+      deEsserDb: -3.5,
+      highShelfHz: 7500,
+      highGainDb: 3.2,
+      tubeWarmth: 0.16,
     },
   },
   {
     id: 'vi-hn-male-1',
-    name: 'Anh Hoàng (Hà Nội)',
+    name: 'Anh Hoàng (Phát Thanh Viên Hà Nội)',
     language: 'vi',
     gender: 'Nam',
     region: 'Miền Bắc',
     toneTag: 'Trầm ấm • Uy lực (Baritone)',
     description:
-      'Chất giọng nam chuẩn phát thanh viên Hà Nội, dải trầm 105Hz dày và uy quyền, phong thái điềm tĩnh, tối ưu cho review công nghệ cao cấp & phóng sự.',
+      'Giọng nam chuẩn phát thanh viên Hà Nội: dải trung 1.8kHz sắc nét rõ chữ, độ ấm 185Hz vừa vặn cho thời sự & review chuyên sâu.',
     sampleSentence:
       'Chào mừng quý vị và các bạn đến với bản đánh giá chuyên sâu thiết bị công nghệ đột phá thế hệ mới.',
-    pitch: 0.86,
-    rate: 1.02,
+    pitch: 0.95,
+    rate: 1.0,
     isRecommended: true,
     neuralVoiceId: 'vi-VN-NamMinhNeural',
     geminiVoiceName: 'Charon',
     openaiVoiceName: 'onyx',
-    dspDetuneCents: -360,
-    acousticSignature: '105Hz Baritone • Trầm Dày +6.5dB • Nam Hà Nội',
+    elevenlabsVoiceId: 'VR6AewLTigWG4xSOukaG',
+    nativePitchHz: -6,
+    breathPauseMs: 210,
+    personaStyle: 'broadcast-anchor',
+    dspDetuneCents: -200,
+    acousticSignature: '108Hz HN Baritone • SSML -6Hz • Presence 1.8kHz +3.5dB',
     formantEq: {
-      lowShelfHz: 190,
-      lowGainDb: 6.5,
-      midPeakingHz: 1350,
-      midGainDb: -2.0,
-      highShelfHz: 4200,
-      highGainDb: 1.5,
+      highPassHz: 88,
+      lowShelfHz: 185,
+      lowGainDb: 4.5,
+      boxCutHz: 350,
+      boxCutDb: -2.5,
+      midPeakingHz: 1800,
+      midGainDb: 3.5,
+      presenceQ: 1.3,
+      deEsserHz: 7000,
+      deEsserDb: -3.0,
+      highShelfHz: 6500,
+      highGainDb: 2.2,
+      tubeWarmth: 0.08,
     },
   },
   {
-    id: 'vi-hn-female-1',
-    name: 'Chị Hoài My (Hà Nội)',
+    id: 'vi-doc-quoc-bao',
+    name: 'Anh Quốc Bảo (Phim Tài Liệu / Điện Ảnh)',
     language: 'vi',
-    gender: 'Nữ',
-    region: 'Miền Bắc',
-    toneTag: 'Truyền cảm • Tự nhiên (Mezzo)',
+    gender: 'Nam',
+    region: 'Toàn Quốc (Documentary)',
+    toneTag: 'Trầm sâu • Chiêm nghiệm • Cinema',
     description:
-      'Giọng nữ Hà Nội nhẹ nhàng, nhấn nhá nhịp điệu giàu cảm xúc, phát âm tròn vành rõ chữ, chuẩn phong cách podcast & kể chuyện thương hiệu.',
+      'Giọng kể phim tài liệu & lịch sử: SSML -14Hz trầm vang sâu lắng, tốc độ chậm rãi 0.90x, ngắt nghỉ dài 280ms cùng dải Tube Warmth ấm áp.',
     sampleSentence:
-      'Khám phá sự hoàn hảo trong từng đường nét thiết kế tinh xảo và trải nghiệm người dùng vượt trội.',
-    pitch: 1.04,
-    rate: 1.0,
+      'Giữa những biến động lịch sử của ngành bán dẫn, ít ai ngờ một quyết định táo bạo đã làm thay đổi toàn bộ bản đồ thế giới.',
+    pitch: 0.88,
+    rate: 0.9,
     isRecommended: true,
-    neuralVoiceId: 'vi-VN-HoaiMyNeural',
-    geminiVoiceName: 'Aoede',
-    openaiVoiceName: 'nova',
-    dspDetuneCents: 120,
-    acousticSignature: '215Hz Mezzo • Trong Trẻo +3.5dB • Nữ Hà Nội',
+    neuralVoiceId: 'vi-VN-NamMinhNeural',
+    geminiVoiceName: 'Fenrir',
+    openaiVoiceName: 'onyx',
+    elevenlabsVoiceId: 'yoZ06aMxZJJ28mfd3POQ',
+    nativePitchHz: -14,
+    breathPauseMs: 280,
+    personaStyle: 'cinema-documentary',
+    dspDetuneCents: -340,
+    acousticSignature: '90Hz Cinema Bass • SSML -14Hz • Tube Warmth 0.24',
     formantEq: {
-      lowShelfHz: 220,
-      lowGainDb: -1.5,
-      midPeakingHz: 2450,
-      midGainDb: 3.5,
-      highShelfHz: 5200,
-      highGainDb: 3.0,
+      highPassHz: 78,
+      lowShelfHz: 155,
+      lowGainDb: 6.8,
+      boxCutHz: 360,
+      boxCutDb: -3.5,
+      midPeakingHz: 1100,
+      midGainDb: 1.8,
+      presenceQ: 1.1,
+      deEsserHz: 6600,
+      deEsserDb: -4.0,
+      highShelfHz: 6000,
+      highGainDb: 1.8,
+      tubeWarmth: 0.24,
     },
   },
   {
     id: 'vi-sg-male-1',
-    name: 'Anh Nam Minh (Sài Gòn)',
+    name: 'Anh Nam Minh (Sài Gòn Năng Động)',
     language: 'vi',
     gender: 'Nam',
     region: 'Miền Nam',
     toneTag: 'Năng động • Hào sảng (Tenor)',
     description:
-      'Phong cách nam Sài Gòn phóng khoáng, trẻ trung, nhịp điệu nhanh và bắt tai, giữ nhịp tương tác cao cho TikTok Shop, YouTube Shorts & Reels.',
+      'Phong thái nam trẻ trung phóng khoáng, SSML +4Hz cao sáng, tốc độ linh hoạt 1.09x (không méo âm), tối ưu Shorts & TikTok.',
     sampleSentence:
       'Chiếc máy này thật sự quá đỉnh luôn anh em ơi! Cùng mình xem ngay tính năng đột phá ở góc trái màn hình nha!',
-    pitch: 0.94,
-    rate: 1.18,
+    pitch: 1.02,
+    rate: 1.09,
     isRecommended: true,
     neuralVoiceId: 'vi-VN-NamMinhNeural',
     geminiVoiceName: 'Puck',
     openaiVoiceName: 'echo',
-    dspDetuneCents: -180,
-    acousticSignature: '145Hz Tenor • Sáng Rõ +4.5dB • Nam Sài Gòn',
+    elevenlabsVoiceId: 'ErXwobaYiN019PkySvjV',
+    nativePitchHz: 4,
+    breathPauseMs: 165,
+    personaStyle: 'social-dynamic',
+    dspDetuneCents: 60,
+    acousticSignature: '142Hz SG Tenor • SSML +4Hz • Crisp 2.3kHz +4.5dB',
     formantEq: {
-      lowShelfHz: 230,
-      lowGainDb: 2.0,
-      midPeakingHz: 1650,
+      highPassHz: 105,
+      lowShelfHz: 200,
+      lowGainDb: 1.5,
+      boxCutHz: 420,
+      boxCutDb: -2.0,
+      midPeakingHz: 2300,
       midGainDb: 4.5,
-      highShelfHz: 4800,
-      highGainDb: 4.5,
-    },
-  },
-  {
-    id: 'vi-sg-female-1',
-    name: 'Chị Diệu Thảo (Sài Gòn)',
-    language: 'vi',
-    gender: 'Nữ',
-    region: 'Miền Nam',
-    toneTag: 'Tươi vui • Ngọt ngào (Soprano)',
-    description:
-      'Giọng nữ Sài Gòn ngọt ngào, âm sắc cao sáng tươi tắn, tạo cảm giác thân thiện gần gũi cho video ẩm thực, du lịch, lifestyle và livestream.',
-    sampleSentence:
-      'Hôm nay Thảo sẽ khui hộp siêu phẩm mới nhất và chia sẻ cảm nhận thực tế sau một tuần trải nghiệm nha mọi người ơi!',
-    pitch: 1.18,
-    rate: 1.12,
-    neuralVoiceId: 'vi-VN-HoaiMyNeural',
-    geminiVoiceName: 'Kore',
-    openaiVoiceName: 'shimmer',
-    dspDetuneCents: 340,
-    acousticSignature: '265Hz Soprano • Ngọt Sáng +6.5dB • Nữ Sài Gòn',
-    formantEq: {
-      lowShelfHz: 260,
-      lowGainDb: -4.5,
-      midPeakingHz: 2950,
-      midGainDb: 5.5,
-      highShelfHz: 6200,
-      highGainDb: 6.5,
-    },
-  },
-  {
-    id: 'vi-hue-female-1',
-    name: 'Chị Phương Linh (Huế / Miền Trung)',
-    language: 'vi',
-    gender: 'Nữ',
-    region: 'Miền Trung',
-    toneTag: 'Trữ tình • Dịu dàng • Sâu lắng',
-    description:
-      'Âm sắc nữ Huế ngọt ngào thùy mị, ngữ điệu trầm bổng tinh tế, chuẩn mực cho kịch bản du lịch, di sản, đời sống và phóng sự nghệ thuật.',
-    sampleSentence:
-      'Mời bạn cùng lắng lòng chiêm ngưỡng vẻ đẹp tĩnh lặng và những dấu ấn thời gian vượt bậc.',
-    pitch: 1.08,
-    rate: 0.96,
-    neuralVoiceId: 'vi-VN-HoaiMyNeural',
-    geminiVoiceName: 'Aoede',
-    openaiVoiceName: 'nova',
-    dspDetuneCents: 180,
-    acousticSignature: '225Hz Poetic Mezzo • Mềm Mại +4dB • Nữ Miền Trung',
-    formantEq: {
-      lowShelfHz: 230,
-      lowGainDb: -1.0,
-      midPeakingHz: 2100,
-      midGainDb: 3.8,
-      highShelfHz: 4800,
-      highGainDb: 3.5,
+      presenceQ: 1.25,
+      deEsserHz: 7200,
+      deEsserDb: -2.5,
+      highShelfHz: 5800,
+      highGainDb: 4.0,
     },
   },
   {
     id: 'vi-dn-male-1',
-    name: 'Anh Văn Quang (Đà Nẵng)',
+    name: 'Anh Văn Quang (Bản Tin Tài Chính)',
     language: 'vi',
     gender: 'Nam',
     region: 'Miền Trung',
     toneTag: 'Dõng dạc • Rõ ràng (Anchor)',
     description:
-      'Phát âm rành mạch, tốc độ ổn định, dải trung dày khỏe, tạo độ tin cậy tuyệt đối cho bản tin tài chính, bất động sản & thời sự 24h.',
+      'Phát âm rành mạch, tốc độ chuẩn 1.04x, dải trung 1.45kHz dày chắc, cắt âm đục 340Hz tạo uy tín cao cho bản tin kinh tế & vĩ mô.',
     sampleSentence:
       'Toàn cảnh chu kỳ thị trường và những phân tích kỹ thuật đáng chú ý nhất trong phiên giao dịch ngày hôm nay.',
-    pitch: 0.88,
-    rate: 1.06,
+    pitch: 0.96,
+    rate: 1.04,
     neuralVoiceId: 'vi-VN-NamMinhNeural',
     geminiVoiceName: 'Fenrir',
     openaiVoiceName: 'fable',
-    dspDetuneCents: -280,
-    acousticSignature: '122Hz Anchor • Trung Dày +5.5dB • Nam Miền Trung',
+    elevenlabsVoiceId: 'TxGEqnHWrfWFTfGW9XjX',
+    nativePitchHz: -3,
+    breathPauseMs: 195,
+    personaStyle: 'finance-anchor',
+    dspDetuneCents: -140,
+    acousticSignature: '118Hz Anchor • SSML -3Hz • Mid Punch +4.8dB',
     formantEq: {
-      lowShelfHz: 205,
-      lowGainDb: 4.5,
-      midPeakingHz: 1150,
-      midGainDb: 5.5,
-      highShelfHz: 3900,
-      highGainDb: 2.0,
+      highPassHz: 95,
+      lowShelfHz: 195,
+      lowGainDb: 3.8,
+      boxCutHz: 340,
+      boxCutDb: -3.0,
+      midPeakingHz: 1450,
+      midGainDb: 4.8,
+      presenceQ: 1.35,
+      deEsserHz: 6900,
+      deEsserDb: -3.0,
+      highShelfHz: 5200,
+      highGainDb: 2.8,
     },
   },
   {
     id: 'vi-neural-fast',
-    name: 'SYNAPES Neural v3 Turbo',
+    name: 'SYNAPES Neural Turbo (Viral Retention)',
     language: 'vi',
     gender: 'Nam',
     region: 'AI Neural',
-    toneTag: 'Tốc độ cao 1.28x • Giữ chân',
+    toneTag: 'Nhanh gọn 1.18x • Sắc nét',
     description:
-      'Mô hình AI tổng hợp âm đọc siêu tốc 1.28x theo công thức Alex Hormozi, nén động lực học mạnh, triệt tiêu khoảng lặng thừa, tối ưu tỷ lệ xem hết video.',
+      'Tối ưu tỷ lệ giữ chân 3 giây đầu theo nhịp 1.18x chuẩn chỉnh, presence 2.8kHz bật rõ từng từ mà không bị biến dạng giọng.',
     sampleSentence:
       'Ba giây đầu tiên quyết định người xem ở lại hay lướt qua! Hãy nhìn vào tính năng đột phá số một ngay bây giờ!',
-    pitch: 0.98,
-    rate: 1.28,
+    pitch: 1.0,
+    rate: 1.18,
     isRecommended: true,
     neuralVoiceId: 'vi-VN-NamMinhNeural',
     geminiVoiceName: 'Orus',
     openaiVoiceName: 'alloy',
-    dspDetuneCents: -120,
-    acousticSignature: '1.28x Hormozi Viral • Punchy EQ +6dB • AI Neural',
+    elevenlabsVoiceId: 'IKne3meq5aSn9XLyUdCD',
+    nativePitchHz: 2,
+    breathPauseMs: 130,
+    personaStyle: 'viral-turbo',
+    dspDetuneCents: 40,
+    acousticSignature: '1.18x Retention • SSML +2Hz • Presence 2.8kHz +5.2dB',
     formantEq: {
-      lowShelfHz: 185,
-      lowGainDb: 4.5,
+      highPassHz: 115,
+      lowShelfHz: 180,
+      lowGainDb: 3.2,
+      boxCutHz: 400,
+      boxCutDb: -2.5,
+      midPeakingHz: 2800,
+      midGainDb: 5.2,
+      presenceQ: 1.4,
+      deEsserHz: 7100,
+      deEsserDb: -3.0,
+      highShelfHz: 6200,
+      highGainDb: 4.5,
+    },
+  },
+  {
+    id: 'vi-hn-female-1',
+    name: 'Chị Hoài My (Podcast & Kể Chuyện HN)',
+    language: 'vi',
+    gender: 'Nữ',
+    region: 'Miền Bắc',
+    toneTag: 'Truyền cảm • Tự nhiên (Mezzo)',
+    description:
+      'Giọng nữ Hà Nội mượt mà: SSML -4Hz ấm hơn mặc định, nhịp 0.96x truyền cảm, kiểm soát âm xì 6.8kHz dịu tai cho podcast & thương hiệu.',
+    sampleSentence:
+      'Khám phá sự hoàn hảo trong từng đường nét thiết kế tinh xảo và trải nghiệm người dùng vượt trội.',
+    pitch: 0.98,
+    rate: 0.96,
+    isRecommended: true,
+    neuralVoiceId: 'vi-VN-HoaiMyNeural',
+    geminiVoiceName: 'Aoede',
+    openaiVoiceName: 'nova',
+    elevenlabsVoiceId: 'EXAVITQu4vr4xnSDxMaL',
+    nativePitchHz: -4,
+    breathPauseMs: 230,
+    personaStyle: 'podcast-warmth',
+    dspDetuneCents: -90,
+    acousticSignature: '198Hz Mezzo Warmth • SSML -4Hz • De-Essed 6.8kHz',
+    formantEq: {
+      highPassHz: 120,
+      lowShelfHz: 220,
+      lowGainDb: 1.5,
+      boxCutHz: 420,
+      boxCutDb: -2.0,
       midPeakingHz: 2150,
-      midGainDb: 6.0,
-      highShelfHz: 5400,
-      highGainDb: 6.0,
+      midGainDb: 3.2,
+      presenceQ: 1.15,
+      deEsserHz: 6800,
+      deEsserDb: -3.8,
+      highShelfHz: 7000,
+      highGainDb: 3.4,
+      tubeWarmth: 0.14,
+    },
+  },
+  {
+    id: 'vi-sg-female-1',
+    name: 'Chị Diệu Thảo (Review & Lifestyle SG)',
+    language: 'vi',
+    gender: 'Nữ',
+    region: 'Miền Nam',
+    toneTag: 'Tươi vui • Ngọt ngào (Soprano)',
+    description:
+      'Âm sắc nữ tươi sáng SSML +6Hz, nhịp 1.07x tràn đầy năng lượng, tăng sáng 2.9kHz và 6.8kHz rất bắt tai cho ẩm thực, du lịch & review.',
+    sampleSentence:
+      'Hôm nay Thảo sẽ khui hộp siêu phẩm mới nhất và chia sẻ cảm nhận thực tế sau một tuần trải nghiệm nha mọi người ơi!',
+    pitch: 1.04,
+    rate: 1.07,
+    neuralVoiceId: 'vi-VN-HoaiMyNeural',
+    geminiVoiceName: 'Kore',
+    openaiVoiceName: 'shimmer',
+    elevenlabsVoiceId: 'MF3mGyEYCl7XYWbV9V6O',
+    nativePitchHz: 6,
+    breathPauseMs: 175,
+    personaStyle: 'lifestyle-bright',
+    dspDetuneCents: 180,
+    acousticSignature: '238Hz Bright Soprano • SSML +6Hz • Air 6.8kHz +5.2dB',
+    formantEq: {
+      highPassHz: 130,
+      lowShelfHz: 240,
+      lowGainDb: -2.0,
+      boxCutHz: 440,
+      boxCutDb: -2.2,
+      midPeakingHz: 2900,
+      midGainDb: 4.8,
+      presenceQ: 1.2,
+      deEsserHz: 7400,
+      deEsserDb: -3.0,
+      highShelfHz: 6800,
+      highGainDb: 5.2,
+    },
+  },
+  {
+    id: 'vi-hue-female-1',
+    name: 'Chị Phương Linh (Trữ Tình Huế)',
+    language: 'vi',
+    gender: 'Nữ',
+    region: 'Miền Trung',
+    toneTag: 'Trữ tình • Dịu dàng • Sâu lắng',
+    description:
+      'Giọng kể nhẹ nhàng sâu lắng, tốc độ chậm 0.91x, quãng nghỉ trữ tình 265ms và độ ấm Tube Warmth êm dịu cho văn hóa, du lịch & sách nói.',
+    sampleSentence:
+      'Mời bạn cùng lắng lòng chiêm ngưỡng vẻ đẹp tĩnh lặng và những dấu ấn thời gian vượt bậc.',
+    pitch: 0.99,
+    rate: 0.91,
+    neuralVoiceId: 'vi-VN-HoaiMyNeural',
+    geminiVoiceName: 'Aoede',
+    openaiVoiceName: 'nova',
+    elevenlabsVoiceId: 'ThT5KcBeYPX3keUQqHPh',
+    nativePitchHz: -1,
+    breathPauseMs: 265,
+    personaStyle: 'poetic-calm',
+    dspDetuneCents: -20,
+    acousticSignature: '208Hz Poetic Mezzo • 0.91x Calm • Tube Warmth 0.22',
+    formantEq: {
+      highPassHz: 115,
+      lowShelfHz: 215,
+      lowGainDb: 2.2,
+      boxCutHz: 390,
+      boxCutDb: -2.5,
+      midPeakingHz: 1950,
+      midGainDb: 3.5,
+      presenceQ: 1.1,
+      deEsserHz: 6600,
+      deEsserDb: -4.2,
+      highShelfHz: 6200,
+      highGainDb: 2.8,
+      tubeWarmth: 0.22,
+    },
+  },
+  {
+    id: 'vi-kids-bao-an',
+    name: 'Bé Bảo An (Thiếu Nhi & Hoạt Hình 3D)',
+    language: 'vi',
+    gender: 'Nữ',
+    region: 'Thiếu Nhi / 3D',
+    toneTag: 'Trong trẻo • Hồn nhiên • Hoạt hình',
+    description:
+      'Âm vực trẻ thơ trong sáng với SSML +16Hz tự nhiên không chói gắt, biểu cảm vui nhộn cho đồng dao thiếu nhi và phim hoạt hình 3D.',
+    sampleSentence:
+      'Kìa chú chuồn chuồn cánh xanh bay thấp bay cao dự báo trời mưa nắng thật kỳ diệu các bạn nhỏ ơi!',
+    pitch: 1.08,
+    rate: 1.04,
+    isRecommended: true,
+    neuralVoiceId: 'vi-VN-HoaiMyNeural',
+    geminiVoiceName: 'Kore',
+    openaiVoiceName: 'shimmer',
+    elevenlabsVoiceId: 'jBpfuIE2acCO8z3wKNLl',
+    nativePitchHz: 16,
+    breathPauseMs: 185,
+    personaStyle: 'kids-3d-story',
+    dspDetuneCents: 360,
+    acousticSignature: '268Hz Child Tone • SSML +16Hz • Bright 3.1kHz +4.2dB',
+    formantEq: {
+      highPassHz: 140,
+      lowShelfHz: 280,
+      lowGainDb: -3.5,
+      boxCutHz: 460,
+      boxCutDb: -2.5,
+      midPeakingHz: 3100,
+      midGainDb: 4.2,
+      presenceQ: 1.15,
+      deEsserHz: 7400,
+      deEsserDb: -3.0,
+      highShelfHz: 6600,
+      highGainDb: 4.8,
     },
   },
 ];
@@ -233,23 +394,30 @@ export const ENGLISH_VOICE_PROFILES: VoiceProfile[] = [
     region: 'North America',
     toneTag: 'Confident • Tech Commercial',
     description:
-      'Crisp, articulate American tech reviewer tone. Perfect for Silicon Valley product launches and hardware unboxings.',
+      'Crisp, articulate American tech reviewer tone (en-US-GuyNeural, SSML -6Hz). Ideal for hardware launches and keynotes.',
     sampleSentence:
       'Welcome back to the studio. Today we are testing the next generation of dual-screen flagship hardware.',
-    pitch: 0.92,
-    rate: 1.05,
+    pitch: 0.96,
+    rate: 1.03,
     isRecommended: true,
     neuralVoiceId: 'en-US-GuyNeural',
     geminiVoiceName: 'Puck',
     openaiVoiceName: 'onyx',
-    dspDetuneCents: -240,
-    acousticSignature: '115Hz US Baritone • Crisp Presence • Silicon Valley',
+    nativePitchHz: -6,
+    breathPauseMs: 195,
+    dspDetuneCents: -160,
+    acousticSignature: '115Hz US Baritone • SSML -6Hz • Presence 1.6kHz +3dB',
     formantEq: {
+      highPassHz: 85,
       lowShelfHz: 195,
-      lowGainDb: 5.0,
+      lowGainDb: 4.5,
+      boxCutHz: 360,
+      boxCutDb: -2.2,
       midPeakingHz: 1600,
       midGainDb: 3.0,
-      highShelfHz: 4800,
+      deEsserHz: 6800,
+      deEsserDb: -3.0,
+      highShelfHz: 5600,
       highGainDb: 3.5,
     },
   },
@@ -261,24 +429,67 @@ export const ENGLISH_VOICE_PROFILES: VoiceProfile[] = [
     region: 'North America',
     toneTag: 'Warm • Engaging • Lifestyle',
     description:
-      'Friendly, naturally paced conversational female voice. Great for tutorials, explainer videos, and social media reels.',
+      'Friendly, naturally paced conversational female voice (en-US-JennyNeural, SSML +2Hz). Great for tutorials and explainers.',
     sampleSentence:
       'Discover seamless multitasking with an ultra-thin foldable display engineered for creators on the go.',
-    pitch: 1.06,
-    rate: 1.08,
+    pitch: 1.01,
+    rate: 1.04,
     isRecommended: true,
     neuralVoiceId: 'en-US-JennyNeural',
     geminiVoiceName: 'Aoede',
     openaiVoiceName: 'nova',
+    nativePitchHz: 2,
+    breathPauseMs: 190,
     dspDetuneCents: 60,
-    acousticSignature: '220Hz US Warm Female • Air +4dB • California',
+    acousticSignature: '220Hz US Warm Female • SSML +2Hz • Air +4dB',
     formantEq: {
+      highPassHz: 120,
       lowShelfHz: 230,
-      lowGainDb: -2.0,
+      lowGainDb: -1.5,
+      boxCutHz: 410,
+      boxCutDb: -1.8,
       midPeakingHz: 2500,
       midGainDb: 3.8,
-      highShelfHz: 5500,
+      deEsserHz: 7100,
+      deEsserDb: -3.2,
+      highShelfHz: 6200,
       highGainDb: 4.2,
+    },
+  },
+  {
+    id: 'en-us-aria',
+    name: 'Aria (US Expressive Storytelling)',
+    language: 'en',
+    gender: 'Female',
+    region: 'North America',
+    toneTag: 'Expressive • Documentary • Cinema',
+    description:
+      'Nuanced American narrator voice (en-US-AriaNeural) with rich dynamic phrasing for documentaries, essays and animations.',
+    sampleSentence:
+      'Beneath the surface of every breakthrough lies years of relentless craft, curiosity, and quiet precision.',
+    pitch: 1.0,
+    rate: 0.99,
+    isRecommended: true,
+    neuralVoiceId: 'en-US-AriaNeural',
+    geminiVoiceName: 'Aoede',
+    openaiVoiceName: 'shimmer',
+    nativePitchHz: 0,
+    breathPauseMs: 220,
+    dspDetuneCents: 0,
+    acousticSignature: '210Hz Expressive Narrator • Tube Warmth • US Cinema',
+    formantEq: {
+      highPassHz: 115,
+      lowShelfHz: 215,
+      lowGainDb: 2.0,
+      boxCutHz: 390,
+      boxCutDb: -2.0,
+      midPeakingHz: 2250,
+      midGainDb: 3.4,
+      deEsserHz: 6900,
+      deEsserDb: -3.5,
+      highShelfHz: 6500,
+      highGainDb: 3.2,
+      tubeWarmth: 0.14,
     },
   },
   {
@@ -289,23 +500,31 @@ export const ENGLISH_VOICE_PROFILES: VoiceProfile[] = [
     region: 'United Kingdom',
     toneTag: 'British BBC • Sophisticated',
     description:
-      'Deep, resonant British English accent with cinematic gravitas. Ideal for luxury commercials and documentary trailers.',
+      'Deep, resonant British English accent (en-GB-RyanNeural, SSML -8Hz) with cinematic gravitas for luxury campaigns.',
     sampleSentence:
       'A monumental leap forward in computational intelligence and refined industrial craftsmanship.',
-    pitch: 0.85,
-    rate: 0.98,
+    pitch: 0.92,
+    rate: 0.96,
     neuralVoiceId: 'en-GB-RyanNeural',
     geminiVoiceName: 'Charon',
     openaiVoiceName: 'fable',
-    dspDetuneCents: -360,
-    acousticSignature: '98Hz BBC Deep Bass • +6.5dB Warmth • UK London',
+    nativePitchHz: -8,
+    breathPauseMs: 230,
+    dspDetuneCents: -240,
+    acousticSignature: '98Hz BBC Deep Bass • SSML -8Hz • Tube Warmth',
     formantEq: {
-      lowShelfHz: 180,
-      lowGainDb: 6.5,
-      midPeakingHz: 1250,
+      highPassHz: 80,
+      lowShelfHz: 175,
+      lowGainDb: 6.0,
+      boxCutHz: 350,
+      boxCutDb: -2.8,
+      midPeakingHz: 1300,
       midGainDb: 2.5,
-      highShelfHz: 4000,
-      highGainDb: 1.8,
+      deEsserHz: 6700,
+      deEsserDb: -3.2,
+      highShelfHz: 5200,
+      highGainDb: 2.0,
+      tubeWarmth: 0.16,
     },
   },
   {
@@ -316,23 +535,30 @@ export const ENGLISH_VOICE_PROFILES: VoiceProfile[] = [
     region: 'United Kingdom',
     toneTag: 'Elegant • Professional Narration',
     description:
-      'Polished British RP pronunciation with pristine clarity. Perfect for educational, corporate and historical narratives.',
+      'Polished British RP pronunciation (en-GB-SoniaNeural) with pristine clarity for educational and historical narratives.',
     sampleSentence:
       'In the span of a single generation, artificial intelligence has fundamentally redefined human creativity.',
-    pitch: 1.12,
-    rate: 1.04,
+    pitch: 1.02,
+    rate: 1.0,
     neuralVoiceId: 'en-GB-SoniaNeural',
     geminiVoiceName: 'Kore',
     openaiVoiceName: 'shimmer',
-    dspDetuneCents: 180,
-    acousticSignature: '245Hz British RP Soprano • Crystal Highs • Oxford',
+    nativePitchHz: 3,
+    breathPauseMs: 210,
+    dspDetuneCents: 90,
+    acousticSignature: '240Hz British RP • SSML +3Hz • Crystal Highs',
     formantEq: {
-      lowShelfHz: 250,
-      lowGainDb: -3.5,
-      midPeakingHz: 2800,
-      midGainDb: 4.5,
-      highShelfHz: 5800,
-      highGainDb: 5.0,
+      highPassHz: 125,
+      lowShelfHz: 245,
+      lowGainDb: -2.5,
+      boxCutHz: 420,
+      boxCutDb: -2.0,
+      midPeakingHz: 2750,
+      midGainDb: 4.2,
+      deEsserHz: 7100,
+      deEsserDb: -3.0,
+      highShelfHz: 6500,
+      highGainDb: 4.8,
     },
   },
   {
@@ -343,24 +569,31 @@ export const ENGLISH_VOICE_PROFILES: VoiceProfile[] = [
     region: 'AI Neural',
     toneTag: 'Fast Pacing • Retention Master',
     description:
-      'Punchy, dynamic US male creator voice built for high retention YouTube Shorts, TikTok and fast video sales letters.',
+      'Punchy, dynamic US male creator voice (en-US-ChristopherNeural) tuned to 1.16x with zero double-tempo distortion.',
     sampleSentence:
       'If you want to save five hours every single day, this new AI workflow is about to change everything for you!',
-    pitch: 0.96,
-    rate: 1.26,
+    pitch: 0.99,
+    rate: 1.16,
     isRecommended: true,
     neuralVoiceId: 'en-US-ChristopherNeural',
     geminiVoiceName: 'Orus',
     openaiVoiceName: 'echo',
-    dspDetuneCents: -170,
-    acousticSignature: '1.26x Fast Viral • Broadcast Compression • AI Neural',
+    nativePitchHz: -2,
+    breathPauseMs: 145,
+    dspDetuneCents: -90,
+    acousticSignature: '1.16x Fast Viral • Broadcast Compression • AI Neural',
     formantEq: {
+      highPassHz: 105,
       lowShelfHz: 190,
-      lowGainDb: 4.0,
-      midPeakingHz: 2100,
-      midGainDb: 5.5,
-      highShelfHz: 5200,
-      highGainDb: 5.5,
+      lowGainDb: 3.6,
+      boxCutHz: 380,
+      boxCutDb: -2.4,
+      midPeakingHz: 2200,
+      midGainDb: 5.0,
+      deEsserHz: 7000,
+      deEsserDb: -2.8,
+      highShelfHz: 5600,
+      highGainDb: 4.6,
     },
   },
 ];
@@ -692,13 +925,66 @@ export function processVocalTractPitchAndTempo(
 }
 
 /**
- * Xây dựng chuỗi bộ lọc âm học Formant 3-Band EQ + Broadcast Compressor cho từng giọng đọc
+ * Chuẩn hóa âm lượng nhạc nền về tỷ lệ 0..1 từ cả giá trị phần trăm (18 -> 0.18) hoặc hệ số (0.6 -> 0.6).
  */
-function connectVocalFormantChain(
-  ctx: AudioContext,
+export function normalizeBgmVolumeRatio(rawVol?: number | null): number {
+  if (rawVol === undefined || rawVol === null || Number.isNaN(Number(rawVol))) return 0.22;
+  const num = Number(rawVol);
+  const ratio = num > 1.0001 ? num / 100 : num;
+  return Math.max(0, Math.min(1, Number(ratio.toFixed(3))));
+}
+
+/**
+ * Chuẩn hóa tham số giọng đọc thống nhất cho một phân cảnh (dùng chung cho Preload, Playback & Export để khớp Cache Key 100%).
+ */
+export function resolveSceneVoiceParams(
+  scene: Partial<StoryboardScene> | undefined,
+  defaultProfile?: VoiceProfile
+): { profile: VoiceProfile; rate: number; pitch: number } {
+  const isEnglish = scene?.voiceLanguage === 'en';
+  const fallback =
+    defaultProfile ||
+    (isEnglish ? ENGLISH_VOICE_PROFILES[0] : VIETNAMESE_VOICE_PROFILES[0]);
+  const profile =
+    (scene?.voiceId
+      ? resolveVoiceProfileById(scene.voiceId, (scene.voiceLanguage || (isEnglish ? 'en' : 'vi')) as VoiceLanguage)
+      : undefined) || fallback;
+
+  const sceneDur = Math.max(3, Number(scene?.endSec || 8) - Number(scene?.startSec || 0));
+  const wordCount = String(scene?.voiceover || '').trim().split(/\s+/).filter(Boolean).length;
+  const naturalRateFit = wordCount > 0 ? Math.max(0.92, Math.min(1.22, wordCount / (sceneDur * 3.15))) : profile.rate;
+  const rate = Number(
+    (scene?.voiceSpeed && scene.voiceSpeed > 0.5 ? scene.voiceSpeed : profile.rate || naturalRateFit).toFixed(2)
+  );
+  const pitch = Number(
+    (scene?.voicePitch && scene.voicePitch > 0.5 ? scene.voicePitch : profile.pitch || 1.0).toFixed(2)
+  );
+
+  return { profile, rate, pitch };
+}
+
+function makeSoftTubeCurve(drive: number): Float32Array<ArrayBuffer> {
+  const n = 2048;
+  const curve = new Float32Array(new ArrayBuffer(n * 4));
+  const k = 1 + Math.max(0.05, Math.min(1, drive)) * 2.8;
+  const norm = Math.tanh(k);
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2) / (n - 1) - 1;
+    curve[i] = Math.tanh(k * x) / norm;
+  }
+  return curve;
+}
+
+/**
+ * Xây dựng chuỗi bộ lọc âm học Formant Studio 6 tầng + Analog Tube Warmth + Broadcast Compressor
+ * Tương thích cả Realtime AudioContext lẫn OfflineAudioContext.
+ */
+export function connectVocalFormantChain(
+  ctx: BaseAudioContext,
   source: AudioNode,
   destination: AudioNode,
-  profile: VoiceProfile
+  profile: VoiceProfile,
+  eqOverrides?: { warmthDb?: number; midGainDb?: number; highGainDb?: number }
 ) {
   const eq = profile.formantEq || {
     lowShelfHz: 200,
@@ -709,77 +995,206 @@ function connectVocalFormantChain(
     highGainDb: 0,
   };
 
+  const highPass = ctx.createBiquadFilter();
+  highPass.type = 'highpass';
+  highPass.frequency.value = eq.highPassHz ?? 90;
+  highPass.Q.value = 0.7;
+
   const lowShelf = ctx.createBiquadFilter();
   lowShelf.type = 'lowshelf';
   lowShelf.frequency.value = eq.lowShelfHz;
-  lowShelf.gain.value = eq.lowGainDb;
+  lowShelf.gain.value = eqOverrides?.warmthDb ?? eq.lowGainDb;
+
+  const boxCut = ctx.createBiquadFilter();
+  boxCut.type = 'peaking';
+  boxCut.frequency.value = eq.boxCutHz ?? 380;
+  boxCut.Q.value = 1.4;
+  boxCut.gain.value = eq.boxCutDb ?? -2.0;
 
   const midPeaking = ctx.createBiquadFilter();
   midPeaking.type = 'peaking';
   midPeaking.frequency.value = eq.midPeakingHz;
-  midPeaking.Q.value = 1.15;
-  midPeaking.gain.value = eq.midGainDb;
+  midPeaking.Q.value = eq.presenceQ ?? 1.2;
+  midPeaking.gain.value = eqOverrides?.midGainDb ?? eq.midGainDb;
+
+  const deEsser = ctx.createBiquadFilter();
+  deEsser.type = 'peaking';
+  deEsser.frequency.value = eq.deEsserHz ?? 7000;
+  deEsser.Q.value = 2.6;
+  deEsser.gain.value = eq.deEsserDb ?? -2.8;
 
   const highShelf = ctx.createBiquadFilter();
   highShelf.type = 'highshelf';
   highShelf.frequency.value = eq.highShelfHz;
-  highShelf.gain.value = eq.highGainDb;
+  highShelf.gain.value = eqOverrides?.highGainDb ?? eq.highGainDb;
+
+  source.connect(highPass);
+  highPass.connect(lowShelf);
+  lowShelf.connect(boxCut);
+  boxCut.connect(midPeaking);
+  midPeaking.connect(deEsser);
+  deEsser.connect(highShelf);
+
+  let tailNode: AudioNode = highShelf;
+  if (eq.tubeWarmth && eq.tubeWarmth > 0.02) {
+    const shaper = ctx.createWaveShaper();
+    shaper.curve = makeSoftTubeCurve(eq.tubeWarmth);
+    shaper.oversample = '2x';
+    tailNode.connect(shaper);
+    tailNode = shaper;
+  }
 
   const compressor = ctx.createDynamicsCompressor();
   compressor.threshold.value = -20;
-  compressor.knee.value = 18;
-  compressor.ratio.value = 3.5;
+  compressor.knee.value = 16;
+  compressor.ratio.value = 3.2;
   compressor.attack.value = 0.004;
   compressor.release.value = 0.16;
 
-  source.connect(lowShelf);
-  lowShelf.connect(midPeaking);
-  midPeaking.connect(highShelf);
-  highShelf.connect(compressor);
-  compressor.connect(destination);
+  const makeupGain = ctx.createGain();
+  makeupGain.gain.value = 1.08;
+
+  tailNode.connect(compressor);
+  compressor.connect(makeupGain);
+  makeupGain.connect(destination);
 }
 
 /**
- * Chia văn bản dài thành các câu ngắn tự nhiên (<= 185 ký tự) để tổng hợp Neural TTS mượt mà
+ * Cắt bỏ khoảng im lặng thừa ở đầu & cuối đoạn PCM (kiểu auto-editor) kèm micro-fade 10ms chống tách tiếng.
  */
-function splitTextIntoChunks(text: string, maxLen = 185): string[] {
+export function trimSilenceEdges(
+  ctx: BaseAudioContext,
+  inputBuffer: AudioBuffer,
+  thresholdLinear = 0.008,
+  keepPadMs = 35
+): AudioBuffer {
+  const sr = inputBuffer.sampleRate;
+  const len = inputBuffer.length;
+  if (len <= Math.floor(sr * 0.08)) return inputBuffer;
+
+  const ch0 = inputBuffer.getChannelData(0);
+  const padSamples = Math.floor((sr * keepPadMs) / 1000);
+
+  let firstIdx = 0;
+  while (firstIdx < len && Math.abs(ch0[firstIdx]) < thresholdLinear) {
+    firstIdx++;
+  }
+  let lastIdx = len - 1;
+  while (lastIdx > firstIdx && Math.abs(ch0[lastIdx]) < thresholdLinear) {
+    lastIdx--;
+  }
+
+  if (firstIdx >= lastIdx) return inputBuffer;
+
+  const start = Math.max(0, firstIdx - padSamples);
+  const end = Math.min(len - 1, lastIdx + padSamples);
+  const outLen = Math.max(64, end - start + 1);
+  if (outLen >= len - Math.floor(sr * 0.02)) {
+    return inputBuffer;
+  }
+
+  const numChannels = inputBuffer.numberOfChannels;
+  const out = ctx.createBuffer(numChannels, outLen, sr);
+  const fadeSamples = Math.min(Math.floor(sr * 0.01), Math.floor(outLen / 6));
+
+  for (let ch = 0; ch < numChannels; ch++) {
+    const src = inputBuffer.getChannelData(ch);
+    const dst = out.getChannelData(ch);
+    dst.set(src.subarray(start, end + 1));
+    for (let i = 0; i < fadeSamples; i++) {
+      const fadeIn = 0.5 - 0.5 * Math.cos((Math.PI * i) / Math.max(1, fadeSamples));
+      dst[i] *= fadeIn;
+      const tailPos = outLen - 1 - i;
+      dst[tailPos] *= fadeIn;
+    }
+  }
+  return out;
+}
+
+export interface SmartSpeechChunk {
+  text: string;
+  pauseAfterMs: number;
+}
+
+function inferPauseAfterChunk(chunkText: string, baseBreathMs = 220): number {
+  const trimmed = chunkText.trim();
+  if (/(\.{3}|…|—)$/.test(trimmed)) return Math.max(260, baseBreathMs + 80);
+  if (/[.!?।]$/.test(trimmed)) return Math.max(190, baseBreathMs);
+  if (/[;:]$/.test(trimmed)) return Math.max(140, Math.round(baseBreathMs * 0.8));
+  if (/[,]$/.test(trimmed)) return Math.max(95, Math.round(baseBreathMs * 0.55));
+  return Math.max(110, Math.round(baseBreathMs * 0.65));
+}
+
+/**
+ * Chia văn bản theo mệnh đề tự nhiên (<= 420 ký tự) giữ trọn ngữ điệu và tính khoảng nghỉ hợp lý từng dấu câu.
+ */
+export function splitTextIntoSmartChunks(
+  text: string,
+  maxLen = 420,
+  baseBreathMs = 220
+): SmartSpeechChunk[] {
   const cleaned = text.replace(/\s+/g, ' ').trim();
   if (!cleaned) return [];
-  if (cleaned.length <= maxLen) return [cleaned];
+  if (cleaned.length <= maxLen) {
+    return [{ text: cleaned, pauseAfterMs: inferPauseAfterChunk(cleaned, baseBreathMs) }];
+  }
 
-  const rawSentences = cleaned.split(/(?<=[.!?।,;])\s+/);
-  const chunks: string[] = [];
+  const rawSentences = cleaned.split(/(?<=[.!?।;:])\s+/);
+  const textParts: string[] = [];
   let current = '';
 
   for (const s of rawSentences) {
     if ((current + ' ' + s).trim().length <= maxLen) {
       current = (current + ' ' + s).trim();
     } else {
-      if (current) chunks.push(current);
+      if (current) textParts.push(current);
       if (s.length <= maxLen) {
         current = s;
       } else {
-        // Hard split by words
-        const words = s.split(' ');
-        let sub = '';
-        for (const w of words) {
-          if ((sub + ' ' + w).trim().length <= maxLen) {
-            sub = (sub + ' ' + w).trim();
+        const subClauses = s.split(/(?<=,)\s+/);
+        let clauseAcc = '';
+        for (const cl of subClauses) {
+          if ((clauseAcc + ' ' + cl).trim().length <= maxLen) {
+            clauseAcc = (clauseAcc + ' ' + cl).trim();
           } else {
-            if (sub) chunks.push(sub);
-            sub = w;
+            if (clauseAcc) textParts.push(clauseAcc);
+            if (cl.length <= maxLen) {
+              clauseAcc = cl;
+            } else {
+              const words = cl.split(' ');
+              let sub = '';
+              for (const w of words) {
+                if ((sub + ' ' + w).trim().length <= maxLen) {
+                  sub = (sub + ' ' + w).trim();
+                } else {
+                  if (sub) textParts.push(sub);
+                  sub = w;
+                }
+              }
+              clauseAcc = sub;
+            }
           }
         }
-        current = sub;
+        current = clauseAcc;
       }
     }
   }
-  if (current) chunks.push(current);
-  return chunks;
+  if (current) textParts.push(current);
+  return textParts.map((part) => ({
+    text: part,
+    pauseAfterMs: inferPauseAfterChunk(part, baseBreathMs),
+  }));
 }
 
 /**
- * Tải và giải mã âm thanh Neural TTS từ `/api/tts` (OpenAI Studio / Edge Neural / Google Neural)
+ * Chia văn bản dài thành các câu tự nhiên (giữ API tương thích ngược trả string[]).
+ */
+export function splitTextIntoChunks(text: string, maxLen = 420): string[] {
+  return splitTextIntoSmartChunks(text, maxLen).map((c) => c.text);
+}
+
+/**
+ * Tải và giải mã âm thanh Neural TTS từ `/api/tts` (ElevenLabs / OpenAI HD / Edge Neural / Google Neural)
  */
 async function fetchAndDecodeNeuralAudio(
   ctx: AudioContext,
@@ -790,22 +1205,29 @@ async function fetchAndDecodeNeuralAudio(
   customPitch?: number,
   exactPitchDeltaHz?: number
 ): Promise<{ audioBuffer: AudioBuffer; engine: string }> {
-  const chunks = splitTextIntoChunks(text, 180);
-  const decodedBuffers: AudioBuffer[] = [];
+  const smartChunks = splitTextIntoSmartChunks(text, 420, profile.breathPauseMs ?? 210);
+  if (smartChunks.length === 0) {
+    throw new Error('Empty narration text');
+  }
+  const decodedBuffers: Array<{ buffer: AudioBuffer; pauseAfterMs: number }> = [];
   let resolvedEngine = 'edge-neural';
 
   const effRate = customRate ?? profile.rate ?? 1.0;
   const effPitch = customPitch ?? profile.pitch ?? 1.0;
   const rateDelta = Math.max(-50, Math.min(80, Math.round((effRate - 1.0) * 100)));
   const ratePct = `${rateDelta >= 0 ? '+' : ''}${rateDelta}%`;
+
+  const baseNativeHz = profile.nativePitchHz ?? 0;
+  const userSliderPitchHz = Math.round(((effPitch / (profile.pitch || 1.0)) - 1.0) * 45);
   const pitchDelta =
     exactPitchDeltaHz !== undefined
       ? Math.max(-60, Math.min(60, Math.round(exactPitchDeltaHz)))
-      : Math.max(-60, Math.min(60, Math.round((effPitch - 1.0) * 80)));
+      : Math.max(-60, Math.min(60, baseNativeHz + userSliderPitchHz));
   const pitchHz = `${pitchDelta >= 0 ? '+' : ''}${pitchDelta}Hz`;
 
-  // Tìm kiếm OpenAI API Key đã lưu trong tài khoản người dùng (nếu có)
+  // Tìm OpenAI / ElevenLabs BYOK API Key (nếu người dùng đã cấu hình)
   let savedOpenAiKey = '';
+  let savedElevenLabsKey = '';
   try {
     const session = localStorage.getItem('synapes_active_user_session');
     if (session) {
@@ -816,13 +1238,17 @@ async function fetchAndDecodeNeuralAudio(
         if (parsed.aiConfig?.openai?.apiKey && parsed.aiConfig.openai.apiKey.startsWith('sk-')) {
           savedOpenAiKey = parsed.aiConfig.openai.apiKey;
         }
+        if (parsed.aiConfig?.elevenlabs?.apiKey && String(parsed.aiConfig.elevenlabs.apiKey).trim().length > 10) {
+          savedElevenLabsKey = String(parsed.aiConfig.elevenlabs.apiKey).trim();
+        }
       }
     }
   } catch { }
 
-  for (const chunk of chunks) {
-    // Cache key gắn chặt với Profile ID, Rate, PitchHz và Text để không bao giờ bị phát trùng âm thanh giữa các nhân vật!
-    const cacheKey = `${profile.id}:${ratePct}:${pitchHz}:${savedOpenAiKey ? 'oai:' : 'std:'}${chunk}`;
+  const keyScopeTag = savedElevenLabsKey ? '11l:' : savedOpenAiKey ? 'oai:' : 'std:';
+
+  for (const chunkItem of smartChunks) {
+    const cacheKey = `${profile.id}:${ratePct}:${pitchHz}:${keyScopeTag}${chunkItem.text}`;
     let cached = ttsBufferCache.get(cacheKey);
 
     if (!cached) {
@@ -830,21 +1256,39 @@ async function fetchAndDecodeNeuralAudio(
       const defaultNativeVoice = isFemale ? 'vi-VN-HoaiMyNeural' : 'vi-VN-NamMinhNeural';
       const defaultOpenAiVoice = profile.openaiVoiceName || (isFemale ? 'nova' : 'onyx');
 
-      const params = new URLSearchParams({
-        text: chunk,
-        lang: profile.language,
-        profileId: profile.id,
-        voice: profile.neuralVoiceId || defaultNativeVoice,
-        openaiVoice: defaultOpenAiVoice,
-        rate: ratePct,
-        pitch: pitchHz,
-      });
-
-      if (savedOpenAiKey) {
-        params.set('openaiKey', savedOpenAiKey);
+      let resp: Response;
+      if (savedOpenAiKey || savedElevenLabsKey) {
+        // Dùng POST JSON để không lộ BYOK API key trong URL query string
+        resp = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal,
+          body: JSON.stringify({
+            text: chunkItem.text,
+            lang: profile.language,
+            profileId: profile.id,
+            voice: profile.neuralVoiceId || defaultNativeVoice,
+            openaiVoice: defaultOpenAiVoice,
+            openaiKey: savedOpenAiKey,
+            elevenlabsKey: savedElevenLabsKey,
+            elevenlabsVoiceId: profile.elevenlabsVoiceId || '21m00Tcm4TlvDq8ikWAM',
+            rate: ratePct,
+            pitch: pitchHz,
+          }),
+        });
+      } else {
+        const params = new URLSearchParams({
+          text: chunkItem.text,
+          lang: profile.language,
+          profileId: profile.id,
+          voice: profile.neuralVoiceId || defaultNativeVoice,
+          openaiVoice: defaultOpenAiVoice,
+          rate: ratePct,
+          pitch: pitchHz,
+        });
+        resp = await fetch(`/api/tts?${params.toString()}`, { signal });
       }
 
-      const resp = await fetch(`/api/tts?${params.toString()}`, { signal });
       if (!resp.ok) {
         throw new Error(`TTS HTTP ${resp.status}`);
       }
@@ -860,36 +1304,42 @@ async function fetchAndDecodeNeuralAudio(
     resolvedEngine = cached.engine;
     const copyBuf = cached.rawBuffer.slice(0);
     const decoded = await ctx.decodeAudioData(copyBuf);
-    decodedBuffers.push(decoded);
+    const trimmed = trimSilenceEdges(ctx, decoded, 0.008, 35);
+    decodedBuffers.push({ buffer: trimmed, pauseAfterMs: chunkItem.pauseAfterMs });
   }
 
   if (decodedBuffers.length === 1) {
-    return { audioBuffer: decodedBuffers[0], engine: resolvedEngine };
+    return { audioBuffer: decodedBuffers[0].buffer, engine: resolvedEngine };
   }
 
-  // Concatenate multiple sentence buffers with a 90ms natural breath pause
-  const sampleRate = decodedBuffers[0].sampleRate;
-  const pauseSamples = Math.floor(sampleRate * 0.09);
-  const totalLen =
-    decodedBuffers.reduce((acc, b) => acc + b.length, 0) +
-    pauseSamples * (decodedBuffers.length - 1);
+  const sampleRate = decodedBuffers[0].buffer.sampleRate;
+  let totalLen = 0;
+  for (let i = 0; i < decodedBuffers.length; i++) {
+    totalLen += decodedBuffers[i].buffer.length;
+    if (i < decodedBuffers.length - 1) {
+      totalLen += Math.floor((sampleRate * decodedBuffers[i].pauseAfterMs) / 1000);
+    }
+  }
 
   const combined = ctx.createBuffer(1, totalLen, sampleRate);
   const outChannel = combined.getChannelData(0);
   let offset = 0;
   for (let i = 0; i < decodedBuffers.length; i++) {
-    const chData = decodedBuffers[i].getChannelData(0);
+    const chData = decodedBuffers[i].buffer.getChannelData(0);
     outChannel.set(chData, offset);
-    offset += chData.length + pauseSamples;
+    offset += chData.length;
+    if (i < decodedBuffers.length - 1) {
+      offset += Math.floor((sampleRate * decodedBuffers[i].pauseAfterMs) / 1000);
+    }
   }
 
   return { audioBuffer: combined, engine: resolvedEngine };
 }
 
 /**
- * Tính toán tỷ lệ biến đổi Pitch thực tế dựa trên từng nhân vật (Nam/Nữ/Vùng miền) và thanh trượt của người dùng
+ * Tính toán tỷ lệ biến đổi Pitch bổ sung của DSP (Edge Neural đã đổi SSML pitchHz tự nhiên -> chỉ áp độ lệch user slider!)
  */
-function computeEffectivePitchRatio(
+export function computeEffectivePitchRatio(
   profile: VoiceProfile,
   customPitch: number | undefined,
   engineUsed: string
@@ -898,23 +1348,21 @@ function computeEffectivePitchRatio(
   const userAdjustmentRatio = userSliderPitch / (profile.pitch || 1.0);
   const detuneCents = profile.dspDetuneCents ?? 0;
 
-  if (engineUsed === 'openai-studio-hd') {
-    // OpenAI TTS Studio HD: Giữ nguyên vẹn chất âm tự nhiên, chỉ áp dụng thanh trượt của người dùng
-    return userAdjustmentRatio;
+  if (
+    engineUsed === 'openai-studio-hd' ||
+    engineUsed === 'elevenlabs-studio' ||
+    engineUsed === 'edge-neural'
+  ) {
+    // Mạng neural đã xử lý đúng chất giọng gốc -> không áp double-detune WSOLA làm méo giọng!
+    return Math.abs(userAdjustmentRatio - 1.0) < 0.025 ? 1.0 : userAdjustmentRatio;
   }
 
-  if (engineUsed === 'edge-neural') {
-    // Edge Neural: Áp dụng độ lệch persona âm sắc tinh tế giữa các nhân vật cùng giới tính
-    const personaCents = detuneCents * 0.55;
-    return Math.pow(2, personaCents / 1200) * userAdjustmentRatio;
-  }
-
-  // Upstream Google Neural DSP: Áp dụng đầy đủ WSOLA Vocal Tract Formant Shift
+  // Fallback Google Neural DSP: giữ WSOLA Vocal Tract Formant Shift để phân biệt giới tính/vùng miền
   return Math.pow(2, detuneCents / 1200) * userAdjustmentRatio;
 }
 
 /**
- * Phát thử giọng đọc AI thực tế qua Web Audio Neural Vocoder & Formant EQ
+ * Phát thử giọng đọc AI thực tế qua Web Audio Neural Vocoder & Formant EQ 6 tầng
  */
 export function auditionVoice(
   profile: VoiceProfile,
@@ -997,11 +1445,13 @@ export function auditionVoice(
       if (abortController.signal.aborted) return;
 
       const pitchRatio = computeEffectivePitchRatio(profile, customPitch, engine);
+      // Edge / OpenAI / ElevenLabs đã tổng hợp đúng tốc độ native; chỉ dùng DSP tempo khi fallback Google!
+      const tempoInDsp = engine.includes('google') ? effectiveRate : 1.0;
       const processedBuffer = processVocalTractPitchAndTempo(
         ctx,
         fetched.audioBuffer,
         pitchRatio,
-        effectiveRate
+        tempoInDsp
       );
 
       const source = ctx.createBufferSource();
@@ -1011,11 +1461,13 @@ export function auditionVoice(
 
       activeAuditionSource = source;
       onEngineInfo?.(
-        engine === 'openai-studio-hd'
-          ? `OpenAI Speech Studio 24kHz (${profile.openaiVoiceName || 'onyx'}) • Chuẩn Điện Ảnh`
-          : engine === 'edge-neural'
-            ? `Microsoft Edge Neural (${profile.neuralVoiceId}) • ${profile.acousticSignature || '3-Band DSP'}`
-            : `Cloud Neural Audio + WSOLA Vocal Tract DSP (${profile.gender} • ${profile.region})`
+        engine === 'elevenlabs-studio'
+          ? `ElevenLabs Studio HD (${profile.elevenlabsVoiceId || 'Multilingual v2'}) • Chuẩn Điện Ảnh`
+          : engine === 'openai-studio-hd'
+            ? `OpenAI Speech Studio HD (${profile.openaiVoiceName || 'onyx'}) • Chuẩn Điện Ảnh`
+            : engine === 'edge-neural'
+              ? `Microsoft Edge Neural (${profile.neuralVoiceId}) • ${profile.acousticSignature || 'Studio 6-Band EQ'}`
+              : `Cloud Neural Audio + WSOLA Vocal Tract DSP (${profile.gender} • ${profile.region})`
       );
 
       source.onended = () => {
@@ -1029,7 +1481,6 @@ export function auditionVoice(
     } catch (err: any) {
       if (err?.name === 'AbortError') return;
       console.warn('Neural TTS fallback to browser speechSynthesis:', err);
-      // Fallback to browser speechSynthesis if completely offline
       fallbackBrowserSpeech(profile, textToSpeak, effectiveRate, customPitch ?? profile.pitch, onStart, onEnd);
     }
   })();
@@ -1094,8 +1545,18 @@ function fallbackBrowserSpeech(
   }
 }
 
+export interface MeasuredSceneVoiceover {
+  sceneId: number;
+  startSec: number;
+  endSec: number;
+  audioBuffer: AudioBuffer;
+  durationSec: number;
+  engine: string;
+  profile: VoiceProfile;
+}
+
 /**
- * Bộ tạo âm thanh nền BGM điện ảnh, hiệu ứng SFX & Lồng tiếng Neural trực tiếp vào luồng ghi hình WebM
+ * Bộ tạo âm thanh nền BGM điện ảnh (MP3/WAV tùy chỉnh + Warm Pad), hiệu ứng SFX & Lồng tiếng Neural liên tục vào luồng xuất Video
  */
 export class StudioAudioSynthesizer {
   private ctx: AudioContext | null = null;
@@ -1106,7 +1567,14 @@ export class StudioAudioSynthesizer {
   private sfxGain: GainNode | null = null;
   private isBgmPlaying = false;
   private bgmIntervalId: any = null;
+  private customBgmUrl: string | null = null;
+  private customBgmBuffer: AudioBuffer | null = null;
+  private customBgmSource: AudioBufferSourceNode | null = null;
+  private bgmBaseGain = 0.2;
+  private bgmDuckingEnabled = true;
+  private isSpeakingNow = false;
   private activeVoiceSource: AudioBufferSourceNode | null = null;
+  private scheduledExportSources: AudioBufferSourceNode[] = [];
   private activeVoiceAbort: AbortController | null = null;
   private isMutedState = false;
   private playbackToken = 0;
@@ -1129,13 +1597,13 @@ export class StudioAudioSynthesizer {
         this.masterGain.connect(this.destNode);
 
         this.bgmGain = this.ctx.createGain();
-        this.bgmGain.gain.value = 0.2;
+        this.bgmGain.gain.value = this.bgmBaseGain;
 
         this.voiceGain = this.ctx.createGain();
-        this.voiceGain.gain.value = 0.95;
+        this.voiceGain.gain.value = 0.98;
 
         this.sfxGain = this.ctx.createGain();
-        this.sfxGain.gain.value = 0.42;
+        this.sfxGain.gain.value = 0.4;
 
         this.bgmGain.connect(this.masterGain);
         this.voiceGain.connect(this.masterGain);
@@ -1151,7 +1619,7 @@ export class StudioAudioSynthesizer {
     if (muted) {
       this.playbackToken++;
       this.stopSceneVoiceover();
-      this.stopCinematicSoundtrack();
+      this.stopBgmTrack(0.05);
     }
     if (this.masterGain && this.ctx) {
       const now = this.ctx.currentTime;
@@ -1170,6 +1638,9 @@ export class StudioAudioSynthesizer {
       playbackToken: this.playbackToken,
       hasActiveVoice: Boolean(this.activeVoiceSource || this.activeVoiceAbort),
       isBgmPlaying: this.isBgmPlaying,
+      hasCustomBgmBuffer: Boolean(this.customBgmBuffer),
+      bgmBaseGain: this.bgmBaseGain,
+      bgmDuckingEnabled: this.bgmDuckingEnabled,
       masterGainValue: this.masterGain?.gain.value ?? (this.isMutedState ? 0 : 1),
     };
   }
@@ -1248,6 +1719,16 @@ export class StudioAudioSynthesizer {
       } catch { }
       this.activeVoiceSource = null;
     }
+    if (this.scheduledExportSources.length > 0) {
+      this.scheduledExportSources.forEach((src) => {
+        try {
+          src.onended = null;
+          src.stop();
+          src.disconnect();
+        } catch { }
+      });
+      this.scheduledExportSources = [];
+    }
     if ('speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
@@ -1258,7 +1739,7 @@ export class StudioAudioSynthesizer {
 
   /**
    * Phát giọng lồng tiếng Neural của từng phân cảnh trực tiếp qua Web Audio API
-   * (Vừa phát ra loa với đúng tông giọng Nam/Nữ/Vùng miền, vừa ghi trực tiếp vào file video .webm khi xuất bản!)
+   * (Vừa phát ra loa với đúng tông giọng Nam/Nữ/Vùng miền, không bị double-tempo/double-pitch, vừa ghi trực tiếp vào luồng xuất Video!)
    */
   public speakSceneWithNeuralVoice(
     text: string,
@@ -1332,11 +1813,12 @@ export class StudioAudioSynthesizer {
         if (abortCtrl.signal.aborted || myToken !== this.playbackToken || this.isMutedState) return;
 
         const pitchRatio = computeEffectivePitchRatio(profile, customPitch, engine);
+        const tempoInDsp = engine.includes('google') ? effectiveRate : 1.0;
         const processedBuffer = processVocalTractPitchAndTempo(
           ctx,
           audioBuffer,
           pitchRatio,
-          effectiveRate
+          tempoInDsp
         );
 
         const source = ctx.createBufferSource();
@@ -1373,12 +1855,30 @@ export class StudioAudioSynthesizer {
     })();
   }
 
-  public duckBgm(isSpeaking: boolean) {
+  public setBgmVolume(rawVol: number) {
+    this.bgmBaseGain = normalizeBgmVolumeRatio(rawVol);
+    this.applyBgmGainTarget(0.08);
+  }
+
+  public setBgmDucking(enabled: boolean) {
+    this.bgmDuckingEnabled = enabled;
+    this.applyBgmGainTarget(0.08);
+  }
+
+  private applyBgmGainTarget(rampSec = 0.15) {
     if (!this.bgmGain || !this.ctx) return;
     const now = this.ctx.currentTime;
-    const target = isSpeaking ? 0.06 : 0.2;
+    const target =
+      this.isSpeakingNow && this.bgmDuckingEnabled
+        ? Math.max(0.02, this.bgmBaseGain * 0.28)
+        : this.bgmBaseGain;
     this.bgmGain.gain.cancelScheduledValues(now);
-    this.bgmGain.gain.linearRampToValueAtTime(target, now + 0.15);
+    this.bgmGain.gain.linearRampToValueAtTime(target, now + rampSec);
+  }
+
+  public duckBgm(isSpeaking: boolean) {
+    this.isSpeakingNow = isSpeaking;
+    this.applyBgmGainTarget(isSpeaking ? 0.12 : 0.22);
   }
 
   public playSfx(type: 'whoosh' | 'sub-drop' | 'camera-shutter' | 'chime' | 'glitch') {
@@ -1465,7 +1965,127 @@ export class StudioAudioSynthesizer {
     }
   }
 
-  public startCinematicSoundtrack(bpm: number = 118) {
+  public async loadCustomBgm(url: string): Promise<{ durationSec: number } | null> {
+    if (!url || !this.ctx) return null;
+    if (this.customBgmUrl === url && this.customBgmBuffer) {
+      return { durationSec: Number(this.customBgmBuffer.duration.toFixed(2)) };
+    }
+    try {
+      let arr: ArrayBuffer;
+      if (url.startsWith('data:')) {
+        // Giải mã Base64 trực tiếp (không qua fetch) để tương thích 100% CSP connect-src 'self' https: wss:
+        const commaIdx = url.indexOf(',');
+        if (commaIdx === -1) throw new Error('Invalid BGM data URL');
+        const base64Part = url.slice(commaIdx + 1);
+        const binaryStr = atob(base64Part);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+        arr = bytes.buffer;
+      } else {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`BGM HTTP ${resp.status}`);
+        arr = await resp.arrayBuffer();
+      }
+      const decoded = await this.ctx.decodeAudioData(arr.slice(0));
+      this.customBgmUrl = url;
+      this.customBgmBuffer = decoded;
+      return { durationSec: Number(decoded.duration.toFixed(2)) };
+    } catch (err) {
+      console.warn('Load custom BGM warning:', err);
+      return null;
+    }
+  }
+
+  public clearCustomBgm() {
+    this.stopBgmTrack(0.05);
+    this.customBgmUrl = null;
+    this.customBgmBuffer = null;
+  }
+
+  public async startBgmTrack(opts?: {
+    url?: string;
+    volume?: number;
+    loop?: boolean;
+    offsetSec?: number;
+    fadeInSec?: number;
+    duckingEnabled?: boolean;
+    bpm?: number;
+    playbackRate?: number;
+  }) {
+    if (this.isMutedState) return;
+    this.resume();
+    if (!this.ctx || !this.bgmGain) return;
+
+    if (opts?.volume !== undefined) {
+      this.bgmBaseGain = normalizeBgmVolumeRatio(opts.volume);
+    }
+    if (opts?.duckingEnabled !== undefined) {
+      this.bgmDuckingEnabled = opts.duckingEnabled;
+    }
+
+    if (opts?.url) {
+      const loaded = await this.loadCustomBgm(opts.url);
+      if (loaded && this.customBgmBuffer && !this.isMutedState) {
+        this.stopBgmTrack(0.04);
+        this.isBgmPlaying = true;
+        const ctx = this.ctx;
+        const now = ctx.currentTime;
+        const src = ctx.createBufferSource();
+        src.buffer = this.customBgmBuffer;
+        src.loop = opts.loop !== false;
+        src.playbackRate.value = Math.max(0.5, Math.min(2.0, opts.playbackRate || 1.0));
+
+        const targetGain =
+          this.isSpeakingNow && this.bgmDuckingEnabled
+            ? Math.max(0.02, this.bgmBaseGain * 0.28)
+            : this.bgmBaseGain;
+        const fadeIn = Math.max(0.05, Math.min(3, opts.fadeInSec ?? 0.45));
+        this.bgmGain.gain.cancelScheduledValues(now);
+        this.bgmGain.gain.setValueAtTime(0.001, now);
+        this.bgmGain.gain.linearRampToValueAtTime(targetGain, now + fadeIn);
+
+        src.connect(this.bgmGain);
+        const safeOffset = Math.max(
+          0,
+          (opts.offsetSec || 0) % Math.max(0.1, this.customBgmBuffer.duration)
+        );
+        src.start(now, safeOffset);
+        this.customBgmSource = src;
+        return;
+      }
+    }
+
+    this.startCinematicSoundtrack(opts?.bpm || 108);
+  }
+
+  public stopBgmTrack(fadeOutSec = 0.2) {
+    this.isBgmPlaying = false;
+    if (this.bgmIntervalId) {
+      clearInterval(this.bgmIntervalId);
+      this.bgmIntervalId = null;
+    }
+    if (this.customBgmSource) {
+      const oldSrc = this.customBgmSource;
+      this.customBgmSource = null;
+      try {
+        if (this.ctx && this.bgmGain && fadeOutSec > 0.05) {
+          const now = this.ctx.currentTime;
+          this.bgmGain.gain.cancelScheduledValues(now);
+          this.bgmGain.gain.linearRampToValueAtTime(0.0001, now + fadeOutSec);
+          setTimeout(() => {
+            try { oldSrc.stop(); oldSrc.disconnect(); } catch {}
+          }, Math.round(fadeOutSec * 1000) + 30);
+        } else {
+          oldSrc.stop();
+          oldSrc.disconnect();
+        }
+      } catch { }
+    }
+  }
+
+  public startCinematicSoundtrack(bpm: number = 108) {
     if (this.isBgmPlaying || this.isMutedState) return;
     this.resume();
     if (!this.ctx || !this.bgmGain) return;
@@ -1473,87 +2093,183 @@ export class StudioAudioSynthesizer {
     this.isBgmPlaying = true;
     const ctx = this.ctx;
     const stepDuration = 60 / bpm / 2;
+    this.applyBgmGainTarget(0.25);
 
+    // Warm Studio Electric Piano & Pad Chord Progression (Am9 - Fmaj7 - Cmaj9 - G6)
     const chords = [
-      [220, 261.63, 329.63],
-      [174.61, 220, 261.63],
-      [261.63, 329.63, 392],
-      [196, 246.94, 293.66],
+      [220.0, 261.63, 329.63, 493.88],
+      [174.61, 220.0, 261.63, 329.63],
+      [261.63, 329.63, 392.0, 587.33],
+      [196.0, 246.94, 329.63, 392.0],
     ];
 
     let step = 0;
     this.bgmIntervalId = setInterval(() => {
-      if (!this.isBgmPlaying || !this.ctx) return;
+      if (!this.isBgmPlaying || !this.ctx || !this.bgmGain) return;
       const now = ctx.currentTime;
       const chordIdx = Math.floor((step % 32) / 8);
       const chord = chords[chordIdx];
 
-      const bassOsc = ctx.createOscillator();
-      const bassGain = ctx.createGain();
-      bassOsc.type = 'sawtooth';
-      bassOsc.frequency.setValueAtTime(chord[0] / 2, now);
+      // Warm sub bass & Rhodes pad on bar/beat transitions
+      if (step % 4 === 0) {
+        chord.slice(0, 3).forEach((freq, nIdx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          const lp = ctx.createBiquadFilter();
+          osc.type = nIdx === 0 ? 'triangle' : 'sine';
+          osc.frequency.setValueAtTime(nIdx === 0 ? freq * 0.5 : freq, now);
+          lp.type = 'lowpass';
+          lp.frequency.setValueAtTime(920, now);
 
-      bassGain.gain.setValueAtTime(0.18, now);
-      bassGain.gain.exponentialRampToValueAtTime(0.01, now + stepDuration * 0.9);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(nIdx === 0 ? 0.14 : 0.065, now + 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + stepDuration * 3.6);
 
-      const bassFilter = ctx.createBiquadFilter();
-      bassFilter.type = 'lowpass';
-      bassFilter.frequency.setValueAtTime(450, now);
+          osc.connect(lp);
+          lp.connect(gain);
+          gain.connect(this.bgmGain!);
+          osc.start(now);
+          osc.stop(now + stepDuration * 3.8);
+        });
+      }
 
-      bassOsc.connect(bassFilter);
-      bassFilter.connect(bassGain);
-      bassGain.connect(this.bgmGain!);
+      // Delicate bell arpeggio note
+      const arpOsc = ctx.createOscillator();
+      const arpGain = ctx.createGain();
+      arpOsc.type = 'sine';
+      arpOsc.frequency.setValueAtTime(chord[step % chord.length] * 2, now);
+      arpGain.gain.setValueAtTime(0.001, now);
+      arpGain.gain.linearRampToValueAtTime(0.032, now + 0.02);
+      arpGain.gain.exponentialRampToValueAtTime(0.0008, now + stepDuration * 1.4);
 
-      bassOsc.start(now);
-      bassOsc.stop(now + stepDuration);
-
-      const hatOsc = ctx.createOscillator();
-      const hatGain = ctx.createGain();
-      hatOsc.type = 'triangle';
-      hatOsc.frequency.setValueAtTime(7000, now);
-
-      hatGain.gain.setValueAtTime(step % 2 === 0 ? 0.04 : 0.02, now);
-      hatGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-
-      hatOsc.connect(hatGain);
-      hatGain.connect(this.bgmGain!);
-
-      hatOsc.start(now);
-      hatOsc.stop(now + 0.06);
+      arpOsc.connect(arpGain);
+      arpGain.connect(this.bgmGain!);
+      arpOsc.start(now);
+      arpOsc.stop(now + stepDuration * 1.5);
 
       step++;
     }, stepDuration * 1000);
   }
 
+  public async preloadSingleSceneVoiceover(scene: any, defaultProfile?: VoiceProfile) {
+    if (!this.ctx || !scene?.voiceover?.trim() || scene.customAudioUrl) return;
+    const { profile, rate, pitch } = resolveSceneVoiceParams(scene, defaultProfile);
+    try {
+      await fetchAndDecodeNeuralAudio(this.ctx, scene.voiceover, profile, undefined, rate, pitch);
+    } catch { }
+  }
+
   public async preloadScenesVoiceover(scenes: any[], defaultProfile?: VoiceProfile) {
     if (!this.ctx) return;
-    const ctx = this.ctx;
-    const baseProf = defaultProfile || VIETNAMESE_VOICE_PROFILES[0];
-
     for (const scene of scenes) {
-      if (!scene?.voiceover?.trim() || scene.customAudioUrl) continue;
-      const isEnglish = scene.voiceLanguage === 'en';
-      const profile = resolveVoiceProfileById(scene.voiceId, isEnglish ? 'en' : 'vi') || baseProf;
-
-      try {
-        await fetchAndDecodeNeuralAudio(ctx, scene.voiceover, profile);
-      } catch (err) {
-        console.warn('Preload voice warning:', err);
-      }
+      await this.preloadSingleSceneVoiceover(scene, defaultProfile);
     }
   }
 
-  public stopCinematicSoundtrack() {
-    this.isBgmPlaying = false;
-    if (this.bgmIntervalId) {
-      clearInterval(this.bgmIntervalId);
-      this.bgmIntervalId = null;
+  /**
+   * Nạp trước và đo chính xác thời lượng thực tế từng phân cảnh trước khi chạy xuất video hoặc đồng bộ timeline.
+   */
+  public async preloadAndMeasureScenesVoiceover(
+    scenes: any[],
+    defaultProfile?: VoiceProfile,
+    onProgress?: (done: number, total: number) => void
+  ): Promise<MeasuredSceneVoiceover[]> {
+    if (!this.ctx) return [];
+    const ctx = this.ctx;
+    const results: MeasuredSceneVoiceover[] = [];
+
+    for (let i = 0; i < scenes.length; i++) {
+      const scene = scenes[i];
+      onProgress?.(i, scenes.length);
+      if (!scene) continue;
+      const { profile, rate, pitch } = resolveSceneVoiceParams(scene, defaultProfile);
+      try {
+        if (scene.customAudioUrl) {
+          const resp = await fetch(scene.customAudioUrl);
+          const buf = await resp.arrayBuffer();
+          const decoded = await ctx.decodeAudioData(buf.slice(0));
+          const trimmed = trimSilenceEdges(ctx, decoded, 0.006, 35);
+          results.push({
+            sceneId: scene.id,
+            startSec: scene.startSec,
+            endSec: scene.endSec,
+            audioBuffer: trimmed,
+            durationSec: Number(trimmed.duration.toFixed(2)),
+            engine: 'custom-recording',
+            profile,
+          });
+          continue;
+        }
+        if (!scene.voiceover?.trim()) continue;
+        const { audioBuffer, engine } = await fetchAndDecodeNeuralAudio(
+          ctx,
+          scene.voiceover,
+          profile,
+          undefined,
+          rate,
+          pitch
+        );
+        const pitchRatio = computeEffectivePitchRatio(profile, pitch, engine);
+        const tempoInDsp = engine.includes('google') ? rate : 1.0;
+        const processed = processVocalTractPitchAndTempo(ctx, audioBuffer, pitchRatio, tempoInDsp);
+        results.push({
+          sceneId: scene.id,
+          startSec: scene.startSec,
+          endSec: scene.endSec,
+          audioBuffer: processed,
+          durationSec: Number(processed.duration.toFixed(2)),
+          engine,
+          profile,
+        });
+      } catch (err) {
+        console.warn('Measure scene voice warning:', err);
+      }
     }
+    onProgress?.(scenes.length, scenes.length);
+    return results;
+  }
+
+  /**
+   * Lập lịch phát giọng đọc liên tục từng mili-giây trên đồng hồ Web Audio phần cứng khi xuất Video
+   * giúp không bị cắt chữ cuối câu hay khựng bởi React render loop.
+   */
+  public scheduleContinuousExportNarration(
+    items: MeasuredSceneVoiceover[],
+    speedMultiplier = 1.0,
+    timelineOffsetSec = 0
+  ) {
+    this.stopSceneVoiceover();
+    if (this.isMutedState || !this.ctx || !this.voiceGain || items.length === 0) return;
+    this.resume();
+
+    const ctx = this.ctx;
+    const baseTime = ctx.currentTime + 0.06;
+    const voiceDestination = this.voiceGain;
+
+    items.forEach((item) => {
+      const relStart = Math.max(0, (item.startSec - timelineOffsetSec) / Math.max(0.5, speedMultiplier));
+      const when = baseTime + relStart;
+      const src = ctx.createBufferSource();
+      src.buffer = item.audioBuffer;
+      if (Math.abs(speedMultiplier - 1.0) > 0.02) {
+        src.playbackRate.value = speedMultiplier;
+      }
+      connectVocalFormantChain(ctx, src, voiceDestination, item.profile);
+      src.onended = () => {
+        this.scheduledExportSources = this.scheduledExportSources.filter((s) => s !== src);
+      };
+      this.scheduledExportSources.push(src);
+      src.start(when);
+    });
+  }
+
+  public stopCinematicSoundtrack() {
+    this.stopBgmTrack(0.12);
   }
 
   public dispose() {
     this.stopSceneVoiceover();
-    this.stopCinematicSoundtrack();
+    this.stopBgmTrack(0.05);
     if (this.ctx) {
       this.ctx.close().catch(() => { });
       this.ctx = null;
@@ -2764,61 +3480,37 @@ export async function synthesizeNeuralVoiceToAudioBuffer(
     workingBuffer = processVocalTractPitchAndTempo(ctx, fetched.audioBuffer, pitchRatio, tempoInDsp);
   }
 
-  // OfflineAudioContext Broadcast Mastering (chỉ áp EQ khi không đang clone 128 dải, hoặc chỉ áp phần delta nếu người dùng tinh chỉnh)
+  // OfflineAudioContext Broadcast Mastering (tái sử dụng chuỗi Formant Studio 6 tầng hoặc tinh chỉnh warmth khi clone 128 dải)
   const offline = new OfflineAudioContext(1, Math.max(128, workingBuffer.length), workingBuffer.sampleRate);
   const source = offline.createBufferSource();
   source.buffer = workingBuffer;
 
-  let currentNode: AudioNode = source;
   if (!refAnalysis || opts?.directReferenceBlob) {
-    const eq = profile.formantEq || {
-      lowShelfHz: 220,
-      lowGainDb: 2.5,
-      midPeakingHz: 2100,
-      midGainDb: 3.0,
-      highShelfHz: 5200,
-      highGainDb: 2.2,
-    };
-
-    const lowShelf = offline.createBiquadFilter();
-    lowShelf.type = 'lowshelf';
-    lowShelf.frequency.value = eq.lowShelfHz;
-    lowShelf.gain.value = opts?.warmthDb ?? eq.lowGainDb;
-
-    const midPeaking = offline.createBiquadFilter();
-    midPeaking.type = 'peaking';
-    midPeaking.frequency.value = eq.midPeakingHz;
-    midPeaking.Q.value = 1.15;
-    midPeaking.gain.value = opts?.midGainDb ?? eq.midGainDb;
-
-    const highShelf = offline.createBiquadFilter();
-    highShelf.type = 'highshelf';
-    highShelf.frequency.value = eq.highShelfHz;
-    highShelf.gain.value = opts?.highGainDb ?? eq.highGainDb;
-
-    currentNode.connect(lowShelf);
-    lowShelf.connect(midPeaking);
-    midPeaking.connect(highShelf);
-    currentNode = highShelf;
-  } else if (opts?.warmthDb !== undefined && Math.abs(opts.warmthDb - refAnalysis.warmthDb) > 0.4) {
-    const warmthDelta = Math.max(-5, Math.min(5, opts.warmthDb - refAnalysis.warmthDb));
-    const trimLow = offline.createBiquadFilter();
-    trimLow.type = 'lowshelf';
-    trimLow.frequency.value = 210;
-    trimLow.gain.value = warmthDelta;
-    currentNode.connect(trimLow);
-    currentNode = trimLow;
+    connectVocalFormantChain(offline, source, offline.destination, profile, {
+      warmthDb: opts?.warmthDb,
+      midGainDb: opts?.midGainDb,
+      highGainDb: opts?.highGainDb,
+    });
+  } else {
+    let tailNode: AudioNode = source;
+    if (opts?.warmthDb !== undefined && Math.abs(opts.warmthDb - refAnalysis.warmthDb) > 0.4) {
+      const warmthDelta = Math.max(-5, Math.min(5, opts.warmthDb - refAnalysis.warmthDb));
+      const trimLow = offline.createBiquadFilter();
+      trimLow.type = 'lowshelf';
+      trimLow.frequency.value = 210;
+      trimLow.gain.value = warmthDelta;
+      tailNode.connect(trimLow);
+      tailNode = trimLow;
+    }
+    const compressor = offline.createDynamicsCompressor();
+    compressor.threshold.value = -18;
+    compressor.knee.value = 16;
+    compressor.ratio.value = 2.8;
+    compressor.attack.value = 0.005;
+    compressor.release.value = 0.16;
+    tailNode.connect(compressor);
+    compressor.connect(offline.destination);
   }
-
-  const compressor = offline.createDynamicsCompressor();
-  compressor.threshold.value = -18;
-  compressor.knee.value = 16;
-  compressor.ratio.value = 2.8;
-  compressor.attack.value = 0.005;
-  compressor.release.value = 0.16;
-
-  currentNode.connect(compressor);
-  compressor.connect(offline.destination);
 
   source.start(0);
   const renderedBuffer = await offline.startRendering();

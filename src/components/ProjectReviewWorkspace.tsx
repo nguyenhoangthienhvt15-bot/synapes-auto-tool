@@ -1,7 +1,11 @@
-import React, { useState, Suspense } from 'react';
+import React, { useState, useRef, Suspense } from 'react';
 import { Project, StoryboardScene, VoiceLanguage } from '../types';
 import { AiCinemaPlayer } from './AiCinemaPlayer';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
+import {
+  normalizeBgmVolumeRatio,
+  bindExclusiveAudioElement,
+} from '../services/voiceStudioService';
 
 const VoiceStudioModal = lazyWithRetry(() =>
   import('./VoiceStudioModal').then((m) => ({ default: m.VoiceStudioModal }))
@@ -20,7 +24,8 @@ import {
   Volume2, CheckCircle2, Clock,
   Edit3, Film, ExternalLink, Smartphone, Monitor,
   Link2, Sparkles, X, Check, Camera, RefreshCw,
-  Mic, Keyboard, Plus, Scissors, Trash2, Copy, Download
+  Mic, Keyboard, Plus, Scissors, Trash2, Copy, Download,
+  Music, Upload
 } from 'lucide-react';
 
 interface ProjectReviewWorkspaceProps {
@@ -71,6 +76,56 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
   // AI revision modal
   const [showAiRevisionModal, setShowAiRevisionModal] = useState(false);
   const [revisionPrompt, setRevisionPrompt] = useState('');
+
+  // Custom Background Music (MP3/WAV/OGG/M4A) upload & controls
+  const bgmFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [bgmUploadError, setBgmUploadError] = useState<string | null>(null);
+
+  const handleUploadCustomBgm = (file: File | undefined) => {
+    if (!file) return;
+    setBgmUploadError(null);
+    if (file.size > 12 * 1024 * 1024) {
+      setBgmUploadError('File nhạc nền vượt quá giới hạn 12MB. Vui lòng chọn tệp gọn nhẹ hơn.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const dataUrl = typeof ev.target?.result === 'string' ? ev.target.result : '';
+      if (!dataUrl) {
+        setBgmUploadError('Không thể đọc dữ liệu file âm thanh.');
+        return;
+      }
+      let decodedDurationSec: number | undefined;
+      try {
+        const arr = await file.arrayBuffer();
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const tmpCtx = new AudioCtx();
+          const decoded = await tmpCtx.decodeAudioData(arr);
+          decodedDurationSec = Number(decoded.duration.toFixed(1));
+          tmpCtx.close().catch(() => {});
+        }
+      } catch { }
+
+      onUpdateProject({
+        ...project,
+        musicTrack: {
+          ...(project.musicTrack || { name: file.name, license: 'User Uploaded BGM', volume: 24 }),
+          name: file.name,
+          license: 'Nhạc nền tải lên (MP3/WAV/OGG)',
+          volume: project.musicTrack?.volume ?? 24,
+          customBgmUrl: dataUrl,
+          customBgmFileName: file.name,
+          customBgmDurationSec: decodedDurationSec,
+          loop: project.musicTrack?.loop ?? true,
+          fadeInSec: project.musicTrack?.fadeInSec ?? 0.45,
+          fadeOutSec: project.musicTrack?.fadeOutSec ?? 0.6,
+          duckingEnabled: project.musicTrack?.duckingEnabled ?? true,
+        },
+      });
+    };
+    reader.readAsDataURL(file);
+  };
 
   const formatSeconds = (sec: number) => {
     const m = Math.floor(sec / 60);
@@ -594,39 +649,207 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
               onOpenShortcutsModal={() => setIsShortcutsModalOpen(true)}
             />
 
-            {/* Audio Track Info Pod */}
-            <div className="p-3 rounded-lg bg-zinc-50 border border-black/[0.05] flex items-center justify-between text-xs text-zinc-600">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-md bg-white border border-black/[0.06] flex items-center justify-center text-zinc-700">
-                  <Volume2 className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <div className="text-zinc-900 font-semibold flex items-center gap-2">
-                    <span>{project.voiceoverTrack?.name || project.musicTrack.name}</span>
-                    {project.customAudioUrl && (
-                      <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-mono text-[9px] font-bold">
-                        Master Audio Toàn Video
-                      </span>
+            {/* Audio Track & Custom BGM (MP3/WAV) Upload Mixer Pod */}
+            <div
+              data-testid="audio-track-pod"
+              className="p-3.5 rounded-xl bg-zinc-50 border border-black/[0.06] space-y-2.5 text-xs text-zinc-700"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-white border border-black/[0.08] flex items-center justify-center text-zinc-800 shrink-0 shadow-2xs">
+                    {project.musicTrack?.customBgmUrl ? (
+                      <Music className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                      <Volume2 className="w-4 h-4 text-indigo-600" />
                     )}
                   </div>
-                  <div className="text-[10px] text-zinc-400 font-mono">
-                    Nhạc nền: {project.musicTrack.name} • {project.musicTrack.license}
+                  <div className="min-w-0">
+                    <div className="text-zinc-900 font-semibold flex items-center gap-2 flex-wrap">
+                      <span className="truncate">
+                        {project.voiceoverTrack?.name || project.musicTrack?.name || 'Neural Voiceover + BGM Studio'}
+                      </span>
+                      {project.customAudioUrl && (
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-mono text-[9px] font-bold">
+                          Master Audio Toàn Video
+                        </span>
+                      )}
+                      {project.musicTrack?.customBgmUrl && (
+                        <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 font-mono text-[9px] font-bold">
+                          Nhạc nền MP3 riêng
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-zinc-500 font-mono truncate">
+                      Nhạc nền: {project.musicTrack?.customBgmFileName || project.musicTrack?.name || 'SYNAPES Ambient Score'}
+                      {project.musicTrack?.customBgmDurationSec ? ` (${project.musicTrack.customBgmDurationSec}s)` : ''} •{' '}
+                      {project.musicTrack?.license || 'SYNAPES Audio Engine'}
+                    </div>
                   </div>
+                </div>
+
+                {/* Upload & Waveform Readout */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    data-testid="bgm-upload-btn"
+                    onClick={() => bgmFileInputRef.current?.click()}
+                    className="px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                  >
+                    <Upload className="w-3 h-3" />
+                    <span>
+                      {project.musicTrack?.customBgmUrl ? 'Đổi nhạc nền (MP3/WAV)' : 'Tải nhạc nền (MP3/WAV)'}
+                    </span>
+                  </button>
+                  {project.musicTrack?.customBgmUrl && (
+                    <button
+                      type="button"
+                      data-testid="bgm-remove-btn"
+                      onClick={() =>
+                        onUpdateProject({
+                          ...project,
+                          musicTrack: {
+                            ...(project.musicTrack || { name: 'SYNAPES Ambient Score', license: 'Royalty-Free Studio BGM', volume: 22 }),
+                            name: 'SYNAPES Ambient Score',
+                            license: 'Royalty-Free Studio BGM',
+                            customBgmUrl: undefined,
+                            customBgmFileName: undefined,
+                            customBgmDurationSec: undefined,
+                          },
+                        })
+                      }
+                      className="px-2 py-1.5 rounded-lg bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer"
+                      title="Gỡ nhạc nền riêng, dùng lại nhạc mặc định"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Gỡ BGM</span>
+                    </button>
+                  )}
+                  <div className="flex items-end gap-0.5 h-3.5 pl-1">
+                    <div className="w-1 bg-zinc-900 rounded-full wave-bar-1"></div>
+                    <div className="w-1 bg-zinc-900 rounded-full wave-bar-2"></div>
+                    <div className="w-1 bg-zinc-900 rounded-full wave-bar-3"></div>
+                    <div className="w-1 bg-zinc-900 rounded-full wave-bar-4"></div>
+                  </div>
+                  <span
+                    data-testid="bgm-volume-badge"
+                    className="text-[10px] font-mono font-bold text-zinc-800 bg-white px-2 py-0.5 rounded border border-black/[0.08]"
+                  >
+                    {Math.round(normalizeBgmVolumeRatio(project.musicTrack?.volume) * 100)}%
+                  </span>
                 </div>
               </div>
 
-              {/* Minimal Waveform */}
-              <div className="flex items-center gap-2.5">
-                <div className="flex items-end gap-0.5 h-3.5">
-                  <div className="w-1 bg-zinc-900 rounded-full wave-bar-1"></div>
-                  <div className="w-1 bg-zinc-900 rounded-full wave-bar-2"></div>
-                  <div className="w-1 bg-zinc-900 rounded-full wave-bar-3"></div>
-                  <div className="w-1 bg-zinc-900 rounded-full wave-bar-4"></div>
+              <input
+                ref={bgmFileInputRef}
+                data-testid="bgm-upload-input"
+                type="file"
+                accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac"
+                className="hidden"
+                onChange={(e) => {
+                  handleUploadCustomBgm(e.target.files?.[0]);
+                  e.target.value = '';
+                }}
+              />
+
+              {/* Mixer Controls: Volume 0–100%, Loop & Auto-Ducking */}
+              <div className="pt-2 border-t border-black/[0.06] flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 flex-1 min-w-[200px]">
+                  <span className="text-[10.5px] font-semibold text-zinc-600 shrink-0">Âm lượng nhạc nền:</span>
+                  <input
+                    data-testid="bgm-volume-slider"
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={Math.round(normalizeBgmVolumeRatio(project.musicTrack?.volume) * 100)}
+                    onChange={(e) => {
+                      const nextVol = Number(e.target.value);
+                      onUpdateProject({
+                        ...project,
+                        musicTrack: {
+                          ...(project.musicTrack || {
+                            name: 'SYNAPES Ambient Score',
+                            license: 'SYNAPES Audio Engine',
+                            volume: nextVol,
+                          }),
+                          volume: nextVol,
+                        },
+                      });
+                    }}
+                    className="w-full accent-emerald-600 cursor-pointer"
+                  />
                 </div>
-                <span className="text-[10px] font-mono font-medium text-zinc-700 bg-white px-1.5 py-0.2 rounded border border-black/[0.06]">
-                  {project.musicTrack.volume}%
-                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    data-testid="bgm-loop-toggle"
+                    onClick={() =>
+                      onUpdateProject({
+                        ...project,
+                        musicTrack: {
+                          ...(project.musicTrack || {
+                            name: 'SYNAPES Ambient Score',
+                            license: 'SYNAPES Audio Engine',
+                            volume: 22,
+                          }),
+                          loop: project.musicTrack?.loop === false,
+                        },
+                      })
+                    }
+                    className={`px-2 py-1 rounded-md text-[10.5px] font-semibold border transition cursor-pointer ${
+                      project.musicTrack?.loop !== false
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        : 'bg-white text-zinc-500 border-black/[0.08]'
+                    }`}
+                  >
+                    {project.musicTrack?.loop !== false ? '✓ Lặp vô tận' : 'Phát 1 lần'}
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="bgm-ducking-toggle"
+                    onClick={() =>
+                      onUpdateProject({
+                        ...project,
+                        musicTrack: {
+                          ...(project.musicTrack || {
+                            name: 'SYNAPES Ambient Score',
+                            license: 'SYNAPES Audio Engine',
+                            volume: 22,
+                          }),
+                          duckingEnabled: project.musicTrack?.duckingEnabled === false,
+                        },
+                      })
+                    }
+                    className={`px-2 py-1 rounded-md text-[10.5px] font-semibold border transition cursor-pointer ${
+                      project.musicTrack?.duckingEnabled !== false
+                        ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                        : 'bg-white text-zinc-500 border-black/[0.08]'
+                    }`}
+                    title="Tự động hạ nhẹ nhạc nền khi AI/MC đang đọc thoại để giữ giọng nói rõ nét"
+                  >
+                    {project.musicTrack?.duckingEnabled !== false ? '✓ Auto-Ducking Giọng Nói' : 'Tắt Auto-Ducking'}
+                  </button>
+                </div>
               </div>
+
+              {project.musicTrack?.customBgmUrl && (
+                <div className="pt-1">
+                  <audio
+                    controls
+                    src={project.musicTrack.customBgmUrl}
+                    onPlay={(e) => bindExclusiveAudioElement(e.currentTarget)}
+                    className="w-full h-8 rounded-lg"
+                  />
+                </div>
+              )}
+
+              {bgmUploadError && (
+                <div className="text-[11px] text-rose-600 font-medium bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-lg">
+                  {bgmUploadError}
+                </div>
+              )}
             </div>
 
             {/* Bottom Actions Bar */}

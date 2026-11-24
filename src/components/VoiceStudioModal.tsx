@@ -215,7 +215,12 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
             ? v.id.includes('apple') || v.region.toLowerCase().includes('apple')
             : filterRegion === 'Clone ULTRA'
               ? v.region === 'Clone ULTRA' || v.id.startsWith('labs-voice-')
-              : v.region.toLowerCase().includes(filterRegion.toLowerCase())
+              : filterRegion === 'Thiếu Nhi'
+                ? v.id.includes('kids') || v.toneTag.toLowerCase().includes('thiếu nhi') || v.toneTag.toLowerCase().includes('3d')
+                : filterRegion === 'Tài Liệu'
+                  ? v.id.includes('doc') || v.toneTag.toLowerCase().includes('tài liệu') || v.toneTag.toLowerCase().includes('điện ảnh')
+                  : v.region.toLowerCase().includes(filterRegion.toLowerCase()) ||
+                    v.toneTag.toLowerCase().includes(filterRegion.toLowerCase())
         );
 
   const handleStartMicRecording = async () => {
@@ -667,7 +672,7 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                         selectedLanguage === 'vi' ? 'bg-zinc-900 text-white shadow-xs' : 'text-zinc-600 hover:text-zinc-900'
                       }`}
                     >
-                      🇻🇳 Tiếng Việt (8 Giọng)
+                      🇻🇳 Tiếng Việt ({VIETNAMESE_VOICE_PROFILES.length} Giọng)
                     </button>
                     <button
                       type="button"
@@ -686,14 +691,14 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                         selectedLanguage === 'en' ? 'bg-zinc-900 text-white shadow-xs' : 'text-zinc-600 hover:text-zinc-900'
                       }`}
                     >
-                      🇺🇸 English (5 Voices)
+                      🇺🇸 English ({ENGLISH_VOICE_PROFILES.length} Voices)
                     </button>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1 flex-wrap">
                   {(selectedLanguage === 'vi'
-                    ? ['All', 'Clone ULTRA', 'Apple Keynote', 'Bắc', 'Nam', 'Trung', 'AI Neural']
+                    ? ['All', 'Clone ULTRA', 'Apple Keynote', 'Tài Liệu', 'Thiếu Nhi', 'Bắc', 'Nam', 'Trung', 'AI Neural']
                     : ['All', 'America', 'Kingdom', 'AI Neural']
                   ).map((reg) => (
                     <button
@@ -739,6 +744,11 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                           <div className="text-[10px] text-indigo-600 font-semibold mt-0.5 font-mono">
                             {voice.toneTag}
                           </div>
+                          {voice.acousticSignature && (
+                            <div className="text-[9px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-200/80 rounded px-1.5 py-0.5 mt-1 inline-block">
+                              {voice.acousticSignature}
+                            </div>
+                          )}
                           <p className="text-[10px] text-zinc-500 mt-0.5 line-clamp-2">{voice.description}</p>
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
@@ -758,7 +768,10 @@ export const VoiceStudioModal: React.FC<VoiceStudioModalProps> = ({
                       </div>
                       <div className="pt-1.5 border-t border-black/[0.06] flex items-center justify-between gap-2">
                         <span className="text-[9px] font-mono text-zinc-500 truncate">
-                          {voice.rate}x • Pitch {voice.pitch}x
+                          {voice.rate}x •{' '}
+                          {voice.nativePitchHz !== undefined
+                            ? `SSML ${voice.nativePitchHz >= 0 ? '+' : ''}${voice.nativePitchHz}Hz`
+                            : `Pitch ${voice.pitch}x`}
                         </span>
                         <button
                           type="button"

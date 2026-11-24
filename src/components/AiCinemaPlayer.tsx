@@ -7,6 +7,7 @@ import {
   SubtitleStyle,
   SubtitlePosition,
   VideoGenre,
+  EditSkillPresetId,
 } from '../types';
 import {
   Play,
@@ -39,6 +40,9 @@ import {
   FileVideo,
   Globe,
   Search,
+  Music,
+  Wand2,
+  Layers,
 } from 'lucide-react';
 import {
   buildAiSceneImageUrl,
@@ -49,9 +53,9 @@ import {
 } from '../services/aiScriptGeneratorService';
 import {
   StudioAudioSynthesizer,
-  ALL_VOICE_PROFILES,
-  VIETNAMESE_VOICE_PROFILES,
-  ENGLISH_VOICE_PROFILES,
+  resolveVoiceProfileById,
+  resolveSceneVoiceParams,
+  normalizeBgmVolumeRatio,
 } from '../services/voiceStudioService';
 import { fixWebmDuration } from '../utils/webmDurationFix';
 import {
@@ -65,7 +69,15 @@ import { renderPaperArtStageToCanvas } from '../utils/paperArtStageRenderer';
 import {
   applyGlSceneTransition,
   pickSceneTransitionPreset,
+  TRANSITION_PRESET_CATALOG,
+  normalizeTransitionHint,
 } from '../utils/glTransitionCompositor';
+import {
+  EDIT_SKILL_LIST,
+  EDIT_SKILL_PRESETS,
+  resolveActiveEditSkill,
+  computeEasedCameraTransform,
+} from '../utils/cinemaEditSkillsEngine';
 
 interface AiCinemaPlayerProps {
   project: Project;
@@ -125,13 +137,18 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     return 'auto-genre';
   });
   const [showBroadcastHud, setShowBroadcastHud] = useState<boolean>(false);
+  const [editSkillOverride, setEditSkillOverride] = useState<EditSkillPresetId | 'auto'>(
+    () => project.editSkillPreset || 'auto'
+  );
+  const activeEditSkill = resolveActiveEditSkill(project, editSkillOverride);
 
   const glFromCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const glToCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const lastGlSceneIdxRef = useRef<number>(-1);
 
-  // File upload ref for custom B-roll media
+  // File upload ref for custom B-roll media & BGM music track
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const bgmFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Image & Video B-roll preloading caches per scene ID + Frame-Hold chống nhấp nháy khung đen
   const loadedImagesRef = useRef<Record<number, HTMLImageElement>>({});
@@ -163,8 +180,17 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   const sessionRecorderRef = useRef<MediaRecorder | null>(null);
   const sessionChunksRef = useRef<BlobPart[]>([]);
 
-  // Color Grade & VFX quick modal
+  // Color Grade & VFX quick modal + Transitions + BGM drawer + Voice sync
   const [showLutPaletteModal, setShowLutPaletteModal] = useState<boolean>(false);
+  const [showTransitionModal, setShowTransitionModal] = useState<boolean>(false);
+  const [showBgmQuickModal, setShowBgmQuickModal] = useState<boolean>(false);
+  const [isSyncingVoiceTimeline, setIsSyncingVoiceTimeline] = useState<boolean>(false);
+  const [voiceSyncNotice, setVoiceSyncNotice] = useState<string>('');
+  const isExportingVideoRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    isExportingVideoRef.current = isExportingVideo;
+  }, [isExportingVideo]);
 
   // Real Internet Image Search modal
   const [showInternetImageModal, setShowInternetImageModal] = useState<boolean>(false);
@@ -181,14 +207,132 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     setInternetSearchQuery(extractCleanSubject(project.title));
     setInternetImages([]);
     setVisualRenderMode('auto-genre');
-    if (effectiveGenre === 'news-broadcast' || effectiveGenre === 'finance-analysis') {
+    setEditSkillOverride(project.editSkillPreset || 'auto');
+    if (project.editSkillPreset && EDIT_SKILL_PRESETS[project.editSkillPreset]) {
+      const sk = EDIT_SKILL_PRESETS[project.editSkillPreset];
+      setActiveLut(sk.defaultLut);
+      setActiveVfx(sk.defaultVfx);
+      setSubtitleStyle(sk.defaultSubtitleStyle);
+    } else if (effectiveGenre === 'news-broadcast' || effectiveGenre === 'finance-analysis') {
       setActiveLut('studio-clean');
       setActiveVfx('vignette');
     } else {
       setActiveLut('apple-keynote');
       setActiveVfx('vignette');
     }
-  }, [project.id, project.title, effectiveGenre]);
+  }, [project.id, project.title, effectiveGenre, project.editSkillPreset]);
+
+  const handleSelectEditSkill = (presetId: EditSkillPresetId | 'auto') => {
+    setEditSkillOverride(presetId);
+    if (presetId !== 'auto' && EDIT_SKILL_PRESETS[presetId]) {
+      const sk = EDIT_SKILL_PRESETS[presetId];
+      setActiveLut(sk.defaultLut);
+      setActiveVfx(sk.defaultVfx);
+      setSubtitleStyle(sk.defaultSubtitleStyle);
+    }
+    onUpdateProject?.({
+      ...project,
+      editSkillPreset: presetId === 'auto' ? undefined : presetId,
+    });
+    synthRef.current?.playSfx('chime');
+  };
+
+  const handleApplySceneTransition = (preset: string, applyAll: boolean) => {
+    if (!onUpdateProject || !currentScene) return;
+    const updatedStoryboard = project.storyboard.map((s) =>
+      applyAll || s.id === currentScene.id ? { ...s, transition: preset } : s
+    );
+    onUpdateProject({ ...project, storyboard: updatedStoryboard });
+    synthRef.current?.playSfx('chime');
+    setShowTransitionModal(false);
+  };
+
+  const handleAutoSyncVoiceTimeline = async () => {
+    if (!synthRef.current || !onUpdateProject || scenes.length === 0 || isSyncingVoiceTimeline) return;
+    setIsSyncingVoiceTimeline(true);
+    setVoiceSyncNotice('Đang đo thời lượng thực tế Neural TTS từng cảnh...');
+    try {
+      synthRef.current.resume();
+      const measured = await synthRef.current.preloadAndMeasureScenesVoiceover(scenes);
+      const durById = new Map<number, number>();
+      measured.forEach((m) => {
+        if (m.durationSec > 0.25) durById.set(m.sceneId, m.durationSec);
+      });
+
+      let cursorSec = 0;
+      const breathGap = activeEditSkill.breathGapSec || 0.25;
+      const syncedScenes = scenes.map((sc) => {
+        const prevDur = Math.max(2, (sc.endSec || 6) - (sc.startSec || 0));
+        const realVoiceDur = durById.get(sc.id);
+        const targetDur = realVoiceDur
+          ? Math.max(3, Math.ceil((realVoiceDur + breathGap) * 10) / 10)
+          : prevDur;
+        const nextScene: StoryboardScene = {
+          ...sc,
+          startSec: Number(cursorSec.toFixed(2)),
+          endSec: Number((cursorSec + targetDur).toFixed(2)),
+        };
+        cursorSec = nextScene.endSec;
+        return nextScene;
+      });
+
+      const newTotal = Number(Math.max(4, cursorSec).toFixed(2));
+      onUpdateProject({
+        ...project,
+        duration: newTotal,
+        storyboard: syncedScenes,
+      });
+      setVoiceSyncNotice(`Đã khớp ${durById.size}/${scenes.length} cảnh (${newTotal}s)`);
+      synthRef.current.playSfx('chime');
+      setTimeout(() => setVoiceSyncNotice(''), 4200);
+    } catch (err) {
+      console.warn('Auto-sync voice timeline error:', err);
+      setVoiceSyncNotice('Không thể đo toàn bộ giọng lúc này');
+      setTimeout(() => setVoiceSyncNotice(''), 3000);
+    } finally {
+      setIsSyncingVoiceTimeline(false);
+    }
+  };
+
+  const handleBgmFileSelected = (file: File | undefined) => {
+    if (!file || !onUpdateProject) return;
+    if (file.size > 12 * 1024 * 1024) {
+      alert('File nhạc nền vượt quá giới hạn 12MB. Vui lòng chọn file MP3/WAV gọn nhẹ hơn.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const dataUrl = typeof ev.target?.result === 'string' ? ev.target.result : '';
+      if (!dataUrl) return;
+      let decodedDurationSec: number | undefined;
+      try {
+        const arr = await file.arrayBuffer();
+        const tmpCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const decoded = await tmpCtx.decodeAudioData(arr);
+        decodedDurationSec = Number(decoded.duration.toFixed(1));
+        tmpCtx.close().catch(() => {});
+      } catch { }
+
+      onUpdateProject({
+        ...project,
+        musicTrack: {
+          ...(project.musicTrack || { name: file.name, license: 'User Uploaded BGM', volume: 24 }),
+          name: file.name,
+          license: 'Nhạc nền tải lên (MP3/WAV)',
+          volume: project.musicTrack?.volume ?? 24,
+          customBgmUrl: dataUrl,
+          customBgmFileName: file.name,
+          customBgmDurationSec: decodedDurationSec,
+          loop: project.musicTrack?.loop ?? true,
+          fadeInSec: project.musicTrack?.fadeInSec ?? 0.45,
+          fadeOutSec: project.musicTrack?.fadeOutSec ?? 0.6,
+          duckingEnabled: project.musicTrack?.duckingEnabled ?? true,
+        },
+      });
+      synthRef.current?.playSfx('chime');
+    };
+    reader.readAsDataURL(file);
+  };
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -355,7 +499,15 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       };
     };
 
+    const isPure3dStageProject =
+      effectiveGenre === '3d-animation' || effectiveDomain === 'animation-3d';
+
     scenes.forEach((sc, idx) => {
+      // Các dự án hoạt hình 3D dựng cảnh bằng WebGL/Canvas3D toàn màn hình: bỏ qua fetch Wikimedia/B-roll trừ khi cảnh có ảnh/video tùy chỉnh
+      if (isPure3dStageProject && !sc.customMediaUrl && !sc.imageUrl && !sc.clipUrl) {
+        return;
+      }
+
       const rawSource =
         sc.customMediaUrl ||
         sc.imageUrl ||
@@ -382,11 +534,18 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         false
       );
 
-      // Preload live streaming B-Roll Video via CORS-safe /api/video-proxy
+      // Preload live streaming B-Roll Video: ưu tiên clipUrl / video tải lên; không ghi đè bằng pool chung nếu cảnh đã có ảnh HD riêng
+      const hasExplicitScenePhoto =
+        Boolean(sc.imageUrl && sc.imageUrl.trim()) ||
+        Boolean(sc.customMediaUrl && sc.customMediaType !== 'video');
       const rawVideoSrc =
         sc.customMediaType === 'video' && sc.customMediaUrl
           ? sc.customMediaUrl
-          : sc.clipUrl || `/api/video-proxy?domain=${encodeURIComponent(effectiveDomain)}&idx=${idx}`;
+          : sc.clipUrl
+            ? sc.clipUrl
+            : !hasExplicitScenePhoto
+              ? `/api/video-proxy?domain=${encodeURIComponent(effectiveDomain)}&idx=${idx}`
+              : '';
       if (rawVideoSrc && !sc.customMediaUrl) {
         const videoProxySrc =
           rawVideoSrc.startsWith('http://') || rawVideoSrc.startsWith('https://')
@@ -551,6 +710,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   const stopAllActiveAudio = useCallback(() => {
     synthRef.current?.stopSceneVoiceover();
     synthRef.current?.stopCinematicSoundtrack();
+    synthRef.current?.stopBgmTrack(0.12);
     if (currentAudioElementRef.current) {
       try {
         currentAudioElementRef.current.pause();
@@ -649,10 +809,42 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     }
   }, [isPlaying, isMuted, playbackSpeed, masterAudioUrl, stopAllActiveAudio]);
 
-  // Speak Voiceover or Play User Custom Recording
+  // Đồng bộ âm lượng & chế độ Auto-Ducking nhạc nền theo thời gian thực
+  useEffect(() => {
+    synthRef.current?.setBgmVolume(normalizeBgmVolumeRatio(project.musicTrack?.volume));
+    synthRef.current?.setBgmDucking(project.musicTrack?.duckingEnabled !== false);
+  }, [project.musicTrack?.volume, project.musicTrack?.duckingEnabled]);
+
+  // Phát / Tạm dừng Nhạc Nền Tải Lên (MP3/WAV/OGG/M4A) đồng bộ với trình phát
+  useEffect(() => {
+    if (isExportingVideo) return;
+    if (!isPlaying || isMuted || !project.musicTrack?.customBgmUrl) {
+      synthRef.current?.stopBgmTrack(0.16);
+      return;
+    }
+    synthRef.current?.startBgmTrack({
+      url: project.musicTrack.customBgmUrl,
+      volume: project.musicTrack.volume,
+      loop: project.musicTrack.loop !== false,
+      duckingEnabled: project.musicTrack.duckingEnabled !== false,
+      fadeInSec: project.musicTrack.fadeInSec ?? 0.35,
+      offsetSec: currentTimeRef.current,
+      playbackRate: playbackSpeed,
+    });
+  }, [
+    isPlaying,
+    isMuted,
+    isExportingVideo,
+    playbackSpeed,
+    project.musicTrack?.customBgmUrl,
+    project.musicTrack?.loop,
+    project.musicTrack?.fadeInSec,
+  ]);
+
+  // Speak Voiceover or Play User Custom Recording (với tham số thống nhất & preload cảnh kế tiếp)
   const speakSceneVoiceover = useCallback(
-    (scene: StoryboardScene | undefined) => {
-      if (!scene || !isPlaying || isMuted || masterAudioUrl) {
+    (scene: StoryboardScene | undefined, nextScene?: StoryboardScene) => {
+      if (!scene || !isPlaying || isMuted || masterAudioUrl || isExportingVideoRef.current) {
         synthRef.current?.stopSceneVoiceover();
         if (currentAudioElementRef.current) {
           currentAudioElementRef.current.pause();
@@ -674,20 +866,17 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         return;
       }
 
-      // Otherwise play Neural TTS through Web Audio API WSOLA Formant Vocoder
-      if (!isTtsEnabled) return;
+      // Otherwise play Neural TTS through Web Audio API Formant Chain (không bị double-tempo/double-pitch)
+      if (!isTtsEnabled || !scene.voiceover?.trim()) return;
 
-      const isEnglish = scene.voiceLanguage === 'en';
-      const voiceProfile =
-        ALL_VOICE_PROFILES.find((v) => v.id === scene.voiceId) ||
-        (isEnglish ? ENGLISH_VOICE_PROFILES[0] : VIETNAMESE_VOICE_PROFILES[0]);
-
-      const sceneDur = Math.max(3, scene.endSec - scene.startSec);
-      const wordCount = scene.voiceover.split(/\s+/).length;
-      const autoRate = Math.max(0.9, Math.min(1.4, wordCount / (sceneDur * 3.0)));
-
-      const rateToUse = scene.voiceSpeed || voiceProfile.rate || autoRate;
-      const pitchToUse = scene.voicePitch || voiceProfile.pitch || 1.0;
+      const defaultVoice = resolveVoiceProfileById(
+        scene.voiceId,
+        scene.voiceLanguage === 'en' ? 'en' : 'vi'
+      );
+      const { profile: voiceProfile, rate: rateToUse, pitch: pitchToUse } = resolveSceneVoiceParams(
+        scene,
+        defaultVoice
+      );
 
       synthRef.current?.speakSceneWithNeuralVoice(
         scene.voiceover,
@@ -695,6 +884,11 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         rateToUse,
         pitchToUse
       );
+
+      // Lookahead nạp trước câu thoại cảnh tiếp theo để chuyển cảnh không bị khựng / mất chữ đầu
+      if (nextScene && !nextScene.customAudioUrl && nextScene.voiceover?.trim()) {
+        synthRef.current?.preloadSingleSceneVoiceover(nextScene);
+      }
     },
     [isPlaying, isMuted, isTtsEnabled, masterAudioUrl]
   );
@@ -709,14 +903,25 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     if (currentScene && currentSpokenSceneRef.current !== currentScene.id) {
       currentSpokenSceneRef.current = currentScene.id;
       if (!isMuted) {
-        synthRef.current?.playSfx('whoosh');
-        if (!masterAudioUrl) {
-          speakSceneVoiceover(currentScene);
+        synthRef.current?.playSfx(activeEditSkill.sfxOnCut || 'whoosh');
+        if (!masterAudioUrl && !isExportingVideoRef.current) {
+          speakSceneVoiceover(currentScene, scenes[currentSceneIndex + 1]);
         }
       }
       onSelectScene?.(currentScene.id);
     }
-  }, [currentSceneIndex, currentScene, isPlaying, isMuted, masterAudioUrl, speakSceneVoiceover, onSelectScene, stopAllActiveAudio]);
+  }, [
+    currentSceneIndex,
+    currentScene,
+    scenes,
+    isPlaying,
+    isMuted,
+    masterAudioUrl,
+    activeEditSkill.sfxOnCut,
+    speakSceneVoiceover,
+    onSelectScene,
+    stopAllActiveAudio,
+  ]);
 
   // Persistent 60fps Playback & Canvas Loop (Never torn down on React state re-renders!)
   useEffect(() => {
@@ -1157,18 +1362,25 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     vid: HTMLVideoElement | undefined,
     img: HTMLImageElement | undefined,
     prevImg: HTMLImageElement | undefined,
-    secImg: HTMLImageElement | undefined
+    secImg: HTMLImageElement | undefined,
+    inGlTransition: boolean = false
   ) => {
     const hasVideo = Boolean(vid && vid.readyState >= 2 && vid.videoWidth > 0);
     const hasPrimaryImg = Boolean(img && img.complete && img.naturalWidth > 0);
     const hasSecImg = Boolean(secImg && secImg.complete && secImg.naturalWidth > 0);
-    const candidateMedia: HTMLVideoElement | HTMLImageElement | undefined = hasVideo
-      ? vid
-      : hasPrimaryImg
-        ? img
-        : hasSecImg
-          ? secImg
-          : undefined;
+    const isCustomUploadedVideo = Boolean(
+      vid && (vid.src.startsWith('blob:') || vid.src.startsWith('data:'))
+    );
+    const candidateMedia: HTMLVideoElement | HTMLImageElement | undefined =
+      hasVideo && (visualRenderMode !== 'clean-photo' || isCustomUploadedVideo || !hasPrimaryImg)
+        ? vid
+        : hasPrimaryImg
+          ? img
+          : hasVideo
+            ? vid
+            : hasSecImg
+              ? secImg
+              : undefined;
 
     if (candidateMedia) {
       lastValidBackdropRef.current = candidateMedia;
@@ -1178,7 +1390,15 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     const primaryMedia = candidateMedia || lastValidBackdropRef.current || undefined;
     if (!primaryMedia) return false;
 
-    if (sceneElapsed < 0.55 && prevImg && prevImg.complete && prevImg.naturalWidth > 0 && prevImg !== primaryMedia) {
+    // Khi đang ở trong khung GPU GL-Transition, vẽ ảnh/video rõ nét 100% để tránh hiệu ứng chồng mờ kép (double cross-fade)
+    if (
+      !inGlTransition &&
+      sceneElapsed < 0.55 &&
+      prevImg &&
+      prevImg.complete &&
+      prevImg.naturalWidth > 0 &&
+      prevImg !== primaryMedia
+    ) {
       const blend = Math.min(1, sceneElapsed / 0.55);
       ctx.globalAlpha = 1.0;
       drawCoverMedia(ctx, prevImg, W, H);
@@ -1621,8 +1841,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
     if (scene.headline) {
       const cleanHeadline = scene.headline.replace(/^\d+\.\s*/, '').trim();
-      const bannerH = Math.max(36, Math.round(H * 0.062));
-      const bannerY = tickerY - bannerH - Math.max(8, H * 0.014);
+      const bannerH = Math.max(32, Math.round(H * 0.056));
+      const bannerY = tickerY - bannerH - Math.max(6, H * 0.01);
       const bannerW = Math.min(W - padX * 2, Math.max(W * 0.58, 420));
       const slideIn = Math.min(1, progress * 6);
 
@@ -2559,49 +2779,24 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, W, H);
 
-    // 2. Camera Motion Transforms (Dolly In, Dolly Out, Orbit, FPV Zoom, Crane, Pan)
-    const motion = scene.cameraMotion || 'dolly-in';
-    let scale = 1.0;
-    let tx = 0;
-    let ty = 0;
-    let rot = 0;
-
-    if (motion === 'dolly-in') {
-      scale = 1.03 + progress * 0.16;
-    } else if (motion === 'dolly-out') {
-      scale = 1.2 - progress * 0.16;
-    } else if (motion === 'orbit') {
-      scale = 1.12;
-      tx = Math.sin(progress * Math.PI * 2) * (W * 0.032);
-      ty = Math.cos(progress * Math.PI * 2) * (H * 0.015);
-      rot = Math.sin(progress * Math.PI) * 0.014;
-    } else if (motion === 'fpv-zoom') {
-      scale = 1.02 + Math.pow(progress, 1.3) * 0.24;
-      rot = Math.sin(progress * Math.PI * 2) * 0.018;
-      tx = Math.cos(progress * Math.PI) * (W * 0.02);
-    } else if (motion === 'crane-up') {
-      scale = 1.12;
-      ty = (0.5 - progress) * (H * 0.065);
-    } else if (motion === 'pan-right') {
-      scale = 1.12;
-      tx = (0.5 - progress) * (W * 0.065);
-    } else if (motion === 'pan-left') {
-      scale = 1.12;
-      tx = (progress - 0.5) * (W * 0.065);
-    }
-
-    // Subtle cinematic floating camera breathing
-    const breathX = Math.sin(clockSec * 1.6) * 1.2;
-    const breathY = Math.cos(clockSec * 1.3) * 1.2;
+    // 2. Camera Motion Transforms (GSAP Power/Expo/Sine Easing + Punch-In Beat theo Edit Skill đang chọn)
+    const cam = computeEasedCameraTransform(
+      scene.cameraMotion || 'dolly-in',
+      progress,
+      clockSec,
+      activeEditSkill,
+      W,
+      H
+    );
 
     const skip2dCameraCrop =
       visualRenderMode === 'paper-art' || visualRenderMode === 'threejs-3d';
 
     ctx.save();
     if (!skip2dCameraCrop) {
-      ctx.translate(W / 2 + tx + breathX, H / 2 + ty + breathY);
-      ctx.rotate(rot);
-      ctx.scale(scale, scale);
+      ctx.translate(W / 2 + cam.tx, H / 2 + cam.ty);
+      ctx.rotate(cam.rot);
+      ctx.scale(cam.scale, cam.scale);
       ctx.translate(-W / 2, -H / 2);
     }
 
@@ -2673,7 +2868,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       tIdx: number,
       tScene: StoryboardScene,
       tElapsed: number,
-      tProgress: number
+      tProgress: number,
+      inGlTransition: boolean = false
     ) => {
       const tVid = loadedVideosRef.current[tScene.id];
       const tImg = loadedImagesRef.current[tScene.id];
@@ -2778,7 +2974,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         tVid,
         tImg,
         tPrevImg || undefined,
-        tSecImg
+        tSecImg,
+        inGlTransition
       );
 
       if (drawn) {
@@ -2844,10 +3041,17 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       targetCtx.restore();
     };
 
-    // GPU WebGL GL-Transitions giữa phân cảnh (thay cho cắt cứng hoặc mờ đơn điệu)
-    const transitionDuration = 0.72;
+    // GPU WebGL GL-Transitions giữa phân cảnh (tự thích ứng nhịp độ & pool từ Edit Skill)
+    const isHardCutTransition = scene.transition?.trim().toLowerCase() === 'cut';
+    const transitionDuration = isHardCutTransition ? 0 : activeEditSkill.transitionDurationSec;
+    const normalizedHint = normalizeTransitionHint(scene.transition);
     const prevTransitionScene = activeIdx > 0 ? scenes[activeIdx - 1] : null;
-    if (sceneElapsed < transitionDuration && prevTransitionScene && typeof document !== 'undefined') {
+    if (
+      transitionDuration > 0 &&
+      sceneElapsed < transitionDuration &&
+      prevTransitionScene &&
+      typeof document !== 'undefined'
+    ) {
       if (!glFromCanvasRef.current) glFromCanvasRef.current = document.createElement('canvas');
       if (!glToCanvasRef.current) glToCanvasRef.current = document.createElement('canvas');
       const fromC = glFromCanvasRef.current;
@@ -2871,9 +3075,10 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           activeIdx - 1,
           prevTransitionScene,
           Math.max(1, (prevTransitionScene.endSec || 6) - (prevTransitionScene.startSec || 0)),
-          0.98
+          0.98,
+          true
         );
-        drawCoreStageToContext(tCtx, tW, tH, clockSec, activeIdx, scene, sceneElapsed, progress);
+        drawCoreStageToContext(tCtx, tW, tH, clockSec, activeIdx, scene, sceneElapsed, progress, true);
         ctx.restore(); // thoát transform camera 1 giây để apply shader transition toàn khung chuẩn 1:1
         applyGlSceneTransition(
           ctx,
@@ -2882,14 +3087,19 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           W,
           H,
           sceneElapsed / transitionDuration,
-          pickSceneTransitionPreset(activeIdx, isPaperArtMode, scene.transition)
+          pickSceneTransitionPreset(
+            activeIdx,
+            isPaperArtMode,
+            normalizedHint || scene.transition,
+            activeEditSkill.transitionPool
+          )
         );
         ctx.save();
       } else {
-        drawCoreStageToContext(ctx, W, H, clockSec, activeIdx, scene, sceneElapsed, progress);
+        drawCoreStageToContext(ctx, W, H, clockSec, activeIdx, scene, sceneElapsed, progress, false);
       }
     } else {
-      drawCoreStageToContext(ctx, W, H, clockSec, activeIdx, scene, sceneElapsed, progress);
+      drawCoreStageToContext(ctx, W, H, clockSec, activeIdx, scene, sceneElapsed, progress, false);
     }
     lastGlSceneIdxRef.current = activeIdx;
 
@@ -4613,25 +4823,34 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     const chunkWords = activePhrase.words;
 
     const fontSize = ratio === '9:16' ? Math.round(W * 0.052) : Math.round(W * 0.026);
-    let targetY = avoidNewsLowerThird ? H * 0.75 : H * 0.84;
+    let targetY = avoidNewsLowerThird ? H * 0.69 : H * 0.84;
     if (position === 'center') targetY = H * 0.5;
     if (position === 'top') targetY = H * 0.18;
     if (anamoLetterbox && ratio === '16:9' && position === 'bottom') {
-      targetY = avoidNewsLowerThird ? H * 0.72 : H * 0.82;
+      targetY = avoidNewsLowerThird ? H * 0.66 : H * 0.82;
     }
 
     if (style === 'apple-minimal') {
-      // APPLE KEYNOTE MINIMALIST SUBTITLES (SF Pro / Inter font, frosted glass capsule, no jarring bounce)
+      // APPLE KEYNOTE MINIMALIST SUBTITLES (SF Pro / Inter font, frosted glass capsule, Safe-Zone width clamp)
       ctx.save();
-      const appleFontSize = Math.round(fontSize * 0.88);
+      let appleFontSize = Math.round(fontSize * 0.88);
       ctx.font = `600 ${appleFontSize}px -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif`;
       ctx.textBaseline = 'middle';
 
-      const spaceW = ctx.measureText(' ').width * 1.05;
-      const wordWidths = chunkWords.map((w) => ctx.measureText(w).width);
-      const totalLineW = wordWidths.reduce((a, b) => a + b, 0) + spaceW * Math.max(0, chunkWords.length - 1);
-      const boxPadX = Math.round(appleFontSize * 1.2);
-      const boxPadY = Math.round(appleFontSize * 0.65);
+      let spaceW = ctx.measureText(' ').width * 1.05;
+      let wordWidths = chunkWords.map((w) => ctx.measureText(w).width);
+      let totalLineW = wordWidths.reduce((a, b) => a + b, 0) + spaceW * Math.max(0, chunkWords.length - 1);
+      let boxPadX = Math.round(appleFontSize * 1.2);
+      const maxPillTextW = W * 0.88 - boxPadX * 2;
+      if (totalLineW > maxPillTextW && totalLineW > 0) {
+        appleFontSize = Math.max(11, Math.floor(appleFontSize * (maxPillTextW / totalLineW)));
+        ctx.font = `600 ${appleFontSize}px -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif`;
+        spaceW = ctx.measureText(' ').width * 1.05;
+        wordWidths = chunkWords.map((w) => ctx.measureText(w).width);
+        totalLineW = wordWidths.reduce((a, b) => a + b, 0) + spaceW * Math.max(0, chunkWords.length - 1);
+        boxPadX = Math.round(appleFontSize * 1.1);
+      }
+      const boxPadY = Math.round(appleFontSize * 0.62);
 
       // Ultra-sleek frosted pill background
       ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
@@ -4675,15 +4894,24 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     }
 
     ctx.save();
-    ctx.font = `800 ${fontSize}px Inter, system-ui, sans-serif`;
+    let activeFontSize = fontSize;
+    ctx.font = `800 ${activeFontSize}px Inter, system-ui, sans-serif`;
     ctx.textBaseline = 'middle';
 
-    const spaceW = ctx.measureText(' ').width * 1.15;
-    const wordWidths = chunkWords.map((w) => ctx.measureText(w).width);
-    const totalLineW = wordWidths.reduce((a, b) => a + b, 0) + spaceW * Math.max(0, chunkWords.length - 1);
+    let spaceW = ctx.measureText(' ').width * 1.15;
+    let wordWidths = chunkWords.map((w) => ctx.measureText(w).width);
+    let totalLineW = wordWidths.reduce((a, b) => a + b, 0) + spaceW * Math.max(0, chunkWords.length - 1);
 
     const boxPadX = 18;
     const boxPadY = 12;
+    const maxBoxTextW = W * 0.88 - boxPadX * 2;
+    if (totalLineW > maxBoxTextW && totalLineW > 0) {
+      activeFontSize = Math.max(12, Math.floor(activeFontSize * (maxBoxTextW / totalLineW)));
+      ctx.font = `800 ${activeFontSize}px Inter, system-ui, sans-serif`;
+      spaceW = ctx.measureText(' ').width * 1.15;
+      wordWidths = chunkWords.map((w) => ctx.measureText(w).width);
+      totalLineW = wordWidths.reduce((a, b) => a + b, 0) + spaceW * Math.max(0, chunkWords.length - 1);
+    }
 
     // Background Container
     if (style === 'hormozi') {
@@ -4706,9 +4934,9 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     ctx.beginPath();
     ctx.roundRect(
       W / 2 - totalLineW / 2 - boxPadX,
-      targetY - fontSize / 2 - boxPadY,
+      targetY - activeFontSize / 2 - boxPadY,
       totalLineW + boxPadX * 2,
-      fontSize + boxPadY * 2,
+      activeFontSize + boxPadY * 2,
       10
     );
     ctx.fill();
@@ -4822,22 +5050,42 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     let isCancelled = false;
 
     try {
+      isExportingVideoRef.current = true;
       setIsExportingVideo(true);
       setShowExportModal(true);
       setExportProgress(0);
       setExportStatusText(
-        `Đang nạp trước Neural TTS & bộ trộn âm thanh (Tốc độ ${exportSpeedMultiplier}x)...`
+        `Đang đo & nạp trước Neural TTS & BGM trộn Stereo (Tốc độ ${exportSpeedMultiplier}x)...`
       );
 
-      // Nạp trước toàn bộ giọng đọc Neural TTS để đảm bảo âm thanh không bị mất ở giây 0
+      // Nạp & đo chính xác toàn bộ giọng đọc Neural TTS + loại bỏ khoảng lặng dư
       setExportProgress(2);
-      setExportStatusText('Đang nạp trước Neural TTS & luồng âm thanh 48kHz...');
-      await synthRef.current?.preloadScenesVoiceover(scenes);
-      await new Promise((r) => setTimeout(r, 450));
+      const measured =
+        (await synthRef.current?.preloadAndMeasureScenesVoiceover(scenes, undefined, (done, total) => {
+          if (!isCancelled) {
+            setExportProgress(2 + Math.min(12, Math.round((done / Math.max(1, total)) * 12)));
+          }
+        })) || [];
+      await new Promise((r) => setTimeout(r, 200));
 
-      // Resume synthesizer and start soundtrack
+      const startOffsetSec = exportScope === 'current' ? currentScene.startSec : 0;
+      const scopedMeasured =
+        exportScope === 'current'
+          ? measured.filter((m) => m.sceneId === currentScene.id)
+          : measured;
+
+      // Resume synthesizer and start Custom MP3 BGM (or studio ambient soundtrack fallback)
       synthRef.current?.resume();
-      synthRef.current?.startCinematicSoundtrack(118);
+      await synthRef.current?.startBgmTrack({
+        url: project.musicTrack?.customBgmUrl,
+        volume: project.musicTrack?.volume ?? 24,
+        loop: project.musicTrack?.loop !== false,
+        duckingEnabled: project.musicTrack?.duckingEnabled !== false,
+        fadeInSec: project.musicTrack?.fadeInSec ?? 0.4,
+        offsetSec: startOffsetSec,
+        playbackRate: exportSpeedMultiplier,
+        bpm: 118,
+      });
 
       const canvasStream = canvas.captureStream(30);
       const audioTrack = synthRef.current?.getAudioStreamTrack();
@@ -4873,8 +5121,11 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
       recorder.onstop = async () => {
         playbackSpeedRef.current = prevSpeed;
+        isExportingVideoRef.current = false;
         exportCancelRef.current = null;
+        synthRef.current?.stopSceneVoiceover();
         synthRef.current?.stopCinematicSoundtrack();
+        synthRef.current?.stopBgmTrack(0.05);
         setIsPlaying(false);
 
         if (isCancelled) {
@@ -4918,10 +5169,18 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         }, 250);
       };
 
-      // Set playback to start & apply speed multiplier
+      // Set playback to start, schedule sample-accurate continuous narration & start recording
       playbackSpeedRef.current = exportSpeedMultiplier;
-      seekToTime(exportScope === 'current' ? currentScene.startSec : 0);
+      seekToTime(startOffsetSec);
       setIsPlaying(true);
+
+      if (!masterAudioUrl && isTtsEnabled && scopedMeasured.length > 0) {
+        synthRef.current?.scheduleContinuousExportNarration(
+          scopedMeasured,
+          exportSpeedMultiplier,
+          startOffsetSec
+        );
+      }
 
       actualStartMs = Date.now();
       recorder.start(250);
@@ -4937,7 +5196,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         const pct = Math.min(99, Math.round((elapsed / totalMs) * 100));
         setExportProgress(pct);
         setExportStatusText(
-          `Đang tổng hợp khung hình (${exportSpeedMultiplier}x) & lồng tiếng... (${pct}%)`
+          `Đang tổng hợp khung hình (${exportSpeedMultiplier}x) & lồng tiếng + BGM... (${pct}%)`
         );
 
         if (elapsed >= totalMs) {
@@ -4948,10 +5207,13 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
       exportCancelRef.current = () => {
         isCancelled = true;
+        isExportingVideoRef.current = false;
         clearInterval(timer);
         playbackSpeedRef.current = prevSpeed;
         setIsPlaying(false);
+        synthRef.current?.stopSceneVoiceover();
         synthRef.current?.stopCinematicSoundtrack();
+        synthRef.current?.stopBgmTrack(0.05);
         if (recorder.state === 'recording') {
           recorder.stop();
         }
@@ -4962,10 +5224,13 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     } catch (err) {
       console.error('Export error:', err);
       playbackSpeedRef.current = prevSpeed;
+      isExportingVideoRef.current = false;
       exportCancelRef.current = null;
       setIsExportingVideo(false);
       setIsPlaying(false);
+      synthRef.current?.stopSceneVoiceover();
       synthRef.current?.stopCinematicSoundtrack();
+      synthRef.current?.stopBgmTrack(0.05);
       alert('Không thể xuất video: ' + String(err));
     }
   };
@@ -4990,7 +5255,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     <div className="space-y-2 select-none" ref={containerRef}>
       {/* 1. NLE STUDIO EDITING TOOLBAR RIBBON */}
       <div className="p-2.5 rounded-xl bg-zinc-900 text-white flex flex-wrap items-center justify-between gap-2 text-xs shadow-md border border-white/10">
-        <div className="flex items-center gap-2 flex-wrap">          {/* Voice Studio Modal Button */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Voice Studio Modal Button */}
           <button
             type="button"
             onClick={onOpenVoiceStudio}
@@ -5001,17 +5267,115 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
             <span>Phòng Thu Giọng</span>
           </button>
 
+          {/* Edit Skill Preset Selector */}
+          <div
+            className="flex items-center gap-1 bg-zinc-800/90 border border-white/10 rounded-lg px-2 py-1"
+            title={`Phong cách dựng phim NLE đang chạy: ${activeEditSkill.name} (${activeEditSkill.referenceRepo})`}
+          >
+            <Wand2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <select
+              data-testid="edit-skill-select"
+              value={editSkillOverride}
+              onChange={(e) => handleSelectEditSkill(e.target.value as EditSkillPresetId | 'auto')}
+              className="bg-transparent text-[11px] font-semibold text-amber-100 focus:outline-none cursor-pointer pr-1"
+            >
+              <option value="auto" className="bg-zinc-900 text-zinc-100">
+                Skill: Tự động ({activeEditSkill.shortLabel})
+              </option>
+              {EDIT_SKILL_LIST.map((sk) => (
+                <option key={sk.id} value={sk.id} className="bg-zinc-900 text-zinc-100">
+                  Skill: {sk.shortLabel}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 16 GPU GL-Transitions Picker Button */}
+          <button
+            type="button"
+            data-testid="open-transitions-btn"
+            onClick={() => setShowTransitionModal(true)}
+            className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sky-200 font-semibold flex items-center gap-1.5 transition cursor-pointer border border-sky-500/30 shadow-xs"
+            title="Chọn 16 hiệu ứng chuyển cảnh GPU GLSL (GL-Transitions) cho từng cảnh hoặc toàn bộ video"
+          >
+            <Layers className="w-3.5 h-3.5 text-sky-400" />
+            <span>Chuyển cảnh</span>
+          </button>
+
+          {/* Color Grade LUT & Optical VFX Button (wakes showLutPaletteModal) */}
+          <button
+            type="button"
+            data-testid="open-lut-modal-btn"
+            onClick={() => setShowLutPaletteModal(true)}
+            className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-fuchsia-200 font-semibold flex items-center gap-1.5 transition cursor-pointer border border-fuchsia-500/30 shadow-xs"
+            title="Chỉnh màu điện ảnh (LUT) & Hiệu ứng quang học (VFX)"
+          >
+            <Palette className="w-3.5 h-3.5 text-fuchsia-400" />
+            <span>Màu & VFX</span>
+          </button>
+
+          {/* Auto-Sync Voice Timeline Button */}
+          <button
+            type="button"
+            data-testid="sync-voice-timeline-btn"
+            onClick={handleAutoSyncVoiceTimeline}
+            disabled={isSyncingVoiceTimeline}
+            className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-60 text-emerald-200 font-semibold flex items-center gap-1.5 transition cursor-pointer border border-emerald-500/30 shadow-xs"
+            title="Đo độ dài giọng Neural TTS thực tế từng cảnh và căn lại timeline khớp 1:1, tránh bị cắt mất chữ"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncingVoiceTimeline ? 'animate-spin' : ''}`} />
+            <span>{isSyncingVoiceTimeline ? 'Đang khớp...' : 'Đồng bộ Giọng'}</span>
+          </button>
+
+          {/* Background Music (BGM MP3/WAV) Quick Drawer Button */}
+          <button
+            type="button"
+            data-testid="open-bgm-modal-btn"
+            onClick={() => setShowBgmQuickModal(true)}
+            className={`px-2.5 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer border shadow-xs ${
+              project.musicTrack?.customBgmUrl
+                ? 'bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 border-emerald-500/40'
+                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border-white/10'
+            }`}
+            title="Tải file nhạc nền MP3/WAV riêng, chỉnh âm lượng & bật Auto-Ducking"
+          >
+            <Music className="w-3.5 h-3.5 text-emerald-400" />
+            <span>
+              {project.musicTrack?.customBgmUrl
+                ? `BGM (${Math.round(normalizeBgmVolumeRatio(project.musicTrack.volume) * 100)}%)`
+                : 'Nhạc Nền'}
+            </span>
+          </button>
+
+          {/* Hidden BGM file input */}
+          <input
+            ref={bgmFileInputRef}
+            type="file"
+            accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac"
+            className="hidden"
+            onChange={(e) => {
+              handleBgmFileSelected(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+
           {/* Video Stitcher Button (Ghép Nối Video > 2 phút) */}
           {onOpenStitcherStudio && (
             <button
               type="button"
               onClick={onOpenStitcherStudio}
-              className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-200 font-semibold flex items-center gap-1.5 transition cursor-pointer border border-amber-500/30 shadow-xs"
+              className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-200 font-semibold flex items-center gap-1.5 transition cursor-pointer border border-amber-500/30 shadow-xs"
               title="Ghép nối nhiều đoạn video (mỗi đoạn tối đa 2 phút) thành video dài 5–10 phút liền mạch"
             >
               <Film className="w-3.5 h-3.5 text-amber-400" />
-              <span>Ghép Nối Video</span>
+              <span>Ghép Nối</span>
             </button>
+          )}
+
+          {voiceSyncNotice && (
+            <span className="px-2 py-1 rounded-md bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 text-[10px] font-mono">
+              {voiceSyncNotice}
+            </span>
           )}
         </div>
 
@@ -5582,6 +5946,245 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. MODAL 16 CHUYỂN CẢNH GPU GL-TRANSITIONS */}
+      {showTransitionModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 select-none animate-in fade-in duration-150"
+          onClick={(e) => e.target === e.currentTarget && setShowTransitionModal(false)}
+        >
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-black/10 overflow-hidden flex flex-col p-5 space-y-4 max-h-[85vh]">
+            <div className="flex items-center justify-between border-b border-black/[0.08] pb-3">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-sky-600" />
+                <div>
+                  <h3 className="font-bold text-zinc-950 text-sm">
+                    16 Hiệu Ứng Chuyển Cảnh GPU (GLSL Shader • GL-Transitions)
+                  </h3>
+                  <p className="text-[11px] text-zinc-500">
+                    Đang chọn cho: <strong>Cảnh {currentSceneIndex + 1}/{scenes.length}</strong> • Hiện tại:{' '}
+                    <span className="font-mono text-sky-700">{currentScene?.transition || 'Auto theo Edit Skill'}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTransitionModal(false)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-800 hover:bg-zinc-100 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 overflow-y-auto pr-1 max-h-[380px]">
+              {TRANSITION_PRESET_CATALOG.map((preset) => {
+                const isActive = currentScene?.transition === preset.id;
+                return (
+                  <div
+                    key={preset.id}
+                    className={`p-3 rounded-xl border transition flex flex-col justify-between gap-2 ${
+                      isActive
+                        ? 'bg-sky-50 border-sky-500 ring-2 ring-sky-500/20'
+                        : 'bg-zinc-50/70 border-black/[0.07] hover:bg-zinc-100/80'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-bold text-xs text-zinc-900">{preset.label}</div>
+                      <span className="px-1.5 py-0.5 rounded bg-white border border-black/[0.08] text-[9px] font-mono text-zinc-600">
+                        {preset.category}
+                      </span>
+                    </div>
+                    <div className="text-[10px] font-mono text-zinc-500">
+                      Shader: {preset.id} • Fallback: {preset.fallbackStyle}
+                    </div>
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleApplySceneTransition(preset.id, false)}
+                        className="flex-1 py-1 px-2 rounded-lg bg-zinc-900 hover:bg-sky-600 text-white text-[10.5px] font-semibold transition cursor-pointer"
+                      >
+                        Cảnh này
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplySceneTransition(preset.id, true)}
+                        className="flex-1 py-1 px-2 rounded-lg bg-white hover:bg-zinc-100 text-zinc-800 border border-black/15 text-[10.5px] font-semibold transition cursor-pointer"
+                      >
+                        Toàn video
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div className="p-3 rounded-xl border bg-zinc-50/70 border-black/[0.07] flex flex-col justify-between gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-bold text-xs text-zinc-900">Hard Cut (Cắt Thẳng Nhanh)</div>
+                  <span className="px-1.5 py-0.5 rounded bg-white border border-black/[0.08] text-[9px] font-mono text-zinc-600">
+                    Nhịp nhanh
+                  </span>
+                </div>
+                <div className="text-[10px] font-mono text-zinc-500">Chuyển thẳng 0ms không hiệu ứng chồng hình</div>
+                <div className="flex items-center gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleApplySceneTransition('cut', false)}
+                    className="flex-1 py-1 px-2 rounded-lg bg-zinc-900 hover:bg-sky-600 text-white text-[10.5px] font-semibold transition cursor-pointer"
+                  >
+                    Cảnh này
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplySceneTransition('cut', true)}
+                    className="flex-1 py-1 px-2 rounded-lg bg-white hover:bg-zinc-100 text-zinc-800 border border-black/15 text-[10.5px] font-semibold transition cursor-pointer"
+                  >
+                    Toàn video
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 8. MODAL NHẠC NỀN MP3 / WAV & AUTO-DUCKING TRỰC TIẾP TRONG TRÌNH PHÁT */}
+      {showBgmQuickModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 select-none animate-in fade-in duration-150"
+          onClick={(e) => e.target === e.currentTarget && setShowBgmQuickModal(false)}
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-black/10 overflow-hidden flex flex-col p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-black/[0.08] pb-3">
+              <div className="flex items-center gap-2">
+                <Music className="w-4 h-4 text-emerald-600" />
+                <h3 className="font-bold text-zinc-950 text-sm">Quản Lý Nhạc Nền Video (MP3/WAV)</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBgmQuickModal(false)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-800 hover:bg-zinc-100 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 rounded-xl bg-zinc-50 border border-black/[0.06] space-y-1">
+              <div className="text-xs font-bold text-zinc-900">
+                {project.musicTrack?.customBgmFileName || project.musicTrack?.name || 'SYNAPES Ambient Score'}
+              </div>
+              <div className="text-[10.5px] text-zinc-500 font-mono">
+                {project.musicTrack?.customBgmUrl ? 'File nhạc nền tải lên từ máy' : 'Nhạc nền tự động theo kịch bản'}
+                {project.musicTrack?.customBgmDurationSec ? ` • ${project.musicTrack.customBgmDurationSec}s` : ''}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => bgmFileInputRef.current?.click()}
+                className="flex-1 py-2 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>{project.musicTrack?.customBgmUrl ? 'Đổi file MP3/WAV' : 'Tải file MP3/WAV từ máy'}</span>
+              </button>
+              {project.musicTrack?.customBgmUrl && onUpdateProject && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdateProject({
+                      ...project,
+                      musicTrack: {
+                        ...(project.musicTrack || { name: 'SYNAPES Ambient Score', license: 'Studio BGM', volume: 22 }),
+                        name: 'SYNAPES Ambient Score',
+                        license: 'Royalty-Free Studio BGM',
+                        customBgmUrl: undefined,
+                        customBgmFileName: undefined,
+                        customBgmDurationSec: undefined,
+                      },
+                    })
+                  }
+                  className="py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold cursor-pointer transition"
+                >
+                  Gỡ BGM
+                </button>
+              )}
+            </div>
+
+            {onUpdateProject && (
+              <div className="space-y-3 text-xs pt-1">
+                <div>
+                  <div className="flex justify-between font-semibold text-zinc-700 mb-1">
+                    <span>Âm lượng nhạc nền</span>
+                    <span className="font-mono">
+                      {Math.round(normalizeBgmVolumeRatio(project.musicTrack?.volume) * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    data-testid="player-bgm-volume-slider"
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={Math.round(normalizeBgmVolumeRatio(project.musicTrack?.volume) * 100)}
+                    onChange={(e) => {
+                      const nextVol = Number(e.target.value);
+                      onUpdateProject({
+                        ...project,
+                        musicTrack: {
+                          ...(project.musicTrack || { name: 'SYNAPES Ambient Score', license: 'Studio BGM', volume: nextVol }),
+                          volume: nextVol,
+                        },
+                      });
+                    }}
+                    className="w-full accent-emerald-600 cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateProject({
+                        ...project,
+                        musicTrack: {
+                          ...(project.musicTrack || { name: 'SYNAPES Ambient Score', license: 'Studio BGM', volume: 24 }),
+                          loop: project.musicTrack?.loop === false,
+                        },
+                      })
+                    }
+                    className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold border cursor-pointer ${
+                      project.musicTrack?.loop !== false
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        : 'bg-zinc-50 text-zinc-600 border-black/10'
+                    }`}
+                  >
+                    {project.musicTrack?.loop !== false ? '✓ Lặp lại toàn video' : 'Phát 1 lần'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateProject({
+                        ...project,
+                        musicTrack: {
+                          ...(project.musicTrack || { name: 'SYNAPES Ambient Score', license: 'Studio BGM', volume: 24 }),
+                          duckingEnabled: project.musicTrack?.duckingEnabled === false,
+                        },
+                      })
+                    }
+                    className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold border cursor-pointer ${
+                      project.musicTrack?.duckingEnabled !== false
+                        ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                        : 'bg-zinc-50 text-zinc-600 border-black/10'
+                    }`}
+                  >
+                    {project.musicTrack?.duckingEnabled !== false ? '✓ Auto-Ducking Giọng Nói' : 'Tắt Auto-Ducking'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

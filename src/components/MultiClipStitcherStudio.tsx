@@ -23,7 +23,7 @@ interface LocalStitcherClip {
   thumbnailUrl: string;
   videoUrl: string;
   durationSec: number;
-  transition?: 'cut' | 'fade' | 'dissolve';
+  transition?: string;
 }
 
 interface MultiClipStitcherStudioProps {

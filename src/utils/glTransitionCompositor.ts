@@ -3,19 +3,53 @@ import gsap from 'gsap';
 
 /**
  * Thực thi thực tế thư viện GitHub `gl-transitions/gl-transitions` (WebGL GLSL Shaders)
- * kết hợp `greensock/GSAP` easing để render chuyển cảnh điện ảnh GPU (CrossZoom, PaperFold,
- * InvertedPageCurl, DirectionalWarp, DirectionalWipe, Swirl, RadialWipe...) trực tiếp giữa các phân cảnh.
+ * kết hợp `greensock/GSAP` easing & fallback Canvas2D đa hiệu ứng (`mifi/editly` style)
+ * với 16 chuyển cảnh GPU đã xác thực tồn tại trong gói `gl-transitions`.
  */
 
 export type CinemaTransitionPreset =
   | 'CrossZoom'
   | 'DirectionalWarp'
   | 'DirectionalWipe'
-  | 'PaperFold'
-  | 'InvertedPageCurl'
+  | 'DreamyZoom'
   | 'Swirl'
   | 'RadialWipe'
-  | 'DreamyZoom';
+  | 'PaperFold'
+  | 'InvertedPageCurl'
+  | 'Cube'
+  | 'Doorway'
+  | 'GlitchMemories'
+  | 'TangentMotionBlur'
+  | 'WindowSlices'
+  | 'Mosaic'
+  | 'FadeColor'
+  | 'ZoomInCircles';
+
+export interface TransitionPresetMeta {
+  id: CinemaTransitionPreset;
+  label: string;
+  category: 'Điện ảnh' | 'Nhịp nhanh' | 'Sáng tạo' | 'Tranh giấy';
+  fallbackStyle: 'zoom-dissolve' | 'whip-slide' | 'iris-circle' | 'curtain-split' | 'diagonal-wipe';
+}
+
+export const TRANSITION_PRESET_CATALOG: TransitionPresetMeta[] = [
+  { id: 'CrossZoom', label: 'Cross Zoom (Điện ảnh)', category: 'Điện ảnh', fallbackStyle: 'zoom-dissolve' },
+  { id: 'DirectionalWarp', label: 'Biến dạng Hướng (Warp)', category: 'Điện ảnh', fallbackStyle: 'whip-slide' },
+  { id: 'DirectionalWipe', label: 'Quét Chéo Mượt (Wipe)', category: 'Điện ảnh', fallbackStyle: 'diagonal-wipe' },
+  { id: 'DreamyZoom', label: 'Hòa Mờ Giấc Mơ (Dreamy)', category: 'Điện ảnh', fallbackStyle: 'zoom-dissolve' },
+  { id: 'TangentMotionBlur', label: 'Tia Mờ Chuyển Động (Blur)', category: 'Nhịp nhanh', fallbackStyle: 'whip-slide' },
+  { id: 'FadeColor', label: 'Chuyển Đen Mịn (Fade)', category: 'Điện ảnh', fallbackStyle: 'zoom-dissolve' },
+  { id: 'WindowSlices', label: 'Cắt Mành Truyền Hình (Slices)', category: 'Nhịp nhanh', fallbackStyle: 'diagonal-wipe' },
+  { id: 'Cube', label: 'Xoay Khối Lập Phương 3D (Cube)', category: 'Sáng tạo', fallbackStyle: 'curtain-split' },
+  { id: 'Doorway', label: 'Mở Cửa Sân Khấu 3D (Doorway)', category: 'Sáng tạo', fallbackStyle: 'curtain-split' },
+  { id: 'RadialWipe', label: 'Quét Đồng Hồ (Radial)', category: 'Sáng tạo', fallbackStyle: 'iris-circle' },
+  { id: 'ZoomInCircles', label: 'Vòng Tròn Đẩy Sâu (Circles)', category: 'Nhịp nhanh', fallbackStyle: 'iris-circle' },
+  { id: 'Swirl', label: 'Xoáy Ốc Thời Gian (Swirl)', category: 'Sáng tạo', fallbackStyle: 'zoom-dissolve' },
+  { id: 'GlitchMemories', label: 'Nhiễu Số Viral (Glitch)', category: 'Nhịp nhanh', fallbackStyle: 'whip-slide' },
+  { id: 'Mosaic', label: 'Ghép Mảnh Gạch (Mosaic)', category: 'Sáng tạo', fallbackStyle: 'diagonal-wipe' },
+  { id: 'PaperFold', label: 'Gấp Giấy Origami (Fold)', category: 'Tranh giấy', fallbackStyle: 'curtain-split' },
+  { id: 'InvertedPageCurl', label: 'Lật Trang Sách (Page Curl)', category: 'Tranh giấy', fallbackStyle: 'diagonal-wipe' },
+];
 
 const TRANSITION_MAP = new Map<string, Transition>();
 for (const item of glTransitions) {
@@ -163,17 +197,32 @@ void main() {
   return prog;
 }
 
+export function normalizeTransitionHint(hint?: string): CinemaTransitionPreset | undefined {
+  if (!hint) return undefined;
+  if (TRANSITION_MAP.has(hint)) return hint as CinemaTransitionPreset;
+  const low = hint.trim().toLowerCase();
+  if (low === 'fade' || low === 'cut') return 'FadeColor';
+  if (low === 'dissolve') return 'DreamyZoom';
+  const matched = TRANSITION_PRESET_CATALOG.find((item) => item.id.toLowerCase() === low);
+  return matched?.id;
+}
+
 export function pickSceneTransitionPreset(
   sceneIdx: number,
   isPaperArt: boolean,
-  hint?: string
+  hint?: string,
+  skillPool?: CinemaTransitionPreset[]
 ): CinemaTransitionPreset {
   if (isPaperArt) {
     const paperPool: CinemaTransitionPreset[] = ['PaperFold', 'InvertedPageCurl', 'DirectionalWipe'];
     return paperPool[sceneIdx % paperPool.length];
   }
-  if (hint && TRANSITION_MAP.has(hint)) {
-    return hint as CinemaTransitionPreset;
+  const normalized = normalizeTransitionHint(hint);
+  if (normalized) {
+    return normalized;
+  }
+  if (skillPool && skillPool.length > 0) {
+    return skillPool[sceneIdx % skillPool.length];
   }
   const cinemaPool: CinemaTransitionPreset[] = [
     'CrossZoom',
@@ -181,9 +230,72 @@ export function pickSceneTransitionPreset(
     'DirectionalWipe',
     'RadialWipe',
     'DreamyZoom',
-    'Swirl',
+    'TangentMotionBlur',
+    'Doorway',
+    'ZoomInCircles',
   ];
   return cinemaPool[sceneIdx % cinemaPool.length];
+}
+
+function drawCanvas2dFallbackTransition(
+  targetCtx: CanvasRenderingContext2D,
+  fromCanvas: HTMLCanvasElement,
+  toCanvas: HTMLCanvasElement,
+  W: number,
+  H: number,
+  p: number,
+  preset: CinemaTransitionPreset
+) {
+  const meta = TRANSITION_PRESET_CATALOG.find((item) => item.id === preset);
+  const style = meta?.fallbackStyle || 'diagonal-wipe';
+
+  targetCtx.save();
+  if (style === 'zoom-dissolve') {
+    const fromScale = 1 + p * 0.08;
+    targetCtx.save();
+    targetCtx.translate(W / 2, H / 2);
+    targetCtx.scale(fromScale, fromScale);
+    targetCtx.globalAlpha = 1 - p;
+    targetCtx.drawImage(fromCanvas, -W / 2, -H / 2, W, H);
+    targetCtx.restore();
+
+    const toScale = 1.06 - p * 0.06;
+    targetCtx.save();
+    targetCtx.translate(W / 2, H / 2);
+    targetCtx.scale(toScale, toScale);
+    targetCtx.globalAlpha = p;
+    targetCtx.drawImage(toCanvas, -W / 2, -H / 2, W, H);
+    targetCtx.restore();
+  } else if (style === 'whip-slide') {
+    const shiftX = Math.round(W * p);
+    targetCtx.drawImage(fromCanvas, -shiftX, 0, W, H);
+    targetCtx.drawImage(toCanvas, W - shiftX, 0, W, H);
+  } else if (style === 'iris-circle') {
+    targetCtx.drawImage(fromCanvas, 0, 0, W, H);
+    const maxR = Math.hypot(W * 0.5, H * 0.5);
+    targetCtx.beginPath();
+    targetCtx.arc(W / 2, H / 2, maxR * p, 0, Math.PI * 2);
+    targetCtx.clip();
+    targetCtx.drawImage(toCanvas, 0, 0, W, H);
+  } else if (style === 'curtain-split') {
+    targetCtx.drawImage(fromCanvas, 0, 0, W, H);
+    const openW = (W * 0.5) * p;
+    targetCtx.beginPath();
+    targetCtx.rect(W * 0.5 - openW, 0, openW * 2, H);
+    targetCtx.clip();
+    targetCtx.drawImage(toCanvas, 0, 0, W, H);
+  } else {
+    targetCtx.drawImage(fromCanvas, 0, 0, W, H);
+    targetCtx.beginPath();
+    targetCtx.moveTo(0, 0);
+    targetCtx.lineTo(W * p * 1.25, 0);
+    targetCtx.lineTo(W * p * 0.95, H);
+    targetCtx.lineTo(0, H);
+    targetCtx.closePath();
+    targetCtx.clip();
+    targetCtx.drawImage(toCanvas, 0, 0, W, H);
+  }
+  targetCtx.restore();
 }
 
 export function applyGlSceneTransition(
@@ -198,8 +310,13 @@ export function applyGlSceneTransition(
   const ease = gsap.parseEase('power3.inOut');
   const p = Math.max(0, Math.min(1, ease(rawProgress)));
 
-  const transition = TRANSITION_MAP.get(preset) || TRANSITION_MAP.get('DirectionalWipe') || TRANSITION_MAP.get('Fade');
-  const runner = transition ? getGlRunner(Math.min(1280, W), Math.round((Math.min(1280, W) * H) / W)) : null;
+  const transition =
+    TRANSITION_MAP.get(preset) ||
+    TRANSITION_MAP.get('DirectionalWipe') ||
+    TRANSITION_MAP.get('FadeColor');
+  const runner = transition
+    ? getGlRunner(Math.min(1280, W), Math.round((Math.min(1280, W) * H) / W))
+    : null;
   const program = runner && transition ? getTransitionProgram(runner, transition) : null;
 
   if (runner && transition && program && runner.fromTex && runner.toTex && runner.buffer) {
@@ -228,7 +345,6 @@ export function applyGlSceneTransition(
       gl.uniform1f(gl.getUniformLocation(program, 'progress'), p);
       gl.uniform1f(gl.getUniformLocation(program, 'ratio'), W / Math.max(1, H));
 
-      // Bind GL-Transition parameter defaults cleanly
       for (const [paramName, paramSpec] of Object.entries(transition.params || {})) {
         const loc = gl.getUniformLocation(program, paramName);
         if (!loc) continue;
@@ -254,16 +370,9 @@ export function applyGlSceneTransition(
       targetCtx.restore();
       return;
     } catch {
-      // Fallback to GSAP Canvas2D wipe below if any WebGL uniform/driver exception occurs
+      // Fallback to Canvas2D multi-style transitions below
     }
   }
 
-  // Fallback: Smooth GSAP-eased Diagonal Directional Wipe + Subtle Scale Morph
-  targetCtx.save();
-  targetCtx.drawImage(fromCanvas, 0, 0, W, H);
-  targetCtx.beginPath();
-  targetCtx.rect(0, 0, W * p, H);
-  targetCtx.clip();
-  targetCtx.drawImage(toCanvas, 0, 0, W, H);
-  targetCtx.restore();
+  drawCanvas2dFallbackTransition(targetCtx, fromCanvas, toCanvas, W, H, p, preset);
 }

@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:integrity": "node scripts/verify-integrity.cjs",
-    "test:vitest": "vitest run tests/anti-fake-activity.test.ts tests/day1-multiview-3d.test.ts",
+    "test:vitest": "vitest run tests/anti-fake-activity.test.ts tests/day1-multiview-3d.test.ts tests/edit-voice-bgm-upgrade.test.ts",
     "test": "npm run test:integrity && npm run test:vitest",
     "lint:architecture": "depcruise src --config .dependency-cruiser.cjs",
     "test:e2e": "playwright test",
