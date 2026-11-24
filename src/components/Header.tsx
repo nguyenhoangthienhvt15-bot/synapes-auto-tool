@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserAccount, ContractCategory } from '../types';
 import {
   Bell, KeyRound, LogOut, BookOpen, Film,
-  PanelLeftClose, PanelLeftOpen, Lock, AudioLines, CloudDownload
+  PanelLeftClose, PanelLeftOpen, AudioLines, CloudDownload
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -25,7 +25,6 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   pendingCount,
   activeView,
-  userPlanTier = 'personal',
   loginAnimTrigger = 0,
   onSelectView,
   onLogout,
@@ -208,23 +207,12 @@ export const Header: React.FC<HeaderProps> = ({
                 ? 'bg-white text-zinc-950 shadow-2xs border border-zinc-200/60 font-semibold'
                 : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/50'
             }`}
-            title={
-              userPlanTier === 'enterprise'
-                ? 'Bóc tách cấu trúc DNA & Nhân bản Video mẫu (Gói Toàn Hệ ULTRA)'
-                : 'Tính năng ULTRA — Chỉ mở khóa cho Gói Trả Phí Toàn Hệ'
-            }
+            title="Bóc tách cấu trúc DNA & Nhân bản Video mẫu (BYOK LABS • Mở cho mọi loại gói)"
           >
             <Film className="w-3.5 h-3.5 text-zinc-700" />
             <span>Nhân Bản Video (BYOK)</span>
-            <span
-              className={`px-1 py-0.2 rounded text-[8.5px] font-mono font-bold border inline-flex items-center gap-0.5 ${
-                userPlanTier === 'enterprise'
-                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                  : 'bg-amber-50 text-amber-900 border-amber-300'
-              }`}
-            >
-              {userPlanTier !== 'enterprise' && <Lock className="w-2.5 h-2.5" />}
-              <span>ULTRA</span>
+            <span className="px-1.5 py-0.2 rounded text-[8.5px] font-mono font-bold bg-amber-600 text-white tracking-wider">
+              LABS
             </span>
           </button>
 

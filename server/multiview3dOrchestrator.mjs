@@ -7,6 +7,7 @@ export const MODEL_3D_STYLE_CATALOG_SERVER = [
     id: '3d-cartoon',
     name: '3D Cartoon',
     requiredTier: 'personal',
+    badge: 'LABS',
     targetPolyCount: 36000,
     shaderProfile: 'Pixar / Disney Soft PBR + Subsurface Scattering',
   },
@@ -14,6 +15,7 @@ export const MODEL_3D_STYLE_CATALOG_SERVER = [
     id: '3d-isometric',
     name: '3D Isometric',
     requiredTier: 'personal',
+    badge: 'LABS',
     targetPolyCount: 24000,
     shaderProfile: 'Orthographic Bevel PBR + Clean Ambient Shadow',
   },
@@ -21,27 +23,31 @@ export const MODEL_3D_STYLE_CATALOG_SERVER = [
     id: '3d-claymation',
     name: '3D Claymation',
     requiredTier: 'personal',
+    badge: 'LABS',
     targetPolyCount: 30000,
     shaderProfile: 'Stop-Motion Clay Normal Bump + Soft Matte SSS',
   },
   {
     id: 'low-poly-3d',
     name: 'Low-Poly 3D',
-    requiredTier: 'enterprise',
+    requiredTier: 'personal',
+    badge: 'LABS',
     targetPolyCount: 6500,
     shaderProfile: 'Flat-Shading Crisp Edges + Hard Poly Facets',
   },
   {
     id: 'cel-shading-npr',
     name: 'Cel-Shading / NPR',
-    requiredTier: 'enterprise',
+    requiredTier: 'personal',
+    badge: 'LABS',
     targetPolyCount: 26000,
     shaderProfile: '3-Band Toon Ramp + Freestyle Ink Outline',
   },
   {
     id: 'stylized-3d',
     name: 'Stylized 3D',
-    requiredTier: 'enterprise',
+    requiredTier: 'personal',
+    badge: 'LABS',
     targetPolyCount: 38000,
     shaderProfile: 'Hand-Painted Arcane Roughness + Rim Lighting',
   },
@@ -78,15 +84,6 @@ export function validateMultiViewRequestServer(body) {
       httpStatus: 400,
       code: 'INVALID_3D_STYLE',
       error: `Chuẩn mô hình 3D "${styleId || 'trống'}" không hợp lệ.`,
-    };
-  }
-
-  if (planTier !== 'enterprise' && styleMeta.requiredTier !== 'personal') {
-    return {
-      ok: false,
-      httpStatus: 403,
-      code: 'PLAN_TIER_LOCKED',
-      error: `Chuẩn "${styleMeta.name}" chỉ mở khóa ở Gói Toàn hệ (Enterprise). Gói Cá nhân hóa hỗ trợ 3 chuẩn: 3D Cartoon, 3D Isometric và 3D Claymation.`,
     };
   }
 

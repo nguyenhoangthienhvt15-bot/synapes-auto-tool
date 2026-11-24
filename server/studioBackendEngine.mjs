@@ -7067,10 +7067,11 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
     const requestedTier = String(parsed.searchParams.get('planTier') || 'enterprise').toLowerCase();
     const styles = MODEL_3D_STYLE_CATALOG_SERVER.map((s) => ({
       ...s,
-      unlocked: requestedTier === 'enterprise' || s.requiredTier === 'personal',
+      unlocked: true,
+      badge: 'LABS',
     }));
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ success: true, planTier: requestedTier, styles }));
+    res.end(JSON.stringify({ success: true, mode: 'LABS', planTier: requestedTier, styles }));
     return true;
   }
 

@@ -26,7 +26,7 @@ export const MODEL_3D_STYLE_CATALOG: Model3DStyleMeta[] = [
     id: '3d-cartoon',
     name: '3D Cartoon',
     requiredTier: 'personal',
-    tierLabel: 'Gói Cá nhân hóa',
+    tierLabel: 'LABS • Mọi gói',
     shaderProfile: 'Pixar / Disney Soft PBR + Subsurface Scattering',
     polyBudgetLabel: '30k–40k tris',
     targetPolyCount: 36000,
@@ -36,7 +36,7 @@ export const MODEL_3D_STYLE_CATALOG: Model3DStyleMeta[] = [
     id: '3d-isometric',
     name: '3D Isometric',
     requiredTier: 'personal',
-    tierLabel: 'Gói Cá nhân hóa',
+    tierLabel: 'LABS • Mọi gói',
     shaderProfile: 'Orthographic Bevel PBR + Clean Ambient Shadow',
     polyBudgetLabel: '18k–28k tris',
     targetPolyCount: 24000,
@@ -46,7 +46,7 @@ export const MODEL_3D_STYLE_CATALOG: Model3DStyleMeta[] = [
     id: '3d-claymation',
     name: '3D Claymation',
     requiredTier: 'personal',
-    tierLabel: 'Gói Cá nhân hóa',
+    tierLabel: 'LABS • Mọi gói',
     shaderProfile: 'Stop-Motion Clay Normal Bump + Soft Matte SSS',
     polyBudgetLabel: '25k–35k tris',
     targetPolyCount: 30000,
@@ -55,8 +55,8 @@ export const MODEL_3D_STYLE_CATALOG: Model3DStyleMeta[] = [
   {
     id: 'low-poly-3d',
     name: 'Low-Poly 3D',
-    requiredTier: 'enterprise',
-    tierLabel: 'Gói Toàn hệ',
+    requiredTier: 'personal',
+    tierLabel: 'LABS • Mọi gói',
     shaderProfile: 'Flat-Shading Crisp Edges + Hard Poly Facets',
     polyBudgetLabel: '4k–8k tris',
     targetPolyCount: 6500,
@@ -65,8 +65,8 @@ export const MODEL_3D_STYLE_CATALOG: Model3DStyleMeta[] = [
   {
     id: 'cel-shading-npr',
     name: 'Cel-Shading / NPR',
-    requiredTier: 'enterprise',
-    tierLabel: 'Gói Toàn hệ',
+    requiredTier: 'personal',
+    tierLabel: 'LABS • Mọi gói',
     shaderProfile: '3-Band Toon Ramp + Freestyle Ink Outline',
     polyBudgetLabel: '22k–32k tris',
     targetPolyCount: 26000,
@@ -75,8 +75,8 @@ export const MODEL_3D_STYLE_CATALOG: Model3DStyleMeta[] = [
   {
     id: 'stylized-3d',
     name: 'Stylized 3D',
-    requiredTier: 'enterprise',
-    tierLabel: 'Gói Toàn hệ',
+    requiredTier: 'personal',
+    tierLabel: 'LABS • Mọi gói',
     shaderProfile: 'Hand-Painted Arcane Roughness + Rim Lighting',
     polyBudgetLabel: '32k–40k tris',
     targetPolyCount: 38000,
@@ -132,17 +132,13 @@ export const VIEW_SLOT_DEFINITIONS: ViewSlotDefinition[] = [
 
 export function is3DStyleAllowedForTier(
   styleId: Model3DStyleId,
-  planTier: ContractCategory = 'personal'
+  _planTier: ContractCategory = 'personal'
 ): boolean {
-  if (planTier === 'enterprise') {
-    return MODEL_3D_STYLE_CATALOG.some((item) => item.id === styleId);
-  }
-  const meta = MODEL_3D_STYLE_CATALOG.find((item) => item.id === styleId);
-  return meta?.requiredTier === 'personal';
+  return MODEL_3D_STYLE_CATALOG.some((item) => item.id === styleId);
 }
 
-export function getDefault3DStyleForTier(planTier: ContractCategory = 'personal'): Model3DStyleId {
-  return planTier === 'enterprise' ? '3d-cartoon' : '3d-cartoon';
+export function getDefault3DStyleForTier(_planTier: ContractCategory = 'personal'): Model3DStyleId {
+  return '3d-cartoon';
 }
 
 export function computeGeometryConfidence(

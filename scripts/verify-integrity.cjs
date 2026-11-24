@@ -10,6 +10,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 let failureCount = 0;
+const CHECK_LOCAL_REPORTS = process.argv.includes('--local-reports');
 
 function assert(condition, testName, errorDetails = '') {
   if (condition) {
@@ -325,12 +326,16 @@ if (fs.existsSync(cinemaPlayerPath)) {
     'AiCinemaPlayer.tsx tích hợp sân khấu nhân vật côn trùng 3D xương khớp draw3dAnimationInsectStage');
 }
 const phien9Dir = 'C:\\Users\\84364\\Documents\\DỰ ÁN WEB APP AUTO TOOL\\Phiên họp thứ chín';
-assert(
-  fs.existsSync(path.join(phien9Dir, 'BAO_CAO_KIEM_TOAN_TOAN_DIEN_VA_NGHIEM_THU_HE_THONG_PHIEN_IX.pdf')) &&
-  fs.existsSync(path.join(phien9Dir, 'BAO_CAO_KIEM_TOAN_TOAN_DIEN_VA_NGHIEM_THU_HE_THONG_PHIEN_IX.docx')) &&
-  fs.existsSync(path.join(phien9Dir, 'DU_AN_CON_TRUNG_3D_NHAY_MUA_DEM_SO_1_DEN_10.json')),
-  'Thư mục Phiên họp thứ chín lưu trữ đầy đủ Báo cáo PDF, DOCX, TYP và Hồ sơ kịch bản JSON 10 cảnh'
-);
+if (CHECK_LOCAL_REPORTS) {
+  assert(
+    fs.existsSync(path.join(phien9Dir, 'BAO_CAO_KIEM_TOAN_TOAN_DIEN_VA_NGHIEM_THU_HE_THONG_PHIEN_IX.pdf')) &&
+    fs.existsSync(path.join(phien9Dir, 'BAO_CAO_KIEM_TOAN_TOAN_DIEN_VA_NGHIEM_THU_HE_THONG_PHIEN_IX.docx')) &&
+    fs.existsSync(path.join(phien9Dir, 'DU_AN_CON_TRUNG_3D_NHAY_MUA_DEM_SO_1_DEN_10.json')),
+    'Thư mục Phiên họp thứ chín lưu trữ đầy đủ Báo cáo PDF, DOCX, TYP và Hồ sơ kịch bản JSON 10 cảnh'
+  );
+} else {
+  console.log('  [SKIPPED] Bỏ qua kiểm tra thư mục báo cáo cục bộ ngoài repo (chạy với --local-reports để bật).');
+}
 
 // -----------------------------------------------------------------------------
 // 10. KIỂM ĐỊNH TOÀN DIỆN PHIÊN HỌP THỨ 10 (3D MULTI-CHARACTER DIALOGUE ENGINE)
@@ -362,14 +367,18 @@ if (fs.existsSync(cinemaPlayerPath)) {
   );
 }
 const phien10Dir = 'C:\\Users\\84364\\Documents\\DỰ ÁN WEB APP AUTO TOOL\\Phiên họp thứ mười';
-assert(
-  fs.existsSync(path.join(phien10Dir, 'BAO_CAO_CAI_TO_TOAN_DIEN_HE_THONG_VA_NGHIEM_THU_VIDEO_3D_HOI_THOAI_DA_GIONG_PHIEN_X.pdf')) &&
-  fs.existsSync(path.join(phien10Dir, 'BAO_CAO_CAI_TO_TOAN_DIEN_HE_THONG_VA_NGHIEM_THU_VIDEO_3D_HOI_THOAI_DA_GIONG_PHIEN_X.docx')) &&
-  fs.existsSync(path.join(phien10Dir, 'DU_AN_HOAT_HINH_3D_THO_CON_BI_OM_HOI_THOAI_DA_GIONG.json')) &&
-  fs.existsSync(path.join(phien10Dir, 'VIDEO_HOAT_HINH_3D_THO_CON_BI_OM_HOI_THOAI_DA_GIONG_24S.mp4')) &&
-  fs.existsSync(path.join(phien10Dir, 'VIDEO_HOAT_HINH_3D_HOI_THOAI_20S.mp4')),
-  'Thư mục Phiên họp thứ mười lưu trữ đầy đủ Báo cáo PDF, DOCX, TYP, Kịch bản JSON và 2 tệp Video MP4 thành phẩm (24s & 20s)'
-);
+if (CHECK_LOCAL_REPORTS) {
+  assert(
+    fs.existsSync(path.join(phien10Dir, 'BAO_CAO_CAI_TO_TOAN_DIEN_HE_THONG_VA_NGHIEM_THU_VIDEO_3D_HOI_THOAI_DA_GIONG_PHIEN_X.pdf')) &&
+    fs.existsSync(path.join(phien10Dir, 'BAO_CAO_CAI_TO_TOAN_DIEN_HE_THONG_VA_NGHIEM_THU_VIDEO_3D_HOI_THOAI_DA_GIONG_PHIEN_X.docx')) &&
+    fs.existsSync(path.join(phien10Dir, 'DU_AN_HOAT_HINH_3D_THO_CON_BI_OM_HOI_THOAI_DA_GIONG.json')) &&
+    fs.existsSync(path.join(phien10Dir, 'VIDEO_HOAT_HINH_3D_THO_CON_BI_OM_HOI_THOAI_DA_GIONG_24S.mp4')) &&
+    fs.existsSync(path.join(phien10Dir, 'VIDEO_HOAT_HINH_3D_HOI_THOAI_20S.mp4')),
+    'Thư mục Phiên họp thứ mười lưu trữ đầy đủ Báo cáo PDF, DOCX, TYP, Kịch bản JSON và 2 tệp Video MP4 thành phẩm (24s & 20s)'
+  );
+} else {
+  console.log('  [SKIPPED] Bỏ qua kiểm tra thư mục báo cáo cục bộ ngoài repo (chạy với --local-reports để bật).');
+}
 
 // -----------------------------------------------------------------------------
 // 11. KIỂM ĐỊNH NGHIỆM THU 7 — ANTI-FAKE ACTIVITY GUARDRAILS & HONEST APIS

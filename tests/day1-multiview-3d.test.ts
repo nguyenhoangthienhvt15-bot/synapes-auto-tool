@@ -93,19 +93,12 @@ describe('Day 1 — Multi-View 3D (1-5 Views), 3 vs 6 Style Tiering & BYOK Execu
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
-  it('1. Enforces 3 Personal 3D styles vs 6 Enterprise 3D styles cleanly', () => {
+  it('1. LABS mode unlocks all 6 3D styles across personal and enterprise tiers', () => {
     expect(MODEL_3D_STYLE_CATALOG).toHaveLength(6);
 
-    // Personal unlocks strictly 3 styles
-    expect(is3DStyleAllowedForTier('3d-cartoon', 'personal')).toBe(true);
-    expect(is3DStyleAllowedForTier('3d-isometric', 'personal')).toBe(true);
-    expect(is3DStyleAllowedForTier('3d-claymation', 'personal')).toBe(true);
-    expect(is3DStyleAllowedForTier('low-poly-3d', 'personal')).toBe(false);
-    expect(is3DStyleAllowedForTier('cel-shading-npr', 'personal')).toBe(false);
-    expect(is3DStyleAllowedForTier('stylized-3d', 'personal')).toBe(false);
-
-    // Enterprise unlocks all 6 styles
+    // LABS unlocks all 6 styles for both Personal and Enterprise tiers
     for (const style of MODEL_3D_STYLE_CATALOG) {
+      expect(is3DStyleAllowedForTier(style.id, 'personal')).toBe(true);
       expect(is3DStyleAllowedForTier(style.id, 'enterprise')).toBe(true);
     }
   });
@@ -167,18 +160,22 @@ describe('Day 1 — Multi-View 3D (1-5 Views), 3 vs 6 Style Tiering & BYOK Execu
     });
   });
 
-  it('4. Backend GET /api/assets-3d/styles exposes tier gating accurately', async () => {
+  it('4. Backend GET /api/assets-3d/styles exposes all 6 LABS styles unlocked for every plan tier', async () => {
     const personalRes = await localHttpJson(port, 'GET', '/api/assets-3d/styles?planTier=personal');
     expect(personalRes.status).toBe(200);
+    expect(personalRes.json.mode).toBe('LABS');
     expect(personalRes.json.styles).toHaveLength(6);
-    expect(personalRes.json.styles.filter((s: any) => s.unlocked)).toHaveLength(3);
+    expect(personalRes.json.styles.filter((s: any) => s.unlocked)).toHaveLength(6);
+    expect(personalRes.json.styles.every((s: any) => s.badge === 'LABS')).toBe(true);
 
     const entRes = await localHttpJson(port, 'GET', '/api/assets-3d/styles?planTier=enterprise');
     expect(entRes.status).toBe(200);
+    expect(entRes.json.mode).toBe('LABS');
     expect(entRes.json.styles.filter((s: any) => s.unlocked)).toHaveLength(6);
+    expect(entRes.json.styles.every((s: any) => s.badge === 'LABS')).toBe(true);
   });
 
-  it('5. Backend POST /api/assets-3d/reconstruct validates 1-5 bounds (400) and planTier locks (403)', async () => {
+  it('5. Backend POST /api/assets-3d/reconstruct validates bounds & invalid style (400) and allows all 6 LABS styles across tiers', async () => {
     const img1 = makePngDataUrl(1);
     const resZero = await localHttpJson(port, 'POST', '/api/assets-3d/reconstruct', {
       styleId: '3d-cartoon',
@@ -203,13 +200,22 @@ describe('Day 1 — Multi-View 3D (1-5 Views), 3 vs 6 Style Tiering & BYOK Execu
     expect(resSix.status).toBe(400);
     expect(resSix.json.code).toBe('INVALID_VIEW_COUNT');
 
-    const resLocked = await localHttpJson(port, 'POST', '/api/assets-3d/reconstruct', {
-      styleId: 'cel-shading-npr',
+    const resInvalidStyle = await localHttpJson(port, 'POST', '/api/assets-3d/reconstruct', {
+      styleId: 'non-existent-style',
       planTier: 'personal',
       referenceImages: [{ slot: 'front', dataUrl: img1.dataUrl }],
     });
-    expect(resLocked.status).toBe(403);
-    expect(resLocked.json.code).toBe('PLAN_TIER_LOCKED');
+    expect(resInvalidStyle.status).toBe(400);
+    expect(resInvalidStyle.json.code).toBe('INVALID_3D_STYLE');
+
+    const resPersonalCel = await localHttpJson(port, 'POST', '/api/assets-3d/reconstruct', {
+      styleId: 'cel-shading-npr',
+      planTier: 'personal',
+      referenceImages: [{ slot: 'front', dataUrl: img1.dataUrl }],
+      byok3d: { provider: 'huggingface-zerogpu', apiKey: '' },
+    });
+    expect(resPersonalCel.status).toBe(422);
+    expect(resPersonalCel.json.code).toBe('BYOK_3D_KEY_REQUIRED');
   });
 
   it('6. Backend hashes 1, 3, and 5 images accurately and rejects missing BYOK 3D key with HTTP 422 (zero fake GLB)', async () => {

@@ -1916,7 +1916,7 @@ export async function fetchGoogleSheetLive(sheetId: string = GOOGLE_SHEET_ID): P
 
 /**
  * Xác định phân hạng gói cước của tài khoản ('personal' | 'enterprise').
- * Chỉ tài khoản Gói Toàn Hệ ('enterprise') mới được sử dụng khối Nhân Bản Video (BYOK - ULTRA).
+ * Các tính năng BYOK LABS (Dựng mô hình 3D 6 chuẩn & Nhân bản Video BYOK) đều mở khóa cho mọi loại gói.
  * Tài khoản Gói Cá Nhân Hóa ('personal') hoặc chưa đăng nhập trả về 'personal'.
  */
 export function resolveUserPlanTier(
@@ -1958,7 +1958,7 @@ export function resolveUserPlanTier(
     return 'enterprise';
   }
 
-  // 3. Tài khoản Gói Cá Nhân Hóa mặc định (không bao gồm BYOK ULTRA)
+  // 3. Tài khoản Gói Cá Nhân Hóa mặc định (vẫn sử dụng đầy đủ các khối BYOK LABS)
   const PERSONAL_CORE_CODES = ['VIP-002', 'VIP-004', 'VIP-005', 'FYER-72626', 'FYER-051126'];
   if (codeNorm && PERSONAL_CORE_CODES.includes(codeNorm)) {
     return 'personal';

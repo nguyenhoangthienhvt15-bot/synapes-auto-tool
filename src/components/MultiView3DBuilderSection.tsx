@@ -17,7 +17,6 @@ import {
   Cpu,
   ExternalLink,
   Key,
-  Lock,
   ShieldAlert,
   Sparkles,
   Trash2,
@@ -204,8 +203,11 @@ export const MultiView3DBuilderSection: React.FC<MultiView3DBuilderSectionProps>
           <div className="min-w-0">
             <div className="text-xs font-bold text-zinc-950 flex flex-wrap items-center gap-1.5">
               <span>5B. Dựng Mô hình 3D Thực thụ (1–5 Ảnh &amp; Chuẩn 3D • BYOK)</span>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-600 text-white tracking-wider">
+                LABS
+              </span>
               <span className="px-1.5 py-0.2 rounded bg-white border border-indigo-200 text-indigo-800 text-[10px] font-mono">
-                {userPlanTier === 'enterprise' ? 'Gói Toàn hệ • 6/6 chuẩn' : 'Gói Cá nhân • 3/6 chuẩn'}
+                Mở mọi gói • 6/6 chuẩn
               </span>
             </div>
             <div className="text-[10.5px] text-zinc-600 truncate">
@@ -234,10 +236,10 @@ export const MultiView3DBuilderSection: React.FC<MultiView3DBuilderSectionProps>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-[11px] font-semibold text-zinc-900 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Chọn Chuẩn Mô hình 3D (3 chuẩn Cá nhân hóa / 6 chuẩn Toàn hệ)</span>
+                <span>Chọn Chuẩn Mô hình 3D LABS (Mở khóa cả 6/6 chuẩn cho mọi gói)</span>
               </span>
               <span className="text-[10px] font-mono text-zinc-500">
-                Gói hiện tại: <strong className="text-zinc-900">{userPlanTier === 'enterprise' ? 'Toàn hệ' : 'Cá nhân hóa'}</strong>
+                Gói hiện tại: <strong className="text-zinc-900">{userPlanTier === 'enterprise' ? 'Toàn hệ' : 'Cá nhân hóa'}</strong> • <span className="text-amber-700 font-semibold">LABS mở khóa 6/6 chuẩn</span>
               </span>
             </div>
 
@@ -253,37 +255,23 @@ export const MultiView3DBuilderSection: React.FC<MultiView3DBuilderSectionProps>
                     onClick={() => {
                       if (allowed) onChangeStyleId(style.id);
                     }}
-                    title={
-                      allowed
-                        ? style.description
-                        : `${style.name} yêu cầu Gói Toàn hệ (Enterprise)`
-                    }
-                    className={`p-2.5 rounded-xl border text-left transition relative ${
-                      !allowed
-                        ? 'bg-zinc-100/80 border-black/[0.06] text-zinc-400 cursor-not-allowed opacity-75'
-                        : isSelected
-                          ? 'bg-indigo-50/90 border-indigo-600 ring-1 ring-indigo-600 text-zinc-950 shadow-2xs cursor-pointer'
-                          : 'bg-white border-black/[0.08] hover:border-indigo-300 text-zinc-800 cursor-pointer'
+                    title={style.description}
+                    className={`p-2.5 rounded-xl border text-left transition relative cursor-pointer ${
+                      isSelected
+                        ? 'bg-indigo-50/90 border-indigo-600 ring-1 ring-indigo-600 text-zinc-950 shadow-2xs'
+                        : 'bg-white border-black/[0.08] hover:border-indigo-300 text-zinc-800'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1">
                       <span className="text-[11px] font-bold truncate">{style.name}</span>
-                      {allowed ? (
-                        <span
-                          className={`px-1.5 py-0.2 rounded text-[9px] font-mono font-semibold ${
-                            style.requiredTier === 'enterprise'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-emerald-50 text-emerald-700'
-                          }`}
-                        >
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <span className="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-amber-600 text-white">
+                          LABS
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-semibold bg-emerald-50 text-emerald-700">
                           {style.polyBudgetLabel}
                         </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-zinc-200 text-zinc-600 text-[9px] font-mono font-semibold">
-                          <Lock className="w-2.5 h-2.5" />
-                          <span>Toàn hệ</span>
-                        </span>
-                      )}
+                      </div>
                     </div>
                     <div className="text-[10px] text-zinc-500 mt-1 line-clamp-2 leading-snug">
                       {style.description}

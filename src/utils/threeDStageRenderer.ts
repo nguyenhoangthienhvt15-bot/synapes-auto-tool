@@ -3067,3 +3067,5 @@ export function renderZodiac12Pixar3dStageToCanvas(
   targetCtx.restore();
   return true;
 }
+
+export { renderDragonflyRainSong3dStageToCanvas } from './dragonflyStage3d';

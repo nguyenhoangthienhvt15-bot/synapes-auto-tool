@@ -59,6 +59,7 @@ import {
   renderPixarCountrysideStageToCanvas,
   renderMotherDuckAndDucklings3dStageToCanvas,
   renderZodiac12Pixar3dStageToCanvas,
+  renderDragonflyRainSong3dStageToCanvas,
 } from '../utils/threeDStageRenderer';
 import { renderPaperArtStageToCanvas } from '../utils/paperArtStageRenderer';
 import {
@@ -2620,6 +2621,13 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         `${project.title} ${scene.visualPrompt || ''} ${scene.imageUrl || ''} ${scene.speakerId || ''}`
       );
 
+    const isDragonflyRainSong3d =
+      is3dAnimationProject &&
+      !isZodiac12Song3d &&
+      /chuồn\s*chuồn|bay\s*thấp|bay\s*cao|dragonfly/i.test(
+        `${project.title} ${scene.visualPrompt || ''} ${scene.voiceover || ''}`
+      );
+
     const isMotherDuck3dFable =
       is3dAnimationProject &&
       !isZodiac12Song3d &&
@@ -2650,7 +2658,12 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       (visualRenderMode === 'threejs-3d' || visualRenderMode === 'auto-genre');
 
     // Chế độ Vẽ Tranh Giấy (Rough.js + Paper-Cut) hoặc Three.js 3D WebGL Stage toàn màn hình
-    const useFullThreeJsStage = isThreeJs3dMode || isCountryside3dFable || isMotherDuck3dFable || isZodiac12Song3d;
+    const useFullThreeJsStage =
+      isThreeJs3dMode ||
+      isCountryside3dFable ||
+      isMotherDuck3dFable ||
+      isZodiac12Song3d ||
+      isDragonflyRainSong3d;
 
     const drawCoreStageToContext = (
       targetCtx: CanvasRenderingContext2D,
@@ -2694,6 +2707,19 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           isSpeaking: isPlayingRef.current || exportScope === 'full',
         });
         if (renderedZodiac) {
+          targetCtx.restore();
+          return;
+        }
+      }
+
+      if (isDragonflyRainSong3d) {
+        const renderedDragonfly = renderDragonflyRainSong3dStageToCanvas(targetCtx, tW, tH, {
+          clockSec: tClock,
+          progress: tProgress,
+          sceneIdx: tIdx,
+          isSpeaking: isPlayingRef.current || exportScope === 'full',
+        });
+        if (renderedDragonfly) {
           targetCtx.restore();
           return;
         }

@@ -924,11 +924,14 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
                   <Box className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-zinc-950">
-                    Động cơ Dựng Mô hình 3D Thực thụ (BYOK Multi-View 1–5 Ảnh → .GLB)
+                  <div className="text-xs font-bold text-zinc-950 flex flex-wrap items-center gap-1.5">
+                    <span>Động cơ Dựng Mô hình 3D Thực thụ (BYOK Multi-View 1–5 Ảnh → .GLB)</span>
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-600 text-white tracking-wider">
+                      LABS
+                    </span>
                   </div>
                   <div className="text-[11px] text-zinc-500">
-                    Mọi tiến trình tái tạo lưới 3D &amp; Auto-Rig xương đều khai thác bằng Token / Worker URL riêng của bạn
+                    Mọi tiến trình tái tạo lưới 3D &amp; Auto-Rig xương đều mở cho mọi loại gói và khai thác bằng Token / Worker URL riêng của bạn
                   </div>
                 </div>
               </div>
