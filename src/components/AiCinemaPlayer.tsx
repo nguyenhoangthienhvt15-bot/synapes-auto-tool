@@ -56,6 +56,7 @@ import {
   resolveVoiceProfileById,
   resolveSceneVoiceParams,
   normalizeBgmVolumeRatio,
+  buildNonOverlappingExportAudioPlan,
 } from '../services/voiceStudioService';
 import { fixWebmDuration } from '../utils/webmDurationFix';
 import {
@@ -347,11 +348,23 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   const totalDurationRef = useRef<number>(totalDuration);
   const scenesRef = useRef<StoryboardScene[]>(scenes);
   const drawCinemaCanvasRef = useRef<(clockSec: number, overrideTimeSec?: number) => void>(() => {});
+  const voiceHoldStartMsRef = useRef<number | null>(null);
+  const voiceFetchWaitStartMsRef = useRef<number | null>(null);
   const masterAudioElementRef = useRef<HTMLAudioElement | null>(null);
   const masterAudioUrl =
     project.customAudioUrl ||
     (project.voiceoverTrack?.isCustomMasterAudio ? project.voiceoverTrack?.audioUrl : '') ||
     '';
+  const masterAudioUrlRef = useRef<string>(masterAudioUrl);
+  const isTtsEnabledRef = useRef<boolean>(isTtsEnabled);
+
+  useEffect(() => {
+    masterAudioUrlRef.current = masterAudioUrl;
+  }, [masterAudioUrl]);
+
+  useEffect(() => {
+    isTtsEnabledRef.current = isTtsEnabled;
+  }, [isTtsEnabled]);
 
   useEffect(() => {
     isPlayingRef.current = isPlaying;
@@ -377,6 +390,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     const clamped = Math.max(0, Math.min(totalDurationRef.current || 48, newTimeSec));
     currentTimeRef.current = clamped;
     setCurrentTime(clamped);
+    voiceHoldStartMsRef.current = null;
+    voiceFetchWaitStartMsRef.current = null;
     lastFrameTimeRef.current = performance.now();
     if (masterAudioElementRef.current) {
       try {
@@ -412,6 +427,15 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       synthRef.current?.destroy();
     };
   }, []);
+
+  // Nạp trước câu thoại Cảnh 0 & Cảnh 1 ngay khi mở dự án để không bị trễ/mất chữ đầu
+  useEffect(() => {
+    if (scenes.length === 0 || masterAudioUrl) return;
+    synthRef.current?.preloadSingleSceneVoiceover(scenes[0]);
+    if (scenes[1]) {
+      synthRef.current?.preloadSingleSceneVoiceover(scenes[1]);
+    }
+  }, [project.id, masterAudioUrl]);
 
   // Determine current scene from currentTime
   const getCurrentSceneIndex = useCallback(
@@ -902,6 +926,8 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
     if (currentScene && currentSpokenSceneRef.current !== currentScene.id) {
       currentSpokenSceneRef.current = currentScene.id;
+      voiceHoldStartMsRef.current = null;
+      voiceFetchWaitStartMsRef.current = null;
       if (!isMuted) {
         synthRef.current?.playSfx(activeEditSkill.sfxOnCut || 'whoosh');
         if (!masterAudioUrl && !isExportingVideoRef.current) {
@@ -937,10 +963,57 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
       if (isPlayingRef.current) {
         const dur = totalDurationRef.current || 48;
-        let next = currentTimeRef.current + dt;
+        const liveList = scenesRef.current || [];
+        const tNowCur = currentTimeRef.current;
+        const curScIdx = liveList.findIndex((s) => tNowCur >= s.startSec && tNowCur < s.endSec);
+        const curSc = curScIdx !== -1 ? liveList[curScIdx] : undefined;
+
+        const shouldGuardVoice = Boolean(
+          curSc &&
+            !isExportingVideoRef.current &&
+            !masterAudioUrlRef.current &&
+            isTtsEnabledRef.current &&
+            !isMutedRef.current &&
+            !curSc.customAudioUrl &&
+            curSc.voiceover?.trim()
+        );
+
+        let holdAtSceneStart = false;
+        if (shouldGuardVoice && curSc) {
+          const scElapsed = Math.max(0, tNowCur - curSc.startSec);
+          if (synthRef.current?.isVoiceFetching() && scElapsed < 0.25) {
+            if (!voiceFetchWaitStartMsRef.current) voiceFetchWaitStartMsRef.current = now;
+            if (now - voiceFetchWaitStartMsRef.current < 3500) {
+              holdAtSceneStart = true;
+            }
+          } else {
+            voiceFetchWaitStartMsRef.current = null;
+          }
+        }
+
+        let next = holdAtSceneStart ? curSc!.startSec : tNowCur + dt;
+
+        // Giữ phân cảnh tại mép cuối cho đến khi Neural TTS đọc xong trọn câu (tránh cắt chữ giữa chừng)
+        if (
+          shouldGuardVoice &&
+          curSc &&
+          !holdAtSceneStart &&
+          next >= curSc.endSec - 0.04 &&
+          synthRef.current?.isVoiceSpeaking()
+        ) {
+          if (!voiceHoldStartMsRef.current) voiceHoldStartMsRef.current = now;
+          if (now - voiceHoldStartMsRef.current < 8000) {
+            next = Math.max(tNowCur, curSc.endSec - 0.03);
+          }
+        } else if (!synthRef.current?.isVoiceSpeaking()) {
+          voiceHoldStartMsRef.current = null;
+        }
+
         if (next >= dur) {
           next = 0;
           currentSpokenSceneRef.current = null;
+          voiceHoldStartMsRef.current = null;
+          voiceFetchWaitStartMsRef.current = null;
           if (masterAudioElementRef.current) {
             try {
               masterAudioElementRef.current.currentTime = 0;
@@ -5069,10 +5142,15 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       await new Promise((r) => setTimeout(r, 200));
 
       const startOffsetSec = exportScope === 'current' ? currentScene.startSec : 0;
+      const exportAudioPlan = buildNonOverlappingExportAudioPlan(
+        scenes,
+        measured,
+        activeEditSkill.breathGapSec || 0.24
+      );
       const scopedMeasured =
         exportScope === 'current'
-          ? measured.filter((m) => m.sceneId === currentScene.id)
-          : measured;
+          ? exportAudioPlan.items.filter((m) => m.sceneId === currentScene.id)
+          : exportAudioPlan.items;
 
       // Resume synthesizer and start Custom MP3 BGM (or studio ambient soundtrack fallback)
       synthRef.current?.resume();
@@ -5114,9 +5192,19 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         if (!isCancelled && e.data && e.data.size > 0) chunks.push(e.data);
       };
 
-      const targetDurationSec =
-        exportScope === 'current' ? Math.max(1, currentScene.endSec - currentScene.startSec) : Math.max(1, totalDuration);
-      const totalMs = Math.max(1000, Math.round((targetDurationSec * 1000) / exportSpeedMultiplier));
+      const plannedDurSec =
+        exportScope === 'current'
+          ? Math.max(
+              1,
+              currentScene.endSec - currentScene.startSec,
+              scopedMeasured[0]
+                ? scopedMeasured[0].durationSec + (activeEditSkill.breathGapSec || 0.24)
+                : 0
+            )
+          : Math.max(1, totalDuration, exportAudioPlan.totalDurationSec);
+
+      // Lên lịch phát thoại liên tục & lấy đúng mốc kết thúc thực tế để không cắt chữ cuối
+      let targetDurationSec = plannedDurSec;
       let actualStartMs = Date.now();
 
       recorder.onstop = async () => {
@@ -5137,7 +5225,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
         const rawBlob = new Blob(chunks, { type: mimeType });
         const recordedDurationMs = Math.max(1000, Date.now() - actualStartMs);
-        const safeContainerDurationMs = Math.min(recordedDurationMs, Math.round(targetDurationSec * 1000) + 250);
+        const safeContainerDurationMs = Math.min(recordedDurationMs, Math.round(targetDurationSec * 1000) + 350);
         // Vá EBML Duration Header để mọi trình phát đọc được tổng thời lượng & tua chính xác
         const blob = await fixWebmDuration(rawBlob, safeContainerDurationMs);
         const url = URL.createObjectURL(blob);
@@ -5169,18 +5257,22 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         }, 250);
       };
 
-      // Set playback to start, schedule sample-accurate continuous narration & start recording
+      // Set playback to start, schedule sample-accurate non-overlapping narration & start recording
       playbackSpeedRef.current = exportSpeedMultiplier;
       seekToTime(startOffsetSec);
       setIsPlaying(true);
 
       if (!masterAudioUrl && isTtsEnabled && scopedMeasured.length > 0) {
-        synthRef.current?.scheduleContinuousExportNarration(
+        const schedRes = synthRef.current?.scheduleContinuousExportNarration(
           scopedMeasured,
           exportSpeedMultiplier,
           startOffsetSec
         );
+        if (schedRes && schedRes.actualAudioEndSec > 0) {
+          targetDurationSec = Math.max(targetDurationSec, schedRes.actualAudioEndSec + 0.35);
+        }
       }
+      const totalMs = Math.max(1000, Math.round((targetDurationSec * 1000) / exportSpeedMultiplier));
 
       actualStartMs = Date.now();
       recorder.start(250);

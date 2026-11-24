@@ -1620,13 +1620,83 @@ function _resolveTtsLanguageMeta(langRaw = 'vi', voiceName = '') {
   return { code: EDGE_LANG_MAP[clean] ? clean : 'vi', ...resolved };
 }
 
-function _normalizeVietnameseProsodyText(text = '') {
+export function _normalizeVietnameseProsodyText(text = '') {
   return String(text || '')
     .replace(/\s+/g, ' ')
-    .replace(/\s*([,;:.!?])\s*/g, '$1 ')
+    .replace(/\s+([,;:.!?])/g, '$1')
+    .replace(/([,;:.!?])(?=[A-Za-zÀ-ỹ“"‘'(])/g, '$1 ')
     .replace(/\s*—\s*/g, ', ')
     .replace(/\.{3,}/g, '... ')
+    .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Chia nhỏ văn bản dài thành các đoạn <= maxLen ký tự theo ranh giới câu/từ để Google TTS không cắt mất chữ (> 195 ký tự).
+ */
+export function _splitTextSafeForGoogleTts(text = '', maxLen = 175) {
+  const cleaned = _normalizeVietnameseProsodyText(text);
+  if (!cleaned) return [];
+  if (cleaned.length <= maxLen) return [cleaned];
+
+  const chunks = [];
+  const sentences = cleaned.split(/(?<=[.!?।;:])\s+/);
+  let current = '';
+
+  const pushWordSplit = (longSeg) => {
+    const words = longSeg.split(/\s+/).filter(Boolean);
+    let acc = '';
+    for (const w of words) {
+      if ((acc ? acc + ' ' + w : w).length <= maxLen) {
+        acc = acc ? acc + ' ' + w : w;
+      } else {
+        if (acc) chunks.push(acc);
+        if (w.length <= maxLen) {
+          acc = w;
+        } else {
+          // Trường hợp chuỗi đơn dài vượt maxLen không dấu cách
+          for (let i = 0; i < w.length; i += maxLen) {
+            chunks.push(w.slice(i, i + maxLen));
+          }
+          acc = '';
+        }
+      }
+    }
+    if (acc) chunks.push(acc);
+  };
+
+  for (const sent of sentences) {
+    if ((current ? current + ' ' + sent : sent).length <= maxLen) {
+      current = current ? current + ' ' + sent : sent;
+      continue;
+    }
+    if (current) {
+      chunks.push(current);
+      current = '';
+    }
+    if (sent.length <= maxLen) {
+      current = sent;
+    } else {
+      const subClauses = sent.split(/(?<=,)\s+/);
+      let clauseAcc = '';
+      for (const cl of subClauses) {
+        if ((clauseAcc ? clauseAcc + ' ' + cl : cl).length <= maxLen) {
+          clauseAcc = clauseAcc ? clauseAcc + ' ' + cl : cl;
+        } else {
+          if (clauseAcc) chunks.push(clauseAcc);
+          clauseAcc = '';
+          if (cl.length <= maxLen) {
+            clauseAcc = cl;
+          } else {
+            pushWordSplit(cl);
+          }
+        }
+      }
+      if (clauseAcc) current = clauseAcc;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
 }
 
 function _buildEdgeSsmlMessages(reqId, text, voiceName, ratePct, pitchHz) {
@@ -1690,19 +1760,19 @@ async function _synthesizeEdgeNeuralNativeWsAttempt(text, voiceName, ratePct, pi
 
     const audioChunks = [];
     let settled = false;
+    let receivedTurnEnd = false;
     const finish = (err, data) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      if (err && audioChunks.length > 0) return resolve(Buffer.concat(audioChunks));
       if (err) reject(err);
       else resolve(data);
     };
 
     const timeout = setTimeout(() => {
       try { ws.close(); } catch { }
-      finish(new Error('Edge TTS native WS timeout'));
-    }, 8500);
+      finish(new Error('Edge TTS native WS timeout before turn.end'));
+    }, 14000);
 
     ws.binaryType = 'arraybuffer';
     ws.onopen = () => {
@@ -1713,9 +1783,10 @@ async function _synthesizeEdgeNeuralNativeWsAttempt(text, voiceName, ratePct, pi
     ws.onmessage = (ev) => {
       if (typeof ev.data === 'string') {
         if (ev.data.includes('Path:turn.end')) {
+          receivedTurnEnd = true;
           try { ws.close(); } catch { }
           if (audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
-          else finish(new Error('Empty Edge TTS buffer'));
+          else finish(new Error('Empty Edge TTS buffer at turn.end'));
         }
       } else {
         const frameData = Buffer.from(ev.data);
@@ -1730,11 +1801,14 @@ async function _synthesizeEdgeNeuralNativeWsAttempt(text, voiceName, ratePct, pi
         }
       }
     };
-    ws.onerror = (ev) => finish(new Error(ev?.message || 'Edge TTS native WS error'));
+    ws.onerror = (ev) => {
+      if (receivedTurnEnd && audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
+      else finish(new Error(ev?.message || 'Edge TTS native WS error'));
+    };
     ws.onclose = (ev) => {
       if (!settled) {
-        if (audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
-        else finish(new Error(`Edge TTS native WS closed (${ev?.code || 'unknown'})`));
+        if (receivedTurnEnd && audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
+        else finish(new Error(`Incomplete Edge TTS native WS stream (${ev?.code || 'no turn.end'})`));
       }
     };
   });
@@ -1751,12 +1825,12 @@ async function _synthesizeEdgeNeuralRawHttpAttempt(text, voiceName, ratePct, pit
     const audioChunks = [];
 
     let settled = false;
+    let receivedTurnEnd = false;
     const finish = (err, data) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
       try { agent.destroy(); } catch { }
-      if (err && audioChunks.length > 0) return resolve(Buffer.concat(audioChunks));
       if (err) reject(err);
       else resolve(data);
     };
@@ -1784,8 +1858,8 @@ async function _synthesizeEdgeNeuralRawHttpAttempt(text, voiceName, ratePct, pit
 
     const timeout = setTimeout(() => {
       try { req.destroy(); } catch { }
-      finish(new Error('Edge TTS v2 timeout'));
-    }, 10500);
+      finish(new Error('Edge TTS v2 timeout before turn.end'));
+    }, 14500);
 
     req.on('error', (err) => finish(err));
     req.on('response', (res) => {
@@ -1797,11 +1871,14 @@ async function _synthesizeEdgeNeuralRawHttpAttempt(text, voiceName, ratePct, pit
       socket.setNoDelay(true);
       let rxBuf = head && head.length ? Buffer.from(head) : Buffer.alloc(0);
 
-      socket.on('error', (err) => finish(err));
+      socket.on('error', (err) => {
+        if (receivedTurnEnd && audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
+        else finish(err);
+      });
       socket.on('close', () => {
         if (!settled) {
-          if (audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
-          else finish(new Error('Edge TTS socket closed before audio'));
+          if (receivedTurnEnd && audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
+          else finish(new Error('Incomplete Edge TTS socket closed before turn.end'));
         }
       });
 
@@ -1828,9 +1905,10 @@ async function _synthesizeEdgeNeuralRawHttpAttempt(text, voiceName, ratePct, pit
           if (opcode === 0x01) {
             const txt = frameData.toString('utf8');
             if (txt.includes('Path:turn.end')) {
+              receivedTurnEnd = true;
               try { socket.end(); socket.destroy(); } catch { }
               if (audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
-              else finish(new Error('Empty Edge TTS buffer'));
+              else finish(new Error('Empty Edge TTS buffer at turn.end'));
               return;
             }
           } else if (opcode === 0x02 && frameData.length > 2) {
@@ -1843,8 +1921,8 @@ async function _synthesizeEdgeNeuralRawHttpAttempt(text, voiceName, ratePct, pit
             }
           } else if (opcode === 0x08) {
             try { socket.destroy(); } catch { }
-            if (audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
-            else finish(new Error('Edge TTS closed frame'));
+            if (receivedTurnEnd && audioChunks.length > 0) finish(null, Buffer.concat(audioChunks));
+            else finish(new Error('Incomplete Edge TTS close frame before turn.end'));
             return;
           }
         }
@@ -1889,11 +1967,9 @@ async function synthesizeEdgeNeuralTts(text, voiceName, ratePct = '+0%', pitchHz
   throw lastErr || new Error('Edge Neural TTS v2 failed after retries');
 }
 
-function fetchGoogleNeuralTtsMp3(text, lang = 'vi') {
+function _fetchGoogleTtsSingleChunk(chunkText, tl) {
   return new Promise((resolve, reject) => {
-    const safeText = text.slice(0, 195);
-    const tl = _resolveTtsLanguageMeta(lang).tl;
-    const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${tl}&q=${encodeURIComponent(safeText)}`;
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${tl}&q=${encodeURIComponent(chunkText)}`;
     https
       .get(
         url,
@@ -1916,6 +1992,33 @@ function fetchGoogleNeuralTtsMp3(text, lang = 'vi') {
       )
       .on('error', reject);
   });
+}
+
+async function fetchGoogleNeuralTtsMp3(text, lang = 'vi') {
+  const tl = _resolveTtsLanguageMeta(lang).tl;
+  const textChunks = _splitTextSafeForGoogleTts(text, 175);
+  if (textChunks.length === 0) {
+    throw new Error('Empty text for Google TTS');
+  }
+  const audioBuffers = [];
+  for (const ch of textChunks) {
+    let chunkBuf = null;
+    let lastErr = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        chunkBuf = await _fetchGoogleTtsSingleChunk(ch, tl);
+        if (chunkBuf && chunkBuf.length > 64) break;
+      } catch (err) {
+        lastErr = err;
+        await new Promise((r) => setTimeout(r, 150));
+      }
+    }
+    if (!chunkBuf || chunkBuf.length <= 64) {
+      throw lastErr || new Error('Google TTS chunk failed');
+    }
+    audioBuffers.push(chunkBuf);
+  }
+  return Buffer.concat(audioBuffers);
 }
 
 function fetchOpenAiSpeech(apiKey, text, voice = 'onyx') {

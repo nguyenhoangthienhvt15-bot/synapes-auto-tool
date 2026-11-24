@@ -9,6 +9,7 @@ import {
   normalizeBgmVolumeRatio,
   trimSilenceEdges,
   splitTextIntoSmartChunks,
+  buildNonOverlappingExportAudioPlan,
 } from '../src/services/voiceStudioService';
 import {
   EDIT_SKILL_LIST,
@@ -24,6 +25,8 @@ import {
 import {
   NON_TOPIC_MEDIA_TITLE_REGEX,
   DOMAIN_VIDEO_BROLL_POOLS,
+  _normalizeVietnameseProsodyText,
+  _splitTextSafeForGoogleTts,
   handleStudioApiRequest,
 } from '../server/studioBackendEngine.mjs';
 
@@ -206,4 +209,62 @@ describe('Nâng cấp Edit Engine, 16 Giọng Đọc Đa Sắc Thái & Nhạc N�
     const buf = Buffer.from(await res.arrayBuffer());
     expect(buf.byteLength).toBeGreaterThan(4096);
   }, 15000);
+
+  it('7. Sửa lỗi ngắt giọng & mất chữ: bảo toàn số thập phân, chia Google TTS >=450 ký tự, giữ âm cuối nhẹ & lập lịch không chồng', () => {
+    // 7a. _normalizeVietnameseProsodyText không chèn dấu cách vào số thập phân / hàng nghìn / giờ
+    const normalized = _normalizeVietnameseProsodyText(
+      'Cổ phiếu Nvidia tăng 34.5%, vốn hóa đạt 1,200 tỷ USD lúc 14:30.Tiếp theo là diễn biến mới.'
+    );
+    expect(normalized).toContain('34.5%');
+    expect(normalized).toContain('1,200');
+    expect(normalized).toContain('14:30.');
+    expect(normalized).toContain('14:30. Tiếp theo');
+
+    // 7b. _splitTextSafeForGoogleTts chia văn bản >450 ký tự không làm rơi bất kỳ từ nào
+    const longText =
+      'Ông Jensen Huang chính thức trở lại trung tâm điều hành chiến lược sản phẩm tại tập đoàn bán dẫn Nvidia ngay trong tuần này. ' +
+      'Động thái được giới đầu tư Phố Wall đánh giá là bước ngoặt giúp tăng tốc kiến trúc GPU thế hệ mới, tối ưu chuỗi cung ứng chip AI ' +
+      'và mở rộng hợp tác trực tiếp với các nhà máy đúc bán dẫn hàng đầu châu Á trong giai đoạn bùng nổ hạ tầng điện toán toàn cầu.';
+    expect(longText.length).toBeGreaterThan(360);
+    const gChunks = _splitTextSafeForGoogleTts(longText, 175);
+    expect(gChunks.length).toBeGreaterThanOrEqual(2);
+    gChunks.forEach((c) => expect(c.length).toBeLessThanOrEqual(175));
+    expect(gChunks.join(' ').replace(/\s+/g, ' ').trim()).toBe(
+      _normalizeVietnameseProsodyText(longText)
+    );
+
+    // 7c. trimSilenceEdges mới giữ nguyên âm đuôi nhẹ (0.004) thay vì cắt cụt chữ cuối
+    const ctx = makeMockAudioContext();
+    const sr = 24000;
+    const rawBuf = ctx.createBuffer(1, sr * 2, sr);
+    const ch0 = rawBuf.getChannelData(0);
+    for (let i = sr * 0.5; i < Math.floor(sr * 1.4); i++) {
+      ch0[i] = Math.sin((2 * Math.PI * 220 * i) / sr) * 0.4;
+    }
+    for (let i = Math.floor(sr * 1.4); i < Math.floor(sr * 1.72); i++) {
+      ch0[i] = Math.sin((2 * Math.PI * 260 * i) / sr) * 0.004;
+    }
+    const trimmed = trimSilenceEdges(ctx, rawBuf);
+    // Phải giữ trọn đoạn [0.5s .. 1.72s] (1.22s) + padding (>= 1.25s)
+    expect(trimmed.length).toBeGreaterThan(Math.floor(sr * 1.25));
+
+    // 7d. buildNonOverlappingExportAudioPlan chống chồng tiếng & kéo khung đủ dài cho câu dài hơn scene
+    const scenes = [
+      { id: 1, startSec: 0, endSec: 5 },
+      { id: 2, startSec: 5, endSec: 10 },
+      { id: 3, startSec: 10, endSec: 15 },
+    ];
+    const dummyBuf = ctx.createBuffer(1, sr * 2, sr);
+    const prof = VIETNAMESE_VOICE_PROFILES[0];
+    const measured = [
+      { sceneId: 1, startSec: 0, endSec: 5, audioBuffer: dummyBuf, durationSec: 6.8, engine: 'edge-neural', profile: prof },
+      { sceneId: 2, startSec: 5, endSec: 10, audioBuffer: dummyBuf, durationSec: 5.4, engine: 'edge-neural', profile: prof },
+      { sceneId: 3, startSec: 10, endSec: 15, audioBuffer: dummyBuf, durationSec: 4.1, engine: 'edge-neural', profile: prof },
+    ];
+    const plan = buildNonOverlappingExportAudioPlan(scenes, measured, 0.24);
+    expect(plan.overlapsPrevented).toBeGreaterThanOrEqual(2);
+    expect(plan.items[1].startSec).toBeGreaterThanOrEqual(plan.items[0].endSec);
+    expect(plan.items[2].startSec).toBeGreaterThanOrEqual(plan.items[1].endSec);
+    expect(plan.totalDurationSec).toBeGreaterThan(17.0);
+  });
 });

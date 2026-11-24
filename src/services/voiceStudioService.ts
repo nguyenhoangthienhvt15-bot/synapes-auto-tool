@@ -1065,15 +1065,16 @@ export function connectVocalFormantChain(
 export function trimSilenceEdges(
   ctx: BaseAudioContext,
   inputBuffer: AudioBuffer,
-  thresholdLinear = 0.008,
-  keepPadMs = 35
+  thresholdLinear = 0.0022,
+  keepPadMs = 80
 ): AudioBuffer {
   const sr = inputBuffer.sampleRate;
   const len = inputBuffer.length;
   if (len <= Math.floor(sr * 0.08)) return inputBuffer;
 
   const ch0 = inputBuffer.getChannelData(0);
-  const padSamples = Math.floor((sr * keepPadMs) / 1000);
+  const leadPadSamples = Math.floor((sr * keepPadMs) / 1000);
+  const tailPadSamples = Math.floor((sr * Math.max(keepPadMs, 110)) / 1000);
 
   let firstIdx = 0;
   while (firstIdx < len && Math.abs(ch0[firstIdx]) < thresholdLinear) {
@@ -1086,8 +1087,8 @@ export function trimSilenceEdges(
 
   if (firstIdx >= lastIdx) return inputBuffer;
 
-  const start = Math.max(0, firstIdx - padSamples);
-  const end = Math.min(len - 1, lastIdx + padSamples);
+  const start = Math.max(0, firstIdx - leadPadSamples);
+  const end = Math.min(len - 1, lastIdx + tailPadSamples);
   const outLen = Math.max(64, end - start + 1);
   if (outLen >= len - Math.floor(sr * 0.02)) {
     return inputBuffer;
@@ -1095,7 +1096,7 @@ export function trimSilenceEdges(
 
   const numChannels = inputBuffer.numberOfChannels;
   const out = ctx.createBuffer(numChannels, outLen, sr);
-  const fadeSamples = Math.min(Math.floor(sr * 0.01), Math.floor(outLen / 6));
+  const fadeSamples = Math.min(Math.floor(sr * 0.006), Math.floor(outLen / 8));
 
   for (let ch = 0; ch < numChannels; ch++) {
     const src = inputBuffer.getChannelData(ch);
@@ -1205,7 +1206,7 @@ async function fetchAndDecodeNeuralAudio(
   customPitch?: number,
   exactPitchDeltaHz?: number
 ): Promise<{ audioBuffer: AudioBuffer; engine: string }> {
-  const smartChunks = splitTextIntoSmartChunks(text, 420, profile.breathPauseMs ?? 210);
+  const smartChunks = splitTextIntoSmartChunks(text, 340, profile.breathPauseMs ?? 210);
   if (smartChunks.length === 0) {
     throw new Error('Empty narration text');
   }
@@ -1246,6 +1247,7 @@ async function fetchAndDecodeNeuralAudio(
   } catch { }
 
   const keyScopeTag = savedElevenLabsKey ? '11l:' : savedOpenAiKey ? 'oai:' : 'std:';
+  const retryDelaysMs = [0, 250, 600];
 
   for (const chunkItem of smartChunks) {
     const cacheKey = `${profile.id}:${ratePct}:${pitchHz}:${keyScopeTag}${chunkItem.text}`;
@@ -1256,55 +1258,74 @@ async function fetchAndDecodeNeuralAudio(
       const defaultNativeVoice = isFemale ? 'vi-VN-HoaiMyNeural' : 'vi-VN-NamMinhNeural';
       const defaultOpenAiVoice = profile.openaiVoiceName || (isFemale ? 'nova' : 'onyx');
 
-      let resp: Response;
-      if (savedOpenAiKey || savedElevenLabsKey) {
-        // Dùng POST JSON để không lộ BYOK API key trong URL query string
-        resp = await fetch('/api/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal,
-          body: JSON.stringify({
-            text: chunkItem.text,
-            lang: profile.language,
-            profileId: profile.id,
-            voice: profile.neuralVoiceId || defaultNativeVoice,
-            openaiVoice: defaultOpenAiVoice,
-            openaiKey: savedOpenAiKey,
-            elevenlabsKey: savedElevenLabsKey,
-            elevenlabsVoiceId: profile.elevenlabsVoiceId || '21m00Tcm4TlvDq8ikWAM',
-            rate: ratePct,
-            pitch: pitchHz,
-          }),
-        });
-      } else {
-        const params = new URLSearchParams({
-          text: chunkItem.text,
-          lang: profile.language,
-          profileId: profile.id,
-          voice: profile.neuralVoiceId || defaultNativeVoice,
-          openaiVoice: defaultOpenAiVoice,
-          rate: ratePct,
-          pitch: pitchHz,
-        });
-        resp = await fetch(`/api/tts?${params.toString()}`, { signal });
-      }
+      let lastErr: unknown = null;
+      for (let attempt = 0; attempt < retryDelaysMs.length; attempt++) {
+        if (signal?.aborted) {
+          throw new DOMException('Aborted', 'AbortError');
+        }
+        if (retryDelaysMs[attempt] > 0) {
+          await new Promise((r) => setTimeout(r, retryDelaysMs[attempt]));
+          if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        }
+        try {
+          let resp: Response;
+          if (savedOpenAiKey || savedElevenLabsKey) {
+            // Dùng POST JSON để không lộ BYOK API key trong URL query string
+            resp = await fetch('/api/tts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              signal,
+              body: JSON.stringify({
+                text: chunkItem.text,
+                lang: profile.language,
+                profileId: profile.id,
+                voice: profile.neuralVoiceId || defaultNativeVoice,
+                openaiVoice: defaultOpenAiVoice,
+                openaiKey: savedOpenAiKey,
+                elevenlabsKey: savedElevenLabsKey,
+                elevenlabsVoiceId: profile.elevenlabsVoiceId || '21m00Tcm4TlvDq8ikWAM',
+                rate: ratePct,
+                pitch: pitchHz,
+              }),
+            });
+          } else {
+            const params = new URLSearchParams({
+              text: chunkItem.text,
+              lang: profile.language,
+              profileId: profile.id,
+              voice: profile.neuralVoiceId || defaultNativeVoice,
+              openaiVoice: defaultOpenAiVoice,
+              rate: ratePct,
+              pitch: pitchHz,
+            });
+            resp = await fetch(`/api/tts?${params.toString()}`, { signal });
+          }
 
-      if (!resp.ok) {
-        throw new Error(`TTS HTTP ${resp.status}`);
+          if (!resp.ok) {
+            throw new Error(`TTS HTTP ${resp.status}`);
+          }
+          const engineHeader = resp.headers.get('X-TTS-Engine') || 'neural-dsp';
+          const arrayBuf = await resp.arrayBuffer();
+          if (arrayBuf.byteLength < 100) {
+            throw new Error('Empty TTS audio response');
+          }
+          cached = { rawBuffer: arrayBuf, engine: engineHeader };
+          ttsBufferCache.set(cacheKey, cached);
+          break;
+        } catch (err: any) {
+          if (err?.name === 'AbortError' || signal?.aborted) throw err;
+          lastErr = err;
+        }
       }
-      const engineHeader = resp.headers.get('X-TTS-Engine') || 'neural-dsp';
-      const arrayBuf = await resp.arrayBuffer();
-      if (arrayBuf.byteLength < 100) {
-        throw new Error('Empty TTS audio response');
+      if (!cached) {
+        throw lastErr instanceof Error ? lastErr : new Error(String(lastErr || 'TTS chunk failed'));
       }
-      cached = { rawBuffer: arrayBuf, engine: engineHeader };
-      ttsBufferCache.set(cacheKey, cached);
     }
 
     resolvedEngine = cached.engine;
     const copyBuf = cached.rawBuffer.slice(0);
     const decoded = await ctx.decodeAudioData(copyBuf);
-    const trimmed = trimSilenceEdges(ctx, decoded, 0.008, 35);
+    const trimmed = trimSilenceEdges(ctx, decoded, 0.0022, 80);
     decodedBuffers.push({ buffer: trimmed, pauseAfterMs: chunkItem.pauseAfterMs });
   }
 
@@ -1556,6 +1577,63 @@ export interface MeasuredSceneVoiceover {
 }
 
 /**
+ * Sắp xếp kế hoạch phát lồng tiếng tuần tự, tuyệt đối không chồng tiếng hay cắt đuôi khi độ dài thoại vượt khung cảnh gốc.
+ */
+export function buildNonOverlappingExportAudioPlan<
+  T extends { id: number; startSec: number; endSec: number }
+>(
+  scenes: T[],
+  measuredItems: MeasuredSceneVoiceover[],
+  breathGapSec = 0.24
+): {
+  items: MeasuredSceneVoiceover[];
+  totalDurationSec: number;
+  overlapsPrevented: number;
+} {
+  const itemByScene = new Map<number, MeasuredSceneVoiceover>();
+  for (const m of measuredItems) {
+    itemByScene.set(m.sceneId, m);
+  }
+  let prevEndSec = 0;
+  let overlapsPrevented = 0;
+  const planned: MeasuredSceneVoiceover[] = [];
+
+  for (let i = 0; i < scenes.length; i++) {
+    const sc = scenes[i];
+    const item = itemByScene.get(sc.id);
+    const origStart = Number(sc.startSec) || 0;
+    const origEnd = Math.max(origStart + 1, Number(sc.endSec) || origStart + 6);
+    const origDur = origEnd - origStart;
+    const startSec = i === 0 ? origStart : Math.max(origStart, prevEndSec);
+    if (i > 0 && origStart < prevEndSec - 0.01) {
+      overlapsPrevented++;
+    }
+    if (!item) {
+      prevEndSec = Math.max(prevEndSec, startSec + origDur);
+      continue;
+    }
+    const requiredDur = item.durationSec + breathGapSec;
+    if (requiredDur > origDur + 0.05) {
+      overlapsPrevented++;
+    }
+    const slotDur = Math.max(origDur, requiredDur);
+    const endSec = Number((startSec + slotDur).toFixed(3));
+    planned.push({
+      ...item,
+      startSec: Number(startSec.toFixed(3)),
+      endSec,
+    });
+    prevEndSec = endSec;
+  }
+
+  return {
+    items: planned,
+    totalDurationSec: Number(prevEndSec.toFixed(3)),
+    overlapsPrevented,
+  };
+}
+
+/**
  * Bộ tạo âm thanh nền BGM điện ảnh (MP3/WAV tùy chỉnh + Warm Pad), hiệu ứng SFX & Lồng tiếng Neural liên tục vào luồng xuất Video
  */
 export class StudioAudioSynthesizer {
@@ -1573,6 +1651,9 @@ export class StudioAudioSynthesizer {
   private bgmBaseGain = 0.2;
   private bgmDuckingEnabled = true;
   private isSpeakingNow = false;
+  private isFetchingVoice = false;
+  private activeVoiceStartedAt = 0;
+  private activeVoiceDurationSec = 0;
   private activeVoiceSource: AudioBufferSourceNode | null = null;
   private scheduledExportSources: AudioBufferSourceNode[] = [];
   private activeVoiceAbort: AbortController | null = null;
@@ -1705,8 +1786,28 @@ export class StudioAudioSynthesizer {
     }
   }
 
+  public isVoiceFetching(): boolean {
+    return this.isFetchingVoice;
+  }
+
+  public isVoiceSpeaking(): boolean {
+    if (!this.activeVoiceSource) return false;
+    if (this.activeVoiceDurationSec > 0 && this.activeVoiceStartedAt > 0) {
+      const elapsedSec = (performance.now() - this.activeVoiceStartedAt) / 1000;
+      if (elapsedSec > this.activeVoiceDurationSec + 0.4) return false;
+    }
+    return true;
+  }
+
+  public isVoiceBusy(): boolean {
+    return this.isVoiceFetching() || this.isVoiceSpeaking();
+  }
+
   public stopSceneVoiceover() {
     this.playbackToken++;
+    this.isFetchingVoice = false;
+    this.activeVoiceStartedAt = 0;
+    this.activeVoiceDurationSec = 0;
     if (this.activeVoiceAbort) {
       this.activeVoiceAbort.abort();
       this.activeVoiceAbort = null;
@@ -1758,6 +1859,7 @@ export class StudioAudioSynthesizer {
     const effectiveRate = customRate ?? profile.rate;
     const abortCtrl = new AbortController();
     this.activeVoiceAbort = abortCtrl;
+    this.isFetchingVoice = true;
 
     (async () => {
       try {
@@ -1787,14 +1889,22 @@ export class StudioAudioSynthesizer {
             rate: effectiveRate,
             referenceAnalysis: refAnalysisCompat,
           });
-          if (abortCtrl.signal.aborted || myToken !== this.playbackToken || this.isMutedState) return;
+          if (abortCtrl.signal.aborted || myToken !== this.playbackToken || this.isMutedState) {
+            if (myToken === this.playbackToken) this.isFetchingVoice = false;
+            return;
+          }
           const source = ctx.createBufferSource();
           source.buffer = rendered.audioBuffer;
           source.connect(voiceDestination);
+          this.isFetchingVoice = false;
           this.activeVoiceSource = source;
+          this.activeVoiceStartedAt = performance.now();
+          this.activeVoiceDurationSec = rendered.audioBuffer.duration;
           source.onended = () => {
             if (this.activeVoiceSource === source) {
               this.activeVoiceSource = null;
+              this.activeVoiceStartedAt = 0;
+              this.activeVoiceDurationSec = 0;
               this.duckBgm(false);
             }
           };
@@ -1810,7 +1920,10 @@ export class StudioAudioSynthesizer {
           effectiveRate,
           customPitch
         );
-        if (abortCtrl.signal.aborted || myToken !== this.playbackToken || this.isMutedState) return;
+        if (abortCtrl.signal.aborted || myToken !== this.playbackToken || this.isMutedState) {
+          if (myToken === this.playbackToken) this.isFetchingVoice = false;
+          return;
+        }
 
         const pitchRatio = computeEffectivePitchRatio(profile, customPitch, engine);
         const tempoInDsp = engine.includes('google') ? effectiveRate : 1.0;
@@ -1825,16 +1938,26 @@ export class StudioAudioSynthesizer {
         source.buffer = processedBuffer;
         connectVocalFormantChain(ctx, source, voiceDestination, profile);
 
+        this.isFetchingVoice = false;
         this.activeVoiceSource = source;
+        this.activeVoiceStartedAt = performance.now();
+        this.activeVoiceDurationSec = processedBuffer.duration;
         source.onended = () => {
           if (this.activeVoiceSource === source) {
             this.activeVoiceSource = null;
+            this.activeVoiceStartedAt = 0;
+            this.activeVoiceDurationSec = 0;
             this.duckBgm(false);
           }
         };
 
         source.start(0);
       } catch (err: any) {
+        if (myToken === this.playbackToken) {
+          this.isFetchingVoice = false;
+          this.activeVoiceStartedAt = 0;
+          this.activeVoiceDurationSec = 0;
+        }
         if (
           err?.name === 'AbortError' ||
           abortCtrl.signal.aborted ||
@@ -2231,28 +2354,43 @@ export class StudioAudioSynthesizer {
 
   /**
    * Lập lịch phát giọng đọc liên tục từng mili-giây trên đồng hồ Web Audio phần cứng khi xuất Video
-   * giúp không bị cắt chữ cuối câu hay khựng bởi React render loop.
+   * (bảo đảm tuần tự không chồng tiếng giữa 2 cảnh và trả về điểm kết thúc thực tế của câu cuối).
    */
   public scheduleContinuousExportNarration(
     items: MeasuredSceneVoiceover[],
     speedMultiplier = 1.0,
     timelineOffsetSec = 0
-  ) {
+  ): { totalScheduled: number; actualAudioEndSec: number; overlapsPrevented: number } {
     this.stopSceneVoiceover();
-    if (this.isMutedState || !this.ctx || !this.voiceGain || items.length === 0) return;
+    if (this.isMutedState || !this.ctx || !this.voiceGain || items.length === 0) {
+      return { totalScheduled: 0, actualAudioEndSec: 0, overlapsPrevented: 0 };
+    }
     this.resume();
 
     const ctx = this.ctx;
+    const safeSpeed = Math.max(0.5, speedMultiplier || 1.0);
     const baseTime = ctx.currentTime + 0.06;
     const voiceDestination = this.voiceGain;
+    const sorted = [...items].sort((a, b) => a.startSec - b.startSec);
 
-    items.forEach((item) => {
-      const relStart = Math.max(0, (item.startSec - timelineOffsetSec) / Math.max(0.5, speedMultiplier));
-      const when = baseTime + relStart;
+    let prevAudioEndWhen = baseTime;
+    let overlapsPrevented = 0;
+    let totalScheduled = 0;
+
+    sorted.forEach((item, idx) => {
+      const requestedWhen =
+        baseTime + Math.max(0, (item.startSec - timelineOffsetSec) / safeSpeed);
+      const minGap = idx === 0 ? 0 : 0.16 / safeSpeed;
+      const when =
+        idx === 0 ? requestedWhen : Math.max(requestedWhen, prevAudioEndWhen + minGap);
+      if (idx > 0 && when > requestedWhen + 0.01) {
+        overlapsPrevented++;
+      }
+
       const src = ctx.createBufferSource();
       src.buffer = item.audioBuffer;
-      if (Math.abs(speedMultiplier - 1.0) > 0.02) {
-        src.playbackRate.value = speedMultiplier;
+      if (Math.abs(safeSpeed - 1.0) > 0.02) {
+        src.playbackRate.value = safeSpeed;
       }
       connectVocalFormantChain(ctx, src, voiceDestination, item.profile);
       src.onended = () => {
@@ -2260,7 +2398,15 @@ export class StudioAudioSynthesizer {
       };
       this.scheduledExportSources.push(src);
       src.start(when);
+
+      prevAudioEndWhen = when + item.audioBuffer.duration / safeSpeed;
+      totalScheduled++;
     });
+
+    const actualAudioEndSec = Number(
+      Math.max(0, (prevAudioEndWhen - baseTime) * safeSpeed).toFixed(3)
+    );
+    return { totalScheduled, actualAudioEndSec, overlapsPrevented };
   }
 
   public stopCinematicSoundtrack() {
