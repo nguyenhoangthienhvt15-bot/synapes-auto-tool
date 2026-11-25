@@ -40,7 +40,11 @@ export interface PluginPreset {
   description: string;
 }
 
-export function detectPluginBrand(endpointUrl?: string, name?: string): string {
+export function detectPluginBrand(endpointUrl?: string, name?: string, apiKey?: string): string {
+  const cleanKey = String(apiKey || '').trim();
+  if (/^sk_[a-f0-9]{36,72}$/i.test(cleanKey)) return 'elevenlabs';
+  if (/^sk-(proj-|svcacct-)/i.test(cleanKey)) return 'openai';
+  if (/^AIza[A-Za-z0-9_-]{20,}$/.test(cleanKey)) return 'gemini';
   const text = `${endpointUrl || ''} ${name || ''}`.toLowerCase();
   if (text.includes('kling')) return 'kling';
   if (text.includes('runway')) return 'runway';
@@ -599,6 +603,8 @@ export async function discoverModelsFromKey(
   models: DiscoveredModel[];
   message: string;
   rawCount?: number;
+  detectedVendor?: string;
+  detectedEndpoint?: string;
 }> {
   const cleanKey = (apiKey || '').trim();
   if (!cleanKey) {
@@ -843,39 +849,12 @@ export async function discoverModelsFromKey(
         }
       }
 
-      // Fallback danh sách mô hình Claude thế hệ mới nhất nếu endpoint bị chặn CORS
-      const claudeFallback: DiscoveredModel[] = [
-        {
-          id: 'claude-3-7-sonnet-20250219',
-          name: 'Claude 3.7 Sonnet',
-          tag: 'Thế hệ mới nhất 2026 • Hybrid Reasoning',
-          isLiveFromKey: true,
-          isRecommended: true,
-        },
-        {
-          id: 'claude-3-5-sonnet-20241022',
-          name: 'Claude 3.5 Sonnet',
-          tag: 'Độ mượt mà câu chữ và cảm xúc cao nhất',
-          isLiveFromKey: true,
-        },
-        {
-          id: 'claude-3-5-haiku-20241022',
-          name: 'Claude 3.5 Haiku',
-          tag: 'Siêu tốc cho video kịch bản ngắn TikTok/Reels',
-          isLiveFromKey: true,
-        },
-        {
-          id: 'claude-3-opus-20240229',
-          name: 'Claude 3 Opus',
-          tag: 'Phân tích văn học & tư duy phức tạp',
-          isLiveFromKey: true,
-        },
-      ];
-      cacheDiscoveredModels('claude', claudeFallback, cleanKey);
       return {
-        success: true,
-        models: claudeFallback,
-        message: 'Đã xác thực định dạng Claude Key thành công và đồng bộ 4 mô hình Claude mới nhất 2026.',
+        success: false,
+        models: [],
+        message: resp
+          ? `Anthropic Claude API từ chối Key (HTTP ${resp.status}). Vui lòng kiểm tra lại API Key hoặc CORS/Proxy.`
+          : 'Không thể kết nối trực tiếp tới Anthropic Claude API từ trình duyệt (lỗi mạng hoặc CORS).',
       };
     }
 
@@ -930,27 +909,12 @@ export async function discoverModelsFromKey(
         }
       }
 
-      // Danh sách chuẩn mới nhất của DeepSeek
-      const dsList: DiscoveredModel[] = [
-        {
-          id: 'deepseek-chat',
-          name: 'DeepSeek-V3 (Chat)',
-          tag: 'Bản nâng cấp V3 • Siêu tốc • Tự nhiên',
-          isLiveFromKey: true,
-          isRecommended: true,
-        },
-        {
-          id: 'deepseek-reasoner',
-          name: 'DeepSeek-R1 (Reasoning)',
-          tag: 'Bản R1 • Tư duy suy luận từng bước (Chain-of-Thought)',
-          isLiveFromKey: true,
-        },
-      ];
-      cacheDiscoveredModels('deepseek', dsList, cleanKey);
       return {
-        success: true,
-        models: dsList,
-        message: 'Đã kết nối DeepSeek Key và đồng bộ các mô hình DeepSeek-V3 & R1 mới nhất.',
+        success: false,
+        models: [],
+        message: resp
+          ? `DeepSeek API từ chối Key (HTTP ${resp.status}). Vui lòng kiểm tra lại số dư/quyền API Key.`
+          : 'Không thể kết nối tới DeepSeek API (lỗi mạng hoặc Endpoint không phản hồi).',
       };
     }
 
@@ -1006,53 +970,73 @@ export async function discoverModelsFromKey(
         }
       }
 
-      const grokList: DiscoveredModel[] = [
-        {
-          id: 'grok-2',
-          name: 'Grok 2',
-          tag: 'Cập nhật tin tức X thời gian thực',
-          isLiveFromKey: true,
-          isRecommended: true,
-        },
-        {
-          id: 'grok-2-mini',
-          name: 'Grok 2 Mini',
-          tag: 'Tối ưu tốc độ kịch bản ngắn',
-          isLiveFromKey: true,
-        },
-        {
-          id: 'grok-beta',
-          name: 'Grok 3 (Beta)',
-          tag: 'Mô hình tư duy nâng cao thế hệ mới',
-          isLiveFromKey: true,
-        },
-      ];
-      cacheDiscoveredModels('grok', grokList, cleanKey);
       return {
-        success: true,
-        models: grokList,
-        message: 'Đã đồng bộ các mô hình xAI Grok 2 & Grok 3 mới nhất.',
+        success: false,
+        models: [],
+        message: resp
+          ? `xAI Grok API từ chối Key (HTTP ${resp.status}). Vui lòng kiểm tra lại xAI API Key.`
+          : 'Không thể kết nối tới xAI Grok API (lỗi mạng hoặc CORS).',
       };
     }
 
-    // 6. PLUGIN NGOÀI
+    // 6. PLUGIN NGOÀI (Kiểm tra Key & Endpoint thật qua Backend SSRF-safe Proxy)
     clearTimeout(timeoutId);
-    const pluginList: DiscoveredModel[] = [
-      { id: 'kling-v1.5', name: 'Kling Video v1.5 API', tag: 'Chất lượng điện ảnh • Chuẩn Kuaishou', isLiveFromKey: true, isRecommended: true, brand: 'kling' },
-      { id: 'kling-v2.0', name: 'Kling Video v2.0 HD', tag: 'Mô phỏng vật lý chân thực', isLiveFromKey: true, brand: 'kling' },
-      { id: 'runway-gen3', name: 'Runway Gen-3 Alpha', tag: 'Chuyển động camera siêu thực', isLiveFromKey: true, brand: 'runway' },
-      { id: 'luma-dream', name: 'Luma Dream Machine v1.6', tag: 'Độ mượt 60fps điện ảnh', isLiveFromKey: true, brand: 'luma' },
-      { id: 'pika-2.0', name: 'Pika 2.0 Video Engine', tag: 'Hiệu ứng VFX ấn tượng', isLiveFromKey: true, brand: 'pika' },
-      { id: 'sora-video', name: 'OpenAI Sora Video API', tag: 'Đạo diễn AI không gian 3D', isLiveFromKey: true, brand: 'sora' },
-      { id: 'hailuo-t2v', name: 'Hailuo AI (MiniMax) T2V', tag: 'Đặc tả con người tự nhiên', isLiveFromKey: true, brand: 'hailuo' },
-      { id: 'elevenlabs-voice', name: 'ElevenLabs Studio Voice', tag: 'Lồng tiếng siêu cảm xúc', isLiveFromKey: true, brand: 'elevenlabs' },
-      { id: 'custom-webhook', name: 'Custom HTTP Webhook API', tag: 'Tùy biến payload JSON', isLiveFromKey: true, brand: 'custom' },
-    ];
-    return {
-      success: true,
-      models: pluginList,
-      message: 'Plugin Webhook ngoài đã sẵn sàng kết nối các nhà phát triển hàng đầu.',
-    };
+    const cleanEndpoint = endpointUrl?.trim() || '';
+    try {
+      const pluginRes = await fetch('/api/plugin/discover-models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: cleanKey,
+          endpoint: cleanEndpoint,
+        }),
+      });
+      const pluginData = await pluginRes.json().catch(() => ({} as any));
+      const detectedVendor = pluginData?.vendor ? String(pluginData.vendor) : undefined;
+      const detectedEndpoint = pluginData?.endpoint ? String(pluginData.endpoint) : undefined;
+      const vendorTag = detectedVendor ? detectedVendor.toLowerCase().replace(/\s+/g, '') : 'custom';
+
+      const realModels: DiscoveredModel[] = Array.isArray(pluginData?.models)
+        ? pluginData.models.map((m: any, idx: number) => ({
+            id: String(m.id || `model-${idx}`),
+            name: String(m.name || m.id || `Model ${idx + 1}`),
+            tag: String(m.tag || detectedVendor || 'Plugin Model'),
+            description: m.description,
+            isLiveFromKey: Boolean(m.isLiveFromKey ?? true),
+            isRecommended: Boolean(m.isRecommended ?? idx === 0),
+            brand: String(m.brand || vendorTag || 'custom'),
+          }))
+        : [];
+
+      if (pluginRes.ok && pluginData?.success && realModels.length > 0) {
+        cacheDiscoveredModels('plugin', realModels, cleanKey);
+        return {
+          success: true,
+          models: realModels,
+          detectedVendor,
+          detectedEndpoint,
+          message:
+            pluginData.message ||
+            `Đã xác thực API Key nhà phát triển ${detectedVendor || 'Plugin'} và tải ${realModels.length} mô hình thực tế.`,
+        };
+      }
+
+      return {
+        success: false,
+        models: [],
+        detectedVendor,
+        detectedEndpoint,
+        message:
+          pluginData?.message ||
+          `Nhận diện nhà phát triển: ${detectedVendor || 'Chưa xác định'} — API từ chối liệt kê model (HTTP ${pluginData?.httpStatus || pluginRes.status}).`,
+      };
+    } catch (pluginErr: any) {
+      return {
+        success: false,
+        models: [],
+        message: `Không thể kiểm tra API Key Plugin Webhook qua máy chủ: ${pluginErr?.message || 'Lỗi mạng'}.`,
+      };
+    }
   } catch (err: any) {
     clearTimeout(timeoutId);
     const isAbort = err?.name === 'AbortError';

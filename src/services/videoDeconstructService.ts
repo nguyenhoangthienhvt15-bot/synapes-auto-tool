@@ -31,8 +31,8 @@ export function extractVideoInfo(rawUrl?: string): ExtractedVideoInfo | null {
     };
   }
 
-  // 2. TikTok
-  const ttMatch = url.match(/tiktok\.com\/(?:@[\w.-]+\/video\/|v\/)(\d+)/);
+  // 2. TikTok (full link + short link vm.tiktok.com / vt.tiktok.com)
+  const ttMatch = url.match(/tiktok\.com\/(?:@[\w.-]+\/(?:video|photo)\/|v\/)(\d+)/i);
   if (ttMatch) {
     const id = ttMatch[1];
     return {
@@ -42,9 +42,17 @@ export function extractVideoInfo(rawUrl?: string): ExtractedVideoInfo | null {
       thumbnailUrl: '',
     };
   }
+  if (/(?:vm|vt)\.tiktok\.com\/[\w-]+/i.test(url) || /tiktok\.com\/t\/[\w-]+/i.test(url)) {
+    return {
+      platform: 'tiktok',
+      id: url,
+      embedUrl: '',
+      thumbnailUrl: '',
+    };
+  }
 
-  // 3. Facebook Video
-  if (url.includes('facebook.com') || url.includes('fb.watch')) {
+  // 3. Facebook Video (watch, reel, share/v, user/videos, fb.watch)
+  if (/facebook\.com\/(?:watch|reel\/|share\/|[\w.-]+\/videos\/)/i.test(url) || url.includes('fb.watch') || url.includes('facebook.com')) {
     return {
       platform: 'facebook',
       id: url,

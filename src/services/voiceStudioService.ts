@@ -1204,7 +1204,8 @@ async function fetchAndDecodeNeuralAudio(
   signal?: AbortSignal,
   customRate?: number,
   customPitch?: number,
-  exactPitchDeltaHz?: number
+  exactPitchDeltaHz?: number,
+  preferredEngine?: string
 ): Promise<{ audioBuffer: AudioBuffer; engine: string }> {
   const smartChunks = splitTextIntoSmartChunks(text, 340, profile.breathPauseMs ?? 210);
   if (smartChunks.length === 0) {
@@ -1226,7 +1227,7 @@ async function fetchAndDecodeNeuralAudio(
       : Math.max(-60, Math.min(60, baseNativeHz + userSliderPitchHz));
   const pitchHz = `${pitchDelta >= 0 ? '+' : ''}${pitchDelta}Hz`;
 
-  // Tìm OpenAI / ElevenLabs BYOK API Key (nếu người dùng đã cấu hình)
+  // Tìm OpenAI / ElevenLabs BYOK API Key (bao gồm cả từ Plugin Webhook)
   let savedOpenAiKey = '';
   let savedElevenLabsKey = '';
   try {
@@ -1236,17 +1237,23 @@ async function fetchAndDecodeNeuralAudio(
       const profileData = localStorage.getItem(`synapes_user_profile_${user.code}`);
       if (profileData) {
         const parsed = JSON.parse(profileData);
-        if (parsed.aiConfig?.openai?.apiKey && parsed.aiConfig.openai.apiKey.startsWith('sk-')) {
+        if (parsed.aiConfig?.openai?.apiKey && /^sk-(proj-|svcacct-)?[A-Za-z0-9_-]{18,}$/.test(parsed.aiConfig.openai.apiKey)) {
           savedOpenAiKey = parsed.aiConfig.openai.apiKey;
         }
         if (parsed.aiConfig?.elevenlabs?.apiKey && String(parsed.aiConfig.elevenlabs.apiKey).trim().length > 10) {
           savedElevenLabsKey = String(parsed.aiConfig.elevenlabs.apiKey).trim();
+        } else {
+          const pluginTok = String(parsed.aiConfig?.plugin?.apiToken || '').trim();
+          const pluginUrl = String(parsed.aiConfig?.plugin?.endpointUrl || '').toLowerCase();
+          if (pluginTok && (/^sk_[a-f0-9]{36,72}$/i.test(pluginTok) || pluginUrl.includes('elevenlabs'))) {
+            savedElevenLabsKey = pluginTok;
+          }
         }
       }
     }
   } catch { }
 
-  const keyScopeTag = savedElevenLabsKey ? '11l:' : savedOpenAiKey ? 'oai:' : 'std:';
+  const keyScopeTag = `${preferredEngine || 'auto'}:${savedElevenLabsKey ? '11l:' : savedOpenAiKey ? 'oai:' : 'std:'}`;
   const retryDelaysMs = [0, 250, 600];
 
   for (const chunkItem of smartChunks) {
@@ -1286,6 +1293,7 @@ async function fetchAndDecodeNeuralAudio(
                 elevenlabsVoiceId: profile.elevenlabsVoiceId || '21m00Tcm4TlvDq8ikWAM',
                 rate: ratePct,
                 pitch: pitchHz,
+                preferredEngine: preferredEngine || '',
               }),
             });
           } else {
@@ -1298,6 +1306,9 @@ async function fetchAndDecodeNeuralAudio(
               rate: ratePct,
               pitch: pitchHz,
             });
+            if (preferredEngine) {
+              params.set('preferredEngine', preferredEngine);
+            }
             resp = await fetch(`/api/tts?${params.toString()}`, { signal });
           }
 
@@ -1374,11 +1385,29 @@ export function computeEffectivePitchRatio(
     engineUsed === 'elevenlabs-studio' ||
     engineUsed === 'edge-neural'
   ) {
-    // Mạng neural đã xử lý đúng chất giọng gốc -> không áp double-detune WSOLA làm méo giọng!
-    return Math.abs(userAdjustmentRatio - 1.0) < 0.025 ? 1.0 : userAdjustmentRatio;
+    // Mạng neural đã xử lý đúng chất giọng gốc -> chỉ áp độ lệch user slider hoặc sắc thái nhỏ
+    return Math.abs(userAdjustmentRatio - 1.0) < 0.02 ? 1.0 : userAdjustmentRatio;
   }
 
-  // Fallback Google Neural DSP: giữ WSOLA Vocal Tract Formant Shift để phân biệt giới tính/vùng miền
+  // Fallback Google Neural DSP: Google Translate dùng nền giọng nữ ~210Hz, cần WSOLA Formant Shift theo giới tính/tuổi/vùng miền
+  const isMale = profile.gender === 'Nam' || profile.gender === 'Male';
+  if (isMale) {
+    const isYoungOrSouthernTeen =
+      profile.id.includes('sg-male') ||
+      profile.id.includes('young') ||
+      profile.id.includes('teen') ||
+      (profile.nativePitchHz ?? 0) >= 4 ||
+      (profile.pitch ?? 1) >= 1.03;
+    const isDeepBaritone =
+      profile.id.includes('hn-male-2') ||
+      profile.id.includes('ryan') ||
+      profile.id.includes('trailer') ||
+      (profile.nativePitchHz ?? 0) <= -6;
+    const baseMaleShiftCents = isYoungOrSouthernTeen ? -690 : isDeepBaritone ? -1020 : -880;
+    const fineCents = (detuneCents || 0) * 0.15;
+    return Math.pow(2, (baseMaleShiftCents + fineCents) / 1200) * userAdjustmentRatio;
+  }
+
   return Math.pow(2, detuneCents / 1200) * userAdjustmentRatio;
 }
 
@@ -1659,7 +1688,12 @@ export class StudioAudioSynthesizer {
   private activeVoiceAbort: AbortController | null = null;
   private isMutedState = false;
   private playbackToken = 0;
+  private sessionLockedEngine: string | null = null;
   private connectedMediaElements = new WeakSet<HTMLAudioElement>();
+
+  public resetSessionEngineLock() {
+    this.sessionLockedEngine = null;
+  }
 
   constructor() {
     this.initContext();
@@ -1918,8 +1952,13 @@ export class StudioAudioSynthesizer {
           profile,
           abortCtrl.signal,
           effectiveRate,
-          customPitch
+          customPitch,
+          undefined,
+          this.sessionLockedEngine || undefined
         );
+        if (!this.sessionLockedEngine && engine) {
+          this.sessionLockedEngine = engine;
+        }
         if (abortCtrl.signal.aborted || myToken !== this.playbackToken || this.isMutedState) {
           if (myToken === this.playbackToken) this.isFetchingVoice = false;
           return;
@@ -2278,7 +2317,19 @@ export class StudioAudioSynthesizer {
     if (!this.ctx || !scene?.voiceover?.trim() || scene.customAudioUrl) return;
     const { profile, rate, pitch } = resolveSceneVoiceParams(scene, defaultProfile);
     try {
-      await fetchAndDecodeNeuralAudio(this.ctx, scene.voiceover, profile, undefined, rate, pitch);
+      const { engine } = await fetchAndDecodeNeuralAudio(
+        this.ctx,
+        scene.voiceover,
+        profile,
+        undefined,
+        rate,
+        pitch,
+        undefined,
+        this.sessionLockedEngine || undefined
+      );
+      if (!this.sessionLockedEngine && engine) {
+        this.sessionLockedEngine = engine;
+      }
     } catch { }
   }
 
@@ -2330,8 +2381,13 @@ export class StudioAudioSynthesizer {
           profile,
           undefined,
           rate,
-          pitch
+          pitch,
+          undefined,
+          this.sessionLockedEngine || undefined
         );
+        if (!this.sessionLockedEngine && engine) {
+          this.sessionLockedEngine = engine;
+        }
         const pitchRatio = computeEffectivePitchRatio(profile, pitch, engine);
         const tempoInDsp = engine.includes('google') ? rate : 1.0;
         const processed = processVocalTractPitchAndTempo(ctx, audioBuffer, pitchRatio, tempoInDsp);

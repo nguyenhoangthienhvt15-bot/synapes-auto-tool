@@ -79,10 +79,12 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
   onNavigateToReview,
 }) => {
   const savedInit = useRef(loadSavedClonerState()).current;
+  const sanitizedInitUrl =
+    savedInit.videoUrl && !savedInit.videoUrl.includes('sample-hook-viral') ? savedInit.videoUrl : '';
   const [inputMode, setInputMode] = useState<'url' | 'upload'>(savedInit.inputMode || 'url');
-  const [videoUrl, setVideoUrl] = useState<string>(savedInit.videoUrl || 'https://www.youtube.com/shorts/sample-hook-viral');
+  const [videoUrl, setVideoUrl] = useState<string>(sanitizedInitUrl);
   const [detectedVideo, setDetectedVideo] = useState<ExtractedVideoInfo | null>(() =>
-    extractVideoInfo(savedInit.videoUrl || 'https://www.youtube.com/shorts/sample-hook-viral')
+    sanitizedInitUrl ? extractVideoInfo(sanitizedInitUrl) : null
   );
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileBase64, setFileBase64] = useState<string>('');
@@ -384,65 +386,60 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
-      {/* 1. Header Banner & BYOK Status */}
-      <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 border border-zinc-800 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-500/20 via-transparent to-transparent pointer-events-none"></div>
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* 1. Header Banner & BYOK Status (Editorial Studio Style) */}
+      <div className="bg-[#FAF8F4] border border-black/[0.09] rounded-2xl p-6 text-[#141413] shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div>
-            <div className="flex flex-wrap items-center gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-2.5">
               <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-600 text-white tracking-wider">
                 LABS
               </span>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 flex items-center gap-1.5">
-                <Sparkles className="w-3 h-3 text-indigo-400" />
-                Công Nghệ Video Reverse-Engineering &amp; Clone Engine
+              <span className="px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-[#EFECE3] border border-black/[0.08] text-zinc-800 flex items-center gap-1.5">
+                <Sparkles className="w-3 h-3 text-amber-700" />
+                <span>Bóc Tách Cấu Trúc Kịch Bản &amp; Nhân Bản Video (BYOK)</span>
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+              <span className="px-2 py-0.5 rounded-md text-[10.5px] font-mono bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
                 <ShieldCheck className="w-3 h-3" />
-                BYOK 100% Bảo Mật
+                BYOK 100% Cá Nhân
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500/20 text-amber-200 border border-amber-400/30">
+              <span className="px-2 py-0.5 rounded-md text-[10.5px] font-mono bg-white text-zinc-600 border border-black/[0.08]">
                 Mở cho mọi loại gói
               </span>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-white flex flex-wrap items-center gap-2.5">
-              <span>Bóc Tách &amp; Nhân Bản Video Triệu View</span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-600 text-white tracking-wider">
-                LABS
-              </span>
+            <h1 className="font-display text-2xl sm:text-[26px] font-semibold tracking-tight text-[#141413]">
+              Bóc Tách &amp; Nhân Bản Video Tham Chiếu
             </h1>
-            <p className="text-sm text-zinc-400 mt-1 max-w-2xl leading-relaxed">
-              Dán đường dẫn hoặc tải video mẫu lên để hệ thống hiển thị video ngay lập tức, giải mã chi tiết toàn bộ cấu trúc (Hook 3s, nhịp cắt, B-roll, âm nhạc), gợi ý công thức viết prompt và cung cấp bản xem thử trực quan sản phẩm tương tự!
+            <p className="text-[13px] text-[#55544E] mt-1.5 max-w-2xl leading-relaxed">
+              Dán đường dẫn YouTube, TikTok, Facebook hoặc tải tệp video trực tiếp. Hệ thống chỉ hiển thị trình phát khi bạn nhập nguồn hợp lệ, trích xuất siêu dữ liệu công khai (oEmbed) và sử dụng API Key BYOK của bạn để tái cấu trúc kịch bản tương tự.
             </p>
           </div>
 
           {/* BYOK Status Card */}
-          <div className="bg-zinc-800/80 backdrop-blur-md border border-zinc-700/80 rounded-xl p-3.5 flex flex-col gap-2 min-w-[260px]">
+          <div className="bg-white border border-black/[0.09] rounded-xl p-3.5 flex flex-col gap-2 min-w-[265px] shadow-2xs">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-zinc-400 flex items-center gap-1.5">
-                <Key className="w-3.5 h-3.5 text-amber-400" /> Động Cơ Phân Tích:
+              <span className="text-zinc-500 flex items-center gap-1.5">
+                <Key className="w-3.5 h-3.5 text-amber-600" /> Động Cơ Phân Tích:
               </span>
               <button
                 onClick={() => setShowKeyInput(!showKeyInput)}
-                className="text-[11px] text-indigo-300 hover:text-white underline cursor-pointer"
+                className="text-[11px] text-zinc-900 hover:underline font-medium cursor-pointer"
               >
                 {showKeyInput ? 'Đóng' : hasGeminiKey ? 'Đổi Key' : '+ Nhập Key AI'}
               </button>
             </div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-zinc-100">
-              <span className={`w-2 h-2 rounded-full ${hasAnyByokKey ? 'bg-emerald-400 animate-pulse' : 'bg-emerald-500'}`}></span>
+            <div className="flex items-center gap-2 text-xs font-semibold text-zinc-900">
+              <span className={`w-2 h-2 rounded-full ${hasAnyByokKey ? 'bg-emerald-600' : 'bg-amber-500'}`}></span>
               <span className="truncate">{activeKeyName}</span>
             </div>
 
             {showKeyInput ? (
-              <div className="pt-2 border-t border-zinc-700/60 space-y-2">
+              <div className="pt-2 border-t border-black/[0.06] space-y-2">
                 <input
                   type="password"
                   placeholder="Dán Gemini API Key (AIza... hoặc AQ...)"
                   defaultValue={customGeminiKey}
                   id="quick-gemini-key-input"
-                  className="w-full px-2.5 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-white text-[11px] focus:outline-none focus:border-indigo-500"
+                  className="w-full px-2.5 py-1.5 bg-zinc-50 border border-black/15 rounded-lg text-zinc-900 text-xs focus:outline-none focus:border-zinc-900"
                 />
                 <div className="flex justify-end gap-1.5">
                   <button
@@ -450,16 +447,16 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
                       const el = document.getElementById('quick-gemini-key-input') as HTMLInputElement;
                       if (el) handleSaveQuickKey(el.value);
                     }}
-                    className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[11px] font-medium cursor-pointer"
+                    className="px-2.5 py-1 bg-zinc-900 hover:bg-black text-white rounded text-[11px] font-medium cursor-pointer"
                   >
-                    Lưu & Kích Hoạt
+                    Lưu &amp; Kích Hoạt
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="text-[10px] text-zinc-400 border-t border-zinc-700/60 pt-1.5 flex items-center justify-between">
-                <span>{hasAnyByokKey ? 'Hạn mức: Cá nhân (BYOK)' : 'Phân tích: Chuẩn xác 100%'}</span>
-                <span className="text-emerald-400 font-medium">Chi phí chủ: 0đ</span>
+              <div className="text-[11px] text-zinc-500 border-t border-black/[0.06] pt-1.5 flex items-center justify-between">
+                <span>{hasAnyByokKey ? 'Hạn mức: Cá nhân (BYOK)' : 'Chế độ: Siêu dữ liệu + Frame nội bộ'}</span>
+                <span className="text-emerald-700 font-medium">Chi phí chủ: 0đ</span>
               </div>
             )}
           </div>
@@ -503,7 +500,7 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
                 type="text"
                 value={videoUrl}
                 onChange={(e) => setVideoUrl(e.target.value)}
-                placeholder="https://www.youtube.com/shorts/... hoặc https://www.tiktok.com/@user/video/..."
+                placeholder="https://www.youtube.com/watch?v=... | https://www.tiktok.com/@user/video/... | https://www.facebook.com/watch?v=..."
                 className="flex-1 px-3.5 py-2.5 text-xs bg-zinc-50 border border-black/10 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-zinc-900 text-zinc-900"
               />
               <button

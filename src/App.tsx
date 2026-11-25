@@ -23,6 +23,7 @@ import { Footer } from './components/Footer';
 import { UnauthenticatedWorkspace } from './components/UnauthenticatedWorkspace';
 import { ViewLoadingSkeleton } from './components/ViewLoadingSkeleton';
 import { StudioErrorBoundary } from './components/StudioErrorBoundary';
+import { SynapesIntroOverlay } from './components/SynapesIntroOverlay';
 import { lazyWithRetry } from './utils/lazyWithRetry';
 
 // Icons
@@ -75,6 +76,12 @@ const MultiClipStitcherStudio = lazyWithRetry(() =>
   import('./components/MultiClipStitcherStudio').then((m) => ({ default: m.MultiClipStitcherStudio }))
 );
 
+function pickPendingProject(list: Project[]): Project | null {
+  return (
+    list.find((p) => p.status === 'pending_approval' || (p.status as string) === 'pending') || null
+  );
+}
+
 export function App() {
   // State: User authentication (MẶC ĐỊNH LÀ CHƯA ĐĂNG NHẬP, KHÔNG CÒN VIP-001)
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
@@ -108,7 +115,19 @@ export function App() {
   const [isSyncingSheet, setIsSyncingSheet] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(getLastSyncTime());
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [introOverlayState, setIntroOverlayState] = useState<{
+    visible: boolean;
+    triggerKey: number;
+    variant: 'entry' | 'login';
+    userCode?: string;
+    userName?: string;
+  }>({
+    visible: true,
+    triggerKey: 1,
+    variant: 'entry',
+  });
 
   // State: Projects & Skills & AI Config & Kênh (Khởi tạo theo tài khoản thực tế)
   const [projects, setProjects] = useState<Project[]>([]);
@@ -171,7 +190,7 @@ export function App() {
       setChannels(profile.channels);
       setDriveEmail(profile.driveEmail);
       setIsDriveConnected(profile.driveConnected);
-      setSelectedProject(profile.projects[0] || null);
+      setSelectedProject(pickPendingProject(profile.projects));
 
       void restoreUserProfileFromServer(currentUser.code).then((res) => {
         if (isCancelled || !res.success || !res.profile) return;
@@ -182,7 +201,15 @@ export function App() {
         setChannels(synced.channels);
         setDriveEmail(synced.driveEmail);
         setIsDriveConnected(synced.driveConnected);
-        setSelectedProject((prev) => synced.projects.find((p) => p.id === prev?.id) || synced.projects[0] || null);
+        setSelectedProject((prev) => {
+          if (prev) {
+            const matched = synced.projects.find((p) => p.id === prev.id);
+            if (matched && (matched.status === 'pending_approval' || (matched.status as string) === 'pending')) {
+              return matched;
+            }
+          }
+          return pickPendingProject(synced.projects);
+        });
       });
     } else {
       setAiConfig(EMPTY_AI_CONFIG);
@@ -274,6 +301,14 @@ export function App() {
           setCurrentUser(userAccount);
           setActiveSession(userAccount);
           setLoginAnimTrigger((prev) => prev + 1);
+          setIsChangePasswordModalOpen(false);
+          setIntroOverlayState((prev) => ({
+            visible: true,
+            triggerKey: prev.triggerKey + 1,
+            variant: 'login',
+            userCode: userAccount.code,
+            userName: userAccount.name,
+          }));
 
           const profile = getUserProfile(userAccount.code, userAccount.name, userAccount.email);
           setAiConfig(profile.aiConfig);
@@ -282,7 +317,7 @@ export function App() {
           setChannels(profile.channels);
           setDriveEmail(profile.driveEmail);
           setIsDriveConnected(profile.driveConnected);
-          setSelectedProject(profile.projects[0] || null);
+          setSelectedProject(pickPendingProject(profile.projects));
 
           setIsAuthModalOpen(false);
           showToast(`Đăng nhập thành công với tài khoản ${userAccount.code} (${userAccount.name})!`);
@@ -382,6 +417,14 @@ export function App() {
     setCurrentUser(userAccount);
     setActiveSession(userAccount);
     setLoginAnimTrigger((prev) => prev + 1);
+    setIsChangePasswordModalOpen(false);
+    setIntroOverlayState((prev) => ({
+      visible: true,
+      triggerKey: prev.triggerKey + 1,
+      variant: 'login',
+      userCode: userAccount.code,
+      userName: userAccount.name,
+    }));
 
     // Nạp toàn bộ dữ liệu người dùng đã lưu trước đó trong tài khoản được cấp
     const profile = getUserProfile(userAccount.code, userAccount.name, userAccount.email);
@@ -391,9 +434,9 @@ export function App() {
     setChannels(profile.channels);
     setDriveEmail(profile.driveEmail);
     setIsDriveConnected(profile.driveConnected);
-    setSelectedProject(profile.projects[0] || null);
+    setSelectedProject(pickPendingProject(profile.projects));
 
-    setTimeout(() => setIsAuthModalOpen(false), 480);
+    setIsAuthModalOpen(false);
     showToast(`Đăng nhập thành công với tài khoản ${userAccount.code} (${userAccount.name})!`);
     return true;
   };
@@ -406,6 +449,7 @@ export function App() {
       sessionStorage.removeItem('synapes_auth_token');
     } catch { }
     clearActiveSession();
+    setIsChangePasswordModalOpen(false);
     setCurrentUser(null);
     setAiConfig(EMPTY_AI_CONFIG);
     setProjects([]);
@@ -474,6 +518,7 @@ export function App() {
     const updatedUser: UserAccount = { ...currentUser, isDefaultPassword: false };
     setCurrentUser(updatedUser);
     setActiveSession(updatedUser);
+    setIsChangePasswordModalOpen(false);
     showToast(
       `🔒 Đã đổi mật khẩu thành công (còn ${res.remainingChangesToday}/${res.dailyLimit} lượt hôm nay). Mật khẩu cũ đã bị khóa ngay lập tức!`
     );
@@ -497,35 +542,33 @@ export function App() {
       });
     }
 
-    // Ghi nhận lưu lượng thực tế đa nền tảng về Backend Analytics
-    try {
-      void fetch('/api/analytics/platform-traffic', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(currentUser?.code),
-        },
-        body: JSON.stringify({
-          userCode: currentUser?.code || '',
-          platforms: newProject.targetChannels || ['youtube'],
-          eventType: 'project_created',
-          projectId: newProject.id,
-          viewsDelta: 120,
-        }),
-      });
-    } catch {
-      // non-blocking analytics update
-    }
-
     showToast(`Đã tạo kịch bản [${newProject.title}] thành công!`);
   };
 
   const handleUpdateProject = (updatedProj: Project) => {
     const finalProj: Project = updatedProj;
+    const prevProj = projects.find((p) => p.id === finalProj.id);
+    const wasPending =
+      !prevProj ||
+      prevProj.status === 'pending_approval' ||
+      (prevProj.status as string) === 'pending';
+    const isNowApproved = finalProj.status === 'published' || finalProj.status === 'scheduled';
 
     const updated = projects.map((p) => (p.id === finalProj.id ? finalProj : p));
     setProjects(updated);
-    if (selectedProject?.id === finalProj.id) {
+
+    if (wasPending && isNowApproved) {
+      // Sau khi bấm Duyệt -> rút khỏi Trình duyệt dự án, chuyển sang "Tất cả dự án" để theo dõi
+      const nextPending =
+        updated.find(
+          (p) =>
+            p.id !== finalProj.id &&
+            (p.status === 'pending_approval' || (p.status as string) === 'pending')
+        ) || null;
+      setSelectedProject(nextPending);
+      setActiveView('in-progress');
+      showToast(`✅ Đã duyệt dự án [${finalProj.title}] và chuyển sang mục "Tất cả dự án" để theo dõi.`);
+    } else if (selectedProject?.id === finalProj.id) {
       setSelectedProject(finalProj);
     }
 
@@ -538,34 +581,13 @@ export function App() {
         driveConnected: isDriveConnected,
       });
     }
-
-    if (finalProj.status === 'published' || finalProj.status === 'scheduled') {
-      try {
-        void fetch('/api/analytics/platform-traffic', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeaders(currentUser?.code),
-          },
-          body: JSON.stringify({
-            userCode: currentUser?.code || '',
-            platforms: finalProj.targetChannels || ['youtube'],
-            eventType: `project_${finalProj.status}`,
-            projectId: finalProj.id,
-            viewsDelta: finalProj.status === 'published' ? 320 : 140,
-          }),
-        });
-      } catch {
-        // non-blocking analytics update
-      }
-    }
   };
 
   const handleDeleteProject = (projectId: string) => {
     const remaining = projects.filter((p) => p.id !== projectId);
     setProjects(remaining);
     if (selectedProject?.id === projectId) {
-      setSelectedProject(remaining[0] || null);
+      setSelectedProject(pickPendingProject(remaining));
     }
     if (currentUser?.code) {
       saveUserProfile(currentUser.code, {
@@ -667,6 +689,22 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#FAF8F4] text-[#141413] flex flex-col font-sans select-none">
+      {/* Hiệu ứng Synapes Harmonic Forge khi mới vào trang / F5 / vừa đăng nhập */}
+      {introOverlayState.visible && (
+        <SynapesIntroOverlay
+          key={introOverlayState.triggerKey}
+          variant={introOverlayState.variant}
+          userCode={introOverlayState.userCode}
+          userName={introOverlayState.userName}
+          onComplete={() =>
+            setIntroOverlayState((prev) => ({
+              ...prev,
+              visible: false,
+            }))
+          }
+        />
+      )}
+
       {/* Toast Notification (Bottom-Right so it never overlaps the Header Navigation) */}
       {toastNotification && (
         <div className="fixed bottom-5 right-5 z-50 bg-[#141413] text-[#FAF8F4] px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2.5 border border-black/15 animate-in fade-in slide-in-from-bottom-2 text-xs font-medium max-w-md">
@@ -682,11 +720,16 @@ export function App() {
         activeView={activeView}
         userPlanTier={effectivePlanTier}
         loginAnimTrigger={loginAnimTrigger}
-        onSelectView={setActiveView}
+        onSelectView={(v) => {
+          setActiveView(v);
+          if (v === 'pending-approval') {
+            setSelectedProject(pickPendingProject(projects));
+          }
+        }}
         onLogout={handleLogout}
         onOpenChangePass={() => {
-          if (currentUser) {
-            setCurrentUser({ ...currentUser, isDefaultPassword: true });
+          if (currentUser?.isLoggedIn) {
+            setIsChangePasswordModalOpen(true);
           }
         }}
         onOpenLogin={() => setIsAuthModalOpen(true)}
@@ -718,10 +761,7 @@ export function App() {
           onSelectView={(v) => {
             setActiveView(v);
             if (v === 'pending-approval') {
-              const pending = projects.find(
-                (p) => p.status === 'pending_approval' || (p.status as string) === 'pending'
-              );
-              if (pending) setSelectedProject(pending);
+              setSelectedProject(pickPendingProject(projects));
             }
           }}
           onOpenCreateModal={() => {
@@ -746,7 +786,10 @@ export function App() {
                   onOpenRegister={() => setIsRegisterModalOpen(true)}
                   onOpenGuide={() => setActiveView('user-guide')}
                 />
-              ) : selectedProject ? (
+              ) : selectedProject &&
+                (selectedProject.status === 'pending_approval' ||
+                  (selectedProject.status as string) === 'pending' ||
+                  activeView === 'review') ? (
                 <ProjectReviewWorkspace
                   project={selectedProject}
                   onUpdateProject={handleUpdateProject}
@@ -757,24 +800,41 @@ export function App() {
                 />
               ) : (
                 <div className="p-10 text-center space-y-4 rounded-xl border border-zinc-200/80 bg-white">
-                  <h3 className="text-sm font-semibold text-zinc-900">Chưa Có Kịch Bản Video Nào Trong Tài Khoản</h3>
+                  <h3 className="text-sm font-semibold text-zinc-900">
+                    {projects.length > 0
+                      ? 'Không Có Dự Án Đang Chờ Duyệt Trong Hàng Đợi'
+                      : 'Chưa Có Kịch Bản Video Nào Trong Tài Khoản'}
+                  </h3>
                   <p className="text-xs text-zinc-500 max-w-md mx-auto">
-                    Tài khoản của bạn chưa có dự án video nào. Nhấn nút bên dưới để tạo kịch bản từ Prompt và bắt đầu sản xuất.
+                    {projects.length > 0
+                      ? 'Các dự án đã duyệt nằm trong mục "Tất cả dự án". Bạn có thể bấm vào từng dự án tại đó để mở lại hoặc tạo dự án mới.'
+                      : 'Tài khoản của bạn chưa có dự án video nào. Nhấn nút bên dưới để tạo kịch bản từ Prompt và bắt đầu sản xuất.'}
                   </p>
-                  <button
-                    onClick={() => {
-                      if (!currentUser || !currentUser.isLoggedIn) {
-                        showToast('⚠️ Vui lòng đăng nhập tài khoản để tạo và lưu dự án video.');
-                        setIsAuthModalOpen(true);
-                        return;
-                      }
-                      setIsCreateModalOpen(true);
-                    }}
-                    className="btn-primary inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Tạo Dự Án Video Mới</span>
-                  </button>
+                  <div className="flex items-center justify-center gap-2.5 flex-wrap">
+                    {projects.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveView('in-progress')}
+                        className="btn-secondary inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <span>Mở Tất Cả Dự Án ({projects.length})</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        if (!currentUser || !currentUser.isLoggedIn) {
+                          showToast('⚠️ Vui lòng đăng nhập tài khoản để tạo và lưu dự án video.');
+                          setIsAuthModalOpen(true);
+                          return;
+                        }
+                        setIsCreateModalOpen(true);
+                      }}
+                      className="btn-primary inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tạo Dự Án Video Mới</span>
+                    </button>
+                  </div>
                 </div>
               )
             )}
@@ -993,19 +1053,21 @@ export function App() {
       )}
 
       {/* AUTH MODAL (Lazy Suspended) */}
-      {(isAuthModalOpen || (currentUser?.isLoggedIn && currentUser.isDefaultPassword)) && (
+      {(isAuthModalOpen || (Boolean(currentUser?.isLoggedIn) && isChangePasswordModalOpen)) && (
         <Suspense fallback={null}>
           <AuthModal
             currentUser={currentUser}
             sheetRows={sheetRows}
+            isChangePasswordOpen={isChangePasswordModalOpen}
             onLogin={handleLogin}
             onLogout={handleLogout}
             onForceChangePassword={handleForceChangePassword}
-            onClose={() => setIsAuthModalOpen(false)}
+            onClose={() => {
+              setIsAuthModalOpen(false);
+              setIsChangePasswordModalOpen(false);
+            }}
             onCloseChangePass={() => {
-              if (currentUser) {
-                setCurrentUser({ ...currentUser, isDefaultPassword: false });
-              }
+              setIsChangePasswordModalOpen(false);
             }}
             onUpdateSheetRow={setSheetRows}
             onSendTempPasswordEmail={handleSendTempPasswordEmail}

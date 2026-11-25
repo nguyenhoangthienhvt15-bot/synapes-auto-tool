@@ -173,6 +173,11 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
 
     try {
       const res = await discoverModelsFromKey(provId, keyToUse, endpoints[provId]);
+      const resolvedPluginEndpoint =
+        provId === 'plugin' && res.detectedEndpoint ? res.detectedEndpoint : endpoints.plugin;
+      if (provId === 'plugin' && res.detectedEndpoint) {
+        setEndpoints((prev) => ({ ...prev, plugin: res.detectedEndpoint! }));
+      }
       if (res.success && res.models.length > 0) {
         setDiscoveredModels((prev) => ({
           ...prev,
@@ -211,7 +216,7 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
             grok: { apiKey: nextKeys.grok.trim(), model: nextModels.grok, endpointUrl: endpoints.grok.trim() },
             plugin: {
               ...config.plugin,
-              endpointUrl: endpoints.plugin.trim(),
+              endpointUrl: resolvedPluginEndpoint.trim(),
               apiToken: nextKeys.plugin.trim(),
             },
             threeDEngine: {
@@ -456,7 +461,7 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
 
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-bold text-zinc-950 tracking-tight">
+                <h1 className="font-display text-lg sm:text-xl font-semibold text-[#141413] tracking-tight">
                   API Keys AI Module
                 </h1>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-zinc-100 text-zinc-700 border border-zinc-200">
@@ -490,7 +495,7 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
             {PROVIDERS.map((prov) => {
               const isCurrent = activeProvider === prov.id;
               const isDefault = (config.activeProvider || config.mode) === prov.id;
-              const pluginBrand = prov.id === 'plugin' ? detectPluginBrand(endpoints.plugin || config.plugin?.endpointUrl, models.plugin || config.plugin?.name) : undefined;
+              const pluginBrand = prov.id === 'plugin' ? detectPluginBrand(endpoints.plugin || config.plugin?.endpointUrl, models.plugin || config.plugin?.name, keys.plugin || config.plugin?.apiToken) : undefined;
               const displayName = prov.id === 'plugin' && pluginBrand && pluginBrand !== 'custom'
                 ? `${pluginBrand.toUpperCase()} Webhook`
                 : prov.name;
@@ -835,24 +840,26 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
           {activeProvider === 'plugin' && (
             <div className="space-y-3.5">
               {/* Banner nhà phát triển nhận diện */}
-              <div className="p-3 rounded-xl bg-purple-50/70 border border-purple-200/80 flex items-center justify-between gap-3">
+              <div className="p-3 rounded-xl bg-zinc-50 border border-black/[0.08] flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <ProviderBrandLogo provider="plugin" pluginBrand={detectPluginBrand(endpoints.plugin, models.plugin)} size="md" withBadge={true} />
+                  <ProviderBrandLogo provider="plugin" pluginBrand={detectPluginBrand(endpoints.plugin, models.plugin, keys.plugin)} size="md" withBadge={true} />
                   <div className="min-w-0">
                     <div className="text-xs font-bold text-zinc-950 flex items-center gap-2">
                       <span>Nhà Phát Triển: {
                         (() => {
-                          const b = detectPluginBrand(endpoints.plugin, models.plugin);
+                          const b = detectPluginBrand(endpoints.plugin, models.plugin, keys.plugin);
                           const found = PLUGIN_PRESETS.find(p => p.brand === b);
                           return found ? found.name : 'Custom Webhook API';
                         })()
                       }</span>
-                      <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200 text-[10px] font-mono font-medium">
-                        Webhook Active
+                      <span className="px-2 py-0.5 rounded-full bg-zinc-200/80 text-zinc-800 border border-black/[0.08] text-[10px] font-mono font-medium">
+                        {detectPluginBrand(endpoints.plugin, models.plugin, keys.plugin).toUpperCase()}
                       </span>
                     </div>
                     <div className="text-[11px] text-zinc-600 truncate mt-0.5 font-mono">
-                      {endpoints.plugin || 'Chưa thiết lập URL'}
+                      {detectPluginBrand(endpoints.plugin, models.plugin, keys.plugin) === 'elevenlabs' && !/elevenlabs/i.test(endpoints.plugin)
+                        ? 'https://api.elevenlabs.io/v1/text-to-speech (Nhận diện từ API Key)'
+                        : endpoints.plugin || 'Chưa thiết lập URL'}
                     </div>
                   </div>
                 </div>
@@ -862,11 +869,11 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
               <div>
                 <div className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
                   <span>GỢI Ý KẾT NỐI NHANH CÁC NHÀ PHÁT TRIỂN AI HÀNG ĐẦU</span>
-                  <span className="text-[10px] text-purple-600 font-sans font-medium">Tự động cấu hình Endpoint & Mapping</span>
+                  <span className="text-[10px] text-zinc-600 font-sans font-medium">Tự động cấu hình Endpoint & Mapping</span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {PLUGIN_PRESETS.map((preset) => {
-                    const isPresetActive = detectPluginBrand(endpoints.plugin, models.plugin) === preset.brand;
+                    const isPresetActive = detectPluginBrand(endpoints.plugin, models.plugin, keys.plugin) === preset.brand;
                     return (
                       <button
                         key={preset.id}
@@ -877,7 +884,7 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
                         }}
                         className={`p-2 rounded-lg border text-left transition cursor-pointer flex items-center gap-2 ${
                           isPresetActive
-                            ? 'bg-purple-50/90 border-purple-500 ring-2 ring-purple-500/10 shadow-2xs'
+                            ? 'bg-white border-zinc-900 ring-2 ring-zinc-900/10 shadow-2xs'
                             : 'bg-white hover:bg-zinc-50 border-black/[0.08]'
                         }`}
                       >
@@ -917,11 +924,11 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
           )}
 
           {/* Động cơ Dựng Mô hình 3D Thực thụ (BYOK Multi-View 1–5 Ảnh -> .GLB) */}
-          <div className="p-4 rounded-xl bg-zinc-50/90 border border-indigo-200/80 space-y-3.5 shadow-2xs">
+          <div className="p-4 rounded-xl bg-[#FAF8F4] border border-black/[0.09] space-y-3.5 shadow-2xs">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 pb-2.5">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center flex-shrink-0">
-                  <Box className="w-4 h-4" />
+                <div className="w-7 h-7 rounded-lg bg-[#141413] text-white flex items-center justify-center flex-shrink-0">
+                  <Box className="w-4 h-4 text-amber-400" />
                 </div>
                 <div>
                   <div className="text-xs font-bold text-zinc-950 flex flex-wrap items-center gap-1.5">
@@ -961,7 +968,7 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
                     }}
                     className={`p-2.5 rounded-lg border text-left transition cursor-pointer ${
                       isSel
-                        ? 'bg-white border-indigo-600 ring-2 ring-indigo-600/15 shadow-xs'
+                        ? 'bg-white border-zinc-900 ring-2 ring-zinc-900/15 shadow-xs'
                         : 'bg-white/70 hover:bg-white border-black/[0.08]'
                     }`}
                   >
@@ -1046,7 +1053,7 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
                     <button
                       type="button"
                       onClick={handleSave3DEngineOnly}
-                      className="w-full px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition cursor-pointer shadow-2xs"
+                      className="w-full px-3 py-1.5 rounded-lg bg-[#141413] hover:bg-black text-white text-xs font-semibold transition cursor-pointer shadow-2xs"
                     >
                       Lưu Động cơ 3D (BYOK)
                     </button>

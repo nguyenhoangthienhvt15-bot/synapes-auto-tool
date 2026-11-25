@@ -16,6 +16,7 @@ import {
 interface AuthModalProps {
   currentUser: UserAccount | null;
   sheetRows: EngineerSheetRow[];
+  isChangePasswordOpen?: boolean;
   onLogin: (code: string, pass: string) => Promise<boolean> | boolean;
   onLogout: () => void;
   onForceChangePassword: (newPass: string) => Promise<{ ok: boolean; error?: string; remaining?: number } | void> | void;
@@ -28,6 +29,7 @@ interface AuthModalProps {
 export const AuthModal: React.FC<AuthModalProps> = ({
   currentUser,
   sheetRows,
+  isChangePasswordOpen = false,
   onLogin,
   onForceChangePassword,
   onCloseChangePass,
@@ -97,6 +99,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   // Đóng modal an toàn (hỗ trợ cả phím Esc)
   const handleClose = () => {
+    if (currentUser?.isLoggedIn && isChangePasswordOpen) {
+      if (onCloseChangePass) onCloseChangePass();
+      return;
+    }
     setInternalVisible(false);
     if (onClose) {
       onClose();
@@ -104,14 +110,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   useEffect(() => {
+    if (isChangePasswordOpen) {
+      setInternalVisible(true);
+    }
+  }, [isChangePasswordOpen]);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        handleClose();
+        if (currentUser?.isLoggedIn && isChangePasswordOpen) {
+          if (onCloseChangePass) onCloseChangePass();
+        } else {
+          setInternalVisible(false);
+          if (onClose) onClose();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [currentUser?.isLoggedIn, isChangePasswordOpen, onClose, onCloseChangePass]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -299,7 +316,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const isForcedReset = currentUser?.isLoggedIn && currentUser.isDefaultPassword;
+  const isForcedReset = Boolean(currentUser?.isLoggedIn && isChangePasswordOpen);
 
   if (!internalVisible) {
     return null;
@@ -453,7 +470,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
       )}
 
-      {/* Force Password Change Modal */}
+      {/* Change Password Modal (Opened via Account click) */}
       {isForcedReset && (
         <div
           className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 select-none animate-in fade-in duration-150"
@@ -463,7 +480,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }
           }}
         >
-          <div className="bg-white rounded-xl border border-black/[0.1] max-w-sm w-full p-6 shadow-2xl space-y-4 relative">
+          <div
+            data-testid="change-password-modal"
+            className="bg-white rounded-xl border border-black/[0.1] max-w-sm w-full p-6 shadow-2xl space-y-4 relative"
+          >
             <button
               type="button"
               onClick={() => {
@@ -479,9 +499,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <KeyRound className="w-4 h-4" />
             </div>
             <div className="text-center">
-              <h3 className="text-base font-bold text-zinc-950">Đặt Mật Khẩu Cá Nhân Mới</h3>
+              <h3 className="text-base font-bold text-zinc-950">
+                {currentUser?.isDefaultPassword ? 'Đặt Mật Khẩu Cá Nhân Mới' : 'Đổi Mật Khẩu Tài Khoản'}
+              </h3>
               <p className="text-zinc-500 text-xs mt-0.5">
-                Bạn đang dùng mật khẩu tạm thời. Vui lòng đặt mật khẩu riêng của bạn để kích hoạt tài khoản.
+                {currentUser?.isDefaultPassword
+                  ? 'Bạn đang dùng mật khẩu tạm thời. Vui lòng đặt mật khẩu riêng của bạn để kích hoạt bảo mật cá nhân.'
+                  : 'Cập nhật mật khẩu cá nhân mới cho tài khoản đang đăng nhập của bạn.'}
               </p>
             </div>
 

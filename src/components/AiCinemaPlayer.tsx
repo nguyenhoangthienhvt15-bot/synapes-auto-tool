@@ -115,7 +115,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   const isHardwareKeynoteProject =
     effectiveGenre === 'apple-keynote' && effectiveDomain === 'hardware';
 
-  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
@@ -5352,13 +5352,13 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   return (
     <div className="space-y-2 select-none" ref={containerRef}>
       {/* 1. NLE STUDIO EDITING TOOLBAR RIBBON */}
-      <div className="p-2.5 rounded-xl bg-zinc-900 text-white flex flex-wrap items-center justify-between gap-2 text-xs shadow-md border border-white/10">
+      <div className="p-2.5 sm:px-3.5 sm:py-2.5 rounded-2xl bg-[#161615] text-zinc-100 flex flex-wrap items-center justify-between gap-2.5 text-xs shadow-lg border border-white/[0.08]">
         <div className="flex items-center gap-1.5 flex-wrap">
-          {/* Voice Studio Modal Button */}
+          {/* Primary Studio Group */}
           <button
             type="button"
             onClick={onOpenVoiceStudio}
-            className="px-2.5 py-1.5 rounded-lg bg-indigo-950 hover:bg-indigo-900 text-indigo-200 font-semibold flex items-center gap-1.5 transition cursor-pointer border border-indigo-500/30 shadow-xs"
+            className="px-3 py-1.5 rounded-xl bg-zinc-800/95 hover:bg-zinc-700 text-zinc-100 font-semibold flex items-center gap-1.5 transition cursor-pointer border border-white/10"
             title="Mở phòng thu lồng tiếng toàn video (Phím tắt: V)"
           >
             <Mic className="w-3.5 h-3.5 text-emerald-400" />
@@ -5367,7 +5367,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
           {/* Edit Skill Preset Selector */}
           <div
-            className="flex items-center gap-1 bg-zinc-800/90 border border-white/10 rounded-lg px-2 py-1"
+            className="flex items-center gap-1.5 bg-zinc-900/90 border border-white/10 rounded-xl px-2.5 py-1.5"
             title={`Phong cách dựng phim NLE đang chạy: ${activeEditSkill.name} (${activeEditSkill.referenceRepo})`}
           >
             <Wand2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -5375,7 +5375,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
               data-testid="edit-skill-select"
               value={editSkillOverride}
               onChange={(e) => handleSelectEditSkill(e.target.value as EditSkillPresetId | 'auto')}
-              className="bg-transparent text-[11px] font-semibold text-amber-100 focus:outline-none cursor-pointer pr-1"
+              className="bg-transparent text-[11px] font-medium text-zinc-100 focus:outline-none cursor-pointer pr-1"
             >
               <option value="auto" className="bg-zinc-900 text-zinc-100">
                 Skill: Tự động ({activeEditSkill.shortLabel})
@@ -5388,52 +5388,51 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
             </select>
           </div>
 
-          {/* 16 GPU GL-Transitions Picker Button */}
+          <div className="h-5 w-px bg-white/10 hidden sm:block mx-0.5" />
+
+          {/* Creative Editing Tools */}
           <button
             type="button"
             data-testid="open-transitions-btn"
             onClick={() => setShowTransitionModal(true)}
-            className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sky-200 font-semibold flex items-center gap-1.5 transition cursor-pointer border border-sky-500/30 shadow-xs"
+            className="px-2.5 py-1.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
             title="Chọn 16 hiệu ứng chuyển cảnh GPU GLSL (GL-Transitions) cho từng cảnh hoặc toàn bộ video"
           >
             <Layers className="w-3.5 h-3.5 text-sky-400" />
             <span>Chuyển cảnh</span>
           </button>
 
-          {/* Color Grade LUT & Optical VFX Button (wakes showLutPaletteModal) */}
           <button
             type="button"
             data-testid="open-lut-modal-btn"
             onClick={() => setShowLutPaletteModal(true)}
-            className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-fuchsia-200 font-semibold flex items-center gap-1.5 transition cursor-pointer border border-fuchsia-500/30 shadow-xs"
+            className="px-2.5 py-1.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
             title="Chỉnh màu điện ảnh (LUT) & Hiệu ứng quang học (VFX)"
           >
-            <Palette className="w-3.5 h-3.5 text-fuchsia-400" />
-            <span>Màu & VFX</span>
+            <Palette className="w-3.5 h-3.5 text-amber-300" />
+            <span>Màu &amp; VFX</span>
           </button>
 
-          {/* Auto-Sync Voice Timeline Button */}
           <button
             type="button"
             data-testid="sync-voice-timeline-btn"
             onClick={handleAutoSyncVoiceTimeline}
             disabled={isSyncingVoiceTimeline}
-            className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-60 text-emerald-200 font-semibold flex items-center gap-1.5 transition cursor-pointer border border-emerald-500/30 shadow-xs"
+            className="px-2.5 py-1.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 disabled:opacity-60 text-zinc-200 font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
             title="Đo độ dài giọng Neural TTS thực tế từng cảnh và căn lại timeline khớp 1:1, tránh bị cắt mất chữ"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncingVoiceTimeline ? 'animate-spin' : ''}`} />
             <span>{isSyncingVoiceTimeline ? 'Đang khớp...' : 'Đồng bộ Giọng'}</span>
           </button>
 
-          {/* Background Music (BGM MP3/WAV) Quick Drawer Button */}
           <button
             type="button"
             data-testid="open-bgm-modal-btn"
             onClick={() => setShowBgmQuickModal(true)}
-            className={`px-2.5 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer border shadow-xs ${
+            className={`px-2.5 py-1.5 rounded-xl font-medium flex items-center gap-1.5 transition cursor-pointer border ${
               project.musicTrack?.customBgmUrl
-                ? 'bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 border-emerald-500/40'
-                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border-white/10'
+                ? 'bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 border-emerald-500/35'
+                : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border-white/[0.08]'
             }`}
             title="Tải file nhạc nền MP3/WAV riêng, chỉnh âm lượng & bật Auto-Ducking"
           >
@@ -5462,7 +5461,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
             <button
               type="button"
               onClick={onOpenStitcherStudio}
-              className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-200 font-semibold flex items-center gap-1.5 transition cursor-pointer border border-amber-500/30 shadow-xs"
+              className="px-2.5 py-1.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
               title="Ghép nối nhiều đoạn video (mỗi đoạn tối đa 2 phút) thành video dài 5–10 phút liền mạch"
             >
               <Film className="w-3.5 h-3.5 text-amber-400" />
@@ -5471,74 +5470,36 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           )}
 
           {voiceSyncNotice && (
-            <span className="px-2 py-1 rounded-md bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 text-[10px] font-mono">
+            <span className="px-2.5 py-1 rounded-lg bg-emerald-950/90 border border-emerald-500/35 text-emerald-300 text-[10.5px] font-mono">
               {voiceSyncNotice}
             </span>
           )}
         </div>
 
         {/* Right Tools: Media Telemetry + Export Video */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap ml-auto">
           <div
             data-testid="player-media-telemetry"
-            className="px-2.5 py-1 rounded-lg bg-zinc-800/90 border border-white/10 text-[10.5px] font-mono text-zinc-300 flex items-center gap-2"
+            className="px-2.5 py-1.5 rounded-xl bg-zinc-900/90 border border-white/[0.08] text-[10.5px] font-mono text-zinc-300 flex items-center gap-2"
             title="Tình trạng luồng Video B-Roll & Ảnh HD trực tuyến đã nạp"
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${loadedVideosCount > 0 ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${loadedVideosCount > 0 ? 'bg-emerald-400' : 'bg-amber-400'}`} />
             <span>{scenes.length} cảnh</span>
             <span className="text-zinc-600">•</span>
-            <span className="text-emerald-300">{loadedVideosCount}/{scenes.length} B-Roll Video</span>
+            <span className="text-emerald-300">{loadedVideosCount}/{scenes.length} B-Roll</span>
             <span className="text-zinc-600">•</span>
-            <span className="text-sky-300">{loadedCount}/{scenes.length} Ảnh HD</span>
+            <span className="text-zinc-300">{loadedCount}/{scenes.length} Ảnh HD</span>
           </div>
-
-          {/* Toggle Stage Mode (Three.js 3D / Rough.js Paper Art / Auto Cinema) */}
-          <div className="flex items-center gap-1 bg-zinc-800/90 p-0.5 rounded-lg border border-white/10">
-            {[
-              { id: 'auto-genre', label: 'Tự Động' },
-              { id: 'threejs-3d', label: '3D Three.js' },
-              { id: 'paper-art', label: 'Tranh Giấy' },
-              { id: 'clean-photo', label: 'Phim Sạch' },
-            ].map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => setVisualRenderMode(m.id as any)}
-                className={`px-2 py-1 rounded-md text-[10.5px] font-semibold transition cursor-pointer ${
-                  visualRenderMode === m.id
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-zinc-300 hover:bg-zinc-700'
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Toggle 3D AI Presenter Overlay */}
-          <button
-            type="button"
-            onClick={() => setShow3dPresenterHud((v) => !v)}
-            className={`px-2.5 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer border shadow-xs ${
-              show3dPresenterHud
-                ? 'bg-sky-950 text-sky-200 border-sky-500/50'
-                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-white/10'
-            }`}
-            title="Bật/Tắt MC Nhân vật AI 3D Lip-Sync trên video"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-            <span>MC 3D AI</span>
-          </button>
 
           {/* Export Video Master Button */}
           <button
             type="button"
             onClick={() => setShowExportModal(true)}
-            className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1.5 transition cursor-pointer shadow-md"
+            className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-sm"
             title="Xuất file Video thực tế (.webm full âm thanh)"
           >
-            <Download className="w-4 h-4" />
-            <span>XUẤT VIDEO (HD)</span>
+            <Download className="w-3.5 h-3.5" />
+            <span>Xuất Video (HD)</span>
           </button>
         </div>
       </div>

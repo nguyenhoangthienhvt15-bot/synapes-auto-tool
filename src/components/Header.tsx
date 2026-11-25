@@ -223,11 +223,11 @@ export const Header: React.FC<HeaderProps> = ({
                 ? 'bg-white text-zinc-950 shadow-2xs border border-zinc-200/60 font-semibold'
                 : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/50'
             }`}
-            title="VoiceStudio ULTRA • Nhân bản giọng nói, Thiết kế giọng, Lồng tiếng Video & Whisper"
+            title="VoiceStudio ULTRA • Nhân bản giọng nói, Thiết kế giọng, Chép lời Whisper & Sách nói"
           >
             <AudioLines className="w-3.5 h-3.5 text-emerald-700" />
             <span>VoiceStudio</span>
-            <span className="px-1.5 py-0.2 rounded text-[8.5px] font-mono font-bold bg-gradient-to-r from-emerald-600 to-teal-600 text-white tracking-wider">
+            <span className="px-1.5 py-0.2 rounded text-[8.5px] font-mono font-bold bg-emerald-700 text-white tracking-wider">
               ULTRA
             </span>
           </button>
@@ -275,12 +275,18 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#F4F1EA] border border-black/[0.08] text-[#141413]">
+            <button
+              type="button"
+              onClick={onOpenChangePass}
+              data-testid="header-account-btn"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-black/[0.08] hover:border-black/[0.18] text-[#141413] transition cursor-pointer"
+              title={`Tài khoản ${currentUser.code}${currentUser.name ? ` (${currentUser.name})` : ''} — Bấm để đổi mật khẩu bảo mật`}
+            >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
               <span className="text-[11px] font-mono font-semibold tracking-tight">
                 {currentUser.code}
               </span>
-            </div>
+            </button>
 
             <button
               onClick={onOpenChangePass}

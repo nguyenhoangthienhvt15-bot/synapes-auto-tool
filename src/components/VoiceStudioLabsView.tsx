@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   AudioLines, Mic, Square, Upload, Play, Download, Sparkles,
-  Languages, FileText, BookOpen, Server, CheckCircle2, AlertCircle,
+  FileText, BookOpen, Server, CheckCircle2, AlertCircle,
   Sliders, Plus, Trash2, Copy, ArrowLeft, Volume2, RefreshCw, ShieldCheck, Activity
 } from 'lucide-react';
 import {
@@ -31,8 +31,7 @@ interface VoiceStudioLabsViewProps {
   onBack?: () => void;
 }
 
-type VoiceLabsTab = 'cloning' | 'design' | 'dubbing' | 'whisper' | 'audiobook';
-type DubLanguageCode = 'vi' | 'en' | 'ja' | 'ko' | 'zh' | 'fr' | 'es';
+type VoiceLabsTab = 'cloning' | 'design' | 'whisper' | 'audiobook';
 
 interface CustomVoicePreset {
   id: string;
@@ -140,16 +139,15 @@ const WaveformBars: React.FC<{ peaks: number[]; label?: string; durationSec?: nu
 
 export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
   currentUser,
-  projects,
+  projects: _projects,
   aiConfig,
   onUpdateAiConfig,
-  onUpdateProject,
+  onUpdateProject: _onUpdateProject,
   onBack,
 }) => {
   const [activeTab, setActiveTab] = useState<VoiceLabsTab>('cloning');
   const cloneAudioRef = useRef<HTMLAudioElement | null>(null);
   const designAudioRef = useRef<HTMLAudioElement | null>(null);
-  const dubAudioRef = useRef<HTMLAudioElement | null>(null);
   const audiobookAudioRef = useRef<HTMLAudioElement | null>(null);
   const [localEndpoint, setLocalEndpoint] = useState<string>(() => {
     try {
@@ -228,18 +226,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
   const [designOutputPeaks, setDesignOutputPeaks] = useState<number[]>([]);
   const [isDesigning, setIsDesigning] = useState<boolean>(false);
 
-  // Tab 3: Video Dubbing state
-  const [dubProjectId, setDubProjectId] = useState<string>(projects[0]?.id || '');
-  const [dubLanguage, setDubLanguage] = useState<DubLanguageCode>('en');
-  const [dubVoiceId, setDubVoiceId] = useState<string>(ALL_VOICE_PROFILES[0]?.id || '');
-  const [dubDraftLines, setDubDraftLines] = useState<{ sceneId: number; original: string; dubbed: string }[]>([]);
-  const [isDubbing, setIsDubbing] = useState<boolean>(false);
-  const [isApplyingDub, setIsApplyingDub] = useState<boolean>(false);
-  const [dubPreviewUrl, setDubPreviewUrl] = useState<string>('');
-  const [dubPreviewPeaks, setDubPreviewPeaks] = useState<number[]>([]);
-  const [dubPreviewDuration, setDubPreviewDuration] = useState<number>(0);
-
-  // Tab 4: Whisper Dictation state
+  // Tab 3: Whisper Dictation state
   const [whisperEngine, setWhisperEngine] = useState<'studio-vad-whisper' | 'groq-whisper' | 'openai-whisper' | 'browser-live'>('studio-vad-whisper');
   const [whisperFileName, setWhisperFileName] = useState<string>('');
   const [whisperDurationSec, setWhisperDurationSec] = useState<number>(0);
@@ -298,24 +285,6 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
       })
       .catch(() => {});
   }, []);
-
-  // Sync dubbing lines when project changes
-  useEffect(() => {
-    if (!dubProjectId && projects.length > 0) {
-      setDubProjectId(projects[0].id);
-      return;
-    }
-    const proj = projects.find((p) => p.id === dubProjectId);
-    if (proj && proj.storyboard) {
-      setDubDraftLines(
-        proj.storyboard.map((s) => ({
-          sceneId: s.id,
-          original: s.voiceover,
-          dubbed: s.voiceover,
-        }))
-      );
-    }
-  }, [dubProjectId, projects]);
 
   const handleCheckLocalServer = async () => {
     const cleanUrl = localEndpoint.trim().replace(/\/$/, '');
@@ -695,7 +664,8 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
       let targetWarmth = designWarmth;
       let midGain = 3.4;
       let highGain = 2.5;
-      let baseVoiceId = designGender === 'Nữ' ? 'vi-female-north-1' : 'vi-male-north-1';
+      let resolvedGender = designGender;
+      let baseVoiceId = designGender === 'Nữ' ? 'vi-hn-female-1' : 'vi-hn-male-1';
 
       // Call backend /api/voicestudio/design-analyze to extract acoustic parameters from natural prompt
       try {
@@ -718,6 +688,13 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
             midGain = parsed.midGainDb ?? 3.4;
             highGain = parsed.highGainDb ?? 2.5;
             baseVoiceId = parsed.recommendedVoiceId || baseVoiceId;
+            if (parsed.gender === 'Nam' || parsed.gender === 'Nữ') {
+              resolvedGender = parsed.gender;
+              setDesignGender(parsed.gender);
+            }
+            if (parsed.age && (parsed.age === '18-25' || parsed.age === '26-45' || parsed.age === '46+')) {
+              setDesignAge(parsed.age);
+            }
             setDesignPitch(targetPitch);
             setDesignRate(targetRate);
             setDesignWarmth(targetWarmth);
@@ -733,7 +710,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
         pitch: targetPitch,
         rate: targetRate,
         warmthDb: targetWarmth,
-        gender: designGender,
+        gender: resolvedGender,
         description: designPrompt,
         createdAt: '',
         baseVoiceId,
@@ -765,192 +742,6 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
       setStatusMessage(`Lỗi tổng hợp giọng thiết kế: ${String(err)}`);
     } finally {
       setIsDesigning(false);
-    }
-  };
-
-  const handleAutoTranslateDubbing = async () => {
-    const proj = projects.find((p) => p.id === dubProjectId);
-    if (!proj) return;
-    setIsDubbing(true);
-    setStatusMessage('');
-    try {
-      const sourceLines = proj.storyboard.map((s) => s.voiceover);
-      let translatedArr: string[] | null = null;
-      let engineUsed = 'Google Neural MT';
-
-      // 1. Try OpenAI BYOK if configured
-      const openaiKey = aiConfig.openai?.apiKey?.trim();
-      if (openaiKey && dubLanguage !== 'vi') {
-        try {
-          const prompt = `Translate/adapt the following Vietnamese video voiceover lines to target language code "${dubLanguage}" keeping natural dubbing timing. Return JSON array of strings ONLY matching line count:\n${JSON.stringify(
-            sourceLines
-          )}`;
-          const res = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${openaiKey}`,
-            },
-            body: JSON.stringify({
-              model: aiConfig.openai?.model || 'gpt-4o-mini',
-              messages: [{ role: 'user', content: prompt }],
-              temperature: 0.3,
-            }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            const raw = data?.choices?.[0]?.message?.content || '';
-            const match = raw.match(/\[[\s\S]*\]/);
-            if (match) {
-              const parsed = JSON.parse(match[0]);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                translatedArr = parsed.map((item) => String(item || '').trim());
-                engineUsed = 'OpenAI BYOK';
-              }
-            }
-          }
-        } catch { }
-      }
-
-      // 2. Try Gemini BYOK if configured
-      const geminiKey = aiConfig.gemini?.apiKey?.trim();
-      if (!translatedArr && geminiKey && dubLanguage !== 'vi') {
-        try {
-          const prompt = `Translate the following Vietnamese video voiceover lines into language code "${dubLanguage}" for natural video dubbing. Return a raw JSON array of strings only:\n${JSON.stringify(
-            sourceLines
-          )}`;
-          const gemRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(
-              geminiKey
-            )}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-              }),
-            }
-          );
-          if (gemRes.ok) {
-            const data = await gemRes.json();
-            const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            const match = raw.match(/\[[\s\S]*\]/);
-            if (match) {
-              const parsed = JSON.parse(match[0]);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                translatedArr = parsed.map((item) => String(item || '').trim());
-                engineUsed = 'Gemini 2.0 Flash';
-              }
-            }
-          }
-        } catch { }
-      }
-
-      // 3. Call server-side /api/voicestudio/translate-dub (Google Neural MT — zero fake prefixes!)
-      if (!translatedArr) {
-        const backendRes = await fetch('/api/voicestudio/translate-dub', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            lines: sourceLines,
-            targetLang: dubLanguage,
-          }),
-        });
-        if (backendRes.ok) {
-          const data = await backendRes.json();
-          if (Array.isArray(data?.translatedLines) && data.translatedLines.length > 0) {
-            translatedArr = data.translatedLines;
-            engineUsed = data.engine || 'Google Neural MT';
-          }
-        }
-      }
-
-      const finalLines = proj.storyboard.map((s, idx) => ({
-        sceneId: s.id,
-        original: s.voiceover,
-        dubbed: translatedArr?.[idx] || s.voiceover,
-      }));
-      setDubDraftLines(finalLines);
-
-      // Synthesize real neural preview audio for Scene #1 in the target language
-      const firstLine = finalLines[0]?.dubbed || proj.title;
-      const targetVoiceProfile =
-        dubLanguage === 'vi'
-          ? ALL_VOICE_PROFILES.find((v) => v.id === dubVoiceId) || VIETNAMESE_VOICE_PROFILES[0]
-          : ENGLISH_VOICE_PROFILES.find((v) => v.id === dubVoiceId) || ENGLISH_VOICE_PROFILES[0];
-
-      const renderedPreview = await synthesizeNeuralVoiceToWav(firstLine, targetVoiceProfile);
-      setDubPreviewUrl(renderedPreview.url);
-      setDubPreviewDuration(renderedPreview.durationSec);
-      setDubPreviewPeaks(renderedPreview.waveformPeaks);
-      setStatusMessage(
-        `Đã dịch tự động ${finalLines.length} phân cảnh sang [${dubLanguage.toUpperCase()}] qua ${engineUsed} & tạo bản thu Neural mẫu!`
-      );
-    } catch (err) {
-      setStatusMessage(`Lỗi dịch & đồng bộ lồng tiếng: ${String(err)}`);
-    } finally {
-      setIsDubbing(false);
-    }
-  };
-
-  const handleApplyDubbingToProject = async () => {
-    const proj = projects.find((p) => p.id === dubProjectId);
-    if (!proj || !onUpdateProject) return;
-    setIsApplyingDub(true);
-    try {
-      const chosenProfile =
-        ALL_VOICE_PROFILES.find((v) => v.id === dubVoiceId) ||
-        (() => {
-          const custom = customVoices.find((c) => c.id === dubVoiceId);
-          return custom ? buildVoiceProfileFromCustom(custom) : ALL_VOICE_PROFILES[0];
-        })();
-
-      const resolvedSceneLang: VoiceLanguage = dubLanguage as VoiceLanguage;
-      const effectiveVoiceProfile: VoiceProfile =
-        chosenProfile.language !== resolvedSceneLang
-          ? {
-              ...(ALL_VOICE_PROFILES.find((v) => v.language === resolvedSceneLang) || ENGLISH_VOICE_PROFILES[0]),
-              pitch: chosenProfile.pitch,
-              rate: chosenProfile.rate,
-            }
-          : chosenProfile;
-
-      // Synthesize real neural WAV for Scene 1 if not yet synthesized
-      let masterPreviewUrl = dubPreviewUrl;
-      if (!masterPreviewUrl && dubDraftLines[0]?.dubbed) {
-        try {
-          const wav = await synthesizeNeuralVoiceToWav(dubDraftLines[0].dubbed, effectiveVoiceProfile);
-          masterPreviewUrl = wav.url;
-          setDubPreviewUrl(wav.url);
-          setDubPreviewDuration(wav.durationSec);
-          setDubPreviewPeaks(wav.waveformPeaks);
-        } catch { }
-      }
-
-      const updatedProject: Project = {
-        ...proj,
-        voiceoverTrack: {
-          name: `VoiceStudio ULTRA (${chosenProfile.name})`,
-          voiceName: chosenProfile.name,
-          audioUrl: masterPreviewUrl || proj.voiceoverTrack?.audioUrl,
-        },
-        storyboard: proj.storyboard.map((sc) => {
-          const draft = dubDraftLines.find((d) => d.sceneId === sc.id);
-          const cleanDubbed = (draft ? draft.dubbed : sc.voiceover).replace(/^\[[A-Z]{2}\s+Dubbing\]\s*/i, '');
-          return {
-            ...sc,
-            voiceover: cleanDubbed,
-            voiceId: effectiveVoiceProfile.id,
-            voiceLanguage: resolvedSceneLang,
-            voiceSpeed: chosenProfile.rate,
-            voicePitch: chosenProfile.pitch,
-          };
-        }),
-      };
-      onUpdateProject(updatedProject);
-      setStatusMessage(`Đã áp dụng kịch bản lồng tiếng & giọng [${chosenProfile.name}] vào dự án [${proj.title}]!`);
-    } finally {
-      setIsApplyingDub(false);
     }
   };
 
@@ -1037,15 +828,8 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
         } catch { }
       }
 
-      // 4. Real Web Audio VAD (Voice Activity Detection) + Project/Reference Transcript Alignment
-      const activeProj = projects.find((p) => p.id === dubProjectId) || projects[0];
-      const candidateLines = [
-        ...(activeProj?.storyboard?.map((s) => s.voiceover) || []),
-        refTranscript,
-        cloneTargetText,
-      ].filter(Boolean);
-
-      const vadResult = await detectAudioSpeechSegmentsVAD(file, candidateLines);
+      // 4. Real Web Audio VAD (Voice Activity Detection) — NEVER inject unrelated project scripts!
+      const vadResult = await detectAudioSpeechSegmentsVAD(file, []);
       setWhisperDurationSec(vadResult.durationSec);
       setWhisperPeaks(vadResult.waveformPeaks);
       setWhisperSegments(vadResult.segments);
@@ -1055,7 +839,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
         );
       } else {
         setStatusMessage(
-          `Đã phân tích sóng âm thực tế [${file.name}] (${vadResult.durationSec}s) & căn mốc ${vadResult.segments.length} phân đoạn bằng Web Audio Spectral-Flux VAD.`
+          `Đã đo hoạt động giọng nói (VAD) thực tế [${file.name}] (${vadResult.durationSec}s • ${vadResult.segments.length} phân đoạn). Để chuyển âm thanh thành chữ chính xác (ASR), vui lòng chọn Groq/OpenAI Whisper (BYOK) hoặc kết nối Voice Plugin HTTPS.`
         );
       }
     } catch (err) {
@@ -1138,7 +922,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
     }
   };
 
-  const availableDubVoices: { id: string; label: string }[] = [
+  const availableStudioVoices: { id: string; label: string }[] = [
     ...ALL_VOICE_PROFILES.map((v) => ({ id: v.id, label: `${v.name} (${v.language.toUpperCase()})` })),
     ...customVoices.map((c) => ({ id: c.id, label: `[ULTRA] ${c.name} (${c.engine})` })),
   ];
@@ -1146,9 +930,8 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
   const TABS: { id: VoiceLabsTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'cloning', label: '1. Nhân Bản Giọng (Clone)', icon: Mic },
     { id: 'design', label: '2. Thiết Kế Giọng (Prompt)', icon: Sliders },
-    { id: 'dubbing', label: '3. Lồng Tiếng Video', icon: Languages },
-    { id: 'whisper', label: '4. Chép Lời Whisper', icon: FileText },
-    { id: 'audiobook', label: '5. Phòng Thu Sách Nói', icon: BookOpen },
+    { id: 'whisper', label: '3. Chép Lời Whisper', icon: FileText },
+    { id: 'audiobook', label: '4. Phòng Thu Sách Nói', icon: BookOpen },
   ];
 
   return (
@@ -1170,18 +953,18 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-sm font-bold text-zinc-950 tracking-tight">
+              <h1 className="font-display text-base font-semibold text-[#141413] tracking-tight">
                 SYNAPES VoiceStudio
               </h1>
-              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-700 text-white">
                 ULTRA
               </span>
               <span className="text-[10px] font-mono text-zinc-500">
-                Neural 24kHz • Formant VTLN v4.0 • 7-Lang Dubbing • Web Audio VAD
+                Neural 24kHz • Formant VTLN v4.0 • Web Audio VAD
               </span>
             </div>
             <p className="text-[11px] text-zinc-500 mt-0.5 truncate">
-              Phòng thu giọng nói đa tầng: Nhân bản giọng Zero-Shot, Thiết kế giọng theo mô tả, Lồng tiếng video & Chép lời phụ đề SRT.
+              Phòng thu giọng nói đa tầng: Nhân bản giọng Zero-Shot, Thiết kế giọng theo mô tả, Chép lời phụ đề SRT &amp; Sách nói đa nhân vật.
             </p>
           </div>
         </div>
@@ -1908,125 +1691,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
         </div>
       )}
 
-      {/* TAB 3: VIDEO DUBBING */}
-      {activeTab === 'dubbing' && (
-        <div className="bg-white rounded-xl border border-zinc-200/90 p-5 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 pb-3">
-            <div>
-              <h2 className="text-xs font-bold text-zinc-950 uppercase tracking-wide">
-                Lồng Tiếng Video Đa Ngôn Ngữ & Đồng Bộ Khớp Cảnh
-              </h2>
-              <p className="text-[11px] text-zinc-500 mt-0.5">
-                Dịch thuật tự động đa ngôn ngữ (Neural MT / Gemini / OpenAI) và gắn trực tiếp chất giọng ULTRA vào Timeline video.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleAutoTranslateDubbing}
-                disabled={isDubbing || !dubProjectId}
-                className="px-3 py-1.5 rounded-lg border border-zinc-300 bg-white hover:bg-zinc-50 text-xs font-semibold cursor-pointer disabled:opacity-50"
-              >
-                {isDubbing ? 'Đang Xử Lý...' : 'Dịch & Căn Nhịp Tự Động'}
-              </button>
-              <button
-                onClick={handleApplyDubbingToProject}
-                disabled={!dubProjectId || isApplyingDub}
-                className="px-3.5 py-1.5 rounded-lg bg-zinc-950 hover:bg-black text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
-              >
-                {isApplyingDub ? 'Đang Áp Dụng...' : 'Áp Dụng Lồng Tiếng Vào Dự Án'}
-              </button>
-            </div>
-          </div>
-
-          {projects.length === 0 ? (
-            <div className="p-8 text-center border border-dashed border-zinc-200 rounded-xl text-xs text-zinc-500">
-              Chưa có dự án nào trong tài khoản. Hãy tạo một dự án video trước để sử dụng tính năng lồng tiếng trực tiếp.
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <label className="text-[11px] font-medium text-zinc-700 block mb-1">Dự Án Video Đích</label>
-                  <select
-                    value={dubProjectId}
-                    onChange={(e) => setDubProjectId(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-xs bg-white truncate"
-                  >
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        [{p.code}] {p.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[11px] font-medium text-zinc-700 block mb-1">Ngôn Ngữ Lồng Tiếng</label>
-                  <select
-                    value={dubLanguage}
-                    onChange={(e) => setDubLanguage(e.target.value as DubLanguageCode)}
-                    className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-xs bg-white"
-                  >
-                    <option value="vi">Tiếng Việt (Bản ngữ)</option>
-                    <option value="en">English (Global Studio)</option>
-                    <option value="ja">日本語 (Japanese)</option>
-                    <option value="ko">한국어 (Korean)</option>
-                    <option value="zh">中文 (Chinese Mandarin)</option>
-                    <option value="fr">Français (French)</option>
-                    <option value="es">Español (Spanish)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[11px] font-medium text-zinc-700 block mb-1">Giọng Đọc Áp Dụng</label>
-                  <select
-                    value={dubVoiceId}
-                    onChange={(e) => setDubVoiceId(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-xs bg-white"
-                  >
-                    {availableDubVoices.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {dubPreviewUrl && (
-                <div className="p-3 rounded-lg bg-zinc-50 border border-zinc-200 space-y-2">
-                  <WaveformBars
-                    peaks={dubPreviewPeaks}
-                    label={`Bản Thu Thử Lồng Tiếng Cảnh #1 (${dubLanguage.toUpperCase()})`}
-                    durationSec={dubPreviewDuration}
-                  />
-                  <audio ref={dubAudioRef} controls src={dubPreviewUrl} onPlay={(e) => bindExclusiveAudioElement(e.currentTarget)} className="w-full h-8" />
-                </div>
-              )}
-
-              <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
-                {dubDraftLines.map((line, idx) => (
-                  <div key={line.sceneId} className="p-3 rounded-lg bg-zinc-50 border border-zinc-200/80 space-y-1.5">
-                    <div className="text-[10.5px] font-mono text-zinc-500">
-                      Cảnh #{idx + 1} • Lời gốc: {line.original}
-                    </div>
-                    <textarea
-                      rows={2}
-                      value={line.dubbed}
-                      onChange={(e) =>
-                        setDubDraftLines((prev) =>
-                          prev.map((d) => (d.sceneId === line.sceneId ? { ...d, dubbed: e.target.value } : d))
-                        )
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-md border border-zinc-200 bg-white text-xs"
-                    />
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* TAB 4: WHISPER DICTATION & SUBTITLES */}
+      {/* TAB 3: WHISPER DICTATION & SUBTITLES */}
       {activeTab === 'whisper' && (
         <div className="bg-white rounded-xl border border-zinc-200/90 p-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 pb-3">
@@ -2207,7 +1872,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                     }
                     className="px-2.5 py-1 rounded border border-zinc-200 bg-white text-xs flex-1 min-w-[180px]"
                   >
-                    {availableDubVoices.map((v) => (
+                    {availableStudioVoices.map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.label}
                       </option>

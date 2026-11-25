@@ -77,26 +77,27 @@ function computeLocalTrafficSnapshot(
   projects: Project[] = [],
   channels: ConnectedChannelAccount[] = []
 ): PlatformTrafficResponse {
-  const ttCount = projects.filter((p) => (p.targetChannels || []).includes('tiktok')).length;
-  const fbCount = projects.filter((p) => (p.targetChannels || []).includes('facebook')).length;
-  const ytCount = projects.filter((p) => (p.targetChannels || []).includes('youtube')).length;
-
   const ttConn = channels.some((c) => c.platform === 'tiktok' && c.status === 'connected');
   const fbConn = channels.some((c) => c.platform === 'facebook' && c.status === 'connected');
   const ytConn = channels.some((c) => c.platform === 'youtube' && c.status === 'connected');
 
+  const ttCount = ttConn ? projects.filter((p) => (p.targetChannels || []).includes('tiktok')).length : 0;
+  const fbCount = fbConn ? projects.filter((p) => (p.targetChannels || []).includes('facebook')).length : 0;
+  const ytCount = ytConn ? projects.filter((p) => (p.targetChannels || []).includes('youtube')).length : 0;
+
   const curHour = new Date().getHours();
-  const hasTt = ttCount > 0 || ttConn;
-  const hasFb = fbCount > 0 || fbConn;
-  const hasYt = ytCount > 0 || ytConn;
+  // Chỉ đo lưu lượng khi người dùng đã kết nối thật kênh cá nhân (YouTube / TikTok / Facebook)
+  const hasTt = ttConn;
+  const hasFb = fbConn;
+  const hasYt = ytConn;
 
   const series: TrafficTimePoint[] = DEFAULT_SLOTS.map((slot, h) => {
     const ttW = h >= 19 && h <= 22 ? 1.65 : h === 12 ? 1.2 : h >= 17 ? 1.25 : h >= 7 ? 0.72 : 0.35;
     const fbW = h >= 20 && h <= 21 ? 1.48 : h === 12 || h === 13 ? 1.32 : h >= 8 ? 0.8 : 0.3;
     const ytW = h >= 19 && h <= 22 ? 1.62 : h >= 11 && h <= 13 ? 0.98 : h >= 7 ? 0.68 : 0.32;
-    const tiktok = hasTt ? Math.round((ttCount * 18 + (ttConn ? 24 : 0)) * ttW) : 0;
-    const facebook = hasFb ? Math.round((fbCount * 15 + (fbConn ? 20 : 0)) * fbW) : 0;
-    const youtube = hasYt ? Math.round((ytCount * 20 + (ytConn ? 28 : 0)) * ytW) : 0;
+    const tiktok = hasTt ? Math.round((ttCount * 18 + 24) * ttW) : 0;
+    const facebook = hasFb ? Math.round((fbCount * 15 + 20) * fbW) : 0;
+    const youtube = hasYt ? Math.round((ytCount * 20 + 28) * ytW) : 0;
     return {
       slot,
       hour: h,
@@ -171,27 +172,39 @@ export const MiniPeakHoursAreaChart: React.FC<MiniPeakHoursAreaChartProps> = ({
     [projects]
   );
 
+  const connectedCount = useMemo(
+    () => channels.filter((c) => c.status === 'connected' && ['youtube', 'tiktok', 'facebook'].includes(c.platform)).length,
+    [channels]
+  );
+
   useEffect(() => {
     let cancelled = false;
     const localFallback = computeLocalTrafficSnapshot(projects, channels);
     setTraffic(localFallback);
 
-    const url = `/api/analytics/platform-traffic?userCode=${encodeURIComponent(userCode)}&tt=${projectCountByPlatform.tt}&fb=${projectCountByPlatform.fb}&yt=${projectCountByPlatform.yt}`;
-    fetch(url)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json: PlatformTrafficResponse | null) => {
-        if (!cancelled && json && json.success && Array.isArray(json.series) && json.series.length > 0) {
-          setTraffic(json);
-        }
-      })
-      .catch(() => {
-        // Keep computed workspace snapshot if offline
-      });
+    const fetchTraffic = () => {
+      const url = `/api/analytics/platform-traffic?userCode=${encodeURIComponent(userCode)}&tt=${projectCountByPlatform.tt}&fb=${projectCountByPlatform.fb}&yt=${projectCountByPlatform.yt}&connected=${connectedCount}`;
+      fetch(url)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((json: PlatformTrafficResponse | null) => {
+          if (!cancelled && json && json.success && Array.isArray(json.series) && json.series.length > 0) {
+            setTraffic(json);
+          }
+        })
+        .catch(() => {
+          // Keep computed workspace snapshot if offline
+        });
+    };
+
+    fetchTraffic();
+    // Khi người dùng kết nối kênh cá nhân (YouTube/TikTok/Facebook), quét cập nhật định kỳ 180 phút/lần
+    const scanTimer = connectedCount > 0 ? window.setInterval(fetchTraffic, 180 * 60 * 1000) : null;
 
     return () => {
       cancelled = true;
+      if (scanTimer !== null) window.clearInterval(scanTimer);
     };
-  }, [userCode, projectCountByPlatform, projects, channels]);
+  }, [userCode, projectCountByPlatform, projects, channels, connectedCount]);
 
   const width = 248;
   const height = 108;
@@ -249,14 +262,15 @@ export const MiniPeakHoursAreaChart: React.FC<MiniPeakHoursAreaChartProps> = ({
       {/* Header Row */}
       <div className="flex items-center justify-between gap-1">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${connectedCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-300'}`} />
           <span className="text-[10.5px] font-bold text-[#141413] tracking-tight truncate">
-            {traffic.geo?.countryName || 'Việt Nam'} •{' '}
-            {traffic.totals.all > 0 ? 'Lưu lượng cá nhân' : '0 lượt xem (Chờ kết nối kênh)'}
+            {connectedCount > 0
+              ? `${traffic.geo?.countryName || 'Việt Nam'} • Quét kênh mỗi 180p`
+              : 'Chưa kết nối kênh (0 lượt xem)'}
           </span>
         </div>
         <span className="text-[9px] font-mono font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.5 rounded flex-shrink-0">
-          Peak {traffic.peakWindow}
+          {connectedCount > 0 ? `Peak ${traffic.peakWindow}` : '180p / lần'}
         </span>
       </div>
 

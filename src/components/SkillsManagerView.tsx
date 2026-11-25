@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CoreVideoRepo, Skill } from '../types';
 import { MCP_VIDEO_SERVERS, SYSTEM_CORE_VIDEO_REPOS } from '../data/mockData';
 import { McpVideoToolsHub } from './McpVideoToolsHub';
-import { Sparkles, Plus, Upload, Trash2, X, Play, GitBranch, ExternalLink, CheckCircle2, Cpu, Film } from 'lucide-react';
+import { Sparkles, Plus, Upload, Trash2, X, GitBranch, ExternalLink, CheckCircle2, Cpu } from 'lucide-react';
 
 export const CORE_VIDEO_REPOS_STORAGE_KEY = 'synapes_core_video_repos_v1';
 
@@ -22,7 +22,6 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddRepoModal, setShowAddRepoModal] = useState(false);
   const [skillsSubTab, setSkillsSubTab] = useState<'skills' | 'mcp'>('skills');
-  const [activeSampleVideo, setActiveSampleVideo] = useState<{ title: string; url: string; subtitle: string } | null>(null);
 
   const [coreRepos, setCoreRepos] = useState<CoreVideoRepo[]>(() => {
     try {
@@ -201,13 +200,13 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-zinc-950 tracking-tight">Kho Skills &amp; Prompts</h2>
+              <h2 className="font-display text-lg font-semibold text-[#141413] tracking-tight">Kho Skills &amp; Prompts</h2>
               <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-600 text-white tracking-wider">
                 LABS
               </span>
             </div>
             <p className="text-zinc-500 text-xs mt-0.5">
-              Tích hợp Engine dựng/edit video &amp; nhân vật 3D từ GitHub vào hệ thống &amp; Quản lý mẫu <code>/skill-name</code> kèm video mẫu
+              Tích hợp Engine dựng/edit video &amp; nhân vật 3D từ GitHub vào hệ thống &amp; Quản lý mẫu <code>/skill-name</code>
             </p>
           </div>
         </div>
@@ -364,26 +363,9 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
               </div>
 
               <div className="pt-2 border-t border-black/[0.06] flex items-center justify-between gap-2 text-[10.5px]">
-                {repo.sampleVideoUrl ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setActiveSampleVideo({
-                        title: `Sản phẩm mẫu • ${repo.repo}`,
-                        url: repo.sampleVideoUrl!,
-                        subtitle: repo.roleInEngine,
-                      })
-                    }
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-zinc-950 text-white font-medium hover:bg-black cursor-pointer"
-                  >
-                    <Play className="w-3 h-3 text-emerald-400" />
-                    <span>Xem Video Demo</span>
-                  </button>
-                ) : (
-                  <span className="text-zinc-400 font-mono">
-                    {isRuntimeInstalled ? 'NPM Runtime' : 'Blueprint'}
-                  </span>
-                )}
+                <span className="text-zinc-400 font-mono">
+                  {isRuntimeInstalled ? 'NPM Runtime' : 'Blueprint'}
+                </span>
                 <a
                   href={repo.repoUrl}
                   target="_blank"
@@ -404,12 +386,12 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
       <div className="space-y-2.5">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
-            <Film className="w-4 h-4 text-zinc-700" />
+            <Sparkles className="w-4 h-4 text-zinc-700" />
             <h3 className="text-xs font-bold text-zinc-950 uppercase tracking-wide">
-              Slash-Command Skills Kèm Video Sản Phẩm Mẫu ({skills.length})
+              Thư viện Slash-Command Skills ({skills.length})
             </h3>
           </div>
-          <span className="text-[10.5px] text-zinc-500">Bấm &ldquo;Xem Sản Phẩm Mẫu&rdquo; để kiểm tra chất lượng đầu ra thực tế</span>
+          <span className="text-[11px] text-zinc-500">Gõ <code>/skill-name</code> trong Prompt để áp dụng trực tiếp</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -448,23 +430,6 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
               <div className="pt-2.5 border-t border-black/[0.06] flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-500">
                 <span>Tông giọng: <strong className="text-zinc-800 font-medium">{skill.tone}</strong></span>
                 <div className="flex items-center gap-2">
-                  {(skill.sampleVideoUrl || '/skill-samples/remotion-sample.webm') && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setActiveSampleVideo({
-                          title: skill.sampleVideoTitle || `Video Mẫu • ${skill.command}`,
-                          url: skill.sampleVideoUrl || '/skill-samples/remotion-sample.webm',
-                          subtitle: skill.description,
-                        })
-                      }
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[10.5px] font-semibold cursor-pointer shadow-2xs"
-                      data-testid={`play-skill-sample-${skill.id}`}
-                    >
-                      <Play className="w-3 h-3" />
-                      <span>Xem Sản Phẩm Mẫu</span>
-                    </button>
-                  )}
                   <button
                     onClick={() => onDeleteSkill(skill.id)}
                     className="text-zinc-400 hover:text-red-600 transition p-1 cursor-pointer"
@@ -478,43 +443,6 @@ export const SkillsManagerView: React.FC<SkillsManagerViewProps> = ({
           ))}
         </div>
       </div>
-
-      {/* Modal Sample Video Player */}
-      {activeSampleVideo && (
-        <div
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setActiveSampleVideo(null);
-          }}
-          data-testid="skill-sample-video-modal"
-        >
-          <div className="bg-zinc-950 text-white rounded-2xl border border-white/15 max-w-3xl w-full p-4 sm:p-5 shadow-2xl space-y-3 relative">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>{activeSampleVideo.title}</span>
-                </h3>
-                <p className="text-[11px] text-zinc-400 mt-0.5">{activeSampleVideo.subtitle}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveSampleVideo(null)}
-                className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <video
-              controls
-              autoPlay
-              playsInline
-              src={activeSampleVideo.url}
-              className="w-full rounded-xl bg-black border border-white/10 max-h-[65vh]"
-            />
-          </div>
-        </div>
-      )}
 
       {/* Modal Inject Custom Core GitHub Repo */}
       {showAddRepoModal && (

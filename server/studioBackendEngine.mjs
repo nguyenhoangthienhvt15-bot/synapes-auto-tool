@@ -4739,6 +4739,7 @@ export async function handleStudioApiRequest(req, res) {
       const text = String(postBody.text || parsedUrl.searchParams.get('text') || 'Xin chào').trim();
       const lang = String(postBody.lang || parsedUrl.searchParams.get('lang') || 'vi');
       const reqVoice = String(postBody.voice || parsedUrl.searchParams.get('voice') || '');
+      const preferredEngine = String(postBody.preferredEngine || parsedUrl.searchParams.get('preferredEngine') || '').trim();
       const langMeta = _resolveTtsLanguageMeta(lang, reqVoice);
       const voice = reqVoice || langMeta.defaultVoice;
       const ratePct = _normalizeEdgeProsodyParam(postBody.rate || parsedUrl.searchParams.get('rate') || '+0%', '%', -50, 80);
@@ -4751,7 +4752,7 @@ export async function handleStudioApiRequest(req, res) {
       let mp3Buffer = null;
       let engineUsed = 'edge-neural';
 
-      if (elevenlabsKey.length > 10) {
+      if (elevenlabsKey.length > 10 && preferredEngine !== 'google-neural-dsp') {
         try {
           mp3Buffer = await fetchElevenLabsSpeech(elevenlabsKey, text, elevenlabsVoiceId);
           engineUsed = 'elevenlabs-studio';
@@ -4760,7 +4761,7 @@ export async function handleStudioApiRequest(req, res) {
         }
       }
 
-      if (!mp3Buffer && openaiKey && openaiKey.startsWith('sk-')) {
+      if (!mp3Buffer && openaiKey && openaiKey.startsWith('sk-') && preferredEngine !== 'google-neural-dsp') {
         try {
           mp3Buffer = await fetchOpenAiSpeech(openaiKey, text, openaiVoice);
           engineUsed = 'openai-studio-hd';
@@ -4769,12 +4770,19 @@ export async function handleStudioApiRequest(req, res) {
         }
       }
 
-      if (!mp3Buffer) {
-        try {
-          mp3Buffer = await synthesizeEdgeNeuralTts(text, voice, ratePct, pitchHz);
-          engineUsed = 'edge-neural';
-        } catch {
-          mp3Buffer = null;
+      if (!mp3Buffer && preferredEngine !== 'google-neural-dsp') {
+        const edgeRetryDelays = [0, 250, 600];
+        for (const delayMs of edgeRetryDelays) {
+          if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+          try {
+            mp3Buffer = await synthesizeEdgeNeuralTts(text, voice, ratePct, pitchHz);
+            if (mp3Buffer && mp3Buffer.length > 256) {
+              engineUsed = 'edge-neural';
+              break;
+            }
+          } catch {
+            mp3Buffer = null;
+          }
         }
       }
 
@@ -4938,36 +4946,50 @@ export async function handleStudioApiRequest(req, res) {
     try {
       const body = await readJsonBody(req);
       const prompt = String(body?.prompt || '').toLowerCase();
-      const gender = String(body?.gender || 'Nam');
-      const age = String(body?.age || '26-45');
+      const genderRaw = String(body?.gender || 'Nam');
+      const hasFemaleCue = /(?:^|[\s,.;:!?()'"-])(nữ|cô|chị|em gái|female)(?=$|[\s,.;:!?()'"-])/.test(prompt);
+      const hasMaleCue = /(?:^|[\s,.;:!?()'"-])(nam|thanh niên|con trai|boy|male)(?=$|[\s,.;:!?()'"-])/.test(prompt);
+      const inferredFemale = hasFemaleCue && !hasMaleCue;
+      const gender = inferredFemale ? 'Nữ' : hasMaleCue ? 'Nam' : genderRaw;
+      const isSouth = /miền nam|sài gòn|nam bộ|tphcm|hcm|southern/.test(prompt);
+      const isCentral = /miền trung|huế|đà nẵng/.test(prompt);
+      const isTeenYoung = /17|18|19|20|trẻ|thanh niên|học sinh|sinh viên|teen|youth/.test(prompt) || body?.age === '18-25';
+      const age = isTeenYoung ? '18-25' : String(body?.age || '26-45');
       const emotion = String(body?.emotion || '').toLowerCase();
 
       let pitch = gender === 'Nữ' ? 1.05 : gender === 'Trung tính' ? 0.99 : 0.94;
       let rate = 1.0;
-      let warmthDb = gender === 'Nam' ? 3.5 : 2.0;
+      let warmthDb = gender === 'Nam' ? 3.2 : 2.0;
       let midGainDb = 3.2;
       let highGainDb = 2.4;
 
       if (age === '18-25') {
-        pitch += 0.05;
-        rate += 0.04;
-        highGainDb += 1.0;
+        pitch += isSouth ? 0.09 : 0.07;
+        rate += 0.06;
+        warmthDb = Math.max(0.5, warmthDb - 1.5);
+        highGainDb += 1.2;
       } else if (age === '46+') {
         pitch -= 0.06;
         rate -= 0.05;
         warmthDb += 2.0;
       }
 
+      if (isSouth && gender === 'Nam') {
+        pitch += 0.02;
+        rate = Math.max(rate, 1.05);
+        midGainDb = Math.min(5.0, midGainDb + 1.1);
+      }
+
       if (/trầm|ấm|uy lực|baritone|deep|bass|tài liệu/.test(prompt + ' ' + emotion)) {
         pitch -= 0.04;
         warmthDb = Math.min(6.0, warmthDb + 1.5);
       }
-      if (/cao|sáng|trong trẻo|soprano|bright|clear/.test(prompt + ' ' + emotion)) {
+      if (/cao|sáng|trong trẻo|soprano|bright|clear|tươi/.test(prompt + ' ' + emotion)) {
         pitch += 0.05;
         highGainDb = Math.min(5.0, highGainDb + 1.4);
       }
       if (/nhanh|sôi nổi|năng lượng|hào hứng|review|tiktok|viral/.test(prompt + ' ' + emotion)) {
-        rate = Math.min(1.22, rate + 0.08);
+        rate = Math.min(1.22, rate + 0.07);
         midGainDb = Math.min(5.0, midGainDb + 1.0);
       }
       if (/chậm|điềm tĩnh|kể chuyện|thư giãn|audiobook|truyền cảm/.test(prompt + ' ' + emotion)) {
@@ -4980,24 +5002,35 @@ export async function handleStudioApiRequest(req, res) {
 
       const recommendedVoiceId =
         gender === 'Nữ'
-          ? age === '18-25'
-            ? 'vi-female-south-1'
-            : 'vi-female-north-1'
-          : age === '46+'
-            ? 'vi-male-north-2'
-            : 'vi-male-north-1';
+          ? isSouth || age === '18-25'
+            ? 'vi-sg-female-1'
+            : 'vi-hn-female-1'
+          : isSouth
+            ? 'vi-sg-male-1'
+            : isCentral
+              ? 'vi-dn-male-1'
+              : age === '46+'
+                ? 'vi-doc-quoc-bao'
+                : 'vi-hn-male-1';
+
+      const regionLabel = isSouth ? 'Miền Nam' : isCentral ? 'Miền Trung' : 'Miền Bắc / Trung tính';
 
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(
         JSON.stringify({
           ok: true,
+          gender,
+          age,
+          inferredGender: gender,
+          inferredAgeGroup: age,
+          inferredRegion: regionLabel,
           pitch,
           rate,
           warmthDb,
           midGainDb: Number(midGainDb.toFixed(1)),
           highGainDb: Number(highGainDb.toFixed(1)),
           recommendedVoiceId,
-          acousticSummary: `F0 Ratio ${pitch}x • Tempo ${rate}x • LowShelf +${warmthDb}dB • Presence +${midGainDb.toFixed(1)}dB`,
+          acousticSummary: `${gender} • ${regionLabel} • Nhóm tuổi ${age} • F0 Ratio ${pitch}x • Tempo ${rate}x • LowShelf +${warmthDb}dB • Presence +${midGainDb.toFixed(1)}dB`,
         })
       );
     } catch (err) {
@@ -7685,6 +7718,233 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   }
 
   // --------------------------------------------------------------------------
+  // SERVER-SIDE PLUGIN & API KEY REAL MODEL DISCOVERY (/api/plugin/discover-models)
+  // Xác định đúng nhà phát triển (ElevenLabs / OpenAI / Kling / Custom) & đọc thật qua HTTP
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/plugin/discover-models' && req.method === 'POST') {
+    try {
+      const body = sanitizePayloadValue((await readJsonBody(req)) || {}) || {};
+      const apiKey = String(body.apiKey || '').trim();
+      const rawEndpoint = String(body.endpoint || '').trim();
+      if (!apiKey || apiKey.length < 8) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, code: 'EMPTY_KEY', vendor: 'Unknown', models: [], message: 'Vui lòng nhập API Token hợp lệ.' }));
+        return true;
+      }
+
+      const isElevenLabsKey = /^sk_[a-f0-9]{40,64}$/i.test(apiKey) || /elevenlabs\.io/i.test(rawEndpoint);
+      const isOpenAiKey = /^sk-(proj-)?[A-Za-z0-9_-]{20,}$/.test(apiKey) && !/^sk_[a-f0-9]{40,64}$/i.test(apiKey);
+      const isGeminiKey = /^AIza[A-Za-z0-9_-]{20,}$/.test(apiKey);
+
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 10000);
+
+      try {
+        if (isElevenLabsKey) {
+          const probeRes = await fetch('https://api.elevenlabs.io/v1/models', {
+            method: 'GET',
+            headers: { 'xi-api-key': apiKey, Accept: 'application/json' },
+            signal: ctl.signal,
+          });
+          clearTimeout(timer);
+          const data = await probeRes.json().catch(() => null);
+          if (probeRes.ok && Array.isArray(data)) {
+            const models = data.map((m) => ({
+              id: String(m.model_id || m.name || 'eleven_multilingual_v2'),
+              name: String(m.name || m.model_id),
+              tag: `${m.can_do_text_to_speech ? 'TTS Active' : 'Model'} • ${Array.isArray(m.languages) ? `${m.languages.length} ngôn ngữ` : 'ElevenLabs'}`,
+              isLiveFromKey: true,
+              isRecommended: String(m.model_id).includes('multilingual_v2'),
+              brand: 'elevenlabs',
+            }));
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({
+              success: true,
+              vendor: 'ElevenLabs',
+              endpoint: 'https://api.elevenlabs.io/v1/text-to-speech',
+              permissionStatus: 'full_access',
+              models,
+              message: `Đã kết nối thật tới ElevenLabs API và đọc được ${models.length} mô hình từ Key của bạn.`,
+            }));
+            return true;
+          }
+          const detailStatus = String(data?.detail?.status || '');
+          const detailMsg = String(data?.detail?.message || `HTTP ${probeRes.status}`);
+          if (probeRes.status === 401 && detailStatus === 'missing_permissions') {
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({
+              success: false,
+              vendor: 'ElevenLabs',
+              endpoint: 'https://api.elevenlabs.io/v1/text-to-speech',
+              permissionStatus: 'missing_permissions',
+              httpStatus: probeRes.status,
+              models: [],
+              message: `Đã nhận diện đúng Key của nhà phát triển ElevenLabs (api.elevenlabs.io), nhưng Key đang bị giới hạn quyền API (${detailMsg}) nên không đọc được danh sách /v1/models.`,
+            }));
+            return true;
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({
+            success: false,
+            vendor: 'ElevenLabs',
+            endpoint: 'https://api.elevenlabs.io/v1/text-to-speech',
+            permissionStatus: 'unauthorized',
+            httpStatus: probeRes.status,
+            models: [],
+            message: `ElevenLabs API từ chối Key (HTTP ${probeRes.status}): ${detailMsg}`,
+          }));
+          return true;
+        }
+
+        if (isOpenAiKey) {
+          const probeRes = await fetch('https://api.openai.com/v1/models', {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
+            signal: ctl.signal,
+          });
+          clearTimeout(timer);
+          const data = await probeRes.json().catch(() => null);
+          if (probeRes.ok && Array.isArray(data?.data)) {
+            const models = data.data.slice(0, 20).map((m) => ({
+              id: String(m.id),
+              name: String(m.id),
+              tag: 'OpenAI Live Model',
+              isLiveFromKey: true,
+              brand: 'custom',
+            }));
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({
+              success: true,
+              vendor: 'OpenAI',
+              endpoint: 'https://api.openai.com/v1',
+              models,
+              message: `Đã đọc thật ${models.length} mô hình từ OpenAI Key.`,
+            }));
+            return true;
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({
+            success: false,
+            vendor: 'OpenAI',
+            models: [],
+            httpStatus: probeRes.status,
+            message: `OpenAI API trả về lỗi HTTP ${probeRes.status}: ${data?.error?.message || 'Key không hợp lệ'}`,
+          }));
+          return true;
+        }
+
+        if (isGeminiKey) {
+          const probeRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+            method: 'GET',
+            headers: { 'x-goog-api-key': apiKey, Accept: 'application/json' },
+            signal: ctl.signal,
+          });
+          clearTimeout(timer);
+          const data = await probeRes.json().catch(() => null);
+          if (probeRes.ok && Array.isArray(data?.models)) {
+            const models = data.models.slice(0, 20).map((m) => ({
+              id: String(m.name || '').replace(/^models\//, ''),
+              name: String(m.displayName || m.name || '').replace(/^models\//, ''),
+              tag: 'Google Gemini Live',
+              isLiveFromKey: true,
+              brand: 'custom',
+            }));
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({
+              success: true,
+              vendor: 'Google Gemini',
+              endpoint: 'https://generativelanguage.googleapis.com/v1beta',
+              models,
+              message: `Đã đọc thật ${models.length} mô hình từ Gemini Key.`,
+            }));
+            return true;
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({
+            success: false,
+            vendor: 'Google Gemini',
+            models: [],
+            httpStatus: probeRes.status,
+            message: `Gemini API trả về HTTP ${probeRes.status}: ${data?.error?.message || 'Key không hợp lệ'}`,
+          }));
+          return true;
+        }
+
+        if (rawEndpoint && /^https:\/\//i.test(rawEndpoint)) {
+          const baseOrigin = new URL(rawEndpoint).origin;
+          const safety = await resolveAndValidateSafeUrl(baseOrigin);
+          if (!safety.ok) {
+            clearTimeout(timer);
+            res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ success: false, vendor: 'Blocked', models: [], message: `Endpoint bị chặn bởi SSRF (${safety.reason}).` }));
+            return true;
+          }
+          const probeRes = await fetch(`${baseOrigin}/v1/models`, {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
+            signal: ctl.signal,
+          });
+          clearTimeout(timer);
+          const data = await probeRes.json().catch(() => null);
+          const arr = Array.isArray(data?.models) ? data.models : Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+          if (probeRes.ok && arr.length > 0) {
+            const models = arr.slice(0, 20).map((m) => ({
+              id: String(m.id || m.model_id || m.name),
+              name: String(m.name || m.id || m.model_id),
+              tag: `${new URL(rawEndpoint).hostname} • Live API`,
+              isLiveFromKey: true,
+              brand: 'custom',
+            }));
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({
+              success: true,
+              vendor: new URL(rawEndpoint).hostname,
+              endpoint: baseOrigin,
+              models,
+              message: `Đã đọc thật ${models.length} mô hình từ ${baseOrigin}.`,
+            }));
+            return true;
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({
+            success: false,
+            vendor: new URL(rawEndpoint).hostname,
+            endpoint: baseOrigin,
+            httpStatus: probeRes.status,
+            models: [],
+            message: `Máy chủ ${baseOrigin}/v1/models phản hồi HTTP ${probeRes.status}. Không trả về danh sách model giả lập.`,
+          }));
+          return true;
+        }
+
+        clearTimeout(timer);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({
+          success: false,
+          vendor: 'Chưa xác định',
+          models: [],
+          message: 'Không nhận diện được Endpoint thực tế để truy vấn danh sách model. Vui lòng chọn đúng Endpoint API của nhà cung cấp.',
+        }));
+        return true;
+      } catch (netErr) {
+        clearTimeout(timer);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({
+          success: false,
+          vendor: isElevenLabsKey ? 'ElevenLabs' : 'Plugin API',
+          models: [],
+          message: `Lỗi kết nối tới API nhà phát triển: ${String(netErr?.message || netErr)}`,
+        }));
+        return true;
+      }
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, models: [], message: String(err?.message || err) }));
+      return true;
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // REAL MULTI-PLATFORM TRAFFIC ANALYTICS (TIKTOK / FACEBOOK / YOUTUBE)
   // Hỗ trợ bước thời gian 1 giờ (00:00 -> 23:00) theo Quốc gia & Múi giờ IP thực tế
   // --------------------------------------------------------------------------
@@ -7778,10 +8038,11 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
     const fbBoostSum = slotBoosts.facebook.reduce((a, b) => a + b, 0);
     const ytBoostSum = slotBoosts.youtube.reduce((a, b) => a + b, 0);
 
-    // Trung thực tuyệt đối: 0 video + chưa kết nối OAuth + 0 sự kiện = 0 lượt xem cá nhân
-    const hasTtPersonal = ttVideos > 0 || isTtConnected || ttBoostSum > 0;
-    const hasFbPersonal = fbVideos > 0 || isFbConnected || fbBoostSum > 0;
-    const hasYtPersonal = ytVideos > 0 || isYtConnected || ytBoostSum > 0;
+    // Trung thực tuyệt đối: CHỈ tính lưu lượng cá nhân khi người dùng đã kết nối thật kênh (YouTube / TikTok / Facebook)
+    const hasTtPersonal = isTtConnected || ttBoostSum > 0;
+    const hasFbPersonal = isFbConnected || fbBoostSum > 0;
+    const hasYtPersonal = isYtConnected || ytBoostSum > 0;
+    const connectedChannelsCount = [isTtConnected, isFbConnected, isYtConnected].filter(Boolean).length;
 
     const benchmarkSeries = slots.map((slot, idx) => {
       const tiktok = Math.round(100 * baseWeights.tiktok[idx]);
@@ -7800,13 +8061,13 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
 
     const series = slots.map((slot, idx) => {
       const tiktok = hasTtPersonal
-        ? Math.round(slotBoosts.tiktok[idx] + (ttVideos > 0 || isTtConnected ? (ttVideos * 18 + (isTtConnected ? 24 : 0)) * baseWeights.tiktok[idx] : 0))
+        ? Math.round(slotBoosts.tiktok[idx] + (isTtConnected ? (ttVideos * 18 + 24) * baseWeights.tiktok[idx] : 0))
         : 0;
       const facebook = hasFbPersonal
-        ? Math.round(slotBoosts.facebook[idx] + (fbVideos > 0 || isFbConnected ? (fbVideos * 15 + (isFbConnected ? 20 : 0)) * baseWeights.facebook[idx] : 0))
+        ? Math.round(slotBoosts.facebook[idx] + (isFbConnected ? (fbVideos * 15 + 20) * baseWeights.facebook[idx] : 0))
         : 0;
       const youtube = hasYtPersonal
-        ? Math.round(slotBoosts.youtube[idx] + (ytVideos > 0 || isYtConnected ? (ytVideos * 20 + (isYtConnected ? 28 : 0)) * baseWeights.youtube[idx] : 0))
+        ? Math.round(slotBoosts.youtube[idx] + (isYtConnected ? (ytVideos * 20 + 28) * baseWeights.youtube[idx] : 0))
         : 0;
       return {
         slot,
@@ -7831,6 +8092,9 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
     return {
       success: true,
       hasPersonalData: grandTotal > 0,
+      scanIntervalMinutes: 180,
+      nextScanAt: new Date(Date.now() + 180 * 60 * 1000).toISOString(),
+      connectedChannelsCount,
       updatedAt: rawStore.updatedAt || new Date().toISOString(),
       eventCount: events.length,
       unit: '1h',
@@ -7845,7 +8109,11 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       series,
       benchmarkSeries,
       totals: { ...totals, all: grandTotal },
-      activeVideos: { tiktok: ttVideos, facebook: fbVideos, youtube: ytVideos },
+      activeVideos: {
+        tiktok: isTtConnected ? ttVideos : 0,
+        facebook: isFbConnected ? fbVideos : 0,
+        youtube: isYtConnected ? ytVideos : 0,
+      },
       connectedFlags: {
         tiktok: isTtConnected,
         facebook: isFbConnected,

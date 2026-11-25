@@ -157,7 +157,7 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
       <div className="studio-card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-bold text-zinc-950 tracking-tight">
+            <h2 className="font-display text-lg font-semibold text-[#141413] tracking-tight">
               Tất Cả Dự Án Của {currentUser.name}
             </h2>
             <span className="px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-700 border border-zinc-200 text-[10px] font-mono font-bold">
