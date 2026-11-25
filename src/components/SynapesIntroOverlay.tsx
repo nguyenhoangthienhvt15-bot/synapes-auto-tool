@@ -188,8 +188,6 @@ if (typeof window !== 'undefined') {
 
 export const SynapesIntroOverlay: React.FC<SynapesIntroOverlayProps> = ({
   variant,
-  userCode,
-  userName,
   onComplete,
 }) => {
   const [isExiting, setIsExiting] = useState(false);
@@ -201,8 +199,6 @@ export const SynapesIntroOverlay: React.FC<SynapesIntroOverlayProps> = ({
   const playLayerRef = useRef<HTMLImageElement | null>(null);
   const progressRailRef = useRef<HTMLDivElement | null>(null);
   const progressFillRef = useRef<HTMLDivElement | null>(null);
-  const phaseLabelRef = useRef<HTMLDivElement | null>(null);
-  const captionRef = useRef<HTMLDivElement | null>(null);
 
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
@@ -910,21 +906,12 @@ export const SynapesIntroOverlay: React.FC<SynapesIntroOverlayProps> = ({
       if (progressFillRef.current) {
         progressFillRef.current.style.width = `${(easeOutCubic(clamp01(t / REVEAL_TOTAL)) * 100).toFixed(1)}%`;
       }
-      if (phaseLabelRef.current) {
-        phaseLabelRef.current.textContent = t < REVEAL_TOTAL ? `${t.toFixed(2)}s` : 'STUDIO READY';
-      }
 
       const idleB = easeInOutSine(seg(t, 2.0, 0.9));
       const floatY = Math.sin((t - 2.0) * 1.3) * 2.4 * idleB;
       const tiltX = ((smY - ch * 0.45) / ch) * -8.5 * idleB;
       const tiltY = ((smX - cw * 0.5) / cw) * 10.5 * idleB;
       markHolder.style.transform = `translate3d(0, ${floatY.toFixed(2)}px, 0) rotateX(${tiltX.toFixed(2)}deg) rotateY(${tiltY.toFixed(2)}deg)`;
-
-      if (captionRef.current) {
-        const capP = easeOutCubic(seg(t, 1.45, 0.60));
-        captionRef.current.style.opacity = capP.toFixed(3);
-        captionRef.current.style.transform = `translate3d(0, ${((1 - capP) * 10).toFixed(2)}px, 0)`;
-      }
 
       // Act 1 -> Act 2: ElevenLabs Liquid Voice-Orb Lifecycle
       const orbAppear = easeOutBackSoft(seg(t, 0.0, 0.52));
@@ -1104,11 +1091,6 @@ export const SynapesIntroOverlay: React.FC<SynapesIntroOverlayProps> = ({
     };
   }, []);
 
-  const captionLabel =
-    variant === 'login'
-      ? `Chào mừng trở lại${userCode ? ` · ${userCode}` : ''}${userName ? ` (${userName})` : ''}`
-      : 'SYNAPES STUDIO · HARMONIC FORGE';
-
   return (
     <div
       ref={shellRef}
@@ -1142,33 +1124,6 @@ export const SynapesIntroOverlay: React.FC<SynapesIntroOverlayProps> = ({
         />
       </div>
 
-      {/* Top Subtle Studio Metadata */}
-      <div className="absolute top-4 left-5 z-10 flex items-center gap-2 text-xs opacity-70 pointer-events-none">
-        <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#2BC4CB]" />
-        <span className="tracking-wider uppercase font-medium">Synapes &middot; Harmonic Forge</span>
-      </div>
-
-      <div className="absolute top-3.5 right-5 z-20 flex items-center gap-3">
-        <div
-          ref={phaseLabelRef}
-          className="font-mono text-xs opacity-60 pointer-events-none"
-        >
-          0.00s
-        </div>
-        <button
-          type="button"
-          data-testid="synapes-intro-skip-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            triggerSkip();
-          }}
-          className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/80 hover:bg-white text-zinc-700 hover:text-zinc-950 border border-black/[0.08] shadow-xs backdrop-blur-sm transition cursor-pointer"
-          title="Bỏ qua hiệu ứng mở đầu (Esc)"
-        >
-          Bỏ qua
-        </button>
-      </div>
-
       {/* Full-Stage FX Canvas (ElevenLabs Orb + Silk Wave + Chromatic Ripples + Comets) */}
       <canvas
         ref={fxCanvasRef}
@@ -1184,7 +1139,7 @@ export const SynapesIntroOverlay: React.FC<SynapesIntroOverlayProps> = ({
       {/* Centered Geodesic Forging Logo Stage */}
       <div
         className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-[5]"
-        style={{ paddingBottom: '28px', transformStyle: 'preserve-3d' }}
+        style={{ paddingBottom: '0px', transformStyle: 'preserve-3d' }}
       >
         <div
           ref={markHolderRef}
@@ -1216,14 +1171,6 @@ export const SynapesIntroOverlay: React.FC<SynapesIntroOverlayProps> = ({
               willChange: 'transform, opacity, filter',
             }}
           />
-        </div>
-
-        <div
-          ref={captionRef}
-          className="mt-4 px-3.5 py-1 rounded-full bg-white/75 border border-black/[0.07] shadow-xs backdrop-blur-md text-[11px] font-medium tracking-wide text-zinc-700"
-          style={{ opacity: 0, willChange: 'transform, opacity' }}
-        >
-          {captionLabel}
         </div>
       </div>
     </div>
