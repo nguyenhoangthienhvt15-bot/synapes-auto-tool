@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import {
   Project, UserAccount, EngineerSheetRow, Skill, AIProviderConfig, ConnectedChannelAccount
 } from './types';
@@ -119,15 +119,19 @@ export function App() {
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [introOverlayState, setIntroOverlayState] = useState<{
     visible: boolean;
+    readyForReveal: boolean;
     triggerKey: number;
     variant: 'entry' | 'login';
     userCode?: string;
     userName?: string;
   }>({
     visible: true,
+    readyForReveal: false,
     triggerKey: 1,
     variant: 'entry',
   });
+  const hasSyncedSheetOnBootRef = useRef(false);
+  const hasRegisteredSwRef = useRef(false);
 
   // State: Projects & Skills & AI Config & Kênh (Khởi tạo theo tài khoản thực tế)
   const [projects, setProjects] = useState<Project[]>([]);
@@ -179,9 +183,8 @@ export function App() {
     setTimeout(() => setToastNotification(null), 4000);
   };
 
-  // Nạp toàn bộ thông tin cá nhân (API Keys, kênh mạng xã hội, dự án) khi người dùng đăng nhập
+  // Nạp nhanh hồ sơ từ bộ nhớ cục bộ ngay lập tức (0ms), trì hoãn đồng bộ máy chủ tới sau hiệu ứng mở đầu
   useEffect(() => {
-    let isCancelled = false;
     if (currentUser && currentUser.isLoggedIn && currentUser.code) {
       const profile = getUserProfile(currentUser.code, currentUser.name, currentUser.email);
       setAiConfig(profile.aiConfig);
@@ -191,26 +194,6 @@ export function App() {
       setDriveEmail(profile.driveEmail);
       setIsDriveConnected(profile.driveConnected);
       setSelectedProject(pickPendingProject(profile.projects));
-
-      void restoreUserProfileFromServer(currentUser.code).then((res) => {
-        if (isCancelled || !res.success || !res.profile) return;
-        const synced = res.profile;
-        setAiConfig(synced.aiConfig);
-        setSelectedAiProvider(synced.aiConfig.activeProvider || synced.aiConfig.mode || 'gemini');
-        setProjects(synced.projects);
-        setChannels(synced.channels);
-        setDriveEmail(synced.driveEmail);
-        setIsDriveConnected(synced.driveConnected);
-        setSelectedProject((prev) => {
-          if (prev) {
-            const matched = synced.projects.find((p) => p.id === prev.id);
-            if (matched && (matched.status === 'pending_approval' || (matched.status as string) === 'pending')) {
-              return matched;
-            }
-          }
-          return pickPendingProject(synced.projects);
-        });
-      });
     } else {
       setAiConfig(EMPTY_AI_CONFIG);
       setProjects([]);
@@ -219,10 +202,38 @@ export function App() {
       setIsDriveConnected(false);
       setSelectedProject(null);
     }
+  }, [currentUser?.code, currentUser?.isLoggedIn]);
+
+  // Đồng bộ hồ sơ từ máy chủ chỉ sau khi intro kết thúc để tránh nghẽn luồng chính lúc chạy hiệu ứng
+  useEffect(() => {
+    if (introOverlayState.visible) return;
+    if (!currentUser || !currentUser.isLoggedIn || !currentUser.code) return;
+    let isCancelled = false;
+
+    void restoreUserProfileFromServer(currentUser.code).then((res) => {
+      if (isCancelled || !res.success || !res.profile) return;
+      const synced = res.profile;
+      setAiConfig(synced.aiConfig);
+      setSelectedAiProvider(synced.aiConfig.activeProvider || synced.aiConfig.mode || 'gemini');
+      setProjects(synced.projects);
+      setChannels(synced.channels);
+      setDriveEmail(synced.driveEmail);
+      setIsDriveConnected(synced.driveConnected);
+      setSelectedProject((prev) => {
+        if (prev) {
+          const matched = synced.projects.find((p) => p.id === prev.id);
+          if (matched && (matched.status === 'pending_approval' || (matched.status as string) === 'pending')) {
+            return matched;
+          }
+        }
+        return pickPendingProject(synced.projects);
+      });
+    });
+
     return () => {
       isCancelled = true;
     };
-  }, [currentUser?.code, currentUser?.isLoggedIn]);
+  }, [currentUser?.code, currentUser?.isLoggedIn, introOverlayState.visible]);
 
   // Đồng bộ thời gian thực từ Google Sheet
   const handleSyncSheet = async (silent: boolean = false) => {
@@ -248,8 +259,32 @@ export function App() {
     }
   };
 
-  // Tự động đồng bộ sau khi giao diện chính đã hoàn tất khung hình đầu tiên (Non-Blocking First Paint)
+  // Đăng ký Service Worker & nạp Google Fonts stylesheet sau khi hiệu ứng mở đầu hoàn tất (tránh giật style-recalc giữa Act 2)
   useEffect(() => {
+    if (introOverlayState.visible) return;
+
+    if (typeof document !== 'undefined' && !document.getElementById('synapes-google-fonts')) {
+      const link = document.createElement('link');
+      link.id = 'synapes-google-fonts';
+      link.rel = 'stylesheet';
+      link.href =
+        'https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Lora:ital,wght@0,500;0,600;0,700;1,500&family=JetBrains+Mono:wght@400;500;600;700&display=swap';
+      document.head.appendChild(link);
+    }
+
+    if (!hasRegisteredSwRef.current) {
+      hasRegisteredSwRef.current = true;
+      if (typeof window !== 'undefined' && 'serviceWorker' in navigator && import.meta.env.PROD) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      }
+    }
+  }, [introOverlayState.visible]);
+
+  // Tự động đồng bộ Google Sheet sau khi hiệu ứng mở đầu hoàn tất (tránh cạnh tranh luồng chính lúc boot)
+  useEffect(() => {
+    if (introOverlayState.visible || hasSyncedSheetOnBootRef.current) return;
+    hasSyncedSheetOnBootRef.current = true;
+
     const win = window as unknown as {
       requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
       cancelIdleCallback?: (id: number) => void;
@@ -258,9 +293,9 @@ export function App() {
       const idleId = win.requestIdleCallback(() => handleSyncSheet(true), { timeout: 1200 });
       return () => win.cancelIdleCallback?.(idleId);
     }
-    const timer = window.setTimeout(() => handleSyncSheet(true), 600);
+    const timer = window.setTimeout(() => handleSyncSheet(true), 200);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [introOverlayState.visible]);
 
   const pendingCount = projects.filter((p) => p.status === 'pending_approval').length;
 
@@ -300,27 +335,17 @@ export function App() {
 
           setCurrentUser(userAccount);
           setActiveSession(userAccount);
-          setLoginAnimTrigger((prev) => prev + 1);
           setIsChangePasswordModalOpen(false);
           setIntroOverlayState((prev) => ({
             visible: true,
+            readyForReveal: false,
             triggerKey: prev.triggerKey + 1,
             variant: 'login',
             userCode: userAccount.code,
             userName: userAccount.name,
           }));
 
-          const profile = getUserProfile(userAccount.code, userAccount.name, userAccount.email);
-          setAiConfig(profile.aiConfig);
-          setSelectedAiProvider(profile.aiConfig.activeProvider || profile.aiConfig.mode || 'gemini');
-          setProjects(profile.projects);
-          setChannels(profile.channels);
-          setDriveEmail(profile.driveEmail);
-          setIsDriveConnected(profile.driveConnected);
-          setSelectedProject(pickPendingProject(profile.projects));
-
           setIsAuthModalOpen(false);
-          showToast(`Đăng nhập thành công với tài khoản ${userAccount.code} (${userAccount.name})!`);
           return true;
         }
       }
@@ -416,28 +441,17 @@ export function App() {
 
     setCurrentUser(userAccount);
     setActiveSession(userAccount);
-    setLoginAnimTrigger((prev) => prev + 1);
     setIsChangePasswordModalOpen(false);
     setIntroOverlayState((prev) => ({
       visible: true,
+      readyForReveal: false,
       triggerKey: prev.triggerKey + 1,
       variant: 'login',
       userCode: userAccount.code,
       userName: userAccount.name,
     }));
 
-    // Nạp toàn bộ dữ liệu người dùng đã lưu trước đó trong tài khoản được cấp
-    const profile = getUserProfile(userAccount.code, userAccount.name, userAccount.email);
-    setAiConfig(profile.aiConfig);
-    setSelectedAiProvider(profile.aiConfig.activeProvider || profile.aiConfig.mode || 'gemini');
-    setProjects(profile.projects);
-    setChannels(profile.channels);
-    setDriveEmail(profile.driveEmail);
-    setIsDriveConnected(profile.driveConnected);
-    setSelectedProject(pickPendingProject(profile.projects));
-
     setIsAuthModalOpen(false);
-    showToast(`Đăng nhập thành công với tài khoản ${userAccount.code} (${userAccount.name})!`);
     return true;
   };
 
@@ -687,6 +701,8 @@ export function App() {
     }
   };
 
+  const isIntroCurtainOpaque = introOverlayState.visible && !introOverlayState.readyForReveal;
+
   return (
     <div className="min-h-screen bg-[#FAF8F4] text-[#141413] flex flex-col font-sans select-none">
       {/* Hiệu ứng Synapes Harmonic Forge khi mới vào trang / F5 / vừa đăng nhập */}
@@ -696,15 +712,33 @@ export function App() {
           variant={introOverlayState.variant}
           userCode={introOverlayState.userCode}
           userName={introOverlayState.userName}
-          onComplete={() =>
+          onReadyForReveal={() =>
+            setIntroOverlayState((prev) =>
+              prev.readyForReveal ? prev : { ...prev, readyForReveal: true }
+            )
+          }
+          onComplete={() => {
+            if (introOverlayState.variant === 'login' && introOverlayState.userCode) {
+              setLoginAnimTrigger((prev) => prev + 1);
+              showToast(
+                `Đăng nhập thành công với tài khoản ${introOverlayState.userCode}${
+                  introOverlayState.userName ? ` (${introOverlayState.userName})` : ''
+                }!`
+              );
+            }
             setIntroOverlayState((prev) => ({
               ...prev,
+              readyForReveal: true,
               visible: false,
-            }))
-          }
+            }));
+          }}
         />
       )}
 
+      <div
+        className="flex-1 flex flex-col"
+        style={{ visibility: isIntroCurtainOpaque ? 'hidden' : 'visible' }}
+      >
       {/* Toast Notification (Bottom-Right so it never overlaps the Header Navigation) */}
       {toastNotification && (
         <div className="fixed bottom-5 right-5 z-50 bg-[#141413] text-[#FAF8F4] px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2.5 border border-black/15 animate-in fade-in slide-in-from-bottom-2 text-xs font-medium max-w-md">
@@ -776,6 +810,9 @@ export function App() {
 
         {/* Main Work Area with Suspense Lazy Loading & Error Boundary */}
         <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
+          {introOverlayState.visible && !introOverlayState.readyForReveal ? (
+            <div className="min-h-[60vh]" aria-hidden="true" />
+          ) : (
           <StudioErrorBoundary resetKey={activeView}>
             <Suspense fallback={<ViewLoadingSkeleton />}>
             {/* VIEW: CHỜ PHÊ DUYỆT (REVIEW WORKSPACE - CỬA SỔ 1) */}
@@ -1000,11 +1037,13 @@ export function App() {
             )}
             </Suspense>
           </StudioErrorBoundary>
+          )}
         </main>
       </div>
 
       {/* FOOTER */}
       <Footer onOpenPolicyModal={(type) => setPolicyModalType(type)} />
+      </div>
 
       {/* CỬA SỔ 2: MULTI-CLIP STITCHER STUDIO (Lazy Suspended) */}
       {stitcherProject && (

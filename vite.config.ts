@@ -42,10 +42,33 @@ export default defineConfig({
           if (id.includes('node_modules/lucide-react')) {
             return 'vendor-icons';
           }
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+          if (
+            id.includes('node_modules/react') ||
+            id.includes('node_modules/react-dom') ||
+            id.includes('node_modules/scheduler')
+          ) {
             return 'vendor-react';
           }
-          if (id.includes('node_modules/jspdf') || id.includes('node_modules/html2canvas')) {
+          if (id.includes('node_modules/three')) {
+            return 'vendor-three';
+          }
+          if (id.includes('node_modules/mediabunny')) {
+            return 'vendor-media';
+          }
+          if (
+            id.includes('node_modules/lottie-web') ||
+            id.includes('node_modules/gsap') ||
+            id.includes('node_modules/roughjs') ||
+            id.includes('node_modules/gl-transitions') ||
+            id.includes('node_modules/wawa-lipsync')
+          ) {
+            return 'vendor-motion';
+          }
+          if (
+            id.includes('node_modules/html2pdf') ||
+            id.includes('node_modules/jspdf') ||
+            id.includes('node_modules/html2canvas')
+          ) {
             return 'vendor-pdf';
           }
           if (
@@ -54,9 +77,6 @@ export default defineConfig({
             id.includes('src/data/qrCodeBase64')
           ) {
             return 'contract-assets';
-          }
-          if (id.includes('node_modules')) {
-            return 'vendor-libs';
           }
         },
       },

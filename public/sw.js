@@ -2,8 +2,9 @@
 // SYNAPES Studio High-Speed Service Worker (Zero-Latency Instant App Shell)
 // ==============================================================================
 
-const CACHE_NAME = 'synapes-studio-v3';
+const CACHE_NAME = 'synapes-studio-v4';
 const STATIC_ASSETS = [
+  '/synapes-harmonic-forge.json',
   '/logo.jpg',
   '/con_dau_do_tron_ks_nguyen_hoang_thien.png',
   '/stamp-truong-ban.png'
