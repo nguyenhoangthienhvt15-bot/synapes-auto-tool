@@ -307,11 +307,15 @@ export interface ConnectedChannelAccount {
   platform: 'youtube' | 'tiktok' | 'facebook' | 'drive';
   name: string;
   handle: string;
+  email?: string;
+  channelId?: string;
   avatarUrl?: string;
   status: 'connected' | 'disconnected' | 'reauth_needed';
   apiScope: string;
   tokenExpiry: string;
   connectedAt: string;
+  verificationMode?: string;
+  hasRefreshToken?: boolean;
   stats: {
     metricLabel: string;
     metricValue: string;

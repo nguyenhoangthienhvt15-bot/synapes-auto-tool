@@ -80,6 +80,351 @@ function getSignatureRecord(email) {
   return '';
 }
 
+// ============================================================================
+// GOOGLE OAUTH 2.0 (PKCE) & YOUTUBE DATA API V3 HELPERS
+// ============================================================================
+const googleOAuthPendingStates = new Map();
+const GOOGLE_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+const GOOGLE_OAUTH_SCOPES = {
+  youtube: [
+    'https://www.googleapis.com/auth/youtube.readonly',
+    'https://www.googleapis.com/auth/youtube.upload',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
+  ],
+  drive: [
+    'https://www.googleapis.com/auth/drive.file',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
+  ],
+};
+
+function pruneGoogleOAuthStates() {
+  const now = Date.now();
+  for (const [k, v] of googleOAuthPendingStates.entries()) {
+    if (!v || now - Number(v.createdAt || 0) > GOOGLE_OAUTH_STATE_TTL_MS) {
+      googleOAuthPendingStates.delete(k);
+    }
+  }
+  while (googleOAuthPendingStates.size > 500) {
+    const oldest = googleOAuthPendingStates.keys().next().value;
+    if (oldest !== undefined) googleOAuthPendingStates.delete(oldest);
+    else break;
+  }
+}
+
+function resolveRequestOrigin(req) {
+  const rawProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+  const proto = rawProto === 'https' || rawProto === 'http'
+    ? rawProto
+    : (req.socket?.encrypted ? 'https' : 'http');
+  const rawHost = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
+  if (!rawHost || /[\s/\\]/.test(rawHost)) {
+    return 'http://localhost:10000';
+  }
+  return `${proto}://${rawHost}`;
+}
+
+function createPkcePair() {
+  const codeVerifier = crypto.randomBytes(32).toString('base64url');
+  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+  return { codeVerifier, codeChallenge };
+}
+
+function escapeHtmlText(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function safeJsonForInlineScript(obj) {
+  return JSON.stringify(obj)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\//g, '\\/');
+}
+
+function renderOAuthCallbackHtml({ statusCode = 200, success, platform, message, payload = null, targetOrigin = '*' }) {
+  const safePayload = {
+    type: 'SYNAPES_GOOGLE_OAUTH_RESULT',
+    success: Boolean(success),
+    platform: String(platform || 'youtube'),
+    message: String(message || ''),
+    channel: payload || null,
+  };
+  const titleText = success ? 'Kết Nối OAuth 2.0 Thành Công' : 'Xác Thực Google OAuth 2.0 Thất Bại';
+  const badgeColor = success ? '#059669' : '#dc2626';
+  const html = `<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>${escapeHtmlText(titleText)} — SYNAPES Studio</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f4f4f5;color:#18181b;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px}
+    .card{background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:14px;max-width:440px;width:100%;padding:24px;box-shadow:0 12px 32px rgba(0,0,0,.08)}
+    .badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;color:#fff;background:${badgeColor};margin-bottom:12px}
+    h1{font-size:16px;margin:0 0 8px}
+    p{font-size:13px;line-height:1.5;color:#52525b;margin:0 0 16px}
+    button{background:#18181b;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:600;cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="badge">${success ? 'OAUTH VERIFIED' : 'OAUTH ERROR'}</span>
+    <h1>${escapeHtmlText(titleText)}</h1>
+    <p>${escapeHtmlText(message)}</p>
+    <button type="button" onclick="window.close()">Đóng cửa sổ và quay lại Studio</button>
+  </div>
+  <script>
+    (function(){
+      var data = ${safeJsonForInlineScript(safePayload)};
+      var origin = ${safeJsonForInlineScript(targetOrigin || '*')};
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(data, origin);
+        }
+      } catch (e) {}
+      setTimeout(function(){ try { window.close(); } catch (e) {} }, 1500);
+    })();
+  </script>
+</body>
+</html>`;
+  return { statusCode, html };
+}
+
+async function fetchGoogleTokenInfoAndProfile(accessToken, platform = 'youtube') {
+  const pf = String(platform || 'youtube').toLowerCase();
+  let tokenInfo;
+  try {
+    const infoRes = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
+      { signal: AbortSignal.timeout(6000) }
+    );
+    if (!infoRes.ok) {
+      return {
+        valid: false,
+        statusCode: 401,
+        reason: `Máy chủ Google OAuth2 từ chối token (HTTP ${infoRes.status}). Token không tồn tại hoặc đã hết hạn.`,
+      };
+    }
+    tokenInfo = await infoRes.json().catch(() => ({}));
+  } catch {
+    return {
+      valid: false,
+      statusCode: 401,
+      reason: 'Không thể xác thực Token trực tuyến với máy chủ Google OAuth2 (tokeninfo unreachable/invalid).',
+    };
+  }
+
+  const grantedScopes = String(tokenInfo?.scope || '')
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const email = String(tokenInfo?.email || '').trim();
+  const expiresIn = Math.max(0, Number(tokenInfo?.expires_in || 0));
+
+  if (pf === 'youtube') {
+    const hasYtScope = grantedScopes.some((s) =>
+      s.includes('youtube.readonly') ||
+      s.includes('youtube.upload') ||
+      s.includes('youtube.force-ssl') ||
+      s === 'https://www.googleapis.com/auth/youtube'
+    );
+    if (!hasYtScope) {
+      return {
+        valid: false,
+        statusCode: 403,
+        reason:
+          'OAuth Token hợp lệ nhưng thiếu quyền YouTube Data API v3 (youtube.readonly / youtube.upload). Vui lòng chọn đúng scope YouTube khi đăng nhập Google.',
+      };
+    }
+
+    let profile = {
+      channelId: '',
+      channelName: '',
+      handleOrUrl: '',
+      avatarUrl: '',
+      subscriberCount: 0,
+      hiddenSubscriberCount: false,
+      videoCount: 0,
+      viewCount: 0,
+      hasYouTubeChannel: false,
+      warning: '',
+    };
+
+    try {
+      const ytRes = await fetch(
+        'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&mine=true',
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          signal: AbortSignal.timeout(7000),
+        }
+      );
+      if (ytRes.ok) {
+        const ytJson = await ytRes.json().catch(() => ({}));
+        const item = Array.isArray(ytJson?.items) ? ytJson.items[0] : null;
+        if (item) {
+          const rawCustomUrl = String(item?.snippet?.customUrl || '').trim();
+          const normalizedHandle = rawCustomUrl
+            ? (rawCustomUrl.startsWith('@') || rawCustomUrl.startsWith('http') ? rawCustomUrl : `@${rawCustomUrl}`)
+            : `https://www.youtube.com/channel/${item.id}`;
+          profile = {
+            channelId: String(item.id || ''),
+            channelName: String(item?.snippet?.title || '').trim(),
+            handleOrUrl: normalizedHandle,
+            avatarUrl: String(
+              item?.snippet?.thumbnails?.medium?.url ||
+              item?.snippet?.thumbnails?.default?.url ||
+              item?.snippet?.thumbnails?.high?.url ||
+              ''
+            ).trim(),
+            subscriberCount: Number(item?.statistics?.subscriberCount || 0),
+            hiddenSubscriberCount: Boolean(item?.statistics?.hiddenSubscriberCount),
+            videoCount: Number(item?.statistics?.videoCount || 0),
+            viewCount: Number(item?.statistics?.viewCount || 0),
+            hasYouTubeChannel: true,
+            warning: '',
+          };
+        } else {
+          profile.warning =
+            'Tài khoản Google đã xác thực nhưng chưa khởi tạo Kênh YouTube tại youtube.com/create_channel.';
+        }
+      } else {
+        const ytErrJson = await ytRes.json().catch(() => ({}));
+        const ytErrMsg = String(ytErrJson?.error?.message || `HTTP ${ytRes.status}`);
+        profile.warning = `Không thể đọc danh sách kênh từ YouTube Data API v3 (${ytErrMsg}).`;
+      }
+    } catch {
+      profile.warning = 'Không thể truy vấn YouTube Data API v3 (timeout/network).';
+    }
+
+    if (!profile.channelName || !email) {
+      try {
+        const uiRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          signal: AbortSignal.timeout(5000),
+        });
+        if (uiRes.ok) {
+          const ui = await uiRes.json().catch(() => ({}));
+          if (!profile.channelName && ui?.name) profile.channelName = String(ui.name).trim();
+          if (!profile.avatarUrl && ui?.picture) profile.avatarUrl = String(ui.picture).trim();
+          if (!profile.handleOrUrl && (ui?.email || email)) {
+            profile.handleOrUrl = ui?.email || email;
+          }
+          if (ui?.email && !profile.email) profile.email = String(ui.email).trim();
+        }
+      } catch {
+        // non-fatal userinfo fallback
+      }
+    }
+
+    return {
+      valid: true,
+      email: email || profile.email || '',
+      grantedScopes,
+      expiresIn,
+      aud: String(tokenInfo?.aud || ''),
+      profile,
+    };
+  }
+
+  if (pf === 'drive') {
+    const hasDriveScope = grantedScopes.some((s) =>
+      s.includes('drive.file') || s === 'https://www.googleapis.com/auth/drive' || s.includes('drive.readonly')
+    );
+    if (!hasDriveScope) {
+      return {
+        valid: false,
+        statusCode: 403,
+        reason: 'OAuth Token thiếu quyền Google Drive API (drive.file).',
+      };
+    }
+    let profile = {
+      channelId: '',
+      channelName: '',
+      handleOrUrl: 'Google Drive API v3 (drive.file)',
+      avatarUrl: '',
+      subscriberCount: 0,
+      videoCount: 0,
+      hasYouTubeChannel: false,
+      warning: '',
+    };
+    try {
+      const uiRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (uiRes.ok) {
+        const ui = await uiRes.json().catch(() => ({}));
+        profile.channelName = String(ui?.name || ui?.email || '').trim();
+        profile.avatarUrl = String(ui?.picture || '').trim();
+        if (ui?.email) profile.email = String(ui.email).trim();
+      }
+    } catch {
+      // non-fatal
+    }
+    return {
+      valid: true,
+      email: email || profile.email || '',
+      grantedScopes,
+      expiresIn,
+      aud: String(tokenInfo?.aud || ''),
+      profile,
+    };
+  }
+
+  return {
+    valid: true,
+    email,
+    grantedScopes,
+    expiresIn,
+    aud: String(tokenInfo?.aud || ''),
+    profile: null,
+  };
+}
+
+async function refreshGoogleOAuthAccessToken({ refreshToken, clientId, clientSecret }) {
+  if (!refreshToken || !clientId) {
+    return { ok: false, error: 'Thiếu refresh_token hoặc client_id để gia hạn OAuth Token.' };
+  }
+  try {
+    const params = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: clientId,
+    });
+    if (clientSecret) {
+      params.set('client_secret', clientSecret);
+    }
+    const resp = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+      signal: AbortSignal.timeout(7000),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data?.access_token) {
+      return {
+        ok: false,
+        error: data?.error_description || data?.error || `HTTP ${resp.status}`,
+      };
+    }
+    return {
+      ok: true,
+      access_token: data.access_token,
+      expires_in: Number(data.expires_in || 3600),
+      scope: String(data.scope || ''),
+    };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}
+
 export function checkUnlockRateLimit(clientIp) {
   const now = Date.now();
   const record = UNLOCK_RATE_LIMITS.get(clientIp);
@@ -6687,6 +7032,21 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
   };
 
+  const serializePublicChannelRecord = (rec) => {
+    if (!rec || typeof rec !== 'object') return null;
+    const {
+      encryptedOAuthToken,
+      encryptedRefreshToken,
+      encryptedClientSecret,
+      ...safe
+    } = rec;
+    return {
+      ...safe,
+      hasRefreshToken: Boolean(rec.hasRefreshToken || encryptedRefreshToken),
+      encryptedAtRest: Boolean(encryptedOAuthToken),
+    };
+  };
+
   const validateOAuthCredentialToken = async (tokenRaw, platform = 'google') => {
     const token = String(tokenRaw || '').trim();
     if (token.length < 16) {
@@ -6715,36 +7075,40 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
 
     const pf = String(platform || '').toLowerCase();
     if (pf === 'youtube' || pf === 'drive' || pf === 'google') {
-      const looksLikeGoogle = /^ya29\.[A-Za-z0-9\-_.]{18,}$/.test(token) || /^1\/\/[A-Za-z0-9\-_.]{20,}$/.test(token);
+      if (/^1\/\/[A-Za-z0-9\-_.]{20,}$/.test(token)) {
+        return {
+          valid: false,
+          statusCode: 401,
+          reason:
+            'Refresh Token (1//...) không thể xác thực trực tiếp nếu không có Google OAuth Client ID & Secret. Vui lòng dùng Tab "Đăng nhập Google OAuth 2.0" hoặc dán Access Token (ya29.a0...).',
+        };
+      }
+      const looksLikeGoogle = /^ya29\.[A-Za-z0-9\-_.]{18,}$/.test(token);
       if (!looksLikeGoogle) {
         return {
           valid: false,
           statusCode: 401,
-          reason: 'Token Google/YouTube/Drive không đúng định dạng OAuth 2.0 (phải bắt đầu bằng ya29. hoặc refresh token 1//).',
+          reason: 'Token Google/YouTube/Drive không đúng định dạng OAuth 2.0 (phải bắt đầu bằng ya29.a0...).',
         };
       }
-      if (token.startsWith('ya29.')) {
-        try {
-          const checkRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(token)}`, {
-            signal: AbortSignal.timeout(4500),
-          });
-          if (!checkRes.ok) {
-            return {
-              valid: false,
-              statusCode: 401,
-              reason: `Máy chủ Google OAuth2 từ chối token (HTTP ${checkRes.status}). Token không tồn tại hoặc đã hết hạn.`,
-            };
-          }
-          return { valid: true, token, masked, verificationMode: 'google_tokeninfo_verified' };
-        } catch {
-          return {
-            valid: false,
-            statusCode: 401,
-            reason: 'Không thể xác thực Token trực tuyến với máy chủ Google OAuth2 (tokeninfo unreachable/invalid).',
-          };
-        }
+      const verified = await fetchGoogleTokenInfoAndProfile(token, pf === 'drive' ? 'drive' : 'youtube');
+      if (!verified.valid) {
+        return {
+          valid: false,
+          statusCode: verified.statusCode || 401,
+          reason: verified.reason,
+        };
       }
-      return { valid: true, token, masked, verificationMode: 'google_refresh_format_verified' };
+      return {
+        valid: true,
+        token,
+        masked,
+        verificationMode: 'google_tokeninfo_verified',
+        email: verified.email,
+        grantedScopes: verified.grantedScopes,
+        expiresIn: verified.expiresIn,
+        profile: verified.profile,
+      };
     }
 
     if (pf === 'facebook') {
@@ -6774,6 +7138,317 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
     return { valid: false, statusCode: 401, reason: 'Định dạng OAuth Token không được nền tảng hỗ trợ.' };
   };
 
+  if (cleanUrl === '/api/oauth/google/config-status' && req.method === 'GET') {
+    const reqOrigin = resolveRequestOrigin(req);
+    const envClientId = String(process.env.GOOGLE_CLIENT_ID || '').trim();
+    const envClientSecret = String(process.env.GOOGLE_CLIENT_SECRET || '').trim();
+    const envRedirectUri = String(process.env.GOOGLE_REDIRECT_URI || '').trim();
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(
+      JSON.stringify({
+        success: true,
+        serverConfigured: Boolean(envClientId && envClientSecret),
+        hasClientId: Boolean(envClientId),
+        redirectUri: envRedirectUri || `${reqOrigin}/api/oauth/google/callback`,
+        origin: reqOrigin,
+        scopes: GOOGLE_OAUTH_SCOPES,
+      })
+    );
+    return true;
+  }
+
+  if (cleanUrl === '/api/oauth/google/start' && req.method === 'POST') {
+    try {
+      const body = (await readJsonBody(req)) || {};
+      const requestedUserCode = String(body.userCode || '').trim().toUpperCase();
+      const auth = requireUserAuth(req, res, requestedUserCode, rawUrl);
+      if (!auth) return true;
+
+      const platform = String(body.platform || 'youtube').trim().toLowerCase();
+      if (platform !== 'youtube' && platform !== 'drive') {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, error: 'Google OAuth 2.0 chỉ hỗ trợ nền tảng YouTube và Google Drive.' }));
+        return true;
+      }
+
+      const reqOrigin = resolveRequestOrigin(req);
+      const redirectUri = String(process.env.GOOGLE_REDIRECT_URI || '').trim() || `${reqOrigin}/api/oauth/google/callback`;
+      const envClientId = String(process.env.GOOGLE_CLIENT_ID || '').trim();
+      const envClientSecret = String(process.env.GOOGLE_CLIENT_SECRET || '').trim();
+      const effectiveClientId = envClientId || String(body.clientId || '').trim();
+      const effectiveClientSecret = envClientSecret || String(body.clientSecret || '').trim();
+
+      if (!effectiveClientId || (!effectiveClientId.endsWith('.apps.googleusercontent.com') && effectiveClientId.length < 12)) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            code: 'GOOGLE_OAUTH_CLIENT_REQUIRED',
+            redirectUri,
+            error:
+              'Máy chủ chưa cấu hình GOOGLE_CLIENT_ID. Vui lòng dán OAuth Client ID (*.apps.googleusercontent.com) từ Google Cloud Console hoặc chuyển sang Tab 2 để xác thực qua Google OAuth 2.0 Playground Access Token (ya29.a0...).',
+          })
+        );
+        return true;
+      }
+
+      pruneGoogleOAuthStates();
+      const state = crypto.randomBytes(24).toString('hex');
+      const { codeVerifier, codeChallenge } = createPkcePair();
+      const scopes = GOOGLE_OAUTH_SCOPES[platform];
+      const loginHint = String(body.loginHint || '').trim();
+
+      googleOAuthPendingStates.set(state, {
+        userCode: auth.userCode,
+        platform,
+        clientId: effectiveClientId,
+        clientSecret: effectiveClientSecret,
+        redirectUri,
+        origin: reqOrigin,
+        codeVerifier,
+        createdAt: Date.now(),
+      });
+
+      const params = new URLSearchParams({
+        client_id: effectiveClientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: scopes.join(' '),
+        access_type: 'offline',
+        prompt: 'consent',
+        include_granted_scopes: 'true',
+        state,
+        code_challenge: codeChallenge,
+        code_challenge_method: 'S256',
+      });
+      if (loginHint) {
+        params.set('login_hint', loginHint);
+      }
+
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(
+        JSON.stringify({
+          success: true,
+          authUrl,
+          state,
+          redirectUri,
+          usingServerCredentials: Boolean(envClientId),
+          scopes,
+        })
+      );
+      return true;
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: 'Không thể khởi tạo Google OAuth 2.0: ' + String(err?.message || err) }));
+      return true;
+    }
+  }
+
+  if (cleanUrl === '/api/oauth/google/callback' && req.method === 'GET') {
+    const parsed = new URL(rawUrl, 'http://localhost');
+    const state = String(parsed.searchParams.get('state') || '').trim();
+    const code = String(parsed.searchParams.get('code') || '').trim();
+    const oauthError = String(parsed.searchParams.get('error') || '').trim();
+    const errorDescription = String(parsed.searchParams.get('error_description') || '').trim();
+
+    pruneGoogleOAuthStates();
+    const pending = state ? googleOAuthPendingStates.get(state) : null;
+    if (!pending) {
+      const { statusCode, html } = renderOAuthCallbackHtml({
+        statusCode: 400,
+        success: false,
+        platform: 'youtube',
+        message: 'Phiên xác thực OAuth 2.0 không hợp lệ hoặc đã hết hạn (CSRF state mismatch). Vui lòng thử lại từ SYNAPES Studio.',
+      });
+      res.writeHead(statusCode, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+      return true;
+    }
+    googleOAuthPendingStates.delete(state);
+
+    if (oauthError) {
+      const { html } = renderOAuthCallbackHtml({
+        statusCode: 400,
+        success: false,
+        platform: pending.platform,
+        targetOrigin: pending.origin,
+        message: `Google OAuth từ chối cấp quyền (${oauthError}${errorDescription ? `: ${errorDescription}` : ''}).`,
+      });
+      res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+      return true;
+    }
+
+    if (!code) {
+      const { html } = renderOAuthCallbackHtml({
+        statusCode: 400,
+        success: false,
+        platform: pending.platform,
+        targetOrigin: pending.origin,
+        message: 'Thiếu Authorization Code trả về từ Google OAuth 2.0.',
+      });
+      res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+      return true;
+    }
+
+    try {
+      const tokenParams = new URLSearchParams({
+        code,
+        client_id: pending.clientId,
+        redirect_uri: pending.redirectUri,
+        grant_type: 'authorization_code',
+        code_verifier: pending.codeVerifier,
+      });
+      if (pending.clientSecret) {
+        tokenParams.set('client_secret', pending.clientSecret);
+      }
+
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: tokenParams.toString(),
+        signal: AbortSignal.timeout(8000),
+      });
+      const tokenJson = await tokenRes.json().catch(() => ({}));
+      if (!tokenRes.ok || !tokenJson?.access_token) {
+        const reason = String(tokenJson?.error_description || tokenJson?.error || `HTTP ${tokenRes.status}`);
+        const { html } = renderOAuthCallbackHtml({
+          statusCode: 400,
+          success: false,
+          platform: pending.platform,
+          targetOrigin: pending.origin,
+          message: `Không thể đổi Authorization Code lấy OAuth Token (${reason}). Kiểm tra Client ID / Client Secret và Authorized Redirect URI.`,
+        });
+        res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(html);
+        return true;
+      }
+
+      const verified = await fetchGoogleTokenInfoAndProfile(tokenJson.access_token, pending.platform);
+      if (!verified.valid) {
+        const { statusCode, html } = renderOAuthCallbackHtml({
+          statusCode: verified.statusCode || 403,
+          success: false,
+          platform: pending.platform,
+          targetOrigin: pending.origin,
+          message: verified.reason,
+        });
+        res.writeHead(statusCode, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(html);
+        return true;
+      }
+
+      const nowIso = new Date().toISOString();
+      const accessToken = String(tokenJson.access_token);
+      const refreshToken = String(tokenJson.refresh_token || '').trim();
+      const masked = accessToken.length > 10 ? `${accessToken.slice(0, 6)}...${accessToken.slice(-4)}` : '****';
+      const expiresSec = Math.max(60, Number(verified.expiresIn || tokenJson.expires_in || 3600));
+      const expiresAt = new Date(Date.now() + expiresSec * 1000).toISOString();
+      const pf = pending.platform;
+      const profile = verified.profile || {};
+      const resolvedEmail = verified.email || profile.email || '';
+      const resolvedName =
+        profile.channelName ||
+        (pf === 'drive' && resolvedEmail ? `Google Drive (${resolvedEmail})` : '') ||
+        resolvedEmail ||
+        'Kênh Google đã xác thực';
+      const resolvedHandle = profile.handleOrUrl || resolvedEmail || pf;
+
+      const registry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
+      if (!registry[pending.userCode]) registry[pending.userCode] = {};
+      registry[pending.userCode][pf] = {
+        platform: pf,
+        channelName: resolvedName,
+        handleOrUrl: resolvedHandle,
+        emailOrId: resolvedEmail,
+        avatarUrl: profile.avatarUrl || '',
+        channelId: profile.channelId || '',
+        hasYouTubeChannel: Boolean(profile.hasYouTubeChannel),
+        warning: profile.warning || '',
+        grantedScopes: verified.grantedScopes || [],
+        expiresAt,
+        hasRefreshToken: Boolean(refreshToken),
+        oauthClientId: pending.clientId,
+        ...(pending.clientSecret ? { encryptedClientSecret: encryptSecretAes256Gcm(pending.clientSecret) } : {}),
+        maskedToken: masked,
+        encryptedOAuthToken: encryptSecretAes256Gcm(accessToken),
+        ...(refreshToken ? { encryptedRefreshToken: encryptSecretAes256Gcm(refreshToken) } : {}),
+        verificationMode: 'google_oauth2_pkce_verified',
+        tokenLength: accessToken.length,
+        connectedAt: nowIso,
+        status: 'connected',
+        stats: {
+          subscriberCount: Number(profile.subscriberCount || 0),
+          hiddenSubscriberCount: Boolean(profile.hiddenSubscriberCount),
+          videoCount: Number(profile.videoCount || 0),
+          viewCount: Number(profile.viewCount || 0),
+        },
+      };
+      writeJsonRegistry(CHANNELS_REGISTRY_FILE, registry);
+
+      if (pf === 'drive' && resolvedEmail) {
+        const driveReg = readJsonRegistry(DRIVE_REGISTRY_FILE, {});
+        driveReg[pending.userCode] = {
+          email: resolvedEmail,
+          accountName: resolvedName,
+          folderUrl: '',
+          maskedToken: masked,
+          encryptedOAuthToken: encryptSecretAes256Gcm(accessToken),
+          verificationMode: 'google_oauth2_pkce_verified',
+          connectedAt: nowIso,
+          connected: true,
+        };
+        writeJsonRegistry(DRIVE_REGISTRY_FILE, driveReg);
+      }
+
+      const publicChannel = serializePublicChannelRecord(registry[pending.userCode][pf]);
+      const okMsg = profile.hasYouTubeChannel
+        ? `Đã đăng nhập Google (${resolvedEmail}) và đồng bộ kênh YouTube "${resolvedName}" (${resolvedHandle}).`
+        : profile.warning || `Đã đăng nhập Google (${resolvedEmail}) qua OAuth 2.0 PKCE.`;
+
+      const { html } = renderOAuthCallbackHtml({
+        statusCode: 200,
+        success: true,
+        platform: pf,
+        targetOrigin: pending.origin,
+        message: okMsg,
+        payload: publicChannel,
+      });
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+      return true;
+    } catch (err) {
+      const { html } = renderOAuthCallbackHtml({
+        statusCode: 500,
+        success: false,
+        platform: pending.platform,
+        targetOrigin: pending.origin,
+        message: 'Lỗi xử lý callback Google OAuth 2.0: ' + String(err?.message || err),
+      });
+      res.writeHead(500, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+      return true;
+    }
+  }
+
+  if (cleanUrl === '/api/channels/status' && req.method === 'GET') {
+    const auth = requireUserAuth(req, res, '', rawUrl);
+    if (!auth) return true;
+    const registry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
+    const userChannelsRaw = registry[auth.userCode] || {};
+    const sanitized = {};
+    for (const [pf, rec] of Object.entries(userChannelsRaw)) {
+      if (rec && typeof rec === 'object') {
+        sanitized[pf] = serializePublicChannelRecord(rec);
+      }
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ success: true, userCode: auth.userCode, channels: sanitized }));
+    return true;
+  }
+
   if (cleanUrl === '/api/channels/connect' && req.method === 'POST') {
     try {
       const body = (await readJsonBody(req)) || {};
@@ -6783,16 +7458,35 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       const userCode = auth.userCode;
 
       const platform = String(body.platform || '').trim().toLowerCase();
-      const channelName = String(body.channelName || '').trim();
-      const handleOrUrl = String(body.handleOrUrl || '').trim();
-      const emailOrId = String(body.emailOrId || '').trim();
-      const tokenCheck = await validateOAuthCredentialToken(body.oauthToken, platform);
+      const channelNameInput = String(body.channelName || '').trim();
+      const handleOrUrlInput = String(body.handleOrUrl || '').trim();
+      const emailOrIdInput = String(body.emailOrId || '').trim();
 
       if (!['youtube', 'tiktok', 'facebook', 'drive'].includes(platform)) {
         res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ success: false, error: 'Nền tảng không hợp lệ.' }));
         return true;
       }
+
+      const tokenCheck = await validateOAuthCredentialToken(body.oauthToken, platform);
+      if (!tokenCheck.valid) {
+        res.writeHead(tokenCheck.statusCode || 401, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, code: 'INVALID_OAUTH_TOKEN', error: tokenCheck.reason }));
+        return true;
+      }
+
+      const profile = tokenCheck.profile || {};
+      const emailOrId = tokenCheck.email || emailOrIdInput;
+      const channelName =
+        profile.channelName ||
+        channelNameInput ||
+        (platform === 'drive' && emailOrId ? `Google Drive (${emailOrId})` : '') ||
+        ((platform === 'youtube' || platform === 'drive') ? emailOrId : '');
+      const handleOrUrl =
+        profile.handleOrUrl ||
+        handleOrUrlInput ||
+        ((platform === 'youtube' || platform === 'drive') ? emailOrId : '');
+
       if (channelName.length < 2) {
         res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ success: false, error: 'Vui lòng nhập Tên Kênh / Fanpage hợp lệ.' }));
@@ -6803,13 +7497,11 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         res.end(JSON.stringify({ success: false, error: 'Vui lòng nhập @Handle hoặc URL kênh thực tế.' }));
         return true;
       }
-      if (!tokenCheck.valid) {
-        res.writeHead(tokenCheck.statusCode || 401, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ success: false, code: 'INVALID_OAUTH_TOKEN', error: tokenCheck.reason }));
-        return true;
-      }
 
       const nowIso = new Date().toISOString();
+      const expiresAt = tokenCheck.expiresIn
+        ? new Date(Date.now() + Number(tokenCheck.expiresIn) * 1000).toISOString()
+        : '';
       const registry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
       if (!registry[userCode]) registry[userCode] = {};
       registry[userCode][platform] = {
@@ -6817,28 +7509,52 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         channelName,
         handleOrUrl,
         emailOrId,
+        avatarUrl: profile.avatarUrl || '',
+        channelId: profile.channelId || '',
+        hasYouTubeChannel: Boolean(profile.hasYouTubeChannel),
+        warning: profile.warning || '',
+        grantedScopes: tokenCheck.grantedScopes || [],
+        expiresAt,
         maskedToken: tokenCheck.masked,
         encryptedOAuthToken: encryptSecretAes256Gcm(tokenCheck.token),
         verificationMode: tokenCheck.verificationMode,
         tokenLength: tokenCheck.token.length,
         connectedAt: nowIso,
         status: 'connected',
+        stats: profile.channelId
+          ? {
+              subscriberCount: Number(profile.subscriberCount || 0),
+              hiddenSubscriberCount: Boolean(profile.hiddenSubscriberCount),
+              videoCount: Number(profile.videoCount || 0),
+              viewCount: Number(profile.viewCount || 0),
+            }
+          : undefined,
       };
       writeJsonRegistry(CHANNELS_REGISTRY_FILE, registry);
+
+      if (platform === 'drive' && emailOrId) {
+        const driveReg = readJsonRegistry(DRIVE_REGISTRY_FILE, {});
+        driveReg[userCode] = {
+          email: emailOrId,
+          accountName: channelName,
+          folderUrl: '',
+          maskedToken: tokenCheck.masked,
+          encryptedOAuthToken: encryptSecretAes256Gcm(tokenCheck.token),
+          verificationMode: tokenCheck.verificationMode,
+          connectedAt: nowIso,
+          connected: true,
+        };
+        writeJsonRegistry(DRIVE_REGISTRY_FILE, driveReg);
+      }
 
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(
         JSON.stringify({
           success: true,
-          platform,
-          channelName,
-          handleOrUrl,
-          emailOrId,
-          maskedToken: tokenCheck.masked,
-          verificationMode: tokenCheck.verificationMode,
-          encryptedAtRest: true,
-          connectedAt: nowIso,
-          message: `Đã xác thực OAuth và mã hóa AES-256-GCM kết nối ${platform.toUpperCase()} (${tokenCheck.masked}).`,
+          ...serializePublicChannelRecord(registry[userCode][platform]),
+          message: profile.warning
+            ? `Đã xác thực Google (${tokenCheck.masked}), lưu ý: ${profile.warning}`
+            : `Đã xác thực OAuth và mã hóa AES-256-GCM kết nối ${platform.toUpperCase()} (${tokenCheck.masked}).`,
         })
       );
       return true;
@@ -6883,7 +7599,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       const projectId = String(body.projectId || '').trim();
       const registry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
       const rec = registry[userCode]?.[platform];
-      if (!rec || rec.status !== 'connected') {
+      if (!rec || (rec.status !== 'connected' && rec.status !== 'reauth_needed')) {
         res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(
           JSON.stringify({
@@ -6893,10 +7609,104 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         );
         return true;
       }
+
+      const isGoogleLive =
+        (rec.verificationMode === 'google_tokeninfo_verified' ||
+          rec.verificationMode === 'google_oauth2_pkce_verified') &&
+        Boolean(rec.encryptedOAuthToken);
+
+      if (isGoogleLive) {
+        let accessToken = decryptSecretAes256Gcm(rec.encryptedOAuthToken);
+        let liveCheck = accessToken
+          ? await fetchGoogleTokenInfoAndProfile(accessToken, platform === 'drive' ? 'drive' : 'youtube')
+          : { valid: false, statusCode: 401, reason: 'Không giải mã được Access Token lưu trên máy chủ.' };
+
+        if (!liveCheck.valid && rec.encryptedRefreshToken) {
+          const refreshToken = decryptSecretAes256Gcm(rec.encryptedRefreshToken);
+          const clientId = String(process.env.GOOGLE_CLIENT_ID || rec.oauthClientId || '').trim();
+          const clientSecret = String(
+            process.env.GOOGLE_CLIENT_SECRET ||
+              (rec.encryptedClientSecret ? decryptSecretAes256Gcm(rec.encryptedClientSecret) : '')
+          ).trim();
+          const refreshed = await refreshGoogleOAuthAccessToken({ refreshToken, clientId, clientSecret });
+          if (refreshed.ok && refreshed.access_token) {
+            accessToken = refreshed.access_token;
+            rec.encryptedOAuthToken = encryptSecretAes256Gcm(accessToken);
+            rec.maskedToken =
+              accessToken.length > 10 ? `${accessToken.slice(0, 6)}...${accessToken.slice(-4)}` : '****';
+            rec.tokenLength = accessToken.length;
+            liveCheck = await fetchGoogleTokenInfoAndProfile(accessToken, platform === 'drive' ? 'drive' : 'youtube');
+          }
+        }
+
+        if (!liveCheck.valid) {
+          rec.status = 'reauth_needed';
+          writeJsonRegistry(CHANNELS_REGISTRY_FILE, registry);
+          res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(
+            JSON.stringify({
+              success: false,
+              code: 'OAUTH_TOKEN_EXPIRED',
+              status: 'reauth_needed',
+              error: liveCheck.reason || 'Google OAuth Token đã hết hạn hoặc bị thu hồi. Vui lòng đăng nhập lại.',
+            })
+          );
+          return true;
+        }
+
+        const p = liveCheck.profile || {};
+        rec.status = 'connected';
+        rec.grantedScopes = liveCheck.grantedScopes || rec.grantedScopes || [];
+        if (liveCheck.expiresIn) {
+          rec.expiresAt = new Date(Date.now() + Number(liveCheck.expiresIn) * 1000).toISOString();
+        }
+        if (p.channelName) rec.channelName = p.channelName;
+        if (p.handleOrUrl) rec.handleOrUrl = p.handleOrUrl;
+        if (p.avatarUrl) rec.avatarUrl = p.avatarUrl;
+        if (p.channelId) {
+          rec.channelId = p.channelId;
+          rec.hasYouTubeChannel = true;
+          rec.stats = {
+            subscriberCount: Number(p.subscriberCount || 0),
+            hiddenSubscriberCount: Boolean(p.hiddenSubscriberCount),
+            videoCount: Number(p.videoCount || 0),
+            viewCount: Number(p.viewCount || 0),
+          };
+        }
+        writeJsonRegistry(CHANNELS_REGISTRY_FILE, registry);
+
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            success: true,
+            liveVerified: true,
+            platform,
+            projectId,
+            expiresIn: liveCheck.expiresIn || 0,
+            ...serializePublicChannelRecord(rec),
+            verifiedAt: new Date().toISOString(),
+          })
+        );
+        return true;
+      }
+
+      if (rec.status !== 'connected') {
+        res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            code: 'OAUTH_TOKEN_EXPIRED',
+            error: `Kênh ${platform.toUpperCase()} cần xác thực lại OAuth Token.`,
+          })
+        );
+        return true;
+      }
+
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(
         JSON.stringify({
           success: true,
+          liveVerified: false,
           platform,
           projectId,
           channelName: rec.channelName,
