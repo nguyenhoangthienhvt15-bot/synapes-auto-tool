@@ -1,13 +1,16 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-// @ts-expect-error shared ESM backend engine
-import { handleStudioApiRequest } from './server/studioBackendEngine.mjs'
 
 function studioDevBackendPlugin() {
   return {
     name: 'synapes-studio-dev-backend',
-    configureServer(server: any) {
+    async configureServer(server: any) {
+      // Load local .env and backend engine only in Vite dev mode (never during production build)
+      // @ts-expect-error shared ESM env loader without declaration file
+      await import('./server/loadEnv.mjs')
+      // @ts-expect-error shared ESM backend engine
+      const { handleStudioApiRequest } = await import('./server/studioBackendEngine.mjs')
       server.middlewares.use(async (req: any, res: any, next: any) => {
         try {
           const handled = await handleStudioApiRequest(req, res)

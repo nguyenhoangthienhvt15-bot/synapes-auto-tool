@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Stage 1: Build Frontend Bundle
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -11,10 +11,12 @@ RUN npm ci --prefer-offline --no-audit || npm install
 
 # Build static assets
 COPY . .
+ARG VITE_PARTY_A_ID_NUMBER=""
+ENV VITE_PARTY_A_ID_NUMBER=${VITE_PARTY_A_ID_NUMBER}
 RUN npm run build
 
 # Stage 2: Production Web Service
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 
 WORKDIR /app
 
@@ -25,9 +27,9 @@ ENV PORT=10000
 COPY package*.json ./
 RUN npm ci --omit=dev --prefer-offline --no-audit || npm install --omit=dev
 
-# Copy built distribution and server + persisted seed data
+# Copy built distribution and server + runtime data dir
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/data ./data
+RUN mkdir -p ./data
 COPY server.js ./
 COPY server ./server
 COPY google-apps-script ./google-apps-script
