@@ -14,6 +14,7 @@ import type {
 import { PROVIDERS } from './aiModelDiscoveryService';
 import { SYSTEM_CORE_VIDEO_REPOS } from '../data/mockData';
 import { getSavedClonedVoiceProfiles } from './voiceStudioService';
+import { getAuthHeaders } from './userProfileService';
 
 export function getActiveCoreVideoRepos(): CoreVideoRepo[] {
   try {
@@ -1118,12 +1119,21 @@ async function callServerLlmProxy(
     mode?: 'llm' | 'studio-research';
     fallbackProviders?: Array<{ provider: AIProviderId; model: string; apiKey: string; endpointUrl?: string }>;
   }
-): Promise<{ data: any; actualModel: string; actualProvider?: string; tokenTelemetry?: TokenTelemetry }> {
+): Promise<{
+  data: any;
+  actualModel: string;
+  actualProvider?: string;
+  isLiveLlm: boolean;
+  tokenTelemetry?: TokenTelemetry;
+}> {
   const resp = await fetchWithTimeoutAndSignal(
     '/api/llm-generate',
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
       body: JSON.stringify({
         provider,
         model,
@@ -1152,10 +1162,15 @@ async function callServerLlmProxy(
   if (!parsed || !Array.isArray(parsed.scenes) || parsed.scenes.length === 0) {
     throw new Error('Invalid JSON structure from LLM');
   }
+  const isLiveLlm = Boolean(
+    json.isLiveLlm === true ||
+      (json.engineType === 'live_llm' && json.tokenTelemetry?.provider !== 'studio-research')
+  );
   return {
     data: parsed,
     actualModel: json.actualModel || model,
     actualProvider: json.actualProvider || provider,
+    isLiveLlm,
     tokenTelemetry: json.tokenTelemetry,
   };
 }
@@ -3353,6 +3368,7 @@ export async function generateAiVideoScript(
         48
       );
 
+      let resolvedAsLiveLlm = false;
       if (hasRealLlmKey && provider === 'gemini' && !hasFallbacks) {
         const geminiRes = await raceGeminiProxyAndDirect({
           model,
@@ -3368,6 +3384,7 @@ export async function generateAiVideoScript(
         });
         rawJson = geminiRes.data;
         actualModelUsed = geminiRes.actualModel;
+        resolvedAsLiveLlm = true;
         capturedTelemetry = {
           provider: 'gemini',
           model: actualModelUsed,
@@ -3407,13 +3424,14 @@ export async function generateAiVideoScript(
         actualModelUsed = proxyRes.actualModel;
         actualProviderUsed = proxyRes.actualProvider || provider;
         capturedTelemetry = proxyRes.tokenTelemetry;
+        resolvedAsLiveLlm = Boolean(hasRealLlmKey && proxyRes.isLiveLlm);
       }
 
       if (rawJson && Array.isArray(rawJson.scenes) && rawJson.scenes.length > 0) {
-        isLiveApi = true;
-        engineMessage = hasRealLlmKey
+        isLiveApi = resolvedAsLiveLlm;
+        engineMessage = resolvedAsLiveLlm
           ? `Đã biên kịch trực tiếp bởi ${actualProviderUsed.toUpperCase()} (${actualModelUsed})${capturedTelemetry?.failoverTriggered ? ' [Auto-Failover ✓]' : ''} bám sát yêu cầu.`
-          : `Đã tổng hợp kịch bản đa nhánh bám sát yêu cầu từ dữ liệu thực tế (${actualModelUsed}).`;
+          : `Đã tổng hợp từ nguồn tin RSS/Wikipedia thực tế (${actualModelUsed}) — Chưa kết nối API Key LLM.`;
       }
     } catch (err: any) {
       if (err?.name === 'AbortError' || signal?.aborted) {

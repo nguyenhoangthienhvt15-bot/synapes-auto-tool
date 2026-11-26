@@ -210,6 +210,19 @@ const PlatformGlyph: React.FC<{ platform: ConnectedChannelAccount['platform'] }>
   );
 };
 
+function sanitizeDisconnectedChannels(list: ConnectedChannelAccount[]): ConnectedChannelAccount[] {
+  return list.map((c) => {
+    if (c.status !== 'disconnected') return c;
+    const def = DEFAULT_CHANNELS.find((d) => d.id === c.id);
+    return {
+      ...c,
+      handle: def?.handle || 'Chưa liên kết kênh',
+      email: '',
+      avatarUrl: '',
+    };
+  });
+}
+
 export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
   currentUser,
   channels: propsChannels,
@@ -219,12 +232,12 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
   initialPlatform = 'all',
 }) => {
   const [channels, setChannels] = useState<ConnectedChannelAccount[]>(() => {
-    if (propsChannels && propsChannels.length > 0) return propsChannels;
+    if (propsChannels && propsChannels.length > 0) return sanitizeDisconnectedChannels(propsChannels);
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return sanitizeDisconnectedChannels(parsed);
       }
     } catch {
       // fallback
@@ -271,7 +284,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
   // Đồng bộ khi propsChannels thay đổi từ App (theo phiên người dùng đăng nhập)
   useEffect(() => {
     if (propsChannels) {
-      setChannels(propsChannels);
+      setChannels(sanitizeDisconnectedChannels(propsChannels));
     }
   }, [propsChannels]);
 
@@ -1078,7 +1091,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                     <input
                       type="email"
                       data-testid="google-oauth-login-hint"
-                      placeholder="nguyenhoangthien.hvt.15@gmail.com"
+                      placeholder="tai-khoan-google-cua-ban@gmail.com"
                       value={inputLoginHint}
                       onChange={(e) => setInputLoginHint(e.target.value)}
                       className="w-full bg-zinc-50 border border-black/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 font-mono focus:outline-none focus:bg-white focus:border-zinc-900"
@@ -1174,7 +1187,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                   <div className="p-2.5 rounded-lg bg-zinc-50 border border-black/5 text-zinc-600 text-[11px] flex items-start gap-2">
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
                     <span>
-                      Sau khi bạn đăng nhập tài khoản Google (<strong className="font-mono">{inputLoginHint || 'nguyenhoangthien.hvt.15@gmail.com'}</strong>) và bấm Cho phép, hệ thống tự động gọi <strong>YouTube Data API v3</strong> để đồng bộ Tên Kênh, <code className="font-mono">@handle</code>, Avatar, Số Subscriber &amp; Số video thật.
+                      Sau khi bạn đăng nhập tài khoản Google (<strong className="font-mono">{inputLoginHint || 'tai-khoan-google-cua-ban@gmail.com'}</strong>) và bấm Cho phép, hệ thống tự động gọi <strong>YouTube Data API v3</strong> để đồng bộ Tên Kênh, <code className="font-mono">@handle</code>, Avatar, Số Subscriber &amp; Số video thật.
                     </span>
                   </div>
 
@@ -1219,7 +1232,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                         </a>
                       </div>
                       <ol className="list-decimal list-inside space-y-1 text-zinc-600">
-                        <li>Mở <strong>Google OAuth 2.0 Playground</strong>, chép các scope dưới đây vào ô <em>Input your own scopes</em> rồi bấm <strong>Authorize APIs</strong> và đăng nhập bằng <strong>{inputLoginHint || 'nguyenhoangthien.hvt.15@gmail.com'}</strong>.</li>
+                        <li>Mở <strong>Google OAuth 2.0 Playground</strong>, chép các scope dưới đây vào ô <em>Input your own scopes</em> rồi bấm <strong>Authorize APIs</strong> và đăng nhập bằng <strong>{inputLoginHint || 'tai-khoan-google-cua-ban@gmail.com'}</strong>.</li>
                         <li>Bấm <strong>Exchange authorization code for tokens</strong> để nhận <code className="font-mono">Access token (ya29.a0...)</code> và dán vào ô bên dưới.</li>
                       </ol>
                       <div className="flex items-start gap-1.5 bg-white border border-black/10 rounded px-2 py-1.5">
@@ -1271,7 +1284,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
                     <input
                       type="text"
                       required={!isGooglePlatform}
-                      placeholder={isGooglePlatform ? 'nguyenhoangthien.hvt.15@gmail.com' : 'name@company.com hoặc Channel/Page ID'}
+                      placeholder={isGooglePlatform ? 'tai-khoan-google-cua-ban@gmail.com' : 'name@company.com hoặc Channel/Page ID'}
                       value={inputEmailOrId}
                       onChange={(e) => setInputEmailOrId(e.target.value)}
                       className="w-full bg-zinc-50 border border-black/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 font-mono focus:outline-none focus:bg-white focus:border-zinc-900"

@@ -59,8 +59,10 @@ if (fs.existsSync(gasPath)) {
     'ROUND_STAMP_BASE64 chứa dữ liệu ảnh PNG Base64 hợp lệ');
   assert(gasContent.includes('KS. NGUYỄN HOÀNG THIỆN'), 
     'Tên Trưởng ban KS. NGUYỄN HOÀNG THIỆN có trong chữ ký Bên A');
-  assert(gasContent.includes('[REDACTED_BY_P0_AUDIT]') && gasContent.includes('Gò Vấp, TP HCM'),
-    'Code.js chứa số CCCD [REDACTED_BY_P0_AUDIT] và địa chỉ Gò Vấp, TP HCM của Bên A');
+  assert(gasContent.includes('getPartyAIdNumber()') && gasContent.includes('PARTY_A_ID_NUMBER') && gasContent.includes('Gò Vấp, TP HCM'),
+    'Code.js đọc CCCD Bên A qua ScriptProperties PARTY_A_ID_NUMBER (không hardcode) và có địa chỉ Gò Vấp, TP HCM');
+  assert(gasContent.includes('isValidJsonpCallback') && gasContent.includes('isValidGasSyncSecret'),
+    'Code.js kiểm tra nghiêm ngặt JSONP callback và SYNAPES_SYNC_SECRET cho webhook quản trị');
 }
 
 if (fs.existsSync(contractPdfGenPath)) {
@@ -69,8 +71,10 @@ if (fs.existsSync(contractPdfGenPath)) {
     'contractPdfGenerator.ts import và nhúng STAMP_BASE64 chuẩn');
   assert(pdfGenContent.includes("stamp-img"), 
     'contractPdfGenerator.ts có CSS class stamp-img');
-  assert(pdfGenContent.includes("[REDACTED_BY_P0_AUDIT]") && pdfGenContent.includes("Gò Vấp, TP HCM"),
-    'contractPdfGenerator.ts chứa số CCCD [REDACTED_BY_P0_AUDIT] và địa chỉ Gò Vấp, TP HCM của Bên A');
+  assert(pdfGenContent.includes("PARTY_A_ID_DISPLAY") && pdfGenContent.includes("VITE_PARTY_A_ID_NUMBER") && pdfGenContent.includes("Gò Vấp, TP HCM"),
+    'contractPdfGenerator.ts đọc CCCD Bên A qua VITE_PARTY_A_ID_NUMBER (không hardcode) và có địa chỉ Gò Vấp, TP HCM');
+  assert(pdfGenContent.includes("sanitizeSignatureDataUrl") && pdfGenContent.includes("escapeHtml(data.fullName)"),
+    'contractPdfGenerator.ts escape <title> và kiểm tra whitelist Data URL chữ ký chống XSS');
 }
 
 // -----------------------------------------------------------------------------
@@ -201,8 +205,8 @@ if (fs.existsSync(registerModalPath)) {
     'Có checkbox cam kết trách nhiệm giữa cả hai bên');
   assert(regContent.includes('Gửi hợp đồng'),
     'Có nút "Gửi hợp đồng" chuyển hồ sơ sang Google Sheet');
-  assert(regContent.includes('[REDACTED_BY_P0_AUDIT]') && regContent.includes('Gò Vấp, TP HCM'),
-    'RegisterModal.tsx hiển thị số CCCD [REDACTED_BY_P0_AUDIT] và địa chỉ thường trú Gò Vấp của Bên A');
+  assert(regContent.includes('VITE_PARTY_A_ID_NUMBER') && regContent.includes('Gò Vấp, TP HCM'),
+    'RegisterModal.tsx hiển thị CCCD Bên A từ VITE_PARTY_A_ID_NUMBER (không hardcode) và địa chỉ thường trú Gò Vấp của Bên A');
 }
 
 if (fs.existsSync(gasPath)) {
@@ -277,9 +281,9 @@ if (fs.existsSync(antiTamperPath)) {
   assert(atContent.includes('/api/security/unlock'), 'antiTamperGuard.ts kết nối endpoint /api/security/unlock');
   assert(atContent.includes('synapes-master-pass') && atContent.includes('synapes-master-unlock-btn'),
     'antiTamperGuard.ts tích hợp khung mở khóa Master Pass');
-  assert(!atContent.includes('placeholder="Nhập mã Master ([REDACTED_BY_P0_AUDIT])..."'),
+  assert(!/Nhập mã Master \(\d{6,10}\)/.test(atContent),
     'Không lộ mật khẩu Master trong placeholder client');
-  assert(!atContent.includes("pass === '[REDACTED_BY_P0_AUDIT]'"),
+  assert(!/pass\s*===\s*['"]\d{6,10}['"]/.test(atContent),
     'Không còn đoạn mã so sánh plaintext mật khẩu trong antiTamperGuard.ts');
 }
 
@@ -441,6 +445,28 @@ assert(
   (fs.existsSync(path.join(ROOT, '.github', 'workflows', 'quality-gate.yml')) || fs.existsSync(path.join(ROOT, 'workflows', 'github-ci-quality-gate.yml'))),
   'Đầy đủ ComfyUI Workflow JSON, Extension MV3 (AES-GCM + Offscreen WebCodecs), Kaggle Worker, Swarm FastAPI, Semgrep & CI Quality Gate'
 );
+
+// -----------------------------------------------------------------------------
+// 13. KIỂM ĐỊNH KHẮC PHỤC P0 (SCRYPT, FAIL-CLOSED SECRETS, ZERO HARDCODED PII)
+// -----------------------------------------------------------------------------
+console.log('\n--- [NHÓM 13] KIỂM ĐỊNH P0 SECURITY & ZERO HARDCODED SECRETS ---');
+if (fs.existsSync(backendEnginePath)) {
+  const beContent = fs.readFileSync(backendEnginePath, 'utf8');
+  assert(
+    beContent.includes('hashPasswordScrypt') && beContent.includes('resolveRequiredSecret') && beContent.includes('getTrustedClientIp'),
+    'Backend engine tích hợp scrypt+16B salt, fail-closed secrets và getTrustedClientIp'
+  );
+  assert(
+    !/process\.env\.SYNAPES_MASTER_KEY\s*\|\|\s*['"]\d{6,10}['"]/.test(beContent) && !beContent.includes('SYSTEM_CORE_ACCOUNTS'),
+    'Backend engine đã loại bỏ 100% Master Key và mật khẩu mẫu hardcoded'
+  );
+}
+for (const guardedPath of [gasPath, contractPdfGenPath, registerModalPath]) {
+  if (fs.existsSync(guardedPath)) {
+    const content = fs.readFileSync(guardedPath, 'utf8');
+    assert(!/\b0722\d{8}\b/.test(content), `Không còn chuỗi CCCD cứng trong ${path.basename(guardedPath)}`);
+  }
+}
 
 // -----------------------------------------------------------------------------
 // KẾT LUẬN TOÀN BỘ BÀI TEST

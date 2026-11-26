@@ -886,32 +886,53 @@ export async function changeUserPasswordViaSheet(params: {
 }
 
 /**
- * Đặt lại mật khẩu khẩn cấp / Quên mật khẩu trên máy chủ backend (hỗ trợ cả khi Google Sheet đang Hạn chế 401)
+ * Đặt lại mật khẩu 2 bước với OTP 6 số gửi qua Gmail trên máy chủ (/api/auth/forgot-password)
  */
 export async function syncForgotPasswordWithServer(params: {
+  step?: 'request_otp' | 'verify_otp';
   email: string;
   phone: string;
-  code?: string;
+  otp?: string;
   newPassword?: string;
-}): Promise<{ matched: boolean; code?: string; fullName?: string }> {
+}): Promise<{
+  matched: boolean;
+  otpSent?: boolean;
+  verified?: boolean;
+  expiresInSec?: number;
+  remainingAttempts?: number;
+  maskedEmail?: string;
+  code?: string;
+  fullName?: string;
+  error?: string;
+}> {
   try {
     const res = await fetch('/api/auth/forgot-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
     });
-    if (res.ok) {
-      const data = await res.json();
+    const data = await res.json().catch(() => null);
+    if (res.ok && data) {
       return {
         matched: Boolean(data?.matched),
+        otpSent: Boolean(data?.otpSent),
+        verified: Boolean(data?.verified),
+        expiresInSec: typeof data?.expiresInSec === 'number' ? data.expiresInSec : undefined,
+        maskedEmail: data?.maskedEmail,
         code: data?.code,
         fullName: data?.fullName,
       };
     }
+    return {
+      matched: false,
+      verified: false,
+      remainingAttempts: typeof data?.remainingAttempts === 'number' ? data.remainingAttempts : undefined,
+      error: data?.message || `HTTP ${res.status}`,
+    };
   } catch {
     // ignore offline errors
   }
-  return { matched: false };
+  return { matched: false, error: 'Không thể kết nối máy chủ xác thực OTP.' };
 }
 
 /**
@@ -1064,7 +1085,7 @@ export async function changePasswordSecureWithQuota(params: {
       },
       body: JSON.stringify({
         code: codeClean,
-        passwordHash,
+        newPassword: params.newPassword,
         email: (params.email || '').trim(),
         fullName: params.fullName || 'Khách hàng SYNAPES',
         authToken: resolvedToken,
@@ -1172,8 +1193,8 @@ export function saveCustomPassword(
     console.warn('Failed to save custom password', e);
   }
 
-  // Đồng bộ tức thì lên Server API (/api/auth/change-password) để đăng nhập được trên mọi trình duyệt & thiết bị
-  if (!skipServerCall) {
+  // Đồng bộ tức thì lên Server API (/api/auth/change-password) với mật khẩu văn bản thực để server băm scrypt
+  if (!skipServerCall && !extractPasswordHash(plainOrHash)) {
     try {
       let resolvedToken = authToken || '';
       if (!resolvedToken && typeof sessionStorage !== 'undefined') {
@@ -1188,7 +1209,7 @@ export function saveCustomPassword(
         },
         body: JSON.stringify({
           code: codeClean,
-          passwordHash,
+          newPassword: plainOrHash,
           email: (email || '').trim(),
           fullName: fullName || 'Khách hàng SYNAPES',
           authToken: resolvedToken,

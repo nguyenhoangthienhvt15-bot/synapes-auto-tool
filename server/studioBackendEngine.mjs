@@ -1,3 +1,4 @@
+import './loadEnv.mjs';
 import http from 'http';
 import https from 'https';
 import fs from 'fs';
@@ -6,7 +7,7 @@ import crypto from 'crypto';
 import net from 'net';
 import dns from 'dns';
 import { spawnSync } from 'child_process';
-import { dispatchCriticalIncident, CIRCUIT_BREAKERS } from './incidentReporter.mjs';
+import { dispatchCriticalIncident, CIRCUIT_BREAKERS, sendSmtpDaemonEmail } from './incidentReporter.mjs';
 import {
   MODEL_3D_STYLE_CATALOG_SERVER,
   validateMultiViewRequestServer,
@@ -2597,69 +2598,82 @@ async function postJsonHttps(targetUrl, headers, bodyObj, timeoutMs = 25000) {
 // ============================================================================
 // 5B. SECURE SERVER-SIDE AUTHENTICATION REPOSITORY & VERIFICATION
 // ============================================================================
-const AUTH_SYNC_SECRET = process.env.WEBHOOK_SECRET || '[REDACTED_BY_P0_AUDIT]';
-const AUTH_TOKEN_SECRET = process.env.JWT_SECRET || AUTH_SYNC_SECRET || '[REDACTED_BY_P0_AUDIT]';
+const EPHEMERAL_DEV_SECRETS = new Map();
+const KNOWN_INSECURE_SECRET_SHA256 = new Set([
+  '9079bdb3c3415b9c4836a099aca53492bc88bc6618161d868132b9e1cbb6c697',
+  'e1a5e33fc28e8eb331d6f3e06ad23a84633bb3550b1df3548e8f596b146b66f9',
+  '711135096f6b7c442bd2ffef7114f2b1238730553909296fc979103c83c7c78e',
+  '8f56e95e4300434348788e8034c5c2ae8535da4a66833e0e04a65503d1b13141',
+  'aca9c16fbc328e807f061ee2a176906a24f15a6ea3edf1c41359865179879db0',
+  '0a45ddc25271095c13715e2349bfb98525839a9c7e0620036aaeb6b238f93931',
+]);
+
+function isKnownInsecureSecret(val) {
+  const digest = crypto.createHash('sha256').update(String(val || '')).digest('hex');
+  return KNOWN_INSECURE_SECRET_SHA256.has(digest);
+}
+
+/**
+ * Resolve bắt buộc khóa bí mật từ biến môi trường (Fail-Closed ở Production).
+ * Ở môi trường dev/test khi biến chưa được nạp, sinh khóa ngẫu nhiên 256-bit tạm thời trong RAM (không dùng chuỗi tĩnh).
+ */
+export function resolveRequiredSecret(
+  envNames,
+  label = 'secret',
+  { enforceProduction = process.env.NODE_ENV === 'production' && !process.env.VITEST } = {}
+) {
+  for (const name of envNames) {
+    const val = String(process.env[name] || '').trim();
+    if (val && !isKnownInsecureSecret(val) && (!enforceProduction || val.length >= 32)) {
+      return val;
+    }
+  }
+  if (enforceProduction) {
+    throw new Error(`[SECURITY FAIL-CLOSED] Missing or weak required environment secret (${label}): ${envNames.join(' / ')}`);
+  }
+  if (!EPHEMERAL_DEV_SECRETS.has(label)) {
+    EPHEMERAL_DEV_SECRETS.set(label, crypto.randomBytes(32).toString('hex'));
+  }
+  return EPHEMERAL_DEV_SECRETS.get(label);
+}
+
+/**
+ * Lấy IP client tin cậy: chỉ dùng hop cuối bên phải của X-Forwarded-For khi TRUST_PROXY=1/true,
+ * tuyệt đối không tin phần tử đầu tiên [0] dễ bị giả mạo.
+ */
+export function getTrustedClientIp(req) {
+  const socketIp = String(req?.socket?.remoteAddress || '127.0.0.1').replace(/^::ffff:/i, '').trim() || '127.0.0.1';
+  const trustProxy = process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true';
+  if (trustProxy) {
+    const xff = String(req?.headers?.['x-forwarded-for'] || '').trim();
+    if (xff) {
+      const hops = xff
+        .split(',')
+        .map((s) => s.trim().replace(/^::ffff:/i, ''))
+        .filter(Boolean);
+      if (hops.length > 0) {
+        return hops[hops.length - 1];
+      }
+    }
+  }
+  return socketIp;
+}
+
+const AUTH_SYNC_SECRET = resolveRequiredSecret(['WEBHOOK_SECRET', 'SYNAPES_SYNC_SECRET'], 'webhook_sync');
+const AUTH_TOKEN_SECRET = resolveRequiredSecret(['JWT_SECRET', 'SYNAPES_AUTH_SECRET'], 'jwt_auth');
+const VAULT_ROOT_SECRET = resolveRequiredSecret(['MASTER_VAULT_KEY', 'SYNAPES_VAULT_KEY'], 'vault_master');
 const AUTH_DIRECTORY_FILE = path.resolve(process.cwd(), 'data', 'auth_directory.json');
 
-const SYSTEM_CORE_ACCOUNTS = [
-  {
-    code: 'VIP-001',
-    clientName: 'Anh Hoàng Nam (Studio Media Tech)',
-    registeredGmail: 'hoangnam.media@gmail.com',
-    currentTempPassword: '[REDACTED_BY_P0_AUDIT]',
-    accountStatus: 'custom_password_active',
-    planTier: 'enterprise',
-  },
-  {
-    code: 'VIP-002',
-    clientName: 'Chị Thu Trang (Kênh Đời Sống)',
-    registeredGmail: 'thutrang.lifestyle@gmail.com',
-    currentTempPassword: '[REDACTED_BY_P0_AUDIT]',
-    accountStatus: 'never_changed',
-    planTier: 'personal',
-  },
-  {
-    code: 'VIP-003',
-    clientName: 'Công Ty Truyền Thông Alpha',
-    registeredGmail: 'alpha.contact@gmail.com',
-    currentTempPassword: '[REDACTED_BY_P0_AUDIT]',
-    accountStatus: 'temp_password_active',
-    planTier: 'enterprise',
-  },
-  {
-    code: 'VIP-004',
-    clientName: 'Anh Minh Trí (Kênh Review AI)',
-    registeredGmail: 'minhtri.tech@gmail.com',
-    currentTempPassword: '[REDACTED_BY_P0_AUDIT]',
-    accountStatus: 'custom_password_active',
-    planTier: 'personal',
-  },
-  {
-    code: 'VIP-005',
-    clientName: 'Creator Hoàng Yến',
-    registeredGmail: 'hoangyen.creator@gmail.com',
-    currentTempPassword: '[REDACTED_BY_P0_AUDIT]',
-    accountStatus: 'never_changed',
-    planTier: 'personal',
-  },
-  {
-    code: 'SNP_2611092202',
-    clientName: 'KS. Nguyễn Hoàng Thiện (Kiểm toán Thẩm định)',
-    registeredGmail: 'nguyenhoangthien.hvt.15@gmail.com',
-    phone: '0983396354',
-    currentTempPassword: '[REDACTED_BY_P0_AUDIT]',
-    accountStatus: 'custom_password_active',
-    planTier: 'enterprise',
-  },
-  {
-    code: 'SNP_2611130908',
-    clientName: 'Tài khoản Kiểm định Studio (Enterprise)',
-    registeredGmail: 'creator@studio.example.com',
-    currentTempPassword: '[REDACTED_BY_P0_AUDIT]',
-    accountStatus: 'custom_password_active',
-    planTier: 'enterprise',
-  },
-];
+function loadBootstrapCoreAccounts() {
+  const raw = String(process.env.SYNAPES_BOOTSTRAP_ADMIN_JSON || '').trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((a) => a && a.code) : [];
+  } catch {
+    return [];
+  }
+}
 
 function inferServerPlanTier(entry) {
   if (!entry) return 'personal';
@@ -2676,14 +2690,19 @@ function inferServerPlanTier(entry) {
   return 'personal';
 }
 
-function computeServerPasswordHash(code, plainPassword) {
+export function hashPasswordScrypt(plainPassword) {
+  const passNorm = String(plainPassword || '').trim();
+  if (!passNorm) throw new Error('EMPTY_PASSWORD');
+  const saltHex = crypto.randomBytes(16).toString('hex');
+  const derivedHex = crypto.scryptSync(passNorm, Buffer.from(saltHex, 'hex'), 64).toString('hex');
+  return `scrypt$v1$${saltHex}$${derivedHex}`;
+}
+
+function computeLegacySha256Internal(code, plainPassword) {
   const codeNorm = String(code || '').trim().toUpperCase();
   const passNorm = String(plainPassword || '').trim();
-  const existingHashMatch = passNorm.match(/BCRYPT\$[A-F0-9]{16,64}/i);
-  if (existingHashMatch) {
-    return existingHashMatch[0].toUpperCase();
-  }
-  const digest = crypto.createHash('sha256')
+  const digest = crypto
+    .createHash('sha256')
     .update(`SYNAPES_BCRYPT_V2::${codeNorm}::${passNorm}::PRIVATE_KEY_SALT`)
     .digest('hex')
     .slice(0, 32)
@@ -2691,13 +2710,72 @@ function computeServerPasswordHash(code, plainPassword) {
   return `BCRYPT$${digest}`;
 }
 
+export function computeServerPasswordHash(code, plainPassword) {
+  const passNorm = String(plainPassword || '').trim();
+  if (!passNorm) throw new Error('EMPTY_PASSWORD');
+  if (/^(?:BCRYPT|scrypt)\$/i.test(passNorm)) {
+    throw new Error('PASS_THE_HASH_REJECTED: Cannot supply precomputed password hash as password.');
+  }
+  return hashPasswordScrypt(passNorm);
+}
+
+export function verifyServerPasswordHash(code, plainInput, storedHash, storedHashUpper = null) {
+  const passNorm = String(plainInput || '').trim();
+  const target = String(storedHash || '').trim();
+  if (!passNorm || !target) return { valid: false, needsRehash: false };
+  // Chặn tuyệt đối Pass-the-Hash: từ chối chuỗi có tiền tố hash
+  if (/^(?:BCRYPT|scrypt)\$/i.test(passNorm)) {
+    return { valid: false, needsRehash: false, rejectedHashInput: true };
+  }
+
+  if (target.startsWith('scrypt$v1$')) {
+    const parts = target.split('$');
+    if (parts.length !== 4) return { valid: false, needsRehash: false };
+    const [, , saltHex, expectedHex] = parts;
+    if (!/^[a-f0-9]{32}$/i.test(saltHex) || !/^[a-f0-9]{128}$/i.test(expectedHex)) {
+      return { valid: false, needsRehash: false };
+    }
+    try {
+      const derived = crypto.scryptSync(passNorm, Buffer.from(saltHex, 'hex'), 64);
+      const expectedBuf = Buffer.from(expectedHex, 'hex');
+      if (derived.length === expectedBuf.length && crypto.timingSafeEqual(derived, expectedBuf)) {
+        return { valid: true, needsRehash: false };
+      }
+      if (storedHashUpper && typeof storedHashUpper === 'string' && storedHashUpper.startsWith('scrypt$v1$')) {
+        const upperRes = verifyServerPasswordHash(code, passNorm.toUpperCase(), storedHashUpper, null);
+        if (upperRes.valid) return { valid: true, needsRehash: false };
+      }
+    } catch {
+      return { valid: false, needsRehash: false };
+    }
+    return { valid: false, needsRehash: false };
+  }
+
+  // Hỗ trợ di trú 1 chiều cho bản ghi legacy BCRYPT$ (không chấp nhận BCRYPT$ thô ở đầu vào!)
+  if (/^BCRYPT\$[A-F0-9]{16,64}$/i.test(target)) {
+    const legacyExact = computeLegacySha256Internal(code, passNorm);
+    if (constantTimeVerify(legacyExact, target.toUpperCase())) {
+      return { valid: true, needsRehash: true };
+    }
+    if (storedHashUpper) {
+      const legacyUpper = computeLegacySha256Internal(code, passNorm.toUpperCase());
+      if (constantTimeVerify(legacyUpper, String(storedHashUpper).toUpperCase())) {
+        return { valid: true, needsRehash: true };
+      }
+    }
+  }
+
+  return { valid: false, needsRehash: false };
+}
+
 function computeServerPhoneVerifyHash(email, phoneDigits) {
   const emailNorm = String(email || '').trim().toLowerCase();
   const digits = String(phoneDigits || '').replace(/\D/g, '');
   const tail = digits.length >= 9 ? digits.slice(-9) : digits;
   if (!emailNorm || tail.length < 8) return '';
-  return crypto.createHash('sha256')
-    .update(`SYNAPES_PHONE_V1::${emailNorm}::${tail}`)
+  return crypto
+    .createHmac('sha256', AUTH_TOKEN_SECRET)
+    .update(`SYNAPES_PHONE_V2::${emailNorm}::${tail}`)
     .digest('hex')
     .toUpperCase();
 }
@@ -2722,10 +2800,7 @@ function verifyServerAuthToken(token, expectedCode) {
   return constantTimeVerify(providedSig, expectedSig);
 }
 
-const AES_MASTER_KEY = crypto
-  .createHash('sha256')
-  .update(`${AUTH_TOKEN_SECRET}::SYNAPES_AES256_GCM_STORAGE_V1`)
-  .digest();
+const AES_MASTER_KEY = crypto.scryptSync(VAULT_ROOT_SECRET, 'synapes_vault_kdf_v2', 32);
 
 export function encryptSecretAes256Gcm(plaintext) {
   const raw = String(plaintext || '').trim();
@@ -2756,13 +2831,18 @@ export function decryptSecretAes256Gcm(encoded) {
   }
 }
 
-function encryptProfileSecretsAtRest(profile) {
+export function encryptProfileSecretsAtRest(profile) {
   if (!profile || typeof profile !== 'object') return profile;
   const cloned = JSON.parse(JSON.stringify(profile));
   if (cloned.aiConfig && typeof cloned.aiConfig === 'object') {
     for (const [, v] of Object.entries(cloned.aiConfig)) {
-      if (v && typeof v === 'object' && typeof v.apiKey === 'string' && v.apiKey.trim()) {
-        v.apiKey = encryptSecretAes256Gcm(v.apiKey);
+      if (v && typeof v === 'object') {
+        if (typeof v.apiKey === 'string' && v.apiKey.trim()) {
+          v.apiKey = encryptSecretAes256Gcm(v.apiKey);
+        }
+        if (typeof v.apiToken === 'string' && v.apiToken.trim()) {
+          v.apiToken = encryptSecretAes256Gcm(v.apiToken);
+        }
       }
     }
   }
@@ -2777,13 +2857,18 @@ function encryptProfileSecretsAtRest(profile) {
   return cloned;
 }
 
-function decryptProfileSecretsAtRest(profile) {
+export function decryptProfileSecretsAtRest(profile) {
   if (!profile || typeof profile !== 'object') return profile;
   const cloned = JSON.parse(JSON.stringify(profile));
   if (cloned.aiConfig && typeof cloned.aiConfig === 'object') {
     for (const [, v] of Object.entries(cloned.aiConfig)) {
-      if (v && typeof v === 'object' && typeof v.apiKey === 'string' && v.apiKey.startsWith('enc:gcm:v1:')) {
-        v.apiKey = decryptSecretAes256Gcm(v.apiKey);
+      if (v && typeof v === 'object') {
+        if (typeof v.apiKey === 'string' && v.apiKey.startsWith('enc:gcm:v1:')) {
+          v.apiKey = decryptSecretAes256Gcm(v.apiKey);
+        }
+        if (typeof v.apiToken === 'string' && v.apiToken.startsWith('enc:gcm:v1:')) {
+          v.apiToken = decryptSecretAes256Gcm(v.apiToken);
+        }
       }
     }
   }
@@ -2866,17 +2951,50 @@ function requireUserAuth(req, res, targetUserCode = '', rawUrl = '') {
 }
 
 const AUTH_DIRECTORY_MAP = new Map();
+const FORGOT_OTP_STORE = new Map();
+const VIOLATION_RATE_LIMITS = new Map();
+
+export function _seedTestAuthAccount({ code, clientName, registeredGmail, password, phone, accountStatus = 'custom_password_active', planTier = 'personal' }) {
+  if (process.env.VITEST !== 'true' && process.env.NODE_ENV !== 'test') {
+    throw new Error('Test helper unavailable outside test runtime');
+  }
+  const codeNorm = String(code || '').trim().toUpperCase();
+  AUTH_DIRECTORY_MAP.set(codeNorm, {
+    code: codeNorm,
+    clientName: clientName || 'Test Studio User',
+    registeredGmail: String(registeredGmail || '').trim().toLowerCase(),
+    passwordHash: hashPasswordScrypt(password),
+    passwordHashUpper: null,
+    accountStatus,
+    isDefaultPassword: accountStatus !== 'custom_password_active',
+    planTier,
+    phoneVerifyHash: phone ? computeServerPhoneVerifyHash(registeredGmail, phone) : '',
+    dailyChangeDate: '',
+    dailyChangeCount: 0,
+    sheetStatusText: '',
+    updatedAt: Date.now(),
+    localChangedAt: 0,
+    source: 'vitest_seed',
+  });
+}
+
+export function _getPendingForgotOtpForTest(email) {
+  if (process.env.VITEST !== 'true' && process.env.NODE_ENV !== 'test') return null;
+  const rec = FORGOT_OTP_STORE.get(String(email || '').trim().toLowerCase());
+  return rec?._testOtp || null;
+}
 
 function loadAuthDirectory() {
-  for (const core of SYSTEM_CORE_ACCOUNTS) {
-    const codeNorm = core.code.toUpperCase();
+  for (const core of loadBootstrapCoreAccounts()) {
+    const codeNorm = String(core.code || '').toUpperCase();
     const passNorm = String(core.currentTempPassword || '').trim();
+    if (!codeNorm || !passNorm) continue;
     AUTH_DIRECTORY_MAP.set(codeNorm, {
       code: core.code,
-      clientName: core.clientName,
-      registeredGmail: core.registeredGmail,
-      passwordHash: computeServerPasswordHash(codeNorm, passNorm),
-      passwordHashUpper: computeServerPasswordHash(codeNorm, passNorm.toUpperCase()),
+      clientName: core.clientName || 'Admin SYNAPES',
+      registeredGmail: core.registeredGmail || '',
+      passwordHash: hashPasswordScrypt(passNorm),
+      passwordHashUpper: core.accountStatus !== 'custom_password_active' ? hashPasswordScrypt(passNorm.toUpperCase()) : null,
       accountStatus: core.accountStatus || 'never_changed',
       isDefaultPassword: core.accountStatus === 'never_changed' || core.accountStatus === 'temp_password_active',
       planTier: core.planTier || inferServerPlanTier(core),
@@ -2886,7 +3004,7 @@ function loadAuthDirectory() {
       sheetStatusText: core.accountStatus === 'custom_password_active' ? 'Đã đổi mật khẩu' : '',
       updatedAt: 0,
       localChangedAt: 0,
-      source: 'core_seed',
+      source: 'bootstrap_env',
     });
   }
 
@@ -2897,17 +3015,9 @@ function loadAuthDirectory() {
       for (const item of list) {
         if (!item || !item.code || !item.passwordHash) continue;
         const codeKey = String(item.code).trim().toUpperCase();
-        const isProtectedAuditAccount = codeKey === 'SNP_2611130908';
         AUTH_DIRECTORY_MAP.set(codeKey, {
           ...item,
           code: String(item.code).trim(),
-          ...(isProtectedAuditAccount
-            ? {
-                accountStatus: 'custom_password_active',
-                isDefaultPassword: false,
-                planTier: 'enterprise',
-              }
-            : {}),
         });
       }
     }
@@ -2933,19 +3043,25 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
   const codeClean = String(code || '').trim().toUpperCase();
   const passClean = String(plainPassword || '').trim();
   if (!codeClean || !passClean) return null;
+  // Chống Pass-the-Hash: từ chối chuỗi nhập vào bắt đầu bằng tiền tố hash
+  if (/^(?:BCRYPT|scrypt)\$/i.test(passClean)) return null;
 
-  const inputHash = computeServerPasswordHash(codeClean, passClean);
-  const inputHashUpper = computeServerPasswordHash(codeClean, passClean.toUpperCase());
-
-  // 1. Kiểm tra trong AUTH_DIRECTORY_MAP (đã bao gồm đồng bộ realtime từ Google Sheet + mật khẩu người dùng tự đổi + core accounts)
+  // 1. Kiểm tra trong AUTH_DIRECTORY_MAP (scrypt v1 hoặc tự động nâng cấp 1 chiều từ legacy BCRYPT$)
   const entry = AUTH_DIRECTORY_MAP.get(codeClean);
   if (entry && entry.passwordHash) {
-    const exactMatch = constantTimeVerify(inputHash, entry.passwordHash);
-    const upperMatch =
-      Boolean(entry.passwordHashUpper) &&
-      constantTimeVerify(inputHashUpper, entry.passwordHashUpper);
-
-    if (exactMatch || upperMatch) {
+    const check = verifyServerPasswordHash(
+      codeClean,
+      passClean,
+      entry.passwordHash,
+      entry.isDefaultPassword ? entry.passwordHashUpper : null
+    );
+    if (check.valid) {
+      if (check.needsRehash) {
+        entry.passwordHash = hashPasswordScrypt(passClean);
+        entry.passwordHashUpper = null;
+        entry.updatedAt = Date.now();
+        saveAuthDirectoryToDisk();
+      }
       return {
         code: entry.code,
         clientName: entry.clientName || 'Khách Hàng Studio',
@@ -2967,10 +3083,10 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
       const reg = regList.find((r) => r.assignedCode && r.assignedCode.toUpperCase() === codeClean);
       if (reg) {
         const regPass = String(reg.assignedPassword || '').trim();
-        const regHashMatch = regPass.match(/BCRYPT\$[A-F0-9]{16,64}/i);
         const regTier = inferServerPlanTier(reg);
-        if (regHashMatch) {
-          if (constantTimeVerify(inputHash, regHashMatch[0].toUpperCase())) {
+        if (/^(?:scrypt\$v1\$|BCRYPT\$)/i.test(regPass)) {
+          const checkReg = verifyServerPasswordHash(codeClean, passClean, regPass);
+          if (checkReg.valid) {
             return {
               code: reg.assignedCode,
               clientName: reg.fullName,
@@ -2981,10 +3097,7 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
           }
           return null;
         }
-        if (
-          (regPass && (constantTimeVerify(passClean, regPass) || constantTimeVerify(passClean.toUpperCase(), regPass.toUpperCase()))) ||
-          (!regPass && constantTimeVerify(passClean, '[REDACTED_BY_P0_AUDIT]'))
-        ) {
+        if (regPass && (constantTimeVerify(passClean, regPass) || constantTimeVerify(passClean.toUpperCase(), regPass.toUpperCase()))) {
           return {
             code: reg.assignedCode,
             clientName: reg.fullName,
@@ -2995,7 +3108,7 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
         }
       }
     }
-  } catch (e) {
+  } catch {
     // ignore
   }
 
@@ -3003,8 +3116,10 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
   const gasWebhookUrl = process.env.APPS_SCRIPT_WEBHOOK_URL || '';
   if (gasWebhookUrl && gasWebhookUrl.includes('script.google.com/macros/s/')) {
     try {
+      const legacyExact = computeLegacySha256Internal(codeClean, passClean);
+      const legacyUpper = computeLegacySha256Internal(codeClean, passClean.toUpperCase());
       const sep = gasWebhookUrl.includes('?') ? '&' : '?';
-      const verifyUrl = `${gasWebhookUrl}${sep}action=verify_login&code=${encodeURIComponent(codeClean)}&passwordHash=${encodeURIComponent(inputHash)}&passwordHashUpper=${encodeURIComponent(inputHashUpper)}`;
+      const verifyUrl = `${gasWebhookUrl}${sep}action=verify_login&code=${encodeURIComponent(codeClean)}&passwordHash=${encodeURIComponent(legacyExact)}&passwordHashUpper=${encodeURIComponent(legacyUpper)}&syncSecret=${encodeURIComponent(AUTH_SYNC_SECRET)}`;
       const gasRes = await fetch(verifyUrl, { method: 'GET', headers: { Accept: 'application/json' } });
       if (gasRes.ok) {
         const gasData = await gasRes.json();
@@ -3014,8 +3129,8 @@ async function verifyUserCredentialsServerSide(code, plainPassword) {
             code: gasData.user.code || codeClean,
             clientName: gasData.user.name || 'Khách Hàng Studio',
             registeredGmail: gasData.user.email || '',
-            passwordHash: inputHash,
-            passwordHashUpper: gasData.user.isDefaultPassword ? inputHashUpper : null,
+            passwordHash: hashPasswordScrypt(passClean),
+            passwordHashUpper: gasData.user.isDefaultPassword ? hashPasswordScrypt(passClean.toUpperCase()) : null,
             accountStatus: gasData.user.isDefaultPassword ? 'never_changed' : 'custom_password_active',
             isDefaultPassword: Boolean(gasData.user.isDefaultPassword),
             planTier: gasTier,
@@ -3144,9 +3259,7 @@ function buildClockFromTimezone(timezone, countryCode, countryName, ip) {
 }
 
 async function resolveClientGeoAndTime(req) {
-  const rawIp = String(req?.headers?.['cf-connecting-ip'] || req?.headers?.['x-forwarded-for']?.split(',')[0] || req?.socket?.remoteAddress || '127.0.0.1')
-    .replace(/^::ffff:/i, '')
-    .trim();
+  const rawIp = getTrustedClientIp(req);
 
   const headerCountry = String(
     req?.headers?.['cf-ipcountry'] ||
@@ -3207,25 +3320,39 @@ export async function handleStudioApiRequest(req, res) {
     return false;
   }
 
-  const origin = req.headers.origin || '';
-  const allowedOrigins = [
+  const defaultAllowedOrigins = [
     'https://synapes-auto-tool-web-service.onrender.com',
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://localhost:10000',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:10000',
+    ...(process.env.NODE_ENV !== 'production'
+      ? [
+          'http://localhost:5173',
+          'http://localhost:3000',
+          'http://localhost:10000',
+          'http://127.0.0.1:5173',
+          'http://127.0.0.1:3000',
+          'http://127.0.0.1:10000',
+        ]
+      : []),
   ];
-  if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.onrender.com')) {
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', 'https://synapes-auto-tool-web-service.onrender.com');
+  const envAllowedOrigins = String(process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const allowedOriginSet = new Set([...defaultAllowedOrigins, ...envAllowedOrigins]);
+  const origin = String(req.headers.origin || '').trim();
+  const isAllowedOrigin = Boolean(origin && allowedOriginSet.has(origin));
+  if (isAllowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Synapes-Auth-Token, X-Requested-With, X-Synapes-Sync-Secret');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
 
   if (req.method === 'OPTIONS') {
+    if (origin && !isAllowedOrigin) {
+      res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: 'Origin not allowed by CORS policy.' }));
+      return true;
+    }
     res.writeHead(204);
     res.end();
     return true;
@@ -3248,12 +3375,15 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
-  // PASSWORD CHANGE QUOTA CHECK (/api/auth/password-quota)
+  // PASSWORD CHANGE QUOTA CHECK (/api/auth/password-quota) — PROTECTED
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/auth/password-quota' && req.method === 'GET') {
     const qIdx = rawUrl.indexOf('?');
     const params = new URLSearchParams(qIdx >= 0 ? rawUrl.slice(qIdx + 1) : '');
-    const codeClean = String(params.get('code') || '').trim().toUpperCase();
+    const requestedCode = String(params.get('code') || '').trim().toUpperCase();
+    const auth = requireUserAuth(req, res, requestedCode, rawUrl);
+    if (!auth) return true;
+    const codeClean = requestedCode || auth.userCode;
     const geoClock = await resolveClientGeoAndTime(req);
     const todayKey = geoClock.isoDate;
     const prev = codeClean ? AUTH_DIRECTORY_MAP.get(codeClean) : null;
@@ -3279,7 +3409,7 @@ export async function handleStudioApiRequest(req, res) {
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/auth/login' && req.method === 'POST') {
     try {
-      const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
+      const clientIp = getTrustedClientIp(req);
       const now = Date.now();
       const authRec = AUTH_RATE_LIMITS.get(clientIp) || { count: 0, resetAt: now + 60000 };
       if (now > authRec.resetAt) {
@@ -3342,11 +3472,11 @@ export async function handleStudioApiRequest(req, res) {
 
   // --------------------------------------------------------------------------
   // CHANGE PASSWORD ENDPOINT (/api/auth/change-password)
-  // Lưu ngay mã băm BCRYPT$... khi người dùng đổi mật khẩu riêng để đăng nhập mọi thiết bị
+  // Bắt buộc nhận mật khẩu mới thực sự (>= 6 ký tự) & băm bằng scrypt + 16B salt ngẫu nhiên
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/auth/change-password' && req.method === 'POST') {
     try {
-      const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
+      const clientIp = getTrustedClientIp(req);
       const now = Date.now();
       const authRec = AUTH_RATE_LIMITS.get(clientIp) || { count: 0, resetAt: now + 60000 };
       if (now > authRec.resetAt) {
@@ -3363,13 +3493,31 @@ export async function handleStudioApiRequest(req, res) {
 
       const body = (await readJsonBody(req)) || {};
       const codeClean = String(body.code || '').trim().toUpperCase();
-      const rawPassOrHash = String(body.passwordHash || body.newPassword || '').trim();
+      const newPasswordPlain = String(body.newPassword || '').trim();
       const bearerHeader = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
       const token = String(body.authToken || bearerHeader || '').trim();
 
-      if (!codeClean || !rawPassOrHash) {
+      if (!codeClean || (!newPasswordPlain && !body.passwordHash)) {
         res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ success: false, message: 'Thiếu mã tài khoản hoặc mật khẩu mới.' }));
+        return true;
+      }
+
+      if (!newPasswordPlain || /^(?:BCRYPT|scrypt)\$/i.test(newPasswordPlain) || (!newPasswordPlain && body.passwordHash)) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            code: 'RAW_HASH_REJECTED',
+            message: 'Máy chủ yêu cầu mật khẩu mới hợp lệ (>= 6 ký tự), không chấp nhận hash trực tiếp (chống Pass-the-Hash).',
+          })
+        );
+        return true;
+      }
+
+      if (newPasswordPlain.length < 6) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, message: 'Mật khẩu mới phải có ít nhất 6 ký tự.' }));
         return true;
       }
 
@@ -3385,9 +3533,7 @@ export async function handleStudioApiRequest(req, res) {
         return true;
       }
 
-      const finalHash = /^BCRYPT\$[A-F0-9]{16,64}$/i.test(rawPassOrHash)
-        ? rawPassOrHash.toUpperCase()
-        : computeServerPasswordHash(codeClean, rawPassOrHash);
+      const finalHash = hashPasswordScrypt(newPasswordPlain);
 
       const geoClock = await resolveClientGeoAndTime(req);
       const todayKey = geoClock.isoDate;
@@ -3555,23 +3701,24 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
-  // FORGOT PASSWORD VERIFICATION & RESET (/api/auth/forgot-password)
-  // Hỗ trợ đối soát Gmail + SĐT ngay cả khi Google Sheet đang bật chế độ "Hạn chế"
+  // FORGOT PASSWORD 2-STEP 6-DIGIT EMAIL OTP (/api/auth/forgot-password)
+  // Bước 1 (request_otp): Đối soát Gmail + SĐT -> gửi OTP 6 số (TTL 10p) qua SMTP TLS
+  // Bước 2 (verify_otp): Xác thực OTP + đặt mật khẩu mới băm scrypt
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/auth/forgot-password' && req.method === 'POST') {
     try {
-      const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
+      const clientIp = getTrustedClientIp(req);
       const now = Date.now();
-      const authRec = AUTH_RATE_LIMITS.get(clientIp) || { count: 0, resetAt: now + 60000 };
+      const authRec = AUTH_RATE_LIMITS.get(`forgot:${clientIp}`) || { count: 0, resetAt: now + 15 * 60000 };
       if (now > authRec.resetAt) {
         authRec.count = 0;
-        authRec.resetAt = now + 60000;
+        authRec.resetAt = now + 15 * 60000;
       }
       authRec.count++;
-      AUTH_RATE_LIMITS.set(clientIp, authRec);
-      if (authRec.count > 10) {
+      AUTH_RATE_LIMITS.set(`forgot:${clientIp}`, authRec);
+      if (authRec.count > 12) {
         res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ success: false, message: 'Quá nhiều yêu cầu khôi phục mật khẩu.' }));
+        res.end(JSON.stringify({ success: false, message: 'Quá nhiều yêu cầu khôi phục mật khẩu. Vui lòng thử lại sau 15 phút.' }));
         return true;
       }
 
@@ -3579,14 +3726,90 @@ export async function handleStudioApiRequest(req, res) {
       const emailClean = String(body.email || '').trim().toLowerCase();
       const phoneDigits = String(body.phone || '').replace(/\D/g, '');
       const phoneTail = phoneDigits.length >= 9 ? phoneDigits.slice(-9) : phoneDigits;
-      const newPassword = String(body.newPassword || '').trim();
+      const step = String(body.step || (body.otp ? 'verify_otp' : 'request_otp')).trim().toLowerCase();
 
       if (!emailClean || phoneTail.length < 8) {
         res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ success: false, matched: false }));
+        res.end(JSON.stringify({ success: false, matched: false, message: 'Vui lòng cung cấp Gmail và Số điện thoại hợp lệ.' }));
         return true;
       }
 
+      // Bước 2: Xác thực OTP 6 chữ số + cập nhật mật khẩu mới
+      if (step === 'verify_otp') {
+        const otpInput = String(body.otp || '').trim();
+        const newPasswordPlain = String(body.newPassword || '').trim();
+        if (!/^\d{6}$/.test(otpInput)) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, verified: false, message: 'Mã OTP phải gồm đúng 6 chữ số.' }));
+          return true;
+        }
+        if (newPasswordPlain.length < 6 || /^(?:BCRYPT|scrypt)\$/i.test(newPasswordPlain)) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, verified: false, message: 'Mật khẩu mới không hợp lệ (tối thiểu 6 ký tự).' }));
+          return true;
+        }
+
+        const otpRec = FORGOT_OTP_STORE.get(emailClean);
+        if (!otpRec || now > otpRec.expiresAt) {
+          FORGOT_OTP_STORE.delete(emailClean);
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, verified: false, message: 'Mã OTP chưa được tạo hoặc đã hết hạn (10 phút).' }));
+          return true;
+        }
+
+        const expectedPhoneHash = computeServerPhoneVerifyHash(emailClean, phoneTail);
+        const providedOtpHmac = crypto.createHmac('sha256', AUTH_TOKEN_SECRET).update(`${emailClean}::${otpInput}`).digest('hex');
+        if (!constantTimeVerify(expectedPhoneHash, otpRec.phoneVerifyHash) || !constantTimeVerify(providedOtpHmac, otpRec.otpHmac)) {
+          otpRec.attempts += 1;
+          if (otpRec.attempts >= 5) {
+            FORGOT_OTP_STORE.delete(emailClean);
+            res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ success: false, verified: false, remainingAttempts: 0, message: 'Đã nhập sai OTP quá 5 lần. Mã OTP đã bị hủy.' }));
+            return true;
+          }
+          res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({
+            success: false,
+            verified: false,
+            remainingAttempts: Math.max(0, 5 - otpRec.attempts),
+            message: `Mã OTP không chính xác. Còn ${Math.max(0, 5 - otpRec.attempts)} lần thử.`,
+          }));
+          return true;
+        }
+
+        FORGOT_OTP_STORE.delete(emailClean);
+        const codeKey = otpRec.code.toUpperCase();
+        const prevEntry = AUTH_DIRECTORY_MAP.get(codeKey);
+        AUTH_DIRECTORY_MAP.set(codeKey, {
+          ...(prevEntry || {}),
+          code: otpRec.code,
+          clientName: otpRec.clientName || prevEntry?.clientName || 'Khách hàng SYNAPES',
+          registeredGmail: emailClean,
+          passwordHash: hashPasswordScrypt(newPasswordPlain),
+          passwordHashUpper: null,
+          accountStatus: 'custom_password_active',
+          isDefaultPassword: false,
+          planTier: prevEntry?.planTier || inferServerPlanTier({ code: codeKey }),
+          phoneVerifyHash: otpRec.phoneVerifyHash,
+          updatedAt: now,
+          localChangedAt: now,
+          source: 'webapp_forgot_password_otp',
+        });
+        saveAuthDirectoryToDisk();
+
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({
+          success: true,
+          verified: true,
+          matched: true,
+          code: otpRec.code,
+          fullName: otpRec.clientName || 'Khách hàng SYNAPES',
+          message: 'Xác thực OTP thành công và đã cập nhật mật khẩu mới.',
+        }));
+        return true;
+      }
+
+      // Bước 1: Đối soát Gmail + SĐT và phát hành OTP 6 chữ số (tuyệt đối KHÔNG cho đổi mật khẩu trực tiếp không có OTP)
       const targetPhoneHash = computeServerPhoneVerifyHash(emailClean, phoneTail);
       let matchedEntry = null;
 
@@ -3600,7 +3823,7 @@ export async function handleStudioApiRequest(req, res) {
       }
 
       if (!matchedEntry) {
-        for (const core of SYSTEM_CORE_ACCOUNTS) {
+        for (const core of loadBootstrapCoreAccounts()) {
           const coreMail = String(core.registeredGmail || '').trim().toLowerCase();
           const coreDigits = String(core.phone || '').replace(/\D/g, '');
           const coreTail = coreDigits.length >= 9 ? coreDigits.slice(-9) : coreDigits;
@@ -3642,33 +3865,41 @@ export async function handleStudioApiRequest(req, res) {
 
       if (!matchedEntry) {
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ success: true, matched: false }));
+        res.end(JSON.stringify({ success: true, matched: false, otpSent: false }));
         return true;
       }
 
-      if (newPassword) {
-        const codeKey = matchedEntry.code.toUpperCase();
-        AUTH_DIRECTORY_MAP.set(codeKey, {
-          code: matchedEntry.code,
-          clientName: matchedEntry.clientName || 'Khách hàng SYNAPES',
-          registeredGmail: emailClean,
-          passwordHash: computeServerPasswordHash(codeKey, newPassword),
-          passwordHashUpper: computeServerPasswordHash(codeKey, newPassword.toUpperCase()),
-          accountStatus: 'temp_password_active',
-          isDefaultPassword: true,
-          phoneVerifyHash: matchedEntry.phoneVerifyHash || targetPhoneHash,
-          updatedAt: now,
-          localChangedAt: 0,
-          source: 'webapp_forgot_password',
-        });
-        saveAuthDirectoryToDisk();
-      }
+      const otp = String(crypto.randomInt(100000, 1000000));
+      const otpHmac = crypto.createHmac('sha256', AUTH_TOKEN_SECRET).update(`${emailClean}::${otp}`).digest('hex');
+      FORGOT_OTP_STORE.set(emailClean, {
+        otpHmac,
+        code: matchedEntry.code,
+        clientName: matchedEntry.clientName || 'Khách hàng SYNAPES',
+        phoneVerifyHash: matchedEntry.phoneVerifyHash || targetPhoneHash,
+        expiresAt: now + 10 * 60 * 1000,
+        attempts: 0,
+        ...(process.env.VITEST === 'true' ? { _testOtp: otp } : {}),
+      });
+
+      const otpMailText = [
+        `Xin chào ${matchedEntry.clientName || 'Quý khách'},`,
+        ``,
+        `Mã OTP xác thực khôi phục mật khẩu SYNAPES Studio cho tài khoản ${matchedEntry.code} là:`,
+        ``,
+        `    ${otp}`,
+        ``,
+        `Mã có hiệu lực trong 10 phút và chỉ sử dụng 1 lần. Tuyệt đối không chia sẻ mã này cho bất kỳ ai.`,
+      ].join('\n');
+
+      sendSmtpDaemonEmail('[SYNAPES Studio] Mã OTP 6 số khôi phục mật khẩu', otpMailText, emailClean).catch(() => {});
 
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({
         success: true,
         matched: true,
-        code: matchedEntry.code,
+        otpSent: true,
+        expiresInSec: 600,
+        maskedEmail: emailClean.replace(/(^.)[^@]*(@.*$)/, '$1***$2'),
         fullName: matchedEntry.clientName || 'Khách hàng SYNAPES',
       }));
       return true;
@@ -3681,32 +3912,38 @@ export async function handleStudioApiRequest(req, res) {
 
   // --------------------------------------------------------------------------
   // ANTI-TAMPER SECURITY & THREAT REPORTING (/api/security/report-violation)
+  // Chỉ ghi nhận telemetry bảo mật có rate-limit; không tự động DoS ban IP toàn cục
+  // từ request chưa xác thực có thể bị lạm dụng.
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/security/report-violation' && req.method === 'POST') {
     try {
-      const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
+      const clientIp = getTrustedClientIp(req);
+      const now = Date.now();
+      const vRec = VIOLATION_RATE_LIMITS.get(clientIp) || { count: 0, resetAt: now + 60000 };
+      if (now > vRec.resetAt) {
+        vRec.count = 0;
+        vRec.resetAt = now + 60000;
+      }
+      vRec.count++;
+      VIOLATION_RATE_LIMITS.set(clientIp, vRec);
+      if (vRec.count > 10) {
+        res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, error: 'Too many violation reports.' }));
+        return true;
+      }
+
       const body = (await readJsonBody(req)) || {};
-      const banDurationMs = 24 * 60 * 60 * 1000; // 24 giờ
-
-      IP_BLACKLIST.set(clientIp, {
-        bannedUntil: Date.now() + banDurationMs,
-        reason: body.violationType || 'devtools_inspection_attempt',
-        userAgent: body.userAgent || req.headers['user-agent'] || '',
-        timestamp: new Date().toISOString(),
-      });
-
-      // Lập biên bản sự cố và chuẩn bị cảnh báo tự động
       await dispatchCriticalIncident(
-        new Error(`Phát hiện hành vi can thiệp DevTools: ${body.violationType || 'F12 Tampering'}`),
+        new Error(`Cảnh báo kiểm soát an ninh client: ${body.violationType || 'Tamper Check'}`),
         {
-          task_name: 'AntiTamper Threat Enforcer',
+          task_name: 'AntiTamper Telemetry Monitor',
           user_code: clientIp,
-          violation: body,
+          violation: { violationType: String(body.violationType || '').slice(0, 64), timestamp: body.timestamp },
         }
       );
 
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ success: true, banned: true, clientIp, duration: '24h' }));
+      res.end(JSON.stringify({ success: true, recorded: true, banned: false, clientIp }));
       return true;
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -3716,14 +3953,13 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
-  // MASTER IP UNLOCK ENDPOINT (/api/security/unlock) - MASTER KEY: [REDACTED_BY_P0_AUDIT]
+  // MASTER IP UNLOCK ENDPOINT (/api/security/unlock) — ENV-ONLY SYNAPES_MASTER_KEY
   // Kèm Rate Limiting (5 lần/10 phút) và so sánh thời gian hằng số (Timing-Safe)
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/security/unlock' && req.method === 'POST') {
     try {
-      const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
+      const clientIp = getTrustedClientIp(req);
 
-      // 1. Kiểm tra giới hạn số lần thử nghiệm
       const rateCheck = checkUnlockRateLimit(clientIp);
       if (!rateCheck.allowed) {
         res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -3731,11 +3967,16 @@ export async function handleStudioApiRequest(req, res) {
         return true;
       }
 
+      const masterUnlockKey = String(process.env.SYNAPES_MASTER_KEY || '').trim();
+      if (!masterUnlockKey || isKnownInsecureSecret(masterUnlockKey)) {
+        res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, code: 'MASTER_KEY_UNCONFIGURED', error: 'Master Unlock Key chưa được cấu hình trên máy chủ.' }));
+        return true;
+      }
+
       const body = (await readJsonBody(req)) || {};
       const enteredPassword = String(body.password || '').trim();
 
-      // 2. Xác thực bằng hàm so sánh thời gian hằng số (Timing-Safe Comparison)
-      const masterUnlockKey = process.env.SYNAPES_MASTER_KEY || '[REDACTED_BY_P0_AUDIT]';
       if (constantTimeVerify(enteredPassword, masterUnlockKey)) {
         recordUnlockSuccess(clientIp);
         IP_BLACKLIST.delete(clientIp);
@@ -3792,7 +4033,7 @@ export async function handleStudioApiRequest(req, res) {
   // TRẠNG THÁI MỞ KHÓA DEVTOOLS THEO IP (/api/security/unlock-status)
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/security/unlock-status' && req.method === 'GET') {
-    const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
+    const clientIp = getTrustedClientIp(req);
     const entry = VERIFIED_UNLOCK_IPS.get(clientIp);
     const unlocked = Boolean(entry && entry.expiresAt > Date.now());
     if (entry && !unlocked) VERIFIED_UNLOCK_IPS.delete(clientIp);
@@ -3802,10 +4043,15 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
-  // SINGLE SOURCE OF TRUTH CHO APPS SCRIPT (/api/system/apps-script-template)
+  // SINGLE SOURCE OF TRUTH CHO APPS SCRIPT (/api/system/apps-script-template) — PROTECTED
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/system/apps-script-template' && req.method === 'GET') {
     try {
+      const syncSecretHdr = String(req.headers['x-synapes-sync-secret'] || '').trim();
+      if (!constantTimeVerify(syncSecretHdr, AUTH_SYNC_SECRET)) {
+        const auth = requireUserAuth(req, res, '', rawUrl);
+        if (!auth) return true;
+      }
       const gasFile = path.resolve(process.cwd(), 'google-apps-script', 'Code.js');
       if (!fs.existsSync(gasFile)) {
         res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -3897,7 +4143,7 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
-  // SYSTEM HEALTH & WATCHDOG (/api/system/health-watchdog)
+  // SYSTEM HEALTH & WATCHDOG (/api/system/health-watchdog) — NO PII EXPOSURE
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/system/health-watchdog' && (req.method === 'GET' || req.method === 'POST')) {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -3914,8 +4160,6 @@ export async function handleStudioApiRequest(req, res) {
         },
         blacklistedIpsCount: IP_BLACKLIST.size,
         uptime: process.uptime(),
-        leadEngineer: 'KS. Nguyễn Hoàng Thiện',
-        leadEmail: 'nguyenhoangthien.hvt.15@gmail.com',
         timestamp: new Date().toISOString(),
       })
     );
@@ -3923,12 +4167,27 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
-  // REGISTRATION SIGNATURE LOOKUP (/api/registration-signature?email=...)
-  // Chỉ trả duy nhất ảnh chữ ký base64 đã validate (tuyệt đối không lộ PII khác)
+  // REGISTRATION SIGNATURE LOOKUP (/api/registration-signature?email=...) — PROTECTED
+  // Bắt buộc xác thực Bearer Token chính chủ hoặc X-Synapes-Sync-Secret quản trị
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/registration-signature' && req.method === 'GET') {
+    const syncSecretHdr = String(req.headers['x-synapes-sync-secret'] || '').trim();
+    const isAdminSync = Boolean(syncSecretHdr && constantTimeVerify(syncSecretHdr, AUTH_SYNC_SECRET));
+    let auth = null;
+    if (!isAdminSync) {
+      auth = requireUserAuth(req, res, '', rawUrl);
+      if (!auth) return true;
+    }
     const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-    const queryEmail = urlObj.searchParams.get('email') || '';
+    const queryEmail = String(urlObj.searchParams.get('email') || '').trim().toLowerCase();
+    if (!isAdminSync && auth) {
+      const registeredEmail = String(AUTH_DIRECTORY_MAP.get(auth.userCode)?.registeredGmail || '').trim().toLowerCase();
+      if (queryEmail && registeredEmail && queryEmail !== registeredEmail) {
+        res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, code: 'FORBIDDEN_CROSS_USER', error: 'Không có quyền xem chữ ký của tài khoản khác.' }));
+        return true;
+      }
+    }
     const sig = getSignatureRecord(queryEmail);
     res.writeHead(200, {
       'Content-Type': 'application/json; charset=utf-8',
@@ -4478,9 +4737,11 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
-  // D. SERVER-SIDE LLM GENERATION PROXY & RESEARCH SYNTHESIZER (/api/llm-generate | /api/ai-proxy)
+  // D. SERVER-SIDE LLM GENERATION PROXY & RESEARCH SYNTHESIZER (/api/llm-generate | /api/ai-proxy) — PROTECTED
   // --------------------------------------------------------------------------
   if ((cleanUrl === '/api/llm-generate' || cleanUrl === '/api/ai-proxy') && req.method === 'POST') {
+    const auth = requireUserAuth(req, res, '', rawUrl);
+    if (!auth) return true;
     try {
       const body = await readJsonBody(req);
       const {
@@ -4710,6 +4971,8 @@ export async function handleStudioApiRequest(req, res) {
         res.end(
           JSON.stringify({
             success: true,
+            engineType: 'studio_research',
+            isLiveLlm: false,
             text: JSON.stringify(outPayload),
             content: JSON.stringify(outPayload),
             actualModel: 'SYNAPES Server Research Director',
@@ -4722,7 +4985,7 @@ export async function handleStudioApiRequest(req, res) {
               completionTokens: 480,
               totalTokens: Math.round((String(systemPrompt || '').length + String(userPrompt || '').length) / 4) + 480,
               estimatedCostUsd: 0,
-              keyStatus: 'active',
+              keyStatus: 'research_only',
               failoverTriggered: false,
               attemptedProviders: ['studio-research'],
             },
@@ -4910,6 +5173,8 @@ export async function handleStudioApiRequest(req, res) {
                   res.end(
                     JSON.stringify({
                       success: true,
+                      engineType: 'live_llm',
+                      isLiveLlm: true,
                       text: outText,
                       content: outText,
                       actualModel: mod,
@@ -4970,6 +5235,8 @@ export async function handleStudioApiRequest(req, res) {
                 res.end(
                   JSON.stringify({
                     success: true,
+                    engineType: 'live_llm',
+                    isLiveLlm: true,
                     text: outText,
                     content: outText,
                     actualModel: cModel,
@@ -5037,6 +5304,8 @@ export async function handleStudioApiRequest(req, res) {
               res.end(
                 JSON.stringify({
                   success: true,
+                  engineType: 'live_llm',
+                  isLiveLlm: true,
                   text: outText,
                   content: outText,
                   actualModel: payload.model,
@@ -8089,7 +8358,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   }
 
   // --------------------------------------------------------------------------
-  // ASYNC RENDER JOB QUEUE & COMFYUI WORKER BRIDGE (/api/render-jobs/*)
+  // ASYNC RENDER JOB QUEUE & COMFYUI WORKER BRIDGE (/api/render-jobs/*) — PROTECTED
   // --------------------------------------------------------------------------
   if (!globalThis.__SYNAPES_RENDER_JOBS) {
     globalThis.__SYNAPES_RENDER_JOBS = new Map();
@@ -8097,6 +8366,8 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   const RENDER_JOBS_MAP = globalThis.__SYNAPES_RENDER_JOBS;
 
   if (cleanUrl === '/api/render-jobs/submit' && req.method === 'POST') {
+    const auth = requireUserAuth(req, res, '', rawUrl);
+    if (!auth) return true;
     try {
       const body = sanitizePayloadValue((await readJsonBody(req)) || {}) || {};
       const prompt = String(body.prompt || '').trim();
@@ -8106,9 +8377,18 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         res.end(JSON.stringify({ success: false, error: 'Prompt render không được để trống.' }));
         return true;
       }
+      if (workerUrl) {
+        const safety = await resolveAndValidateSafeUrl(workerUrl);
+        if (!safety.ok) {
+          res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, code: 'SSRF_BLOCKED_WORKER_URL', error: `Worker URL bị chặn bởi SSRF Guard (${safety.reason}).` }));
+          return true;
+        }
+      }
       const jobId = `job_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
       const jobRecord = {
         jobId,
+        ownerUserCode: auth.userCode,
         status: 'queued',
         provider: body.provider || (workerUrl ? 'comfyui-kaggle-gpu' : 'async-queue'),
         prompt,
@@ -8121,9 +8401,13 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         const ctl = new AbortController();
         const t = setTimeout(() => ctl.abort(), 30000);
         try {
+          const workerToken = String(body.workerToken || '').trim();
           const wRes = await fetch(`${workerUrl.replace(/\/$/, '')}/prompt`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(workerToken ? { Authorization: `Bearer ${workerToken}` } : {}),
+            },
             body: JSON.stringify({ prompt: body.workflow || { text: prompt }, client_id: jobId }),
             signal: ctl.signal,
           });
@@ -8140,8 +8424,9 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       }
 
       RENDER_JOBS_MAP.set(jobId, jobRecord);
+      const { workerUrl: _internalWorkerUrl, ...publicRecord } = jobRecord;
       res.writeHead(202, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ success: true, ...jobRecord }));
+      res.end(JSON.stringify({ success: true, ...publicRecord }));
       return true;
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -8151,6 +8436,8 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   }
 
   if (cleanUrl === '/api/render-jobs/status' && req.method === 'GET') {
+    const auth = requireUserAuth(req, res, '', rawUrl);
+    if (!auth) return true;
     const parsed = new URL(rawUrl, 'http://localhost');
     const jobId = (parsed.searchParams.get('jobId') || '').trim();
     const record = RENDER_JOBS_MAP.get(jobId);
@@ -8159,8 +8446,14 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       res.end(JSON.stringify({ success: false, error: 'Không tìm thấy Job ID.' }));
       return true;
     }
+    if (record.ownerUserCode && String(record.ownerUserCode).toUpperCase() !== auth.userCode) {
+      res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, code: 'FORBIDDEN_CROSS_USER', error: 'Không có quyền xem tiến độ render của tài khoản khác.' }));
+      return true;
+    }
+    const { workerUrl: _internalWorkerUrl, ...publicRecord } = record;
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ success: true, ...record }));
+    res.end(JSON.stringify({ success: true, ...publicRecord }));
     return true;
   }
 
@@ -8417,28 +8710,21 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   }
 
   // --------------------------------------------------------------------------
-  // SERVER-SIDE PLUGIN PROXY (/api/plugin/dispatch) — ASYNC QUEUE >= 60S
+  // SERVER-SIDE PLUGIN PROXY (/api/plugin/dispatch) — ASYNC QUEUE >= 60S — PROTECTED
   // --------------------------------------------------------------------------
   if (cleanUrl === '/api/plugin/dispatch' && req.method === 'POST') {
+    const auth = requireUserAuth(req, res, '', rawUrl);
+    if (!auth) return true;
     try {
       const body = sanitizePayloadValue((await readJsonBody(req)) || {}) || {};
       const provider = String(body.provider || 'kling').trim().toLowerCase();
       const endpoint = String(body.endpoint || '').trim();
       const apiKey = String(body.apiKey || '').trim();
 
-      let parsedUrl = null;
-      try {
-        parsedUrl = new URL(endpoint);
-      } catch {
-        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ success: false, error: 'Endpoint plugin không hợp lệ.' }));
-        return true;
-      }
-
-      const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '169.254.169.254', '::1'];
-      if (parsedUrl.protocol !== 'https:' || blockedHosts.includes(parsedUrl.hostname.toLowerCase())) {
+      const endpointSafety = await resolveAndValidateSafeUrl(endpoint);
+      if (!endpointSafety.ok || !/^https:\/\//i.test(endpoint)) {
         res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ success: false, error: 'Chính sách SSRF: Chỉ cho phép gọi HTTPS tới nhà cung cấp bên ngoài hợp lệ.' }));
+        res.end(JSON.stringify({ success: false, error: `Chính sách SSRF: Endpoint plugin không hợp lệ hoặc bị chặn (${endpointSafety.reason || 'non_https'}).` }));
         return true;
       }
 
@@ -8474,6 +8760,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
           const jobId = upstreamData?.jobId || upstreamData?.task_id || `job_${Date.now()}`;
           RENDER_JOBS_MAP.set(jobId, {
             jobId,
+            ownerUserCode: auth.userCode,
             status: upstreamData?.status || 'queued',
             provider,
             createdAt: new Date().toISOString(),
@@ -8943,12 +9230,15 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
     try {
       const qIdx = rawUrl.indexOf('?');
       const params = new URLSearchParams(qIdx >= 0 ? rawUrl.slice(qIdx + 1) : '');
+      const requestedCode = String(params.get('userCode') || '').trim().toUpperCase();
+      const auth = requireUserAuth(req, res, requestedCode, rawUrl);
+      if (!auth) return true;
       const store = readJsonRegistry(PLATFORM_TRAFFIC_FILE, { events: [], updatedAt: new Date().toISOString() });
       const geoInfo = await resolveClientGeoAndTime(req);
       const summary = buildRealTrafficSummary(
         store,
         {
-          userCode: params.get('userCode') || '',
+          userCode: auth.userCode,
           youtube: Number(params.get('yt') || 0),
           tiktok: Number(params.get('tt') || 0),
           facebook: Number(params.get('fb') || 0),

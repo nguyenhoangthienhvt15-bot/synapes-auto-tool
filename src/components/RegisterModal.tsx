@@ -974,7 +974,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-zinc-600">
                   <div>• Đại diện: <b>KS. NGUYỄN HOÀNG THIỆN</b> (Trưởng ban CĐS & TTNT)</div>
-                  <div>• Số CCCD: <b className="font-mono text-zinc-900">[REDACTED_BY_P0_AUDIT]</b></div>
+                  <div>• Số CCCD: <b className="font-mono text-zinc-900">{String((import.meta as any).env?.VITE_PARTY_A_ID_NUMBER || 'Theo hồ sơ pháp lý Bên A').trim()}</b></div>
                   <div>• Địa chỉ thường trú: <b>Gò Vấp, TP HCM</b></div>
                   <div>• Hộp thư chính thức: <span className="font-mono">nguyenhoangthien.hvt.15@gmail.com</span></div>
                 </div>
@@ -1081,7 +1081,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                       </h4>
                       <p><b>3.1. Thời hạn và giá trị hợp đồng:</b> Có tính <b>VĨNH VIỄN</b> kể từ thời điểm ký kết thành công.</p>
                       <p><b>3.2. Cam kết bảo hành & hỗ trợ:</b> Bên bán cam kết bảo hành và cung cấp giải pháp bảo hành toàn thời gian cho toàn bộ hệ thống phần mềm, khắc phục mọi sự cố kỹ thuật phát sinh 24/7.</p>
-                      <p><b>3.3. Tính chính thống:</b> Hệ thống phần mềm SYNAPES Studio là sản phẩm trí tuệ độc quyền được phát triển chính thống bởi Ban Chuyển đổi số & Trí tuệ nhân tạo, đứng đầu là KS. Nguyễn Hoàng Thiện (CCCD: <b>[REDACTED_BY_P0_AUDIT]</b>, thường trú: <b>Gò Vấp, TP HCM</b>).</p>
+                      <p><b>3.3. Tính chính thống:</b> Hệ thống phần mềm SYNAPES Studio là sản phẩm trí tuệ độc quyền được phát triển chính thống bởi Ban Chuyển đổi số & Trí tuệ nhân tạo, đứng đầu là KS. Nguyễn Hoàng Thiện (CCCD: <b>{String((import.meta as any).env?.VITE_PARTY_A_ID_NUMBER || 'Theo hồ sơ pháp lý Bên A').trim()}</b>, thường trú: <b>Gò Vấp, TP HCM</b>).</p>
                     </div>
                   )}
 
@@ -1294,7 +1294,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                     </div>
                     <div>
                       <div className="text-xs font-bold text-zinc-950">KS. NGUYỄN HOÀNG THIỆN</div>
-                      <div className="text-[10px] font-mono text-zinc-500">CCCD: [REDACTED_BY_P0_AUDIT]</div>
+                      <div className="text-[10px] font-mono text-zinc-500">CCCD: {String((import.meta as any).env?.VITE_PARTY_A_ID_NUMBER || 'Theo hồ sơ pháp lý Bên A').trim()}</div>
                     </div>
                   </div>
                 </div>

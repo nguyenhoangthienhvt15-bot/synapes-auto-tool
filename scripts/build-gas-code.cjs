@@ -54,6 +54,14 @@ var TIMO_BANK_INFO = {
   accountHolder: "NGUYEN HOANG THIEN"
 };
 
+function getPartyAIdNumber() {
+  try {
+    var val = PropertiesService.getScriptProperties().getProperty("PARTY_A_ID_NUMBER");
+    if (val && String(val).trim()) return String(val).trim();
+  } catch (e) {}
+  return "Theo hồ sơ pháp lý Bên A";
+}
+
 /**
  * CON DẤU ĐỎ TRÒN TRƯỞNG BAN NGUYỄN HOÀNG THIỆN (BASE64 TÁCH NỀN TRONG SUỐT)
  */
@@ -1803,7 +1811,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
     '  <b>BÊN A: BÊN CUNG CẤP DỊCH VỤ NỀN TẢNG (SYNAPES STUDIO)</b><br/>' +
     '  • Đơn vị phát triển: Nền tảng Tự động hóa Nội dung số SYNAPES Studio<br/>' +
     '  • Đại diện giao dịch: <b>KS. NGUYỄN HOÀNG THIỆN</b> &nbsp;|&nbsp; Chức vụ: <b>Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo</b><br/>' +
-    '  • Số CCCD: <b>[REDACTED_BY_P0_AUDIT]</b> &nbsp;|&nbsp; Địa chỉ thường trú: <b>Gò Vấp, TP HCM</b><br/>' +
+    '  • Số CCCD: <b>' + getPartyAIdNumber() + '</b> &nbsp;|&nbsp; Địa chỉ thường trú: <b>Gò Vấp, TP HCM</b><br/>' +
     '  • Hộp thư điện tử: nguyenhoangthien.hvt.15@gmail.com &nbsp;|&nbsp; Cổng dịch vụ: https://synapes-auto-tool-web-service.onrender.com' +
     '</div>' +
     '<div class="party-box">' +
@@ -1827,7 +1835,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
     '<p>5.1. Hợp đồng điện tử này có giá trị pháp lý tương đương hợp đồng giấy theo Điều 13 và Điều 34 Luật Giao dịch điện tử số 20/2023/QH15.</p>' +
     '<table class="sign-table"><tr>' +
     '  <td><b>ĐẠI DIỆN MUA HÀNG (BÊN B)</b><br/><i>(Đã ký xác nhận điện tử)</i><br/>' + buyerSigHtml + '<div style="border: 1px dashed #15803d; color: #15803d; display: inline-block; padding: 6px 12px; font-size: 8.5pt; font-weight: bold; margin: 8px 0;">ĐÃ KÝ XÁC NHẬN ĐIỆN TỬ<br/>Ngày: ' + dateStr + '</div><br/><b>' + fullName.toUpperCase() + '</b></td>' +
-    '  <td><b>ĐẠI DIỆN GIAO DỊCH (BÊN A)</b><br/><b>TRƯỞNG BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO</b><br/><i>(Ký, đóng dấu xác thực điện tử)</i><br/>' + stampImgHtml + '<div style="margin-top: 4px; font-weight: bold;">KS. NGUYỄN HOÀNG THIỆN</div><div style="font-size: 8pt; color: #475569; font-family: monospace;">CCCD: [REDACTED_BY_P0_AUDIT]</div><div style="color: #b91c1c; font-size: 8.5pt; font-style: italic; margin-top: 2px;">✓ Đã ký &amp; đóng dấu Trưởng ban</div></td>' +
+    '  <td><b>ĐẠI DIỆN GIAO DỊCH (BÊN A)</b><br/><b>TRƯỞNG BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO</b><br/><i>(Ký, đóng dấu xác thực điện tử)</i><br/>' + stampImgHtml + '<div style="margin-top: 4px; font-weight: bold;">KS. NGUYỄN HOÀNG THIỆN</div><div style="font-size: 8pt; color: #475569; font-family: monospace;">CCCD: ' + getPartyAIdNumber() + '</div><div style="color: #b91c1c; font-size: 8.5pt; font-style: italic; margin-top: 2px;">✓ Đã ký &amp; đóng dấu Trưởng ban</div></td>' +
     '</tr></table>' +
     '</body></html>';
 }
@@ -2115,6 +2123,25 @@ function approveAllPendingUsers() {
 /**
  * 12. WEBHOOK TIẾP NHẬN DỮ LIỆU TỪ WEBAPP
  */
+function isValidJsonpCallback(name) {
+  if (!name || typeof name !== "string") return false;
+  return /^[a-zA-Z_$][0-9a-zA-Z_$]{0,63}$/.test(name);
+}
+
+function isValidGasSyncSecret(payload) {
+  var expectedSecret = "";
+  try {
+    expectedSecret = String(PropertiesService.getScriptProperties().getProperty("SYNAPES_SYNC_SECRET") || "").trim();
+  } catch (e) {}
+  var provided = String((payload && payload.syncSecret) || "").trim();
+  if (!expectedSecret || !provided || provided.length !== expectedSecret.length) return false;
+  var diff = 0;
+  for (var i = 0; i < expectedSecret.length; i++) {
+    diff |= expectedSecret.charCodeAt(i) ^ provided.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 function doGet(e) {
   var params = (e && e.parameter) ? e.parameter : {};
   if (params.payload) {
@@ -2129,6 +2156,11 @@ function doGet(e) {
   }
   var callback = params.callback;
   var action = params.action;
+
+  if (callback && !isValidJsonpCallback(callback)) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", error: "Invalid JSONP callback identifier" }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 
   if (action === "ping" || action === "health") {
     var response = { status: "ok", time: new Date().toISOString(), message: "SYNAPES Apps Script is alive" };
@@ -2183,6 +2215,21 @@ function processWebhookPayload(payload) {
 
     if (action === "register" || (!action && payload.email && (payload.fullName || payload.name))) {
       return handleUserRegistrationWebhook(ss, payload);
+    }
+
+    var privilegedActions = [
+      "forgot_password",
+      "reset_password",
+      "change_password",
+      "emergency_report",
+      "system_health_report",
+      "approve",
+      "approve_user",
+      "approve_first_stage",
+      "approve_final_handover"
+    ];
+    if (privilegedActions.indexOf(action) !== -1 && !isValidGasSyncSecret(payload)) {
+      return { status: "unauthorized", error: "Missing or invalid SYNAPES_SYNC_SECRET" };
     }
 
     if (action === "forgot_password" || action === "reset_password") {
@@ -2403,7 +2450,7 @@ function handleUserRegistrationWebhook(ss, payload) {
     var contractSummaryNote =
       "📄 BẢN LƯU HỢP ĐỒNG DỊCH VỤ ĐIỆN TỬ (PDF)\\n" +
       "------------------------------------------\\n" +
-      "• Đại diện Bên A: KS. Nguyễn Hoàng Thiện (Trưởng ban CĐS & TTNT | CCCD: [REDACTED_BY_P0_AUDIT] | Đ/C: Gò Vấp, TP HCM)\\n" +
+      "• Đại diện Bên A: KS. Nguyễn Hoàng Thiện (Trưởng ban CĐS & TTNT | CCCD: " + getPartyAIdNumber() + " | Đ/C: Gò Vấp, TP HCM)\\n" +
       "• Khách hàng (Bên B): " + (payload.fullName || "") + " (Đã ký điện tử)\\n" +
       (cccdStr ? ("• Số CCCD / CMND: " + cccdStr.replace(/^'+/, "") + "\\n") : "") +
       "• Ngày sinh: " + (dobParsed.formattedDob || payload.dob || "") + " | Giới tính: " + (payload.gender || "Nam") + "\\n" +
@@ -2672,28 +2719,9 @@ function installCloudKeepAliveTrigger() {
 }
 `;
 
-// 3. Ghi file google-apps-script/Code.js
+// 3. Ghi file nguồn chuẩn duy nhất google-apps-script/Code.js (giữ nguyên Single-Source stubs AUD-22 trong src/)
 const gasPath = path.join(ROOT, 'google-apps-script', 'Code.js');
 fs.writeFileSync(gasPath, gasCode, 'utf8');
 console.log('✅ Đã cập nhật file: ' + gasPath);
-
-// 4. Ghi file src/components/Code.js
-const compGasPath = path.join(ROOT, 'src', 'components', 'Code.js');
-fs.writeFileSync(compGasPath, gasCode, 'utf8');
-console.log('✅ Đã cập nhật file: ' + compGasPath);
-
-// 5. Ghi file src/data/appsScriptCode.ts
-const appsScriptTsPath = path.join(ROOT, 'src', 'data', 'appsScriptCode.ts');
-const tsContent = `/**
- * Mã nguồn Google Apps Script đồng bộ tự động 2 chiều cho Google Sheet:
- * - Tab: "THÔNG TIN NGƯỜI DÙNG" (20 Cột Chuẩn & 2 Phân hệ Hợp đồng Cá nhân / Toàn hệ)
- * - Tự động gửi Gmail với Con dấu đỏ tròn KS. Nguyễn Hoàng Thiện & VietQR Timo
- */
-
-export const APPS_SCRIPT_CODE = ${JSON.stringify(gasCode)};
-`;
-fs.writeFileSync(appsScriptTsPath, tsContent, 'utf8');
-console.log('✅ Đã cập nhật file: ' + appsScriptTsPath);
-
 console.log('\n🎉 ĐỒNG BỘ MÃ NGUỒN APPS SCRIPT HOÀN TẤT THÀNH CÔNG!');
 

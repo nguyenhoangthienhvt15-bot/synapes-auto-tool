@@ -6,7 +6,7 @@ import {
 } from '../src/services/voiceStudioService';
 import { extractVideoInfo } from '../src/services/videoDeconstructService';
 import { detectPluginBrand } from '../src/services/aiModelDiscoveryService';
-import { handleStudioApiRequest } from '../server/studioBackendEngine.mjs';
+import { handleStudioApiRequest, issueServerAuthToken } from '../server/studioBackendEngine.mjs';
 
 describe('Kiểm định Audit 25/11/2026: Traffic 180p, BYOK URL, Giọng Nam/Nữ, Plugin Discovery & VoiceDesign', () => {
   let server: http.Server;
@@ -85,8 +85,14 @@ describe('Kiểm định Audit 25/11/2026: Traffic 180p, BYOK URL, Giọng Nam/N
     expect(detectPluginBrand('https://api.klingai.com/v1/videos/text2video', 'kling-v1.5', syntheticKey)).toBe('elevenlabs');
   });
 
-  it('4. Backend /api/analytics/platform-traffic trả 0 lượt xem khi chưa kết nối kênh & chu kỳ quét 180 phút', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/analytics/platform-traffic?userCode=TEST_UNCONNECTED`);
+  it('4. Backend /api/analytics/platform-traffic chặn request thiếu Bearer token (401) và trả 0 lượt xem khi hợp lệ', async () => {
+    const unauthRes = await fetch(`http://127.0.0.1:${port}/api/analytics/platform-traffic?userCode=TEST_UNCONNECTED`);
+    expect(unauthRes.status).toBe(401);
+
+    const token = issueServerAuthToken('TEST_UNCONNECTED');
+    const res = await fetch(`http://127.0.0.1:${port}/api/analytics/platform-traffic?userCode=TEST_UNCONNECTED`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.scanIntervalMinutes).toBe(180);

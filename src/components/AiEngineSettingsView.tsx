@@ -7,6 +7,7 @@ import {
 import {
   discoverModelsFromKey,
   getCachedDiscoveredModels,
+  dedupeModelsById,
   DiscoveredModel,
   PROVIDERS,
   ProviderMeta,
@@ -119,17 +120,19 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
     const initial: Record<string, DiscoveredModel[]> = {};
     for (const p of PROVIDERS) {
       const provKey = p.id === 'plugin' ? config.plugin?.apiToken : (config[p.id as keyof AIProviderConfig] as any)?.apiKey;
-      const cached = getCachedDiscoveredModels(p.id, provKey);
+      const cached = provKey && provKey.trim().length > 5 ? getCachedDiscoveredModels(p.id, provKey) : null;
       if (cached && cached.length > 0) {
-        initial[p.id] = cached;
+        initial[p.id] = dedupeModelsById(cached);
       } else {
-        initial[p.id] = p.models.map((m) => ({
-          id: m.id,
-          name: m.name,
-          tag: m.tag,
-          isLiveFromKey: false,
-          isRecommended: m.id === p.defaultModel,
-        }));
+        initial[p.id] = dedupeModelsById(
+          p.models.map((m) => ({
+            id: m.id,
+            name: m.name,
+            tag: m.tag,
+            isLiveFromKey: false,
+            isRecommended: m.id === p.defaultModel,
+          }))
+        );
       }
     }
     return initial;
@@ -179,9 +182,10 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
         setEndpoints((prev) => ({ ...prev, plugin: res.detectedEndpoint! }));
       }
       if (res.success && res.models.length > 0) {
+        const cleanModels = dedupeModelsById(res.models);
         setDiscoveredModels((prev) => ({
           ...prev,
-          [provId]: res.models,
+          [provId]: cleanModels,
         }));
         setDiscoveryStatus((prev) => ({
           ...prev,
@@ -267,33 +271,49 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
     }
   }, [keys[activeProvider], activeProvider]);
 
-  // Nạp lại cache nếu chuyển tab provider
+  // Nạp lại cache nếu chuyển tab provider (khử trùng lặp và reset về mặc định nếu ô Key trống)
   useEffect(() => {
     const currentKey = keys[activeProvider]?.trim();
-    if (currentKey) {
+    const meta = PROVIDERS.find((p) => p.id === activeProvider);
+    if (currentKey && currentKey.length > 5) {
       const cached = getCachedDiscoveredModels(activeProvider, currentKey);
       if (cached && cached.length > 0) {
         setDiscoveredModels((prev) => ({
           ...prev,
-          [activeProvider]: cached,
+          [activeProvider]: dedupeModelsById(cached),
         }));
       }
+    } else if (meta) {
+      setDiscoveredModels((prev) => ({
+        ...prev,
+        [activeProvider]: dedupeModelsById(
+          meta.models.map((m) => ({
+            id: m.id,
+            name: m.name,
+            tag: m.tag,
+            isLiveFromKey: false,
+            isRecommended: m.id === meta.defaultModel,
+          }))
+        ),
+      }));
     }
-  }, [activeProvider]);
+  }, [activeProvider, keys[activeProvider]]);
 
   const currentMeta = PROVIDERS.find((p) => p.id === activeProvider) || PROVIDERS[0];
   const isDefaultSelected = (config.activeProvider || config.mode) === activeProvider;
+  const hasConfiguredActiveKey = Boolean(keys[activeProvider] && keys[activeProvider].trim().length > 5);
 
-  const activeModels: DiscoveredModel[] =
+  const activeModels: DiscoveredModel[] = dedupeModelsById(
     discoveredModels[activeProvider] && discoveredModels[activeProvider].length > 0
       ? discoveredModels[activeProvider]
       : currentMeta.models.map((m) => ({
-        id: m.id,
-        name: m.name,
-        tag: m.tag,
-        isLiveFromKey: false,
-        isRecommended: m.id === currentMeta.defaultModel,
-      }));
+          id: m.id,
+          name: m.name,
+          tag: m.tag,
+          isLiveFromKey: false,
+          isRecommended: m.id === currentMeta.defaultModel,
+        }))
+  );
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -570,10 +590,17 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
 
           <div className="flex items-center gap-2 self-start sm:self-auto">
             {isDefaultSelected ? (
-              <span className="px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-1.5">
-                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Động Cơ Đang Kích Hoạt</span>
-              </span>
+              hasConfiguredActiveKey ? (
+                <span className="px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Động Cơ Đang Kích Hoạt</span>
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Mặc Định • Chưa Gắn API Key</span>
+                </span>
+              )
             ) : (
               <button
                 type="button"

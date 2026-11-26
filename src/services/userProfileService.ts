@@ -79,17 +79,17 @@ export const EMPTY_AI_CONFIG: AIProviderConfig = {
 };
 
 export const getDisconnectedChannels = (
-  userName: string = '',
-  userEmail: string = ''
+  _userName: string = '',
+  _userEmail: string = ''
 ): ConnectedChannelAccount[] => [
   {
     id: 'yt',
     platform: 'youtube',
     name: 'Kênh YouTube',
-    handle: userEmail ? `@${userEmail.split('@')[0]}` : 'Chưa liên kết',
+    handle: 'Chưa liên kết kênh',
     status: 'disconnected',
     apiScope: 'youtube.upload, youtube.readonly (Direct Upload 5–10 phút)',
-    tokenExpiry: 'Chưa cấp quyền',
+    tokenExpiry: 'Chưa cấp OAuth Token',
     connectedAt: '',
     stats: {
       metricLabel: 'Người đăng ký',
@@ -101,10 +101,10 @@ export const getDisconnectedChannels = (
     id: 'tt',
     platform: 'tiktok',
     name: 'Tài khoản TikTok Creator',
-    handle: 'Chưa liên kết',
+    handle: 'Chưa liên kết kênh',
     status: 'disconnected',
     apiScope: 'video.upload, video.publish, link.anchor',
-    tokenExpiry: 'Chưa cấp quyền',
+    tokenExpiry: 'Chưa cấp OAuth Token',
     connectedAt: '',
     stats: {
       metricLabel: 'Lượt theo dõi',
@@ -116,10 +116,10 @@ export const getDisconnectedChannels = (
     id: 'fb',
     platform: 'facebook',
     name: 'Facebook Fanpage / Reels',
-    handle: 'Chưa liên kết',
+    handle: 'Chưa liên kết Fanpage',
     status: 'disconnected',
     apiScope: 'pages_manage_posts, reels_upload',
-    tokenExpiry: 'Chưa cấp quyền',
+    tokenExpiry: 'Chưa cấp Page Access Token',
     connectedAt: '',
     stats: {
       metricLabel: 'Lượt thích trang',
@@ -131,10 +131,10 @@ export const getDisconnectedChannels = (
     id: 'gd',
     platform: 'drive',
     name: 'Google Drive Storage',
-    handle: userEmail || 'Chưa liên kết',
+    handle: 'Chưa liên kết Google Drive',
     status: 'disconnected',
     apiScope: 'drive.file (Bảo mật thư mục riêng)',
-    tokenExpiry: 'Chưa cấp quyền',
+    tokenExpiry: 'Chưa cấp OAuth 2.0 Token',
     connectedAt: '',
     stats: {
       metricLabel: 'Dung lượng đã dùng',
@@ -182,7 +182,14 @@ export function setActiveSession(user: UserAccount | null): void {
  */
 export function clearActiveSession(): void {
   try {
+    const active = getActiveSession();
     localStorage.removeItem(ACTIVE_SESSION_KEY);
+    sessionStorage.removeItem('synapes_auth_token');
+    if (active?.code) {
+      const codeUp = active.code.trim().toUpperCase();
+      sessionStorage.removeItem(`synapes_auth_token_${codeUp}`);
+      localStorage.removeItem(`synapes_auth_token_${codeUp}`);
+    }
   } catch (err) {
     console.warn('Could not clear active session', err);
   }
@@ -217,13 +224,30 @@ export function getUserProfile(
           model: rawCfg.gemini?.model || 'gemini-2.5-flash',
         },
       };
+      const sanitizedChannels = Array.isArray(parsed.channels)
+        ? parsed.channels.map((ch) =>
+            ch.status === 'disconnected'
+              ? {
+                  ...ch,
+                  handle:
+                    ch.platform === 'drive'
+                      ? 'Chưa liên kết Google Drive'
+                      : ch.platform === 'facebook'
+                        ? 'Chưa liên kết Fanpage'
+                        : 'Chưa liên kết kênh',
+                  email: '',
+                  avatarUrl: '',
+                }
+              : ch
+          )
+        : getDisconnectedChannels(fallbackName, fallbackEmail);
       return {
         code: codeClean,
         name: parsed.name || fallbackName,
         email: parsed.email || fallbackEmail,
         aiConfig: sanitizedAiConfig,
-        channels: parsed.channels || getDisconnectedChannels(fallbackName, fallbackEmail),
-        driveEmail: parsed.driveEmail || fallbackEmail,
+        channels: sanitizedChannels,
+        driveEmail: parsed.driveConnected ? (parsed.driveEmail || '') : '',
         driveConnected: !!parsed.driveConnected,
         projects: parsed.projects || [],
       };
@@ -271,13 +295,13 @@ const syncTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function getAuthHeaders(userCode?: string): Record<string, string> {
   try {
-    let code = String(userCode || '').trim().toUpperCase();
+    const code = String(userCode || '').trim().toUpperCase();
     let token = '';
     if (code) {
       token = sessionStorage.getItem(`synapes_auth_token_${code}`) || localStorage.getItem(`synapes_auth_token_${code}`) || '';
     }
     if (!token) {
-      const activeRaw = localStorage.getItem('synapes_active_user_v1');
+      const activeRaw = localStorage.getItem(ACTIVE_SESSION_KEY) || localStorage.getItem('synapes_active_user_v1');
       if (activeRaw) {
         const activeUser = JSON.parse(activeRaw);
         const activeCode = String(activeUser?.code || '').trim().toUpperCase();

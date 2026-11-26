@@ -21,19 +21,12 @@ npm run dev
 
 ---
 
-## 🔑 Tài Khoản Đăng Nhập & Cơ Chế Quản Lý
+## 🔑 Cơ Chế Xác Thực & Bảo Mật Phiên Đăng Nhập
 
-Hệ thống hoạt động theo cơ chế **Mã Code được cấp kèm mật khẩu mặc định**.
-Bảng Google Sheet của Kỹ Sư được tích hợp trực tiếp để quản trị và cấp lại mật khẩu.
-
-| Mã Code | Tên Khách Hàng | Gmail Đăng Ký | Mật Khẩu Mặc Định / Tạm | Trạng Thái Tài Khoản |
-| :--- | :--- | :--- | :--- | :--- |
-| `VIP-001` | Nguyễn Văn A (Tech Reviewer) | `nguyenhoangthien.hvt.15@gmail.com` | `[REDACTED_BY_P0_AUDIT]` | 🟢 Khách đã đổi pass riêng |
-| `VIP-002` | Trần Thị B (Shop Mỹ Phẩm B) | `shopb.cosmetics@gmail.com` | `[REDACTED_BY_P0_AUDIT]` | 🟡 Vừa cấp lại pass (Chưa login) |
-| `VIP-003` | Lê Hoàng Nam (Agency Truyền Thông) | `nam.le@agency.vn` | `Start@2026` | 🟢 Khách đã đổi pass riêng |
-
-> 💡 **Tính năng "Bạn quên mật khẩu?":**
-> Khách bấm nút *"Bạn quên mật khẩu?"* $\rightarrow$ Hệ thống tự sinh mật khẩu tạm `Auto-XXXXXX`, gửi thư về Gmail của khách và cập nhật lên Google Sheet cho Kỹ Sư. Khi khách đăng nhập, hệ thống bắt buộc đổi mật khẩu riêng (mật khẩu này được hash an toàn, không hiển thị trên Sheet).
+Hệ thống áp dụng xác thực phía máy chủ (**Server-Side Authentication**) không lưu mật khẩu thuần hay bí mật trong mã nguồn:
+- Mật khẩu người dùng được băm bằng `crypto.scryptSync` kèm 16-byte random salt (`scrypt$v1$<salt>$<hash>`) trên máy chủ và cấp phiên đăng nhập ký HMAC (`Bearer <token>`).
+- Các khóa API cá nhân (BYOK) và OAuth Token được mã hóa AES-256-GCM khi lưu trữ bằng biến môi trường `MASTER_VAULT_KEY`.
+- Khi quên mật khẩu, tính năng **"Bạn quên mật khẩu?"** thực hiện đối soát 2 bước kèm mã **OTP 6 chữ số** gửi qua Email (hiệu lực 10 phút) trước khi cho phép đặt lại mật khẩu mới.
 
 ---
 

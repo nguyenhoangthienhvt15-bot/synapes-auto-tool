@@ -1,4 +1,5 @@
 import { SemanticFlowId, SemanticPipelineRoute } from './semanticPipelineRouter';
+import { getAuthHeaders } from './userProfileService';
 
 export interface CharacterConsistencySheet {
   characterId: string;
@@ -309,7 +310,10 @@ export async function runMultiAgentWritersRoom(params: {
     try {
       const response = await fetch('/api/ai-proxy', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify({
           provider: aiConfig.provider,
           model: aiConfig.model,

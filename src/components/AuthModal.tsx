@@ -3,15 +3,11 @@ import { UserAccount, EngineerSheetRow } from '../types';
 import { Lock, User, KeyRound, AlertCircle, ArrowRight, CheckCircle2, X, RefreshCw, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import { RegisterModal } from './RegisterModal';
 import {
-  generateUserPassword,
-  generateUserCode,
-  getStoredRegistrations,
-  resetToTempPassword,
-  fetchGoogleSheetLive,
-  sendForgotPasswordViaSheet,
+  saveCustomPassword,
   syncForgotPasswordWithServer,
   getLocalPasswordDailyQuota,
 } from '../services/googleSheetService';
+import { getAuthHeaders } from '../services/userProfileService';
 
 interface AuthModalProps {
   currentUser: UserAccount | null;
@@ -61,7 +57,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const code = (currentUser?.code || '').trim().toUpperCase();
     if (!code) return;
     setDailyQuota(getLocalPasswordDailyQuota(code));
-    fetch(`/api/auth/password-quota?code=${encodeURIComponent(code)}`)
+    const authHdrs = getAuthHeaders(code);
+    if (!authHdrs.Authorization) return;
+    fetch(`/api/auth/password-quota?code=${encodeURIComponent(code)}`, {
+      headers: authHdrs,
+    })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.success && typeof d.remainingChangesToday === 'number') {
@@ -75,10 +75,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       .catch(() => {});
   }, [currentUser?.code]);
 
-  // Quên mật khẩu popup
+  // Quên mật khẩu popup (Luồng 2 bước OTP 6 số gửi qua Gmail)
   const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotStep, setForgotStep] = useState<'request' | 'verify'>('request');
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotPhone, setForgotPhone] = useState('');
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [forgotMaskedEmail, setForgotMaskedEmail] = useState('');
   const [forgotAttempts, setForgotAttempts] = useState<number>(() => {
     try {
       return Number(localStorage.getItem('synapes_forgot_attempts') || '0');
@@ -191,14 +196,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     if (forgotAttempts >= 5 || isForgotLocked) {
       setIsForgotLocked(true);
-      setForgotError('🚫 TÍNH NĂNG ĐÃ BỊ KHÓA: Bạn đã nhập sai quá 5 lần liên tiếp. Để bảo đảm an toàn, vui lòng liên hệ Kỹ sư qua Gmail: nguyenhoangthien.hvt.15@gmail.com.');
+      setForgotError('🚫 TÍNH NĂNG ĐÃ BỊ KHÓA: Bạn đã nhập sai quá 5 lần liên tiếp. Để bảo đảm an toàn, vui lòng liên hệ Kỹ sư hỗ trợ.');
       return;
     }
 
     const emailClean = forgotEmail.trim().toLowerCase();
     const phoneClean = forgotPhone.trim().replace(/\D/g, '');
 
-    if (!emailClean || !phoneClean) {
+    if (!emailClean || phoneClean.length < 8) {
       setForgotError('Vui lòng nhập đầy đủ Gmail và Số điện thoại đã đăng ký.');
       return;
     }
@@ -206,107 +211,95 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsSubmittingForgot(true);
 
     try {
-      // 0. Đồng bộ dữ liệu mới nhất trực tiếp từ cả 2 tab Google Sheet trước khi đối soát
-      const liveRows = await fetchGoogleSheetLive().catch(() => null);
-      const activeSheetRows = liveRows && liveRows.length > 0 ? liveRows : sheetRows;
+      if (forgotStep === 'request') {
+        const otpReqRes = await syncForgotPasswordWithServer({
+          step: 'request_otp',
+          email: emailClean,
+          phone: forgotPhone.trim(),
+        });
 
-      const phoneTail = phoneClean.length >= 9 ? phoneClean.slice(-9) : phoneClean;
+        if (!otpReqRes.matched || !otpReqRes.otpSent) {
+          const newAttempts = forgotAttempts + 1;
+          setForgotAttempts(newAttempts);
+          try {
+            localStorage.setItem('synapes_forgot_attempts', String(newAttempts));
+          } catch {}
 
-      // 1. Kiểm tra đối soát với hồ sơ đăng ký người dùng (trên trang "THÔNG TIN NGƯỜI DÙNG")
-      const storedRegs = getStoredRegistrations();
-      const regMatch = storedRegs.find((r) => {
-        const rEmail = (r.email || '').trim().toLowerCase();
-        const rPhone = (r.phone || '').trim().replace(/\D/g, '');
-        const rPhoneTail = rPhone.length >= 9 ? rPhone.slice(-9) : rPhone;
-        return rEmail === emailClean && (rPhone === phoneClean || (phoneTail.length >= 8 && rPhoneTail === phoneTail));
-      });
-
-      // 2. Kiểm tra với danh bạ Sheet ("Quản Lý Mật Khẩu")
-      const sheetMatch = activeSheetRows.find((r) => {
-        const rEmail = (r.registeredGmail || '').trim().toLowerCase();
-        const notesPhone = (r.engineerNotes || '').replace(/\D/g, '');
-        return (
-          rEmail === emailClean &&
-          (Boolean(regMatch) || (phoneTail.length >= 8 && Boolean(notesPhone) && notesPhone.includes(phoneTail)))
-        );
-      });
-
-      const newDefaultPass = generateUserPassword();
-      const localMatched = regMatch || sheetMatch;
-
-      // 2B. Nếu GViz hạn chế quyền (401), đối soát trực tiếp qua danh bạ đồng bộ trên Server
-      const serverForgotRes = await syncForgotPasswordWithServer({
-        email: emailClean,
-        phone: forgotPhone.trim(),
-        code: regMatch?.assignedCode || sheetMatch?.code,
-        newPassword: newDefaultPass,
-      });
-
-      const isMatched = Boolean(localMatched) || Boolean(serverForgotRes.matched);
-
-      if (!isMatched) {
-        const newAttempts = forgotAttempts + 1;
-        setForgotAttempts(newAttempts);
-        try {
-          localStorage.setItem('synapes_forgot_attempts', String(newAttempts));
-        } catch {}
-
-        if (newAttempts >= 5) {
-          setIsForgotLocked(true);
-          setForgotError('🚫 Bạn đã nhập sai thông tin 5 lần liên tiếp! Tính năng Quên mật khẩu đã bị đóng để bảo mật tài khoản. Vui lòng liên hệ Kỹ sư qua Gmail: nguyenhoangthien.hvt.15@gmail.com để được hỗ trợ mở khóa.');
-        } else {
-          setForgotError(`⚠️ Gmail hoặc Số điện thoại không trùng khớp với hồ sơ đăng ký trên Google Sheet. Bạn còn ${5 - newAttempts} lần thử.`);
+          if (newAttempts >= 5) {
+            setIsForgotLocked(true);
+            setForgotError('🚫 Bạn đã nhập sai thông tin 5 lần liên tiếp! Tính năng Quên mật khẩu đã bị khóa để bảo mật tài khoản.');
+          } else {
+            setForgotError(otpReqRes.error || `⚠️ Gmail hoặc Số điện thoại không trùng khớp với hồ sơ hệ thống. Bạn còn ${5 - newAttempts} lần thử.`);
+          }
+          return;
         }
+
+        setForgotAttempts(0);
+        try {
+          localStorage.removeItem('synapes_forgot_attempts');
+        } catch {}
+        setForgotMaskedEmail(otpReqRes.maskedEmail || emailClean);
+        setForgotOtp('');
+        setForgotNewPassword('');
+        setForgotConfirmPassword('');
+        setForgotStep('verify');
         return;
       }
 
-      // 3. Nếu đúng thông tin: Tạo lại mật khẩu mặc định mới dạng SNP_[3 số + 3 chữ]
-      const matchedCode =
-        regMatch?.assignedCode ||
-        sheetMatch?.code ||
-        serverForgotRes.code ||
-        generateUserCode(regMatch?.dob || '01/01/2000');
-      const matchedName = regMatch?.fullName || sheetMatch?.clientName || serverForgotRes.fullName || 'Khách hàng SYNAPES';
+      // Bước 2: Xác thực OTP 6 số & đặt mật khẩu mới
+      const otpClean = forgotOtp.trim();
+      if (!/^\d{6}$/.test(otpClean)) {
+        setForgotError('Mã OTP phải gồm đúng 6 chữ số được gửi về Gmail của bạn.');
+        return;
+      }
+      if (forgotNewPassword.length < 6) {
+        setForgotError('Mật khẩu mới phải có ít nhất 6 ký tự.');
+        return;
+      }
+      if (forgotNewPassword !== forgotConfirmPassword) {
+        setForgotError('Xác nhận mật khẩu mới không trùng khớp.');
+        return;
+      }
 
+      const verifyRes = await syncForgotPasswordWithServer({
+        step: 'verify_otp',
+        email: emailClean,
+        phone: forgotPhone.trim(),
+        otp: otpClean,
+        newPassword: forgotNewPassword,
+      });
+
+      if (!verifyRes.verified || !verifyRes.code) {
+        if (verifyRes.remainingAttempts === 0) {
+          setForgotStep('request');
+        }
+        setForgotError(verifyRes.error || 'Mã OTP không chính xác hoặc đã hết hạn.');
+        return;
+      }
+
+      const matchedCode = verifyRes.code;
+      const matchedName = verifyRes.fullName || 'Khách hàng SYNAPES';
       const now = new Date();
       const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} - ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
 
-      // Cập nhật vào danh sách Sheet cục bộ
-      const baseRows = activeSheetRows.length > 0 ? activeSheetRows : sheetRows;
-      const updatedRows = baseRows.map((item) => {
-        if (item.code === matchedCode || item.registeredGmail.toLowerCase() === emailClean) {
-          return {
-            ...item,
-            currentTempPassword: newDefaultPass,
-            lastIssuedTime: timeString,
-            accountStatus: 'temp_password_active' as const,
-            engineerNotes: `${item.engineerNotes} | [${timeString}] Hệ thống cấp lại pass mặc định qua Quên mật khẩu.`,
-          };
-        }
-        return item;
-      });
+      saveCustomPassword(matchedCode, forgotNewPassword, emailClean, matchedName, undefined, undefined, true);
+      onUpdateSheetRow(
+        sheetRows.map((item) =>
+          item.code === matchedCode || item.registeredGmail.toLowerCase() === emailClean
+            ? {
+                ...item,
+                accountStatus: 'custom_password_active' as const,
+                lastIssuedTime: timeString,
+                engineerNotes: `${item.engineerNotes} | [${timeString}] Đã khôi phục qua OTP 6 số.`,
+              }
+            : item
+        )
+      );
 
-      onUpdateSheetRow(updatedRows);
-      resetToTempPassword(matchedCode, newDefaultPass);
-
-      // 4. Gửi lệnh lên Google Sheet Apps Script để cập nhật mật khẩu trên cả 2 tab Sheet & gửi Gmail thực tế cho khách hàng
-      await sendForgotPasswordViaSheet({
-        email: emailClean,
-        phone: forgotPhone.trim(),
-        code: matchedCode,
-        newPassword: newDefaultPass,
-        fullName: matchedName,
-      });
-
-      // Đồng bộ thông báo UI
-      onSendTempPasswordEmail(emailClean, matchedCode, newDefaultPass);
-
-      // Xóa số lần nhập sai khi đã thành công
-      setForgotAttempts(0);
-      try {
-        localStorage.removeItem('synapes_forgot_attempts');
-      } catch {}
-
+      setForgotStep('request');
+      setForgotOtp('');
+      setForgotNewPassword('');
+      setForgotConfirmPassword('');
       setForgotSuccessData({
         email: emailClean,
         code: matchedCode,
@@ -395,6 +388,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     type="button"
                     onClick={() => {
                       setShowForgotModal(true);
+                      setForgotStep('request');
+                      setForgotOtp('');
+                      setForgotNewPassword('');
+                      setForgotConfirmPassword('');
                       setForgotSuccessData(null);
                       setForgotError(null);
                     }}
@@ -651,51 +648,114 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
             ) : !forgotSuccessData ? (
               <form onSubmit={handleForgotSubmit} className="space-y-3 text-xs">
-                <p className="text-zinc-600 text-xs leading-relaxed">
-                  Vui lòng nhập lại chính xác <strong>Gmail</strong> và <strong>Số điện thoại</strong> đã đăng ký. Hệ thống sẽ đối soát với Google Sheet quản trị và tự động cấp lại mật khẩu mặc định mới gửi về Gmail của bạn.
-                </p>
+                {forgotStep === 'request' ? (
+                  <>
+                    <p className="text-zinc-600 text-xs leading-relaxed">
+                      Vui lòng nhập chính xác <strong>Gmail</strong> và <strong>Số điện thoại</strong> đã đăng ký. Hệ thống sẽ gửi <strong>Mã OTP 6 chữ số</strong> xác thực về hộp thư Gmail của bạn (hiệu lực 10 phút).
+                    </p>
 
-                {forgotError && (
-                  <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs leading-relaxed animate-in fade-in">
-                    {forgotError}
-                  </div>
+                    {forgotError && (
+                      <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs leading-relaxed animate-in fade-in">
+                        {forgotError}
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="text-zinc-700 font-medium block mb-1">Gmail đăng ký tài khoản *</label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="vidu@gmail.com"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-2 text-xs text-zinc-950 focus:outline-none focus:border-zinc-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-zinc-700 font-medium block mb-1">Số điện thoại đăng ký *</label>
+                      <input
+                        type="tel"
+                        required
+                        placeholder="Ví dụ: 0912 345 678"
+                        value={forgotPhone}
+                        onChange={(e) => setForgotPhone(e.target.value)}
+                        className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-2 text-xs text-zinc-950 font-mono focus:outline-none focus:border-zinc-900"
+                      />
+                    </div>
+
+                    <div className="p-2 bg-amber-50/70 border border-amber-200/60 rounded-lg text-[11px] text-amber-800 font-mono">
+                      Lưu ý: Bạn còn <strong>{5 - forgotAttempts}</strong> lần thử. Nhập sai quá 5 lần tính năng sẽ tự động khóa.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-zinc-600 text-xs leading-relaxed">
+                      Mã OTP 6 chữ số đã được gửi tới <strong className="font-mono text-zinc-950">{forgotMaskedEmail || forgotEmail}</strong>. Vui lòng nhập mã OTP và mật khẩu mới bên dưới.
+                    </p>
+
+                    {forgotError && (
+                      <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs leading-relaxed animate-in fade-in">
+                        {forgotError}
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="text-zinc-700 font-medium block mb-1">Mã OTP 6 chữ số *</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        required
+                        placeholder="Nhập 6 số OTP"
+                        value={forgotOtp}
+                        onChange={(e) => setForgotOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-2 text-xs text-zinc-950 font-mono tracking-widest focus:outline-none focus:border-zinc-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-zinc-700 font-medium block mb-1">Mật khẩu mới *</label>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        placeholder="Tối thiểu 6 ký tự"
+                        value={forgotNewPassword}
+                        onChange={(e) => setForgotNewPassword(e.target.value)}
+                        className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-2 text-xs text-zinc-950 font-mono focus:outline-none focus:border-zinc-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-zinc-700 font-medium block mb-1">Xác nhận mật khẩu mới *</label>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        placeholder="Nhập lại mật khẩu mới"
+                        value={forgotConfirmPassword}
+                        onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                        className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-2 text-xs text-zinc-950 font-mono focus:outline-none focus:border-zinc-900"
+                      />
+                    </div>
+                  </>
                 )}
-
-                <div>
-                  <label className="text-zinc-700 font-medium block mb-1">Gmail đăng ký tài khoản *</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="vidu@gmail.com"
-                    value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
-                    className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-2 text-xs text-zinc-950 focus:outline-none focus:border-zinc-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-zinc-700 font-medium block mb-1">Số điện thoại đăng ký *</label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="Ví dụ: 0912 345 678"
-                    value={forgotPhone}
-                    onChange={(e) => setForgotPhone(e.target.value)}
-                    className="w-full bg-white border border-black/[0.1] rounded-lg px-3 py-2 text-xs text-zinc-950 font-mono focus:outline-none focus:border-zinc-900"
-                  />
-                </div>
-
-                <div className="p-2 bg-amber-50/70 border border-amber-200/60 rounded-lg text-[11px] text-amber-800 font-mono">
-                  Lưu ý: Bạn còn <strong>{5 - forgotAttempts}</strong> lần thử. Nhập sai quá 5 lần tính năng sẽ tự động đóng.
-                </div>
 
                 <div className="pt-2 flex justify-end gap-2 border-t border-black/[0.06]">
                   <button
                     type="button"
-                    onClick={() => setShowForgotModal(false)}
+                    onClick={() => {
+                      if (forgotStep === 'verify') {
+                        setForgotStep('request');
+                        setForgotError(null);
+                      } else {
+                        setShowForgotModal(false);
+                      }
+                    }}
                     className="btn-secondary cursor-pointer"
                   >
-                    Hủy / Quay lại
+                    {forgotStep === 'verify' ? 'Quay lại' : 'Hủy / Đóng'}
                   </button>
                   <button
                     type="submit"
@@ -703,7 +763,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     className="btn-primary cursor-pointer flex items-center gap-1.5"
                   >
                     {isSubmittingForgot && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                    <span>Xác Thực & Cấp Lại</span>
+                    <span>{forgotStep === 'request' ? 'Gửi Mã OTP 6 Số' : 'Xác Thực OTP & Đổi MK'}</span>
                   </button>
                 </div>
               </form>
@@ -711,14 +771,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <div className="space-y-3 text-xs animate-in fade-in">
                 <div className="p-3.5 rounded-lg bg-zinc-50 border border-black/[0.06] space-y-2.5 text-zinc-800">
                   <div className="text-zinc-950 font-semibold flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Đã gửi mật khẩu mới về Gmail!
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Đã đặt lại mật khẩu thành công!
                   </div>
                   <p className="leading-relaxed">
-                    Hệ thống đã tạo lại mật khẩu mặc định mới cho Mã Code: <strong className="text-zinc-950 font-mono">{forgotSuccessData.code}</strong> và gửi trực tiếp đến hộp thư Gmail: <strong className="text-zinc-950 font-mono">{forgotSuccessData.email}</strong>.
+                    Tài khoản <strong className="text-zinc-950 font-mono">{forgotSuccessData.code}</strong> (<span className="font-mono">{forgotSuccessData.email}</span>) đã được cập nhật mật khẩu mới sau khi xác thực OTP. Bạn có thể đăng nhập ngay bây giờ.
                   </p>
-                  <div className="p-2.5 bg-white rounded-lg border border-black/[0.06] text-[11px] text-zinc-600 leading-relaxed">
-                    🔒 <strong>Bảo mật tài khoản:</strong> Mật khẩu cấp mới không hiển thị trên trang Web. Vui lòng mở hộp thư đến (hoặc mục Spam/Quảng cáo) của Gmail đã đăng ký để nhận mật khẩu và đăng nhập.
-                  </div>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Project, ConnectedChannelAccount } from '../types';
+import { getAuthHeaders } from '../services/userProfileService';
 
 export interface TrafficTimePoint {
   slot: string;
@@ -183,8 +184,10 @@ export const MiniPeakHoursAreaChart: React.FC<MiniPeakHoursAreaChartProps> = ({
     setTraffic(localFallback);
 
     const fetchTraffic = () => {
+      const authHeaders = userCode ? getAuthHeaders(userCode) : {};
+      if (!userCode || !authHeaders.Authorization) return;
       const url = `/api/analytics/platform-traffic?userCode=${encodeURIComponent(userCode)}&tt=${projectCountByPlatform.tt}&fb=${projectCountByPlatform.fb}&yt=${projectCountByPlatform.yt}&connected=${connectedCount}`;
-      fetch(url)
+      fetch(url, { headers: authHeaders })
         .then((r) => (r.ok ? r.json() : null))
         .then((json: PlatformTrafficResponse | null) => {
           if (!cancelled && json && json.success && Array.isArray(json.series) && json.series.length > 0) {

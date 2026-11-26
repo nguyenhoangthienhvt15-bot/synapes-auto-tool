@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: npm install && (npm run build || true)
+    buildCommand: npm ci && npm run build
     startCommand: node server.js
     healthCheckPath: /healthz
     envVars:
@@ -12,27 +12,20 @@ services:
         value: production
       - key: PORT
         value: 10000
-    headers:
-      - path: /*
-        name: X-Frame-Options
-        value: SAMEORIGIN
-      - path: /index.html
-        name: Cache-Control
-        value: no-cache, no-store, must-revalidate
-
-  - type: web
-    name: synapes-auto-tool
-    runtime: node
-    plan: free
-    region: singapore
-    buildCommand: npm install && (npm run build || true)
-    startCommand: node server.js
-    healthCheckPath: /healthz
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: 10000
+      - key: TRUST_PROXY
+        value: "1"
+      - key: ALLOWED_ORIGINS
+        value: https://synapes-auto-tool-web-service.onrender.com
+      - key: JWT_SECRET
+        generateValue: true
+      - key: WEBHOOK_SECRET
+        generateValue: true
+      - key: MASTER_VAULT_KEY
+        generateValue: true
+      - key: SYNAPES_SYNC_SECRET
+        generateValue: true
+      - key: SYNAPES_MASTER_KEY
+        generateValue: true
     headers:
       - path: /*
         name: X-Frame-Options

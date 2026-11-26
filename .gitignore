@@ -8,8 +8,13 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-# dist (tracked to guarantee instant zero-delay serving on cloud)
+dist/
 dist-ssr
+data/
+server/seed_profiles/
+scripts/report-gen/
+docs_typst/
+public/reports/
 *.local
 .env
 .env.*
@@ -41,11 +46,8 @@ dist-ssr
 !src/assets/*.png
 scratch/
 Nghiem_Thu_VoiceStudio/
-data/incidents/
-data/mail_outbox/
-data/audit_project_bunny_phien_7.json
-data/user_profiles/SNP_2611092202.json
-data/assets_3d_manifests.json
 __pycache__/
 *.pyc
+
+# GitHub Actions workflows (current PAT lacks workflow scope)
 .github/workflows/

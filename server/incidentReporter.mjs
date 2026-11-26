@@ -9,12 +9,16 @@ import path from 'path';
 import tls from 'tls';
 
 const INCIDENT_LOGS_DIR = path.resolve(process.cwd(), 'data', 'incidents');
-const ALERT_EMAIL = 'nguyenhoangthien.hvt.15@gmail.com';
+const ALERT_EMAIL = String(process.env.ADMIN_ALERT_EMAIL || process.env.SMTP_USER || '').trim();
 
 /**
  * Trình gửi email SMTP Daemon trực tiếp theo chuẩn RFC 5321 & RFC 5322
  */
 export async function sendSmtpDaemonEmail(subject, textBody, recipient = ALERT_EMAIL) {
+  const targetRecipient = String(recipient || '').trim();
+  if (!targetRecipient) {
+    return { success: false, method: 'skipped_no_recipient', error: 'Recipient email not configured' };
+  }
   const host = process.env.SMTP_HOST || 'smtp.gmail.com';
   const port = parseInt(process.env.SMTP_PORT || '465', 10);
   const user = process.env.SMTP_USER;
@@ -27,7 +31,7 @@ export async function sendSmtpDaemonEmail(subject, textBody, recipient = ALERT_E
     const emlFile = path.join(outboxDir, `mail_${Date.now()}.eml`);
     const emlContent = [
       `From: SYNAPES Watchdog Daemon <no-reply@synapes.studio>`,
-      `To: <${recipient}>`,
+      `To: <${targetRecipient}>`,
       `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
       `Date: ${new Date().toUTCString()}`,
       `MIME-Version: 1.0`,
@@ -101,7 +105,7 @@ export async function sendSmtpDaemonEmail(subject, textBody, recipient = ALERT_E
             socket.write(`MAIL FROM:<${user}>\r\n`);
             step = 5;
           } else if (step === 5 && line.startsWith('250 ')) {
-            socket.write(`RCPT TO:<${recipient}>\r\n`);
+            socket.write(`RCPT TO:<${targetRecipient}>\r\n`);
             step = 6;
           } else if (step === 6 && line.startsWith('250 ')) {
             socket.write(`DATA\r\n`);
@@ -110,7 +114,7 @@ export async function sendSmtpDaemonEmail(subject, textBody, recipient = ALERT_E
             const safeBody = String(textBody || '').replace(/\r?\n/g, '\r\n').replace(/^\./gm, '..');
             const raw = [
               `From: "SYNAPES Watchdog" <${user}>`,
-              `To: <${recipient}>`,
+              `To: <${targetRecipient}>`,
               `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
               `Date: ${new Date().toUTCString()}`,
               `MIME-Version: 1.0`,
@@ -296,15 +300,18 @@ Kỹ sư phụ trách: KS. Nguyễn Hoàng Thiện
     console.error('Không thể ghi file incident log:', fsErr);
   }
 
-  console.warn(`[INCIDENT ALERT] ${incidentId} đã được lập biên bản và sẵn sàng gửi về ${ALERT_EMAIL}`);
+  console.warn(`[INCIDENT ALERT] ${incidentId} đã được lập biên bản${ALERT_EMAIL ? ` cho ${ALERT_EMAIL}` : ''}`);
 
-  // 3. Tự động gửi cảnh báo khẩn cấp qua SMTP Daemon
-  sendSmtpDaemonEmail(`[CẢNH BÁO KHẨN CẤP SYNAPES STUDIO] — MÃ SỰ CỐ: ${incidentId}`, emailBody, ALERT_EMAIL).catch((err) => {
-    console.warn('Lỗi SMTP Daemon:', err);
-  });
+  // 3. Tự động gửi cảnh báo khẩn cấp qua SMTP Daemon nếu đã cấu hình người nhận
+  if (ALERT_EMAIL) {
+    sendSmtpDaemonEmail(`[CẢNH BÁO KHẨN CẤP SYNAPES STUDIO] — MÃ SỰ CỐ: ${incidentId}`, emailBody, ALERT_EMAIL).catch((err) => {
+      console.warn('Lỗi SMTP Daemon:', err);
+    });
+  }
 
-  // 4. Tự động chuyển tiếp cảnh báo khẩn cấp tới Gmail Trưởng ban KS. Nguyễn Hoàng Thiện qua Google Apps Script Webhook Relay
+  // 4. Tự động chuyển tiếp cảnh báo khẩn cấp qua Google Apps Script Webhook Relay nếu được cấu hình
   const webhookUrl = process.env.APPS_SCRIPT_WEBHOOK_URL || process.env.GOOGLE_SHEET_WEBHOOK_URL;
+  const syncSecret = process.env.SYNAPES_SYNC_SECRET || process.env.WEBHOOK_SECRET || '';
   if (webhookUrl && webhookUrl.startsWith('https://script.google.com/')) {
     try {
       fetch(webhookUrl, {
@@ -312,6 +319,7 @@ Kỹ sư phụ trách: KS. Nguyễn Hoàng Thiện
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'emergency_report',
+          syncSecret,
           incidentType: rcaRoot.slice(0, 50),
           severity: 'CRITICAL',
           description: `Sự cố: ${taskName} - ${rcaRoot}`,

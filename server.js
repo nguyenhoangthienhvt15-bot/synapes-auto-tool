@@ -1,9 +1,10 @@
+import './server/loadEnv.mjs';
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 import { fileURLToPath } from 'url';
-import { handleStudioApiRequest, IP_BLACKLIST } from './server/studioBackendEngine.mjs';
+import { handleStudioApiRequest, IP_BLACKLIST, getTrustedClientIp } from './server/studioBackendEngine.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -350,8 +351,8 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), usb=()');
 
   // Kiểm tra danh sách đen IP (Anti-DevTools & Threat Enforcer)
-  // Ngoại lệ duy nhất: Cho phép gọi /api/security/unlock để xác thực Master Key ([REDACTED_BY_P0_AUDIT]) giải phóng IP
-  const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || '127.0.0.1';
+  // Ngoại lệ duy nhất: Cho phép gọi /api/security/unlock khi SYNAPES_MASTER_KEY được cấu hình trên máy chủ
+  const clientIp = getTrustedClientIp(req);
   const isUnlockEndpoint = cleanUrl === '/api/security/unlock';
 
   if (IP_BLACKLIST.has(clientIp) && !isUnlockEndpoint) {

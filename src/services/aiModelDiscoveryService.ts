@@ -264,7 +264,6 @@ export const PROVIDERS: ProviderMeta[] = [
       { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: 'Nhanh & Ổn định đa phương thức' },
       { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', tag: 'Suy luận & Kịch bản chuyên sâu' },
       { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview', tag: 'Suy luận kịch bản & Đạo diễn chuyên sâu' },
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Legacy)', tag: 'Tương thích Key thế hệ cũ' },
       { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Legacy)', tag: 'Tương thích dự phòng' },
     ],
     keyPrefix: 'AIzaSy / AQ.',
@@ -425,6 +424,23 @@ export function getProviderApiKey(
 }
 
 /**
+ * Khử trùng lặp danh sách Model theo id (không phân biệt hoa thường, giữ mục đầu tiên)
+ */
+export function dedupeModelsById(list: DiscoveredModel[]): DiscoveredModel[] {
+  const seen = new Set<string>();
+  const out: DiscoveredModel[] = [];
+  for (const item of list || []) {
+    const cleanId = String(item?.id || '').trim();
+    if (!cleanId) continue;
+    const key = cleanId.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...item, id: cleanId });
+  }
+  return out;
+}
+
+/**
  * Lấy danh sách các Model khả dụng của nhà cung cấp (ưu tiên từ Cache Key đã đọc)
  */
 export function getProviderModels(
@@ -433,18 +449,20 @@ export function getProviderModels(
 ): DiscoveredModel[] {
   const meta = PROVIDERS.find((p) => p.id === provider);
   const key = getProviderApiKey(provider, config);
-  const cached = getCachedDiscoveredModels(provider, key);
+  const cached = key && key.trim().length > 5 ? getCachedDiscoveredModels(provider, key) : null;
   if (cached && cached.length > 0) {
-    return cached;
+    return dedupeModelsById(cached);
   }
   if (!meta) return [];
-  return meta.models.map((m) => ({
-    id: m.id,
-    name: m.name,
-    tag: m.tag,
-    isLiveFromKey: false,
-    isRecommended: m.id === meta.defaultModel,
-  }));
+  return dedupeModelsById(
+    meta.models.map((m) => ({
+      id: m.id,
+      name: m.name,
+      tag: m.tag,
+      isLiveFromKey: false,
+      isRecommended: m.id === meta.defaultModel,
+    }))
+  );
 }
 
 const CACHE_PREFIX = 'synapes_ai_models_v4_';
@@ -477,20 +495,14 @@ export function getCachedDiscoveredModels(
   apiKey?: string
 ): DiscoveredModel[] | null {
   try {
-    const key = getCacheKey(provider, apiKey);
+    const cleanKey = (apiKey || '').trim();
+    if (!cleanKey) return null;
+    const key = getCacheKey(provider, cleanKey);
     const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        const clean = parsed.filter((m) => m?.id && !isNonScriptModelId(m.id));
-        if (clean.length > 0) return clean;
-      }
-    }
-    const genericRaw = localStorage.getItem(`${CACHE_PREFIX}${provider}`);
-    if (genericRaw) {
-      const parsed = JSON.parse(genericRaw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const clean = parsed.filter((m) => m?.id && !isNonScriptModelId(m.id));
+        const clean = dedupeModelsById(parsed.filter((m) => m?.id && !isNonScriptModelId(m.id)));
         if (clean.length > 0) return clean;
       }
     }
@@ -501,7 +513,7 @@ export function getCachedDiscoveredModels(
 }
 
 /**
- * Lưu danh sách models đọc được vào cache trình duyệt
+ * Lưu danh sách models đọc được vào cache trình duyệt (cô lập theo khóa API Key cụ thể)
  */
 export function cacheDiscoveredModels(
   provider: AIProviderId,
@@ -509,11 +521,11 @@ export function cacheDiscoveredModels(
   apiKey?: string
 ): void {
   try {
-    if (!models || models.length === 0) return;
-    const key = getCacheKey(provider, apiKey);
-    localStorage.setItem(key, JSON.stringify(models));
-    // Lưu bản sao chung cho provider để mở lại vẫn có
-    localStorage.setItem(`${CACHE_PREFIX}${provider}`, JSON.stringify(models));
+    const cleanModels = dedupeModelsById(models || []);
+    const cleanKey = (apiKey || '').trim();
+    if (cleanModels.length === 0 || !cleanKey) return;
+    const key = getCacheKey(provider, cleanKey);
+    localStorage.setItem(key, JSON.stringify(cleanModels));
   } catch {
     // ignore
   }

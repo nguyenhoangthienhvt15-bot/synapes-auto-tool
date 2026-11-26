@@ -1452,7 +1452,7 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                     type="button"
                     onClick={() => {
                       setIsPublishingModalOpen(false);
-                      onNavigateView?.('social-channels');
+                      onNavigateView?.('channels');
                     }}
                     className="btn-secondary text-xs flex items-center gap-1 cursor-pointer"
                   >

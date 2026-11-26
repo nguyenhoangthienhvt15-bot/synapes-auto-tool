@@ -76,6 +76,31 @@ const MultiClipStitcherStudio = lazyWithRetry(() =>
   import('./components/MultiClipStitcherStudio').then((m) => ({ default: m.MultiClipStitcherStudio }))
 );
 
+const VALID_STUDIO_VIEWS = new Set([
+  'pending-approval',
+  'review',
+  'in-progress',
+  'completed',
+  'video-cloner',
+  'calendar',
+  'skills',
+  'channels',
+  'connect-youtube',
+  'connect-tiktok',
+  'connect-facebook',
+  'drive-backup',
+  'voice-studio-labs',
+  'user-guide',
+  'ai-engine',
+]);
+
+function normalizeViewTarget(rawView: string): string {
+  const clean = String(rawView || '').trim();
+  if (clean === 'social-channels') return 'channels';
+  if (clean === 'voice-studio') return 'voice-studio-labs';
+  return VALID_STUDIO_VIEWS.has(clean) ? clean : 'pending-approval';
+}
+
 function pickPendingProject(list: Project[]): Project | null {
   return (
     list.find((p) => p.status === 'pending_approval' || (p.status as string) === 'pending') || null
@@ -146,7 +171,8 @@ export function App() {
   // Navigation & Workspace Views (Persist across browser refresh / tab discard)
   const [activeView, setActiveView] = useState<string>(() => {
     try {
-      return sessionStorage.getItem('synapes_active_view') || 'pending-approval';
+      const saved = sessionStorage.getItem('synapes_active_view') || 'pending-approval';
+      return normalizeViewTarget(saved);
     } catch {
       return 'pending-approval';
     }
@@ -181,6 +207,23 @@ export function App() {
   const showToast = (msg: string) => {
     setToastNotification(msg);
     setTimeout(() => setToastNotification(null), 4000);
+  };
+
+  const handleNavigateView = (targetView: string) => {
+    const cleanTarget = String(targetView || '').trim();
+    if (cleanTarget === 'auth-modal') {
+      if (currentUser?.isLoggedIn) {
+        setIsChangePasswordModalOpen(true);
+      } else {
+        setIsAuthModalOpen(true);
+      }
+      return;
+    }
+    const normalized = normalizeViewTarget(cleanTarget);
+    setActiveView(normalized);
+    if (normalized === 'pending-approval') {
+      setSelectedProject(pickPendingProject(projects));
+    }
   };
 
   // Nạp nhanh hồ sơ từ bộ nhớ cục bộ ngay lập tức (0ms), trì hoãn đồng bộ máy chủ tới sau hiệu ứng mở đầu
@@ -754,12 +797,7 @@ export function App() {
         activeView={activeView}
         userPlanTier={effectivePlanTier}
         loginAnimTrigger={loginAnimTrigger}
-        onSelectView={(v) => {
-          setActiveView(v);
-          if (v === 'pending-approval') {
-            setSelectedProject(pickPendingProject(projects));
-          }
-        }}
+        onSelectView={handleNavigateView}
         onLogout={handleLogout}
         onOpenChangePass={() => {
           if (currentUser?.isLoggedIn) {
@@ -792,12 +830,7 @@ export function App() {
             setSelectedAiProvider(prov);
             handleUpdateAiConfig({ ...aiConfig, activeProvider: prov as any });
           }}
-          onSelectView={(v) => {
-            setActiveView(v);
-            if (v === 'pending-approval') {
-              setSelectedProject(pickPendingProject(projects));
-            }
-          }}
+          onSelectView={handleNavigateView}
           onOpenCreateModal={() => {
             if (!currentUser || !currentUser.isLoggedIn) {
               showToast('⚠️ Vui lòng đăng nhập tài khoản để tạo và lưu dự án video.');
@@ -833,7 +866,7 @@ export function App() {
                   onDeleteProject={handleDeleteProject}
                   onOpenStitcherStudio={(p) => setStitcherProject(p)}
                   onBackToList={() => setActiveView('in-progress')}
-                  onNavigateView={(v) => setActiveView(v)}
+                  onNavigateView={handleNavigateView}
                 />
               ) : (
                 <div className="p-10 text-center space-y-4 rounded-xl border border-zinc-200/80 bg-white">
@@ -1023,7 +1056,7 @@ export function App() {
             {activeView === 'user-guide' && (
               <UserGuideView
                 onBack={() => setActiveView('pending-approval')}
-                onNavigateView={(view) => setActiveView(view)}
+                onNavigateView={handleNavigateView}
                 onOpenCreateModal={() => {
                   if (!currentUser || !currentUser.isLoggedIn) {
                     showToast('⚠️ Vui lòng đăng nhập tài khoản để tạo và lưu dự án video.');
@@ -1033,6 +1066,15 @@ export function App() {
                   setIsCreateModalOpen(true);
                 }}
                 onOpenPolicyModal={(type) => setPolicyModalType(type)}
+              />
+            )}
+
+            {/* SAFE FALLBACK VIEW SO MAIN AREA NEVER BLANKS */}
+            {!VALID_STUDIO_VIEWS.has(activeView) && (
+              <UnauthenticatedWorkspace
+                onOpenLogin={() => setIsAuthModalOpen(true)}
+                onOpenRegister={() => setIsRegisterModalOpen(true)}
+                onOpenGuide={() => setActiveView('user-guide')}
               />
             )}
             </Suspense>

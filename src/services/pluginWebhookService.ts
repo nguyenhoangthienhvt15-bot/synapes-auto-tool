@@ -1,6 +1,7 @@
 import { Project, StoryboardScene, AspectRatio, SocialPlatformFormatId } from '../types';
 import { GeneratedScriptResult } from './aiScriptGeneratorService';
 import { PLUGIN_PRESETS, detectPluginBrand } from './aiModelDiscoveryService';
+import { getAuthHeaders } from './userProfileService';
 
 export interface PluginDispatchParams {
   scriptResult: GeneratedScriptResult;
@@ -98,17 +99,19 @@ export async function triggerVideoRender(options: {
 
   try {
     const targetUrl = options.endpoint || options.endpointUrl || '/api/render-jobs/submit';
+    const isInternalApi = targetUrl.startsWith('/');
     const response = await fetch(targetUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${cleanToken}`,
+        ...(isInternalApi ? getAuthHeaders() : { Authorization: `Bearer ${cleanToken}` }),
       },
       body: JSON.stringify({
         prompt: cleanPrompt,
         provider: options.provider || 'comfyui-kaggle-gpu',
         durationSec: options.durationSec,
         workflow: options.workflow,
+        ...(isInternalApi ? { workerToken: cleanToken } : {}),
       }),
       signal: controller.signal,
     });
@@ -239,6 +242,7 @@ export async function dispatchScriptToPluginEngine(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({
           provider: pluginBrand,
@@ -270,7 +274,10 @@ export async function dispatchScriptToPluginEngine(
     try {
       const queueRes = await fetch('/api/render-jobs/submit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify({
           prompt: scriptResult.title || userPrompt,
           provider: pluginId || 'comfyui-kaggle-gpu',

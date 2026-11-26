@@ -20,6 +20,16 @@ function escapeHtml(str: string | undefined | null): string {
     .replace(/'/g, '&#39;');
 }
 
+function sanitizeSignatureDataUrl(raw: string | undefined | null): string {
+  const clean = String(raw || '').trim();
+  if (!clean) return '';
+  return /^data:image\/(?:png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=\s]+$/i.test(clean) ? clean : '';
+}
+
+const PARTY_A_ID_DISPLAY = escapeHtml(
+  String((import.meta as any).env?.VITE_PARTY_A_ID_NUMBER || 'Theo hồ sơ pháp lý Bên A').trim()
+);
+
 export function generateContractDocHtml(data: UserRegistrationData): string {
   const currentDate = new Date();
   const day = currentDate.getDate().toString().padStart(2, '0');
@@ -35,10 +45,15 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
   const emailDisplay = escapeHtml(data.email) || 'Không cung cấp';
   const addressDisplay = escapeHtml(data.address) || 'Không cung cấp';
 
-  // Lấy ảnh chữ ký tay người dùng (nếu có trong dữ liệu hoặc trong bộ nhớ lưu trữ theo email người dùng)
-  const signatureDisplay = data.signatureImage || (typeof window !== 'undefined'
-    ? (data.email ? localStorage.getItem(`synapes_user_signature_${data.email.toLowerCase()}`) || '' : '')
-    : '');
+  // Lấy & kiểm tra chặt chẽ ảnh chữ ký tay người dùng (chỉ cho phép Data URL raster Base64 hợp lệ, chống XSS thoát khỏi src="")
+  const rawSignature =
+    data.signatureImage ||
+    (typeof window !== 'undefined'
+      ? data.email
+        ? localStorage.getItem(`synapes_user_signature_${data.email.toLowerCase()}`) || ''
+        : ''
+      : '');
+  const signatureDisplay = sanitizeSignatureDataUrl(rawSignature);
 
   // Xác định gói và phương thức
   const pkg = data.contractPackage || (data.contractCategory === 'enterprise' ? 'enterprise_deposit' : 'personal_deposit');
@@ -362,7 +377,7 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
           <ul class="party-info">
             <li>• <b>Đơn vị phát triển:</b> Nền tảng Tự động hóa Nội dung số SYNAPES Studio</li>
             <li>• <b>Đại diện pháp lý:</b> <b>KS. NGUYỄN HOÀNG THIỆN</b></li>
-            <li>• <b>Số CCCD / CMND:</b> <b style="color: #0f172a; font-family: monospace;">[REDACTED_BY_P0_AUDIT]</b></li>
+            <li>• <b>Số CCCD / CMND:</b> <b style="color: #0f172a; font-family: monospace;">${PARTY_A_ID_DISPLAY}</b></li>
             <li>• <b>Địa chỉ thường trú:</b> Gò Vấp, TP HCM</li>
             <li>• <b>Chức vụ:</b> <b>Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo</b></li>
             <li>• <b>Hộp thư điện tử chính thức:</b> nguyenhoangthien.hvt.15@gmail.com</li>
@@ -407,7 +422,7 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
 
         <div class="section-title">Điều 2. Giá trị hợp đồng, nghĩa vụ bàn giao & phương thức thanh toán</div>
         <p>
-          2.1. <b>Giá trị hợp đồng:</b> Gói ký kết là <b>${data.contractPackageName || (isEnterprise ? 'Hợp đồng toàn hệ' : 'Hợp đồng cá nhân hóa')}</b>.
+          2.1. <b>Giá trị hợp đồng:</b> Gói ký kết là <b>${escapeHtml(data.contractPackageName) || (isEnterprise ? 'Hợp đồng toàn hệ' : 'Hợp đồng cá nhân hóa')}</b>.
           ${isFinalHandover ? `
           Tổng giá trị bàn giao toàn vẹn của hệ thống là <b>${formatVnd(totalAmount)}</b>. <b>Xác nhận thanh toán:</b> Bên B đã hoàn tất chi trả đủ 100% giá trị hợp đồng (bao gồm tiền đặt cọc ${formatVnd(depositAmount)} và tiền quyết toán hoàn tất bàn giao ${formatVnd(totalAmount - depositAmount)}). Bên A xác nhận đã nhận đủ toàn bộ số tiền và không còn khiếu nại hay công nợ nào phát sinh giữa hai bên.
           ` : isDeposit ? `
@@ -505,7 +520,7 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
             </div>
 
             <div class="signature-name">KS. NGUYỄN HOÀNG THIỆN</div>
-            <div style="font-size: 8pt; color: #475569; font-family: monospace; margin-top: 1px;">CCCD: [REDACTED_BY_P0_AUDIT]</div>
+            <div style="font-size: 8pt; color: #475569; font-family: monospace; margin-top: 1px;">CCCD: ${PARTY_A_ID_DISPLAY}</div>
             <div class="signed-badge signed-seller">✓ Đã ký & đóng dấu mộc đỏ Trưởng ban</div>
           </div>
         </div>
@@ -520,11 +535,12 @@ export function generateContractDocHtml(data: UserRegistrationData): string {
 }
 
 export function generateContractHtml(data: UserRegistrationData): string {
+  const safeTitleName = escapeHtml(data.fullName) || 'Khách hàng SYNAPES';
   return `<!DOCTYPE html>
 <html lang="vi">
 <head>
   <meta charset="utf-8">
-  <title>Hợp Đồng Điện Tử Dịch Vụ SYNAPES Studio - ${data.fullName}</title>
+  <title>Hợp Đồng Điện Tử Dịch Vụ SYNAPES Studio - ${safeTitleName}</title>
   <style>
     @page { size: A4 portrait; margin: 0; }
     @media print {
