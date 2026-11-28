@@ -87,41 +87,34 @@ function computeLocalTrafficSnapshot(
   const ytCount = ytConn ? projects.filter((p) => (p.targetChannels || []).includes('youtube')).length : 0;
 
   const curHour = new Date().getHours();
-  // Chỉ đo lưu lượng khi người dùng đã kết nối thật kênh cá nhân (YouTube / TikTok / Facebook)
-  const hasTt = ttConn;
-  const hasFb = fbConn;
-  const hasYt = ytConn;
+  const ytStatsViewCount = ytConn ? Math.max(0, Number((channels.find((c) => c.platform === 'youtube') as any)?.stats?.viewCount || 0)) : 0;
 
+  // Trung thực tuyệt đối (FAKE-04): Chỉ hiển thị số liệu thật (YouTube stats API hoặc sự kiện đã ghi nhận), 0 khi chưa có.
   const series: TrafficTimePoint[] = DEFAULT_SLOTS.map((slot, h) => {
-    const ttW = h >= 19 && h <= 22 ? 1.65 : h === 12 ? 1.2 : h >= 17 ? 1.25 : h >= 7 ? 0.72 : 0.35;
-    const fbW = h >= 20 && h <= 21 ? 1.48 : h === 12 || h === 13 ? 1.32 : h >= 8 ? 0.8 : 0.3;
-    const ytW = h >= 19 && h <= 22 ? 1.62 : h >= 11 && h <= 13 ? 0.98 : h >= 7 ? 0.68 : 0.32;
-    const tiktok = hasTt ? Math.round((ttCount * 18 + 24) * ttW) : 0;
-    const facebook = hasFb ? Math.round((fbCount * 15 + 20) * fbW) : 0;
-    const youtube = hasYt ? Math.round((ytCount * 20 + 28) * ytW) : 0;
+    const youtube = h === curHour && ytStatsViewCount > 0 ? ytStatsViewCount : 0;
     return {
       slot,
       hour: h,
-      tiktok,
-      facebook,
+      tiktok: 0,
+      facebook: 0,
       youtube,
-      total: tiktok + facebook + youtube,
+      total: youtube,
       isCurrentHour: h === curHour,
     };
   });
 
   const totals = {
-    tiktok: series.reduce((acc, s) => acc + s.tiktok, 0),
-    facebook: series.reduce((acc, s) => acc + s.facebook, 0),
+    tiktok: 0,
+    facebook: 0,
     youtube: series.reduce((acc, s) => acc + s.youtube, 0),
     all: series.reduce((acc, s) => acc + s.total, 0),
   };
-  const peak = totals.all > 0 ? ([...series].sort((a, b) => b.total - a.total)[0] || series[20]) : series[20];
+  const peak = totals.all > 0 ? ([...series].sort((a, b) => b.total - a.total)[0] || series[curHour]) : series[curHour];
 
   return {
     success: true,
     updatedAt: new Date().toISOString(),
-    eventCount: projects.length,
+    eventCount: 0,
     unit: '1h',
     geo: {
       countryCode: 'VN',
@@ -133,11 +126,11 @@ function computeLocalTrafficSnapshot(
     totals,
     activeVideos: { tiktok: ttCount, facebook: fbCount, youtube: ytCount },
     engagementRate: {
-      tiktok: hasTt ? +(4.5 + Math.min(4.5, ttCount * 0.6)).toFixed(1) : 0,
-      facebook: hasFb ? +(3.8 + Math.min(4.0, fbCount * 0.5)).toFixed(1) : 0,
-      youtube: hasYt ? +(4.2 + Math.min(4.8, ytCount * 0.65)).toFixed(1) : 0,
+      tiktok: 0,
+      facebook: 0,
+      youtube: 0,
     },
-    peakWindow: '20:00',
+    peakWindow: totals.all > 0 ? peak.slot : '--:--',
     peakTraffic: totals.all > 0 ? peak.total : 0,
   };
 }
@@ -185,9 +178,9 @@ export const MiniPeakHoursAreaChart: React.FC<MiniPeakHoursAreaChartProps> = ({
 
     const fetchTraffic = () => {
       const authHeaders = userCode ? getAuthHeaders(userCode) : {};
-      if (!userCode || !authHeaders.Authorization) return;
+      if (!userCode) return;
       const url = `/api/analytics/platform-traffic?userCode=${encodeURIComponent(userCode)}&tt=${projectCountByPlatform.tt}&fb=${projectCountByPlatform.fb}&yt=${projectCountByPlatform.yt}&connected=${connectedCount}`;
-      fetch(url, { headers: authHeaders })
+      fetch(url, { credentials: 'include', headers: authHeaders })
         .then((r) => (r.ok ? r.json() : null))
         .then((json: PlatformTrafficResponse | null) => {
           if (!cancelled && json && json.success && Array.isArray(json.series) && json.series.length > 0) {
@@ -220,7 +213,7 @@ export const MiniPeakHoursAreaChart: React.FC<MiniPeakHoursAreaChartProps> = ({
 
   const series = traffic.series;
   const maxVal = useMemo(() => {
-    let m = 1000;
+    let m = 0;
     for (const pt of series) {
       const candidate =
         selectedPlatform === 'all'
@@ -228,13 +221,17 @@ export const MiniPeakHoursAreaChart: React.FC<MiniPeakHoursAreaChartProps> = ({
           : pt[selectedPlatform];
       if (candidate > m) m = candidate;
     }
-    return Math.ceil((m * 1.15) / 500) * 500;
+    if (m <= 0) return 0;
+    if (m < 10) return Math.ceil(m * 1.2);
+    return Math.ceil((m * 1.15) / 10) * 10;
   }, [series, selectedPlatform]);
 
   const getX = (idx: number) =>
     padLeft + (idx / Math.max(1, series.length - 1)) * plotW;
   const getY = (val: number) =>
-    padTop + plotH - (Math.max(0, Math.min(maxVal, val)) / maxVal) * plotH;
+    maxVal <= 0
+      ? padTop + plotH
+      : padTop + plotH - (Math.max(0, Math.min(maxVal, val)) / maxVal) * plotH;
 
   const buildPolyline = (key: 'tiktok' | 'facebook' | 'youtube') =>
     series.map((pt, i) => `${getX(i).toFixed(1)},${getY(pt[key]).toFixed(1)}`).join(' ');
@@ -251,7 +248,7 @@ export const MiniPeakHoursAreaChart: React.FC<MiniPeakHoursAreaChartProps> = ({
     hoveredIdx !== null
       ? series[hoveredIdx]
       : series.find((s) => s.isCurrentHour) || series[traffic.geo?.currentHour ?? 20] || series[series.length - 1];
-  const yTicks = [0, Math.round(maxVal * 0.5), maxVal];
+  const yTicks = maxVal <= 0 ? [0] : [0, Math.round(maxVal * 0.5), maxVal];
 
   const showTiktok = selectedPlatform === 'all' || selectedPlatform === 'tiktok';
   const showFacebook = selectedPlatform === 'all' || selectedPlatform === 'facebook';
@@ -471,6 +468,11 @@ export const MiniPeakHoursAreaChart: React.FC<MiniPeakHoursAreaChartProps> = ({
 
       {/* Live Multi-Platform Telemetry Footer */}
       <div className="pt-1.5 border-t border-black/[0.06] space-y-1 text-[9.5px] font-mono">
+        {traffic.totals.all === 0 && (
+          <div className="text-[8.5px] text-zinc-500 bg-zinc-50 border border-black/[0.05] rounded px-1.5 py-0.5 truncate" title="Chưa ghi nhận lượt xem thực từ YouTube API hoặc sự kiện phát sóng">
+            0 lượt xem thực • Chỉ hiển thị số liệu đo được
+          </div>
+        )}
         <div className="flex items-center justify-between text-zinc-500">
           <span>Khung {activePoint?.slot || traffic.peakWindow}</span>
           <span className="font-bold text-[#141413]" data-testid="traffic-total-readout">

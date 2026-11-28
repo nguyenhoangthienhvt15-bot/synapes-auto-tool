@@ -115,6 +115,7 @@ interface ThreeRigHandles {
   leftArmGroup: THREE.Group;
   rightArmGroup: THREE.Group;
   stageEnvGroup: THREE.Group;
+  customAvatarHolder: THREE.Group;
   propGroups: THREE.Group[];
   coreMesh: THREE.Mesh;
   ring1: THREE.Mesh;
@@ -172,6 +173,9 @@ function getOrCreateThreeRig(width: number, height: number): ThreeRigHandles | n
 
       const stageEnvGroup = new THREE.Group();
       scene.add(stageEnvGroup);
+
+      const customAvatarHolder = new THREE.Group();
+      scene.add(customAvatarHolder);
 
       // Glowing Perspective Grid & Spotlight Pedestal
       const grid = new THREE.GridHelper(20, 26, 0x38bdf8, 0x1e293b);
@@ -492,6 +496,7 @@ function getOrCreateThreeRig(width: number, height: number): ThreeRigHandles | n
         leftArmGroup,
         rightArmGroup,
         stageEnvGroup,
+        customAvatarHolder,
         propGroups: [prop0, prop1, prop2, prop3],
         coreMesh,
         ring1,
@@ -524,9 +529,43 @@ export function renderThreeDStageToCanvas(
     cameraMotion?: string;
     isSpeaking: boolean;
     mode: 'full-stage' | 'pip-host';
+    customGltfAvatar?: THREE.Group | null;
   }
 ): boolean {
-  const { clockSec, progress, sceneIdx = 0, cameraMotion = 'orbit', isSpeaking, mode } = options;
+  const { clockSec, progress, sceneIdx = 0, cameraMotion = 'orbit', isSpeaking, mode, customGltfAvatar } = options;
+
+  const syncCustomAvatar = (rig: ThreeRigHandles, baseX: number, baseY: number, baseZ: number) => {
+    if (customGltfAvatar) {
+      if (rig.customAvatarHolder.userData.sourceRef !== customGltfAvatar) {
+        while (rig.customAvatarHolder.children.length > 0) {
+          rig.customAvatarHolder.remove(rig.customAvatarHolder.children[0]);
+        }
+        const clone = customGltfAvatar.clone();
+        const box = new THREE.Box3().setFromObject(clone);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z, 0.001);
+        const scale = 1.9 / maxDim;
+        clone.scale.setScalar(scale);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        clone.position.set(-center.x * scale, -box.min.y * scale - 0.9, -center.z * scale);
+        rig.customAvatarHolder.add(clone);
+        rig.customAvatarHolder.userData.sourceRef = customGltfAvatar;
+      }
+      rig.avatarGroup.visible = false;
+      rig.customAvatarHolder.visible = true;
+      rig.customAvatarHolder.position.set(
+        baseX,
+        baseY + (isSpeaking ? Math.sin(clockSec * 5.2) * 0.03 : Math.sin(clockSec * 2.0) * 0.015),
+        baseZ
+      );
+      rig.customAvatarHolder.rotation.y = 0.2 + Math.sin(clockSec * 0.95) * 0.14;
+    } else {
+      rig.avatarGroup.visible = true;
+      rig.customAvatarHolder.visible = false;
+    }
+  };
 
   if (mode === 'full-stage') {
     const rw = Math.min(1280, W);
@@ -546,6 +585,7 @@ export function renderThreeDStageToCanvas(
 
     rig.avatarGroup.position.set(-1.15, -0.05 + Math.sin(clockSec * 2.2) * 0.025, 0.2);
     rig.avatarGroup.rotation.y = 0.24 + Math.sin(clockSec * 0.9) * 0.06;
+    syncCustomAvatar(rig, -1.15, -0.05, 0.2);
 
     let camX = Math.sin(progress * Math.PI * 1.2 + sceneIdx * 0.6) * 0.55;
     let camY = 1.15 + Math.sin(clockSec * 0.8) * 0.06;
@@ -587,6 +627,7 @@ export function renderThreeDStageToCanvas(
   rig.stageEnvGroup.visible = false;
   rig.avatarGroup.position.set(0, -0.12 + Math.sin(clockSec * 2.4) * 0.02, 0);
   rig.avatarGroup.rotation.y = Math.sin(clockSec * 1.1) * 0.08;
+  syncCustomAvatar(rig, 0, -0.12, 0);
   rig.camera.position.set(0, 0.88, 2.55);
   rig.camera.lookAt(0, 0.78, 0);
 

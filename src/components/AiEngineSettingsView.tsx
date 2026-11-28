@@ -78,7 +78,6 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
     plugin: config.plugin?.endpointUrl || 'https://api.klingai.com/v1/videos/text2video',
   });
 
-  const [ttsVoice, setTtsVoice] = useState(config.gemini?.ttsVoice || 'vi-VN-Standard-B (Nam Bắc chuẩn)');
   const [showKey, setShowKey] = useState<Record<string, boolean>>({});
   const [testResult, setTestResult] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
@@ -213,7 +212,7 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
             ...config,
             mode: provId,
             activeProvider: provId,
-            gemini: { apiKey: nextKeys.gemini.trim(), model: nextModels.gemini, ttsVoice },
+            gemini: { apiKey: nextKeys.gemini.trim(), model: nextModels.gemini },
             openai: { apiKey: nextKeys.openai.trim(), model: nextModels.openai, endpointUrl: endpoints.openai.trim() },
             claude: { apiKey: nextKeys.claude.trim(), model: nextModels.claude, endpointUrl: endpoints.claude.trim() },
             deepseek: { apiKey: nextKeys.deepseek.trim(), model: nextModels.deepseek, endpointUrl: endpoints.deepseek.trim() },
@@ -330,7 +329,6 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
       gemini: {
         apiKey: keys.gemini.trim(),
         model: models.gemini,
-        ttsVoice,
       },
       openai: {
         apiKey: keys.openai.trim(),
@@ -843,25 +841,6 @@ export const AiEngineSettingsView: React.FC<AiEngineSettingsViewProps> = ({
               })}
             </div>
           </div>
-
-          {/* Specialized setting for Gemini TTS Voice */}
-          {activeProvider === 'gemini' && (
-            <div className="p-3.5 rounded-lg bg-zinc-50 border border-black/5 space-y-2">
-              <label className="text-zinc-700 font-medium block">
-                Giọng Đọc Thuyết Minh Tích Hợp (Gemini TTS Voice)
-              </label>
-              <select
-                value={ttsVoice}
-                onChange={(e) => setTtsVoice(e.target.value)}
-                className="w-full bg-white border border-black/10 rounded-lg p-2 text-xs text-zinc-800 font-mono focus:outline-none focus:border-zinc-900"
-              >
-                <option value="vi-VN-Standard-B (Nam Bắc chuẩn)">vi-VN-Standard-B (Nam Bắc chuẩn - Tin tức/Công nghệ)</option>
-                <option value="vi-VN-Standard-A (Nữ miền Bắc truyền cảm)">vi-VN-Standard-A (Nữ miền Bắc - Kể chuyện/Review)</option>
-                <option value="vi-VN-Wavenet-C (Nam miền Nam hiện đại)">vi-VN-Wavenet-C (Nam miền Nam - Năng động/Viral TikTok)</option>
-                <option value="vi-VN-Wavenet-D (Nữ miền Nam ngọt ngào)">vi-VN-Wavenet-D (Nữ miền Nam - Bán hàng/Lifestyle)</option>
-              </select>
-            </div>
-          )}
 
           {/* Specialized setting for Plugin Webhook */}
           {activeProvider === 'plugin' && (

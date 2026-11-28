@@ -183,6 +183,18 @@ export function setActiveSession(user: UserAccount | null): void {
 export function clearActiveSession(): void {
   try {
     const active = getActiveSession();
+    const hdrs = getAuthHeaders(active?.code);
+    if (typeof fetch === 'function') {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...hdrs,
+        },
+        body: JSON.stringify({ code: active?.code || '' }),
+      }).catch(() => {});
+    }
     localStorage.removeItem(ACTIVE_SESSION_KEY);
     sessionStorage.removeItem('synapes_auth_token');
     if (active?.code) {
@@ -338,6 +350,7 @@ export async function syncUserProfileToServer(
   try {
     const resp = await fetch('/api/user/profile-backup', {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...getAuthHeaders(codeClean),
@@ -402,6 +415,7 @@ export async function restoreUserProfileFromServer(
   try {
     const resp = await fetch(`/api/user/profile-backup?code=${encodeURIComponent(codeClean)}`, {
       method: 'GET',
+      credentials: 'include',
       headers: {
         ...getAuthHeaders(codeClean),
       },

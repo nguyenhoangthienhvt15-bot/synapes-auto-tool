@@ -123,7 +123,7 @@ export const VIETNAMESE_VOICE_PROFILES: VoiceProfile[] = [
     name: 'Anh Nam Minh (Sài Gòn Năng Động)',
     language: 'vi',
     gender: 'Nam',
-    region: 'Miền Nam',
+    region: 'Biến thể DSP/SSML Nam (Lõi NamMinhNeural)',
     toneTag: 'Năng động • Hào sảng (Tenor)',
     description:
       'Phong thái nam trẻ trung phóng khoáng, SSML +4Hz cao sáng, tốc độ linh hoạt 1.09x (không méo âm), tối ưu Shorts & TikTok.',
@@ -161,7 +161,7 @@ export const VIETNAMESE_VOICE_PROFILES: VoiceProfile[] = [
     name: 'Anh Văn Quang (Bản Tin Tài Chính)',
     language: 'vi',
     gender: 'Nam',
-    region: 'Miền Trung',
+    region: 'Biến thể DSP/SSML Trung (Lõi NamMinhNeural)',
     toneTag: 'Dõng dạc • Rõ ràng (Anchor)',
     description:
       'Phát âm rành mạch, tốc độ chuẩn 1.04x, dải trung 1.45kHz dày chắc, cắt âm đục 340Hz tạo uy tín cao cho bản tin kinh tế & vĩ mô.',
@@ -275,7 +275,7 @@ export const VIETNAMESE_VOICE_PROFILES: VoiceProfile[] = [
     name: 'Chị Diệu Thảo (Review & Lifestyle SG)',
     language: 'vi',
     gender: 'Nữ',
-    region: 'Miền Nam',
+    region: 'Biến thể DSP/SSML Nam (Lõi HoaiMyNeural)',
     toneTag: 'Tươi vui • Ngọt ngào (Soprano)',
     description:
       'Âm sắc nữ tươi sáng SSML +6Hz, nhịp 1.07x tràn đầy năng lượng, tăng sáng 2.9kHz và 6.8kHz rất bắt tai cho ẩm thực, du lịch & review.',
@@ -312,7 +312,7 @@ export const VIETNAMESE_VOICE_PROFILES: VoiceProfile[] = [
     name: 'Chị Phương Linh (Trữ Tình Huế)',
     language: 'vi',
     gender: 'Nữ',
-    region: 'Miền Trung',
+    region: 'Biến thể DSP/SSML Huế (Lõi HoaiMyNeural)',
     toneTag: 'Trữ tình • Dịu dàng • Sâu lắng',
     description:
       'Giọng kể nhẹ nhàng sâu lắng, tốc độ chậm 0.91x, quãng nghỉ trữ tình 265ms và độ ấm Tube Warmth êm dịu cho văn hóa, du lịch & sách nói.',
@@ -1516,7 +1516,7 @@ export function auditionVoice(
           : engine === 'openai-studio-hd'
             ? `OpenAI Speech Studio HD (${profile.openaiVoiceName || 'onyx'}) • Chuẩn Điện Ảnh`
             : engine === 'edge-neural'
-              ? `Microsoft Edge Neural (${profile.neuralVoiceId}) • ${profile.acousticSignature || 'Studio 6-Band EQ'}`
+              ? `Microsoft Edge Neural (${profile.neuralVoiceId}) • ${profile.acousticSignature || 'Studio 6-Band EQ'} (Biến thể DSP/SSML)`
               : `Cloud Neural Audio + WSOLA Vocal Tract DSP (${profile.gender} • ${profile.region})`
       );
 
@@ -1785,7 +1785,7 @@ export class StudioAudioSynthesizer {
     return this.voiceGain;
   }
 
-  public playCustomAudioBlob(audioUrl: string, onEnd?: () => void): HTMLAudioElement | null {
+  public playCustomAudioBlob(audioUrl: string, onEnd?: () => void, playbackRate: number = 1.0): HTMLAudioElement | null {
     this.stopSceneVoiceover();
     if (this.isMutedState) return null;
     this.resume();
@@ -1793,6 +1793,10 @@ export class StudioAudioSynthesizer {
       const audio = new Audio(audioUrl);
       audio.crossOrigin = 'anonymous';
       audio.muted = this.isMutedState;
+      const safeRate = Math.max(0.5, Math.min(2.0, Number.isFinite(playbackRate) ? playbackRate : 1.0));
+      if (Math.abs(safeRate - 1.0) > 0.01) {
+        audio.playbackRate = safeRate;
+      }
       this.attachMediaElementToVoice(audio);
       this.duckBgm(true);
       audio.onended = () => {
@@ -2124,6 +2128,40 @@ export class StudioAudioSynthesizer {
         osc.start(noteTime);
         osc.stop(noteTime + 0.36);
       });
+    } else if (type === 'glitch') {
+      const sampleCount = Math.floor(ctx.sampleRate * 0.16);
+      const noiseBuf = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
+      const data = noiseBuf.getChannelData(0);
+      for (let i = 0; i < sampleCount; i++) {
+        data[i] = i % 19 < 7 ? (Math.random() * 2 - 1) * 0.85 : 0;
+      }
+      const noiseSrc = ctx.createBufferSource();
+      noiseSrc.buffer = noiseBuf;
+      const bandpass = ctx.createBiquadFilter();
+      bandpass.type = 'bandpass';
+      bandpass.frequency.setValueAtTime(1900, now);
+      bandpass.Q.value = 3.2;
+
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.24, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.16);
+      noiseSrc.connect(bandpass);
+      bandpass.connect(noiseGain);
+      noiseGain.connect(this.sfxGain);
+      noiseSrc.start(now);
+
+      const sq = ctx.createOscillator();
+      const sqGain = ctx.createGain();
+      sq.type = 'square';
+      sq.frequency.setValueAtTime(640, now);
+      sq.frequency.setValueAtTime(180, now + 0.045);
+      sq.frequency.setValueAtTime(920, now + 0.09);
+      sqGain.gain.setValueAtTime(0.12, now);
+      sqGain.gain.exponentialRampToValueAtTime(0.005, now + 0.14);
+      sq.connect(sqGain);
+      sqGain.connect(this.sfxGain);
+      sq.start(now);
+      sq.stop(now + 0.15);
     }
   }
 

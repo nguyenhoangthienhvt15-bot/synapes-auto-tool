@@ -188,11 +188,22 @@ export function generateUserCode(dob: string): string {
  * Sinh mật khẩu ngẫu nhiên theo quy tắc: SNP_[3 chữ số + 3 chữ cái ngẫu nhiên]
  */
 export function generateUserPassword(): string {
-  const randomDigits = Math.floor(100 + Math.random() * 900);
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let randomDigits = 100;
   let letters = '';
-  for (let i = 0; i < 3; i++) {
-    letters += chars.charAt(Math.floor(Math.random() * chars.length));
+  const cryptoApi = typeof globalThis !== 'undefined' ? (globalThis as any).crypto : undefined;
+  if (cryptoApi && typeof cryptoApi.getRandomValues === 'function') {
+    const arr = new Uint32Array(4);
+    cryptoApi.getRandomValues(arr);
+    randomDigits = 100 + (arr[0] % 900);
+    for (let i = 0; i < 3; i++) {
+      letters += chars.charAt(arr[i + 1] % chars.length);
+    }
+  } else {
+    randomDigits = Math.floor(100 + Math.random() * 900);
+    for (let i = 0; i < 3; i++) {
+      letters += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
   }
   return `SNP_${randomDigits}${letters}`;
 }
@@ -908,6 +919,7 @@ export async function syncForgotPasswordWithServer(params: {
   try {
     const res = await fetch('/api/auth/forgot-password', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
     });
@@ -1079,6 +1091,7 @@ export async function changePasswordSecureWithQuota(params: {
   try {
     const res = await fetch('/api/auth/change-password', {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...(resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {}),
@@ -1202,6 +1215,7 @@ export function saveCustomPassword(
       }
       fetch('/api/auth/change-password', {
         method: 'POST',
+        credentials: 'include',
         keepalive: true,
         headers: {
           'Content-Type': 'application/json',

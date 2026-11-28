@@ -217,6 +217,32 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
       mockupType: 'skills',
     },
     {
+      id: 'voice-studio-guide',
+      stepNumber: 'BƯỚC 05B / 12',
+      category: 'skills',
+      title: 'Phòng Thu VoiceStudio ULTRA & Giọng Đọc DSP + Edge Neural',
+      shortDesc: 'Tinh chỉnh 10 hồ sơ giọng Việt & 6 giọng Anh từ 2 lõi Microsoft Edge Neural (Hoài My / Nam Minh) kèm EQ 6 dải, BGM & SFX.',
+      badge: 'VoiceStudio ULTRA',
+      steps: [
+        {
+          number: 1,
+          title: 'Chọn giọng nền & tinh chỉnh Formant EQ',
+          description: 'Hệ thống dùng 2 giọng Neural tiếng Việt gốc (Hoài My & Nam Minh) kết hợp SSML/DSP EQ để tạo sắc thái Bắc/Trung/Nam/Kể chuyện.',
+        },
+        {
+          number: 2,
+          title: 'Xuất âm thanh master & phụ đề SRT',
+          description: 'Sử dụng quy chuẩn tách khoảng lặng thông minh, chống chồng lấn câu thoại khi xuất video WebM hoặc MP4 WebCodecs.',
+        },
+      ],
+      actionLabel: 'Mở VoiceStudio ULTRA',
+      actionView: 'voice-studio-labs',
+      proTips: [
+        'Kết nối OpenAI / ElevenLabs API Key trong module AI Keys nếu bạn cần thêm giọng Cloud đa ngôn ngữ.',
+      ],
+      mockupType: 'skills',
+    },
+    {
       id: 'review-workspace-guide',
       stepNumber: 'BƯỚC 05 / 11',
       category: 'review',
@@ -293,23 +319,23 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
       stepNumber: 'BƯỚC 07 / 11',
       category: 'traffic',
       title: 'Biểu Đồ Miền Lưu Lượng Giờ Vàng Thời Gian Thực (TikTok, YouTube, Facebook)',
-      shortDesc: 'Theo dõi lưu lượng người xem hoạt động theo thời gian thực (quét chu kỳ 10 phút/lần) để chọn thời điểm đăng video đạt triệu view.',
-      badge: 'Realtime Telemetry 10p/Lần',
+      shortDesc: 'Theo dõi lưu lượng người xem hoạt động theo thời gian thực (quét chu kỳ 180 phút/lần) để chọn thời điểm đăng video đạt triệu view.',
+      badge: 'Realtime Telemetry 180p/Lần',
       steps: [
         {
           number: 1,
           title: 'Quan sát Biểu Đồ Miền ở cuối thanh Sidebar',
-          description: 'Tại góc dưới thanh Sidebar có widget biểu đồ miền mini cập nhật liên tục 24/7.',
+          description: 'Tại góc dưới thanh Sidebar có widget biểu đồ miền mini cập nhật theo dữ liệu thực đo được.',
         },
         {
           number: 2,
           title: 'Đọc cấu trúc trục & 3 nền tảng',
-          description: 'Trục ngang chia thành 3 cột nền tảng: TikTok (Đen), YouTube (Đỏ), Meta Facebook (Xanh dương). Trục dọc là các khung giờ từ 08h sáng đến 23h đêm.',
+          description: 'Trục ngang chia thành 3 cột nền tảng: TikTok (Đen), YouTube (Đỏ), Meta Facebook (Xanh dương). Trục dọc là các khung giờ từ 00h đến 23h.',
         },
         {
           number: 3,
-          title: 'Theo dõi Đường Giờ Hiện Tại & Chu Kỳ Sync 10 phút',
-          description: 'Đường đứt nét màu xanh ngọc hiển thị giờ thực tế hiện tại. Cứ mỗi 10 phút hệ thống tự động cập nhật lại lưu lượng traffic mới nhất.',
+          title: 'Theo dõi Đường Giờ Hiện Tại & Chu Kỳ Sync 180 phút',
+          description: 'Đường đứt nét màu xanh ngọc hiển thị giờ thực tế hiện tại. Cứ mỗi 180 phút hệ thống tự động đồng bộ lại lưu lượng mới nhất.',
         },
         {
           number: 4,
@@ -480,8 +506,8 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
         },
         {
           number: 4,
-          title: 'Biểu Đồ Miền Lưu Lượng Giờ Vàng Telemetry Realtime 10p/lần',
-          description: 'Hệ thống tự động theo dõi và cập nhật lưu lượng TikTok, YouTube, Facebook cứ mỗi 10 phút/lần kèm giờ thực tế.',
+          title: 'Biểu Đồ Miền Lưu Lượng Giờ Vàng Telemetry Realtime 180p/lần',
+          description: 'Hệ thống tự động theo dõi và cập nhật lưu lượng TikTok, YouTube, Facebook theo chu kỳ 180 phút/lần kèm giờ thực tế.',
         },
         {
           number: 5,
@@ -1051,7 +1077,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                <span>Biểu đồ miền Realtime quét lưu lượng TikTok, YouTube, FB 10p/lần.</span>
+                <span>Biểu đồ miền Realtime quét lưu lượng TikTok, YouTube, FB 180p/lần.</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>

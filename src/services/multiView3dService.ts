@@ -557,8 +557,6 @@ export async function checkByok3DWorkerHealth(
 }
 
 export function buildAuthenticatedGlbProxyUrl(jobId: string): string {
-  const hdrs = getAuthHeaders();
-  const bearer = hdrs['X-Synapes-Auth-Token'] || '';
-  const base = `/api/assets-3d/glb-proxy?jobId=${encodeURIComponent(jobId.trim())}`;
-  return bearer ? `${base}&authToken=${encodeURIComponent(bearer)}` : base;
+  // Rely on HttpOnly SameSite=Lax synapes_session cookie instead of leaking authToken in URL query strings
+  return `/api/assets-3d/glb-proxy?jobId=${encodeURIComponent(jobId.trim())}`;
 }

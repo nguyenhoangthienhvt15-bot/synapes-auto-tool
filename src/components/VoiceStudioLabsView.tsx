@@ -1039,18 +1039,18 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
       {activeTab === 'cloning' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div className="lg:col-span-7 bg-white rounded-xl border border-zinc-200/90 p-4 space-y-4 min-w-0">
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-2.5">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-2.5 gap-2">
               <h2 className="text-xs font-bold text-zinc-950 uppercase tracking-wide">
-                Nhân Bản Giọng Nói Zero-Shot (5–15 giây mẫu)
+                Tinh Chỉnh Âm Sắc DSP &amp; Formant VTLN (5–15 giây mẫu)
               </h2>
               <span className="text-[10px] font-mono text-zinc-500">
-                Acoustic DNA F0 + Neural TTS 24kHz
+                Edge Neural Core + Web Audio DSP 24kHz
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-[11px] font-medium text-zinc-700 block mb-1">Tên Giọng Nhân Bản</label>
+                <label className="text-[11px] font-medium text-zinc-700 block mb-1">Tên Hồ Sơ Giọng DSP</label>
                 <input
                   type="text"
                   value={cloneName}
@@ -1059,16 +1059,16 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                 />
               </div>
               <div>
-                <label className="text-[11px] font-medium text-zinc-700 block mb-1">Mô Hình Nhân Bản (Mở rộng theo API Key & Plugin)</label>
+                <label className="text-[11px] font-medium text-zinc-700 block mb-1">Bộ Tổng Hợp &amp; DSP Tham Chiếu (Cloud BYOK nếu muốn Zero-Shot)</label>
                 <select
                   value={cloneEngine}
                   onChange={(e) => setCloneEngine(e.target.value)}
                   className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-xs bg-white focus:outline-none focus:border-zinc-900"
                 >
-                  <optgroup label="SYNAPES Formant & VTLN DSP + Edge Neural Core (Local Browser DSP)">
-                    <option value="qwen3-tts">SYNAPES VTLN Neutral Clone (Formant-Warp v4.0)</option>
-                    <option value="xttsv2">SYNAPES Multilingual VTLN (Formant-Warp v4.0)</option>
-                    <option value="fish-speech">SYNAPES Acoustic High-Presence (Formant-Warp v4.0)</option>
+                  <optgroup label="Edge Neural Base (HoaiMy / NamMinh) + Client EQ/Formant DSP">
+                    <option value="qwen3-tts">Edge Neural Base + VTLN EQ (Local DSP — Không Zero-Shot)</option>
+                    <option value="xttsv2">Edge Multilingual + Formant EQ (Local DSP)</option>
+                    <option value="fish-speech">Edge High-Presence + 6-Band EQ (Local DSP)</option>
                   </optgroup>
                   <optgroup label="Mô Hình Cloud BYOK Theo API Key Hệ Thống">
                     <option value="byok-gemini-audio">
@@ -1139,7 +1139,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                   </div>
                   {refAnalysis && (
                     <div className="space-y-2 bg-white p-2.5 rounded border border-zinc-200/80">
-                      <div className="grid grid-cols-4 gap-1.5 text-[10px] font-mono">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px] font-mono">
                         <div>
                           <span className="text-zinc-400 block">Tần số F0 (YIN):</span>
                           <strong className="text-zinc-900">{refAnalysis.fundamentalHz} Hz ({cloneGender})</strong>
@@ -1252,7 +1252,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
                       : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-100'
                   }`}
                 >
-                  1. Nhân Bản STFT Cepstral 128 Dải & Formants F1-F4 (Đọc Văn Bản Mới)
+                  1. Tổng Hợp Văn Bản Mới Qua Edge Neural + EQ Formants F1–F4 (Khớp Pitch/EQ)
                 </button>
                 <button
                   type="button"
@@ -1281,7 +1281,7 @@ export const VoiceStudioLabsView: React.FC<VoiceStudioLabsViewProps> = ({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div>
                 <div className="flex justify-between text-[11px] text-zinc-600 mb-1">
                   <span>Cao độ (Pitch)</span>

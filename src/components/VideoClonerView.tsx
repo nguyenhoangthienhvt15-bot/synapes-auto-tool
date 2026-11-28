@@ -454,9 +454,8 @@ export const VideoClonerView: React.FC<VideoClonerViewProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="text-[11px] text-zinc-500 border-t border-black/[0.06] pt-1.5 flex items-center justify-between">
-                <span>{hasAnyByokKey ? 'Hạn mức: Cá nhân (BYOK)' : 'Chế độ: Siêu dữ liệu + Frame nội bộ'}</span>
-                <span className="text-emerald-700 font-medium">Chi phí chủ: 0đ</span>
+              <div className="text-[11px] text-zinc-500 border-t border-black/[0.06] pt-1.5 flex items-center justify-between gap-2">
+                <span>{hasAnyByokKey ? 'Hạn mức: Cá nhân (BYOK — Tính phí theo nhà cung cấp)' : 'Chế độ: Siêu dữ liệu + Frame nội bộ'}</span>
               </div>
             )}
           </div>

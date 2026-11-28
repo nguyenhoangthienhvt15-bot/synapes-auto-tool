@@ -446,7 +446,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
     onUpdateProject(updated);
     setEditingProject(null);
-    showToast(`Đã lưu lịch phát sóng cho dự án: "${editingProject.title.slice(0, 30)}..." lúc ${scheduleTime} ngày ${formattedDate}`);
+    showToast(`Đã lưu lịch phát sóng nội bộ cho "${editingProject.title.slice(0, 28)}..." lúc ${scheduleTime} ${formattedDate} (Để lên lịch tự động trên YouTube Cloud, dùng nút Xuất bản & Hẹn giờ kèm MP4).`);
   };
 
   // Áp dụng nhanh gợi ý mốc giờ từ hệ thống

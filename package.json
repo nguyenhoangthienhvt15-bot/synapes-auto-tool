@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:integrity": "node scripts/verify-integrity.cjs",
-    "test:vitest": "vitest run tests/anti-fake-activity.test.ts tests/day1-multiview-3d.test.ts tests/day2-3d-pipeline-upgrade.test.ts tests/edit-voice-bgm-upgrade.test.ts tests/audit-251126.test.ts tests/youtube-oauth-connect.test.ts tests/p0-security-remediation.test.ts",
+    "test:vitest": "vitest run tests/anti-fake-activity.test.ts tests/day1-multiview-3d.test.ts tests/day2-3d-pipeline-upgrade.test.ts tests/edit-voice-bgm-upgrade.test.ts tests/audit-251126.test.ts tests/youtube-oauth-connect.test.ts tests/p0-security-remediation.test.ts tests/p1-core-stability-authenticity.test.ts",
     "test": "npm run test:integrity && npm run test:vitest",
     "lint:architecture": "depcruise src --config .dependency-cruiser.cjs",
     "test:e2e": "playwright test",

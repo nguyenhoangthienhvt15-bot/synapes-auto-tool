@@ -7,6 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 import tls from 'tls';
+import { writeJsonAtomic, writeTextAtomic } from './atomicFileStore.mjs';
 
 const INCIDENT_LOGS_DIR = path.resolve(process.cwd(), 'data', 'incidents');
 const ALERT_EMAIL = String(process.env.ADMIN_ALERT_EMAIL || process.env.SMTP_USER || '').trim();
@@ -40,7 +41,7 @@ export async function sendSmtpDaemonEmail(subject, textBody, recipient = ALERT_E
       ``,
       textBody,
     ].join('\r\n');
-    fs.writeFileSync(emlFile, emlContent, 'utf8');
+    writeTextAtomic(emlFile, emlContent);
   } catch (fsErr) {
     console.warn('Lỗi lưu mail outbox:', fsErr.message);
   }
@@ -70,7 +71,7 @@ export async function sendSmtpDaemonEmail(subject, textBody, recipient = ALERT_E
         finish({ success: false, error: 'SMTP Timeout' });
       }, 8000);
 
-      socket = tls.connect({ host, port, rejectUnauthorized: false }, () => {
+      socket = tls.connect({ host, port, servername: host, rejectUnauthorized: true }, () => {
         socket.setEncoding('utf8');
       });
 
@@ -295,7 +296,7 @@ Kỹ sư phụ trách: KS. Nguyễn Hoàng Thiện
   };
 
   try {
-    fs.writeFileSync(incidentFile, JSON.stringify(incidentData, null, 2), 'utf8');
+    writeJsonAtomic(incidentFile, incidentData);
   } catch (fsErr) {
     console.error('Không thể ghi file incident log:', fsErr);
   }

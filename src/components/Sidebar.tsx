@@ -21,6 +21,7 @@ interface SidebarProps {
   userPlanTier?: ContractCategory;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  drawerMode?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -35,15 +36,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedAiProvider,
   isCollapsed = false,
   onToggleCollapse,
+  drawerMode = false,
 }) => {
   const [isAiModuleOpen, setIsAiModuleOpen] = useState(false);
 
   // ---------------------------------------------------------------------------
-  // COMPACT SLIDING DOCK MODE (When sidebar is collapsed: w-14 / 56px)
+  // COMPACT SLIDING DOCK MODE (When sidebar is collapsed: w-14 / 56px, desktop only)
   // ---------------------------------------------------------------------------
-  if (isCollapsed) {
+  if (isCollapsed && !drawerMode) {
     return (
-      <aside className="w-14 bg-[#FDFCF9] border-r border-black/[0.08] py-3 px-2 flex flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.5rem)] select-none transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]">
+      <aside className="hidden md:flex w-14 bg-[#FDFCF9] border-r border-black/[0.08] py-3 px-2 flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.5rem)] select-none transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]">
         <div className="flex flex-col items-center gap-2">
           {/* New Project Quick Trigger */}
           <button
@@ -167,7 +169,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Bottom Expand Toggle Button */}
-        {onToggleCollapse && (
+        {onToggleCollapse && !drawerMode && (
           <button
             onClick={onToggleCollapse}
             className="w-10 h-10 mx-auto rounded-lg text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 flex items-center justify-center transition cursor-pointer"
@@ -184,7 +186,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // FULL EXPANDED CRAFT SIDEBAR MODE (w-60 / 240px)
   // ---------------------------------------------------------------------------
   return (
-    <aside className="w-60 bg-[#FDFCF9] border-r border-black/[0.08] p-3 flex flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.5rem)] overflow-y-auto select-none scrollbar-none transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]">
+    <aside
+      className={
+        drawerMode
+          ? 'flex w-72 max-w-[85vw] bg-[#FDFCF9] border-r border-black/[0.08] p-3 flex-col justify-between h-full overflow-y-auto select-none scrollbar-none'
+          : 'hidden md:flex w-60 bg-[#FDFCF9] border-r border-black/[0.08] p-3 flex-col justify-between flex-shrink-0 min-h-[calc(100vh-3.5rem)] overflow-y-auto select-none scrollbar-none transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]'
+      }
+    >
       <div className="space-y-3">
 
         {/* Primary Action Button */}
@@ -441,7 +449,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           channels={channels}
         />
 
-        {onToggleCollapse && (
+        {onToggleCollapse && !drawerMode && (
           <button
             onClick={onToggleCollapse}
             className="w-full py-1.5 px-2 rounded-md text-zinc-400 hover:text-zinc-800 hover:bg-zinc-100 flex items-center justify-center gap-1.5 text-[11px] transition cursor-pointer"

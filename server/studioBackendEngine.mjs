@@ -7,6 +7,12 @@ import crypto from 'crypto';
 import net from 'net';
 import dns from 'dns';
 import { spawnSync } from 'child_process';
+import { writeJsonAtomic, withFileLock } from './atomicFileStore.mjs';
+import {
+  isPrivateOrReservedIp as safeClientIsPrivateOrReservedIp,
+  isSafeExternalUrlSyntax,
+  safeOutboundFetch,
+} from './safeHttpClient.mjs';
 import { dispatchCriticalIncident, CIRCUIT_BREAKERS, sendSmtpDaemonEmail } from './incidentReporter.mjs';
 import {
   MODEL_3D_STYLE_CATALOG_SERVER,
@@ -1065,141 +1071,14 @@ const IMAGE_PROXY_CACHE = new Map();
  * cloud metadata service, internal domain suffixes và các cổng dịch vụ nhạy cảm.
  */
 export function isSafeExternalUrl(rawUrl) {
-  try {
-    const parsed = new URL(rawUrl);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return false;
-    }
-    // Chặn user/pass nhúng trong URL
-    if (parsed.username || parsed.password) {
-      return false;
-    }
-    // Chỉ cho phép cổng chuẩn web (80, 443, 8080, 8443)
-    const port = parsed.port ? parseInt(parsed.port, 10) : (parsed.protocol === 'https:' ? 443 : 80);
-    if (port !== 80 && port !== 443 && port !== 8080 && port !== 8443) {
-      return false;
-    }
-
-    let hostname = parsed.hostname.toLowerCase();
-    if (hostname.startsWith('[') && hostname.endsWith(']')) {
-      hostname = hostname.slice(1, -1);
-    }
-
-    // Blacklist danh sách host nội bộ & Cloud Metadata
-    const blockedHosts = new Set([
-      'localhost',
-      '127.0.0.1',
-      '0.0.0.0',
-      '::',
-      '::1',
-      '169.254.169.254',
-      'metadata.google.internal',
-      'instance-data',
-    ]);
-    if (blockedHosts.has(hostname)) {
-      return false;
-    }
-
-    // Chặn các domain suffix nội bộ
-    if (
-      hostname.endsWith('.internal') ||
-      hostname.endsWith('.local') ||
-      hostname.endsWith('.localhost') ||
-      hostname.endsWith('.lan') ||
-      hostname.endsWith('.corp')
-    ) {
-      return false;
-    }
-
-    // Chặn định dạng số nguyên đơn thuần hoặc hex/octal IP (e.g. 2130706433, 0x7f000001)
-    if (/^(0x[0-9a-f]+|\d+)$/i.test(hostname)) {
-      return false;
-    }
-
-    // Kiểm tra IP bằng module chuẩn 'net' của Node.js
-    const ipType = net.isIP(hostname);
-    if (ipType === 4) {
-      const parts = hostname.split('.').map((p) => parseInt(p, 10));
-      const [b1, b2] = parts;
-      // 0.0.0.0/8
-      if (b1 === 0) return false;
-      // 10.0.0.0/8 (Private RFC 1918)
-      if (b1 === 10) return false;
-      // 100.64.0.0/10 (Carrier NAT)
-      if (b1 === 100 && b2 >= 64 && b2 <= 127) return false;
-      // 127.0.0.0/8 (Loopback)
-      if (b1 === 127) return false;
-      // 169.254.0.0/16 (Link-local & AWS/GCP metadata)
-      if (b1 === 169 && b2 === 254) return false;
-      // 172.16.0.0/12 (Private RFC 1918)
-      if (b1 === 172 && b2 >= 16 && b2 <= 31) return false;
-      // 192.168.0.0/16 (Private RFC 1918)
-      if (b1 === 192 && b2 === 168) return false;
-      // 192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24 (TEST-NET)
-      if (b1 === 192 && b2 === 0 && parts[2] === 2) return false;
-      if (b1 === 198 && b2 === 51 && parts[2] === 100) return false;
-      if (b1 === 203 && b2 === 0 && parts[2] === 113) return false;
-      // 224.0.0.0/4 (Multicast) & 240.0.0.0/4 (Reserved)
-      if (b1 >= 224) return false;
-    } else if (ipType === 6) {
-      const h = hostname.toLowerCase();
-      // ::1 (Loopback), :: (Unspecified)
-      if (h === '::1' || h === '::') return false;
-      // fe80::/10 (Link-local)
-      if (h.startsWith('fe8') || h.startsWith('fe9') || h.startsWith('fea') || h.startsWith('feb')) return false;
-      // fc00::/7 (Unique local)
-      if (h.startsWith('fc') || h.startsWith('fd')) return false;
-      // IPv4-mapped IPv6
-      if (h.includes('::ffff:')) {
-        const v4Part = h.split('::ffff:')[1];
-        if (v4Part && net.isIP(v4Part) === 4) {
-          const parts = v4Part.split('.').map((p) => parseInt(p, 10));
-          if (parts[0] === 127 || parts[0] === 10 || (parts[0] === 192 && parts[1] === 168)) return false;
-        }
-        return false;
-      }
-    }
-
-    return true;
-  } catch {
-    return false;
-  }
+  return isSafeExternalUrlSyntax(rawUrl);
 }
 
 /**
- * Kiểm tra IPv4/IPv6 xem có nằm trong dải Private, Loopback, Link-Local, CGNAT hay Cloud Metadata không.
+ * Kiểm tra IPv4/IPv6 xem có nằm trong dải Private, Loopback, Link-Local, CGNAT, NAT64, Teredo hay Cloud Metadata không.
  */
 export function isPrivateOrReservedIp(ip) {
-  const clean = String(ip || '').trim().toLowerCase().replace(/^\[|\]$/g, '');
-  const ipType = net.isIP(clean);
-  if (ipType === 4) {
-    const parts = clean.split('.').map((p) => parseInt(p, 10));
-    if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return true;
-    const [b1, b2, b3] = parts;
-    if (b1 === 0) return true;
-    if (b1 === 10) return true;
-    if (b1 === 100 && b2 >= 64 && b2 <= 127) return true; // CGNAT 100.64/10
-    if (b1 === 127) return true; // Loopback
-    if (b1 === 169 && b2 === 254) return true; // Link-local & AWS/GCP Metadata
-    if (b1 === 172 && b2 >= 16 && b2 <= 31) return true;
-    if (b1 === 192 && b2 === 168) return true;
-    if (b1 === 192 && b2 === 0 && b3 === 2) return true;
-    if (b1 === 198 && b2 === 51 && b3 === 100) return true;
-    if (b1 === 203 && b2 === 0 && b3 === 113) return true;
-    if (b1 >= 224) return true; // Multicast & Reserved
-    return false;
-  }
-  if (ipType === 6) {
-    if (clean === '::' || clean === '::1') return true;
-    if (/^fe[89ab]/.test(clean)) return true; // Link-local fe80::/10
-    if (/^(fc|fd)/.test(clean)) return true; // Unique local fc00::/7
-    if (clean.includes('::ffff:')) {
-      const v4Part = clean.split('::ffff:').pop() || '';
-      return net.isIP(v4Part) === 4 ? isPrivateOrReservedIp(v4Part) : true;
-    }
-    return false;
-  }
-  return true;
+  return safeClientIsPrivateOrReservedIp(ip);
 }
 
 /**
@@ -1249,69 +1128,28 @@ export async function resolveAndValidateSafeUrl(rawUrl, options = {}) {
 
 const MAX_IMAGE_BUFFER_BYTES = 15 * 1024 * 1024; // 15MB limit chống DoS Heap Exhaustion
 
-export function fetchRemoteBuffer(targetUrl, redirectsLeft = 4, timeoutMs = 8500) {
-  return new Promise((resolve, reject) => {
-    if (!isSafeExternalUrl(targetUrl)) {
-      reject(new Error('SSRF Blocked: Invalid, dangerous or private target URL'));
-      return;
-    }
-    if (redirectsLeft <= 0) {
-      reject(new Error('Too many redirects'));
-      return;
-    }
-    const isWikiHost = /wikimedia\.org|wikipedia\.org/i.test(targetUrl);
-    const client = targetUrl.startsWith('https') ? https : http;
-    const req = client.get(
-      targetUrl,
-      {
-        headers: {
-          'User-Agent': isWikiHost
-            ? 'SynapesStudioBot/2.0 (https://synapes-auto-tool-web-service.onrender.com; contact@synapes.ai)'
-            : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-          Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-        },
-        timeout: timeoutMs,
-      },
-      (resp) => {
-        if (resp.statusCode && resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
-          const nextUrl = new URL(resp.headers.location, targetUrl).toString();
-          resp.resume();
-          fetchRemoteBuffer(nextUrl, redirectsLeft - 1, timeoutMs).then(resolve).catch(reject);
-          return;
-        }
-        if (resp.statusCode !== 200) {
-          resp.resume();
-          reject(new Error(`Upstream status ${resp.statusCode}`));
-          return;
-        }
-        const contentType = resp.headers['content-type'] || 'image/jpeg';
-        // Validate MIME type: chỉ cho phép ảnh, từ chối script/html độc hại
-        if (!contentType.startsWith('image/') && !contentType.startsWith('application/octet-stream')) {
-          resp.resume();
-          reject(new Error(`Invalid content-type: ${contentType}. Only images allowed.`));
-          return;
-        }
-
-        const chunks = [];
-        let totalBytes = 0;
-        resp.on('data', (c) => {
-          totalBytes += c.length;
-          if (totalBytes > MAX_IMAGE_BUFFER_BYTES) {
-            req.destroy();
-            reject(new Error('Image Payload Too Large: Vượt quá giới hạn 15MB cho phép'));
-            return;
-          }
-          chunks.push(c);
-        });
-        resp.on('end', () => resolve({ buffer: Buffer.concat(chunks), contentType }));
-      }
-    );
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('Fetch timeout'));
-    });
-    req.on('error', reject);
+export async function fetchRemoteBuffer(targetUrl, redirectsLeft = 4, timeoutMs = 8500) {
+  const isWikiHost = /wikimedia\.org|wikipedia\.org/i.test(targetUrl);
+  const res = await safeOutboundFetch(targetUrl, {
+    method: 'GET',
+    maxRedirects: Math.max(0, Number(redirectsLeft) || 0),
+    timeoutMs,
+    maxBytes: MAX_IMAGE_BUFFER_BYTES,
+    headers: {
+      'User-Agent': isWikiHost
+        ? 'SynapesStudioBot/2.0 (https://synapes-auto-tool-web-service.onrender.com; contact@synapes.ai)'
+        : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+    },
   });
+  if (res.status !== 200) {
+    throw new Error(`Upstream status ${res.status}`);
+  }
+  const contentType = res.headers.get('content-type') || 'image/jpeg';
+  if (!contentType.startsWith('image/') && !contentType.startsWith('application/octet-stream')) {
+    throw new Error(`Invalid content-type: ${contentType}. Only images allowed.`);
+  }
+  return { buffer: await res.buffer(), contentType };
 }
 
 function fetchTextUrl(targetUrl, timeoutMs = 4200) {
@@ -2555,44 +2393,17 @@ function readJsonBody(req, maxBytes = MAX_REQUEST_BODY_BYTES) {
 }
 
 async function postJsonHttps(targetUrl, headers, bodyObj, timeoutMs = 25000) {
-  return new Promise((resolve, reject) => {
-    if (!isSafeExternalUrl(targetUrl)) {
-      reject(new Error('SSRF Blocked: Invalid or private target URL'));
-      return;
-    }
-    const parsed = new URL(targetUrl);
-    const payload = JSON.stringify(bodyObj);
-    const client = parsed.protocol === 'http:' ? http : https;
-
-    const req = client.request(
-      targetUrl,
-      {
-        method: 'POST',
-        ...(parsed.protocol === 'https:' ? { family: 4 } : {}),
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(payload),
-          ...headers,
-        },
-        timeout: timeoutMs,
-      },
-      (resp) => {
-        const chunks = [];
-        resp.on('data', (c) => chunks.push(c));
-        resp.on('end', () => {
-          const text = Buffer.concat(chunks).toString('utf8');
-          resolve({ status: resp.statusCode || 500, text });
-        });
-      }
-    );
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('LLM request timeout'));
-    });
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
+  const payload = JSON.stringify(bodyObj);
+  const res = await safeOutboundFetch(targetUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: payload,
+    timeoutMs,
   });
+  return { status: res.status || 500, text: await res.text() };
 }
 
 // ============================================================================
@@ -2780,10 +2591,73 @@ function computeServerPhoneVerifyHash(email, phoneDigits) {
     .toUpperCase();
 }
 
-export function issueServerAuthToken(code) {
+const SESSION_COOKIE_NAME = 'synapes_session';
+const REVOKED_MIN_TOKEN_VERSIONS = new Map();
+
+function getCurrentUserTokenVersion(codeNorm) {
+  const key = String(codeNorm || '').trim().toUpperCase();
+  if (!key) return 1;
+  const entry = AUTH_DIRECTORY_MAP.get(key);
+  if (entry) {
+    return Math.max(1, Number(entry.tokenVersion) || 1);
+  }
+  return Math.max(1, Number(REVOKED_MIN_TOKEN_VERSIONS.get(key)) || 1);
+}
+
+function bumpUserTokenVersion(codeNorm) {
+  const key = String(codeNorm || '').trim().toUpperCase();
+  if (!key) return 1;
+  const nextVer = getCurrentUserTokenVersion(key) + 1;
+  REVOKED_MIN_TOKEN_VERSIONS.set(key, nextVer);
+  const entry = AUTH_DIRECTORY_MAP.get(key);
+  if (entry) {
+    entry.tokenVersion = nextVer;
+  }
+  return nextVer;
+}
+
+function parseCookies(cookieHeader) {
+  const out = {};
+  const raw = String(cookieHeader || '');
+  if (!raw) return out;
+  for (const part of raw.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx <= 0) continue;
+    const k = part.slice(0, idx).trim();
+    const v = part.slice(idx + 1).trim();
+    if (!k) continue;
+    try {
+      out[k] = decodeURIComponent(v);
+    } catch {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+function buildSessionCookieHeader(token, req, maxAgeSec = 7 * 24 * 60 * 60) {
+  const safeTok = encodeURIComponent(String(token || '').trim());
+  const isHttpsProto =
+    process.env.NODE_ENV === 'production' ||
+    String(req?.headers?.['x-forwarded-proto'] || '').toLowerCase().includes('https');
+  const attrs = [
+    `${SESSION_COOKIE_NAME}=${safeTok}`,
+    'HttpOnly',
+    'Path=/',
+    'SameSite=Lax',
+    `Max-Age=${Math.max(0, Math.floor(Number(maxAgeSec) || 0))}`,
+  ];
+  if (isHttpsProto) attrs.push('Secure');
+  return attrs.join('; ');
+}
+
+export function issueServerAuthToken(code, explicitTokenVersion) {
   const codeNorm = String(code || '').trim().toUpperCase();
   const exp = Date.now() + 7 * 24 * 60 * 60 * 1000;
-  const payload = `${codeNorm}.${exp}`;
+  const tv = Number.isFinite(Number(explicitTokenVersion))
+    ? Math.max(1, Number(explicitTokenVersion))
+    : getCurrentUserTokenVersion(codeNorm);
+  const payload = `${codeNorm}.${exp}.${tv}`;
   const sig = crypto.createHmac('sha256', AUTH_TOKEN_SECRET).update(payload).digest('hex');
   return `${payload}.${sig}`;
 }
@@ -2791,13 +2665,20 @@ export function issueServerAuthToken(code) {
 function verifyServerAuthToken(token, expectedCode) {
   if (!token || typeof token !== 'string') return false;
   const parts = token.trim().split('.');
-  if (parts.length !== 3) return false;
-  const [tokenCode, expStr, providedSig] = parts;
+  if (parts.length !== 4) return false;
+  const [tokenCode, expStr, tvStr, providedSig] = parts;
   const exp = Number(expStr);
+  const tv = Number(tvStr);
   if (!tokenCode || !Number.isFinite(exp) || Date.now() > exp) return false;
-  if (expectedCode && tokenCode.toUpperCase() !== String(expectedCode).trim().toUpperCase()) return false;
-  const expectedSig = crypto.createHmac('sha256', AUTH_TOKEN_SECRET).update(`${tokenCode}.${expStr}`).digest('hex');
-  return constantTimeVerify(providedSig, expectedSig);
+  if (!Number.isFinite(tv) || tv < 1) return false;
+  const normTokenCode = tokenCode.toUpperCase();
+  if (expectedCode && normTokenCode !== String(expectedCode).trim().toUpperCase()) return false;
+  const expectedSig = crypto
+    .createHmac('sha256', AUTH_TOKEN_SECRET)
+    .update(`${tokenCode}.${expStr}.${tvStr}`)
+    .digest('hex');
+  if (!constantTimeVerify(providedSig, expectedSig)) return false;
+  return tv === getCurrentUserTokenVersion(normTokenCode);
 }
 
 const AES_MASTER_KEY = crypto.scryptSync(VAULT_ROOT_SECRET, 'synapes_vault_kdf_v2', 32);
@@ -2883,19 +2764,18 @@ export function decryptProfileSecretsAtRest(profile) {
   return cloned;
 }
 
-function extractBearerToken(req, rawUrl = '') {
-  const authHdr = String(req.headers['authorization'] || req.headers['Authorization'] || '').trim();
+function extractBearerToken(req, _rawUrl = '') {
+  const authHdr = String(req?.headers?.authorization || req?.headers?.Authorization || '').trim();
   if (authHdr.toLowerCase().startsWith('bearer ')) {
     return authHdr.slice(7).trim();
   }
-  const xTok = String(req.headers['x-synapes-auth-token'] || '').trim();
+  const xTok = String(req?.headers?.['x-synapes-auth-token'] || '').trim();
   if (xTok) return xTok;
-  try {
-    const parsed = new URL(rawUrl, 'http://localhost');
-    return String(parsed.searchParams.get('authToken') || '').trim();
-  } catch {
-    return '';
+  const cookies = parseCookies(req?.headers?.cookie);
+  if (cookies[SESSION_COOKIE_NAME]) {
+    return String(cookies[SESSION_COOKIE_NAME]).trim();
   }
+  return '';
 }
 
 function requireUserAuth(req, res, targetUserCode = '', rawUrl = '') {
@@ -2912,7 +2792,7 @@ function requireUserAuth(req, res, targetUserCode = '', rawUrl = '') {
     return null;
   }
   const parts = token.trim().split('.');
-  if (parts.length !== 3) {
+  if (parts.length !== 4) {
     res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(
       JSON.stringify({
@@ -2968,6 +2848,7 @@ export function _seedTestAuthAccount({ code, clientName, registeredGmail, passwo
     accountStatus,
     isDefaultPassword: accountStatus !== 'custom_password_active',
     planTier,
+    tokenVersion: 1,
     phoneVerifyHash: phone ? computeServerPhoneVerifyHash(registeredGmail, phone) : '',
     dailyChangeDate: '',
     dailyChangeCount: 0,
@@ -3028,10 +2909,8 @@ function loadAuthDirectory() {
 
 function saveAuthDirectoryToDisk() {
   try {
-    const regDir = path.dirname(AUTH_DIRECTORY_FILE);
-    if (!fs.existsSync(regDir)) fs.mkdirSync(regDir, { recursive: true });
     const rows = Array.from(AUTH_DIRECTORY_MAP.values());
-    fs.writeFileSync(AUTH_DIRECTORY_FILE, JSON.stringify(rows, null, 2), 'utf8');
+    writeJsonAtomic(AUTH_DIRECTORY_FILE, rows);
   } catch (err) {
     console.warn('Notice saving auth_directory.json:', err.message);
   }
@@ -3342,6 +3221,7 @@ export async function handleStudioApiRequest(req, res) {
   const isAllowedOrigin = Boolean(origin && allowedOriginSet.has(origin));
   if (isAllowedOrigin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Synapes-Auth-Token, X-Requested-With, X-Synapes-Sync-Secret');
@@ -3438,7 +3318,10 @@ export async function handleStudioApiRequest(req, res) {
       const user = await verifyUserCredentialsServerSide(codeClean, passClean);
       if (user) {
         const authToken = issueServerAuthToken(user.code);
-        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.writeHead(200, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Set-Cookie': buildSessionCookieHeader(authToken, req),
+        });
         res.end(
           JSON.stringify({
             success: true,
@@ -3471,6 +3354,33 @@ export async function handleStudioApiRequest(req, res) {
   }
 
   // --------------------------------------------------------------------------
+  // SECURE LOGOUT ENDPOINT (/api/auth/logout) — REVOKES TOKEN VERSION & CLEARS COOKIE
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/auth/logout' && req.method === 'POST') {
+    try {
+      const token = extractBearerToken(req, rawUrl);
+      if (token) {
+        const parts = token.trim().split('.');
+        const tokenCode = String(parts[0] || '').trim().toUpperCase();
+        if (tokenCode && verifyServerAuthToken(token, tokenCode)) {
+          await withFileLock(AUTH_DIRECTORY_FILE, () => {
+            bumpUserTokenVersion(tokenCode);
+            saveAuthDirectoryToDisk();
+          });
+        }
+      }
+    } catch {
+      // still clear HttpOnly cookie on client browser
+    }
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Set-Cookie': buildSessionCookieHeader('', req, 0),
+    });
+    res.end(JSON.stringify({ success: true, loggedOut: true }));
+    return true;
+  }
+
+  // --------------------------------------------------------------------------
   // CHANGE PASSWORD ENDPOINT (/api/auth/change-password)
   // Bắt buộc nhận mật khẩu mới thực sự (>= 6 ký tự) & băm bằng scrypt + 16B salt ngẫu nhiên
   // --------------------------------------------------------------------------
@@ -3494,8 +3404,7 @@ export async function handleStudioApiRequest(req, res) {
       const body = (await readJsonBody(req)) || {};
       const codeClean = String(body.code || '').trim().toUpperCase();
       const newPasswordPlain = String(body.newPassword || '').trim();
-      const bearerHeader = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
-      const token = String(body.authToken || bearerHeader || '').trim();
+      const token = String(body.authToken || extractBearerToken(req, rawUrl) || '').trim();
 
       if (!codeClean || (!newPasswordPlain && !body.passwordHash)) {
         res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -3557,53 +3466,64 @@ export async function handleStudioApiRequest(req, res) {
       }
 
       const nextCount = prevUsed + 1;
-      AUTH_DIRECTORY_MAP.set(codeClean, {
-        code: prev?.code || codeClean,
-        clientName: String(body.fullName || prev?.clientName || 'Khách hàng SYNAPES').trim(),
-        registeredGmail: String(body.email || prev?.registeredGmail || '').trim(),
-        passwordHash: finalHash,
-        passwordHashUpper: null,
-        accountStatus: 'custom_password_active',
-        isDefaultPassword: false,
-        planTier: prev?.planTier || inferServerPlanTier({ code: codeClean }),
-        phoneVerifyHash: prev?.phoneVerifyHash || '',
-        dailyChangeDate: todayKey,
-        dailyChangeCount: nextCount,
-        sheetStatusText: 'Đã đổi mật khẩu',
-        updatedAt: Date.now(),
-        localChangedAt: Date.now(),
-        source: 'webapp_change_password',
+      const nextTokenVersion = await withFileLock(AUTH_DIRECTORY_FILE, () => {
+        const tv = bumpUserTokenVersion(codeClean);
+        AUTH_DIRECTORY_MAP.set(codeClean, {
+          code: prev?.code || codeClean,
+          clientName: String(body.fullName || prev?.clientName || 'Khách hàng SYNAPES').trim(),
+          registeredGmail: String(body.email || prev?.registeredGmail || '').trim(),
+          passwordHash: finalHash,
+          passwordHashUpper: null,
+          accountStatus: 'custom_password_active',
+          isDefaultPassword: false,
+          planTier: prev?.planTier || inferServerPlanTier({ code: codeClean }),
+          tokenVersion: tv,
+          phoneVerifyHash: prev?.phoneVerifyHash || '',
+          dailyChangeDate: todayKey,
+          dailyChangeCount: nextCount,
+          sheetStatusText: 'Đã đổi mật khẩu',
+          updatedAt: Date.now(),
+          localChangedAt: Date.now(),
+          source: 'webapp_change_password',
+        });
+        saveAuthDirectoryToDisk();
+        return tv;
       });
-      saveAuthDirectoryToDisk();
 
       // Vô hiệu hóa tức thì mật khẩu mặc định / mật khẩu cũ trong hồ sơ registrations.json (nếu tồn tại)
       const regFilePath = path.resolve(process.cwd(), 'data', 'registrations.json');
       try {
-        if (fs.existsSync(regFilePath)) {
-          const regList = JSON.parse(fs.readFileSync(regFilePath, 'utf8'));
-          if (Array.isArray(regList)) {
-            let changedReg = false;
-            for (const r of regList) {
-              if (r?.assignedCode && String(r.assignedCode).trim().toUpperCase() === codeClean) {
-                r.assignedPassword = `Đã đổi mật khẩu [🔒 ${finalHash}]`;
-                r.notes = `Đã ký hợp đồng | 🟢 Đã đổi mật khẩu (${todayKey})`;
-                changedReg = true;
+        await withFileLock(regFilePath, () => {
+          if (fs.existsSync(regFilePath)) {
+            const regList = JSON.parse(fs.readFileSync(regFilePath, 'utf8'));
+            if (Array.isArray(regList)) {
+              let changedReg = false;
+              for (const r of regList) {
+                if (r?.assignedCode && String(r.assignedCode).trim().toUpperCase() === codeClean) {
+                  r.assignedPassword = `Đã đổi mật khẩu [🔒 ${finalHash}]`;
+                  r.notes = `Đã ký hợp đồng | 🟢 Đã đổi mật khẩu (${todayKey})`;
+                  changedReg = true;
+                }
+              }
+              if (changedReg) {
+                writeJsonAtomic(regFilePath, regList);
               }
             }
-            if (changedReg) {
-              fs.writeFileSync(regFilePath, JSON.stringify(regList, null, 2), 'utf8');
-            }
           }
-        }
+        });
       } catch {
         // ignore disk sync issue
       }
 
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      const rotatedAuthToken = issueServerAuthToken(codeClean, nextTokenVersion);
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Set-Cookie': buildSessionCookieHeader(rotatedAuthToken, req),
+      });
       res.end(
         JSON.stringify({
           success: true,
-          authToken: issueServerAuthToken(codeClean),
+          authToken: rotatedAuthToken,
           dailyLimit,
           usedToday: nextCount,
           remainingChangesToday: Math.max(0, dailyLimit - nextCount),
@@ -3779,23 +3699,27 @@ export async function handleStudioApiRequest(req, res) {
 
         FORGOT_OTP_STORE.delete(emailClean);
         const codeKey = otpRec.code.toUpperCase();
-        const prevEntry = AUTH_DIRECTORY_MAP.get(codeKey);
-        AUTH_DIRECTORY_MAP.set(codeKey, {
-          ...(prevEntry || {}),
-          code: otpRec.code,
-          clientName: otpRec.clientName || prevEntry?.clientName || 'Khách hàng SYNAPES',
-          registeredGmail: emailClean,
-          passwordHash: hashPasswordScrypt(newPasswordPlain),
-          passwordHashUpper: null,
-          accountStatus: 'custom_password_active',
-          isDefaultPassword: false,
-          planTier: prevEntry?.planTier || inferServerPlanTier({ code: codeKey }),
-          phoneVerifyHash: otpRec.phoneVerifyHash,
-          updatedAt: now,
-          localChangedAt: now,
-          source: 'webapp_forgot_password_otp',
+        await withFileLock(AUTH_DIRECTORY_FILE, () => {
+          const prevEntry = AUTH_DIRECTORY_MAP.get(codeKey);
+          const nextTv = bumpUserTokenVersion(codeKey);
+          AUTH_DIRECTORY_MAP.set(codeKey, {
+            ...(prevEntry || {}),
+            code: otpRec.code,
+            clientName: otpRec.clientName || prevEntry?.clientName || 'Khách hàng SYNAPES',
+            registeredGmail: emailClean,
+            passwordHash: hashPasswordScrypt(newPasswordPlain),
+            passwordHashUpper: null,
+            accountStatus: 'custom_password_active',
+            isDefaultPassword: false,
+            planTier: prevEntry?.planTier || inferServerPlanTier({ code: codeKey }),
+            tokenVersion: nextTv,
+            phoneVerifyHash: otpRec.phoneVerifyHash,
+            updatedAt: now,
+            localChangedAt: now,
+            source: 'webapp_forgot_password_otp',
+          });
+          saveAuthDirectoryToDisk();
         });
-        saveAuthDirectoryToDisk();
 
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({
@@ -4086,12 +4010,13 @@ export async function handleStudioApiRequest(req, res) {
           return true;
         }
         try {
-          const probe = await fetch(endpointUrl, { method: 'GET', signal: AbortSignal.timeout(4000) });
+          const probe = await safeOutboundFetch(endpointUrl, { method: 'GET', timeoutMs: 4000 });
           res.writeHead(probe.ok ? 200 : 502, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ success: probe.ok, reachable: probe.ok, serverId, status: probe.status, mode: 'http_probe' }));
           return true;
         } catch (probeErr) {
-          res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+          const isSsrf = String(probeErr?.message || '').includes('SSRF_BLOCKED');
+          res.writeHead(isSsrf ? 403 : 503, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ success: false, reachable: false, serverId, configured: false, error: `Không thể kết nối MCP HTTP endpoint: ${probeErr?.message || probeErr}` }));
           return true;
         }
@@ -4242,24 +4167,24 @@ export async function handleStudioApiRequest(req, res) {
 
       // Lưu trữ an toàn cục bộ trên máy chủ backend (giới hạn 500 bản ghi gần nhất để tránh phình file)
       try {
-        const regDir = path.resolve(process.cwd(), 'data');
-        if (!fs.existsSync(regDir)) fs.mkdirSync(regDir, { recursive: true });
-        const regFile = path.join(regDir, 'registrations.json');
-        let regList = [];
-        if (fs.existsSync(regFile)) {
-          regList = JSON.parse(fs.readFileSync(regFile, 'utf8'));
-          if (!Array.isArray(regList)) regList = [];
-        }
-        const safePayload = { ...payload };
-        delete safePayload.skipFormRelay;
-        regList.push({
-          ...safePayload,
-          savedAt: new Date().toISOString(),
+        const regFile = path.resolve(process.cwd(), 'data', 'registrations.json');
+        await withFileLock(regFile, () => {
+          let regList = [];
+          if (fs.existsSync(regFile)) {
+            regList = JSON.parse(fs.readFileSync(regFile, 'utf8'));
+            if (!Array.isArray(regList)) regList = [];
+          }
+          const safePayload = { ...payload };
+          delete safePayload.skipFormRelay;
+          regList.push({
+            ...safePayload,
+            savedAt: new Date().toISOString(),
+          });
+          if (regList.length > 500) {
+            regList = regList.slice(-500);
+          }
+          writeJsonAtomic(regFile, regList);
         });
-        if (regList.length > 500) {
-          regList = regList.slice(-500);
-        }
-        fs.writeFileSync(regFile, JSON.stringify(regList, null, 2), 'utf8');
       } catch (errReg) {
         console.warn('Lỗi lưu registrations.json:', errReg.message);
       }
@@ -4636,16 +4561,19 @@ export async function handleStudioApiRequest(req, res) {
     const fallbackUrl = pool[idx % pool.length].url;
     const requestedUrl = parsedUrl.searchParams.get('url') || fallbackUrl;
 
-    const streamVideoUpstream = (urlToStream, redirectsLeft = 4) =>
-      new Promise((resolve, reject) => {
-        if (!isSafeExternalUrl(urlToStream)) {
-          reject(new Error('SSRF Blocked video URL'));
-          return;
-        }
-        if (redirectsLeft <= 0) {
-          reject(new Error('Too many video redirects'));
-          return;
-        }
+    const streamVideoUpstream = async (urlToStream, redirectsLeft = 4) => {
+      if (redirectsLeft <= 0) {
+        throw new Error('Too many video redirects');
+      }
+      const safety = await resolveAndValidateSafeUrl(urlToStream);
+      if (!safety.ok || !safety.addresses?.length) {
+        throw new Error(`SSRF Blocked video URL (${safety.reason || 'invalid'})`);
+      }
+      const pinnedAddress = safety.addresses[0];
+      const pinnedFamily = net.isIP(pinnedAddress);
+      const parsedVideoUrl = new URL(urlToStream);
+
+      return await new Promise((resolve, reject) => {
         const isWiki = /wikimedia\.org|wikipedia\.org/i.test(urlToStream);
         const headers = {
           'User-Agent': isWiki
@@ -4657,13 +4585,32 @@ export async function handleStudioApiRequest(req, res) {
           headers.Range = req.headers.range;
         }
         const client = urlToStream.startsWith('https') ? https : http;
-        const upstreamReq = client.get(urlToStream, { headers, timeout: 12000 }, (upRes) => {
-          if (upRes.statusCode && upRes.statusCode >= 300 && upRes.statusCode < 400 && upRes.headers.location) {
-            const nextUrl = new URL(upRes.headers.location, urlToStream).toString();
-            upRes.resume();
-            streamVideoUpstream(nextUrl, redirectsLeft - 1).then(resolve).catch(reject);
-            return;
-          }
+        const upstreamReq = client.get(
+          urlToStream,
+          {
+            headers,
+            timeout: 12000,
+            servername: parsedVideoUrl.hostname,
+            rejectUnauthorized: true,
+            lookup: (_h, opts, cb) => {
+              if (typeof opts === 'function') {
+                opts(null, pinnedAddress, pinnedFamily);
+                return;
+              }
+              if (opts && opts.all) {
+                cb(null, [{ address: pinnedAddress, family: pinnedFamily }]);
+                return;
+              }
+              cb(null, pinnedAddress, pinnedFamily);
+            },
+          },
+          (upRes) => {
+            if (upRes.statusCode && upRes.statusCode >= 300 && upRes.statusCode < 400 && upRes.headers.location) {
+              const nextUrl = new URL(upRes.headers.location, urlToStream).toString();
+              upRes.resume();
+              streamVideoUpstream(nextUrl, redirectsLeft - 1).then(resolve).catch(reject);
+              return;
+            }
           if (!upRes.statusCode || (upRes.statusCode !== 200 && upRes.statusCode !== 206)) {
             upRes.resume();
             reject(new Error(`Upstream video status ${upRes.statusCode}`));
@@ -4718,6 +4665,7 @@ export async function handleStudioApiRequest(req, res) {
           else reject(err);
         });
       });
+    };
 
     try {
       await streamVideoUpstream(requestedUrl, 4);
@@ -7239,10 +7187,12 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         updatedAt: now,
       };
       const stitchDir = path.resolve(process.cwd(), 'data', 'drive_archives');
-      fs.mkdirSync(stitchDir, { recursive: true });
-      fs.writeFileSync(path.join(stitchDir, `stitch_master_${safeProjId}.json`), JSON.stringify(manifestRecord, null, 2), 'utf8');
+      const stitchPath = path.join(stitchDir, `stitch_master_${safeProjId}.json`);
+      await withFileLock(stitchPath, () => {
+        writeJsonAtomic(stitchPath, manifestRecord);
+      });
 
-      console.log(`[STITCH ENGINE] Đã lưu Master Timeline cho ${safeProjId} (${manifestRecord.clipCount} phân cảnh, FFmpeg=${ffmpegInstalled})`);
+      console.log(`[STITCH ENGINE] Đã lưu Master Timeline Manifest cho ${safeProjId} (${manifestRecord.clipCount} phân cảnh, FFmpeg=${ffmpegInstalled})`);
 
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
@@ -7258,15 +7208,12 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
           clipCount: manifestRecord.clipCount,
           ffmpegInstalled,
           dockerWorkerConfigured: isDockerWorkerConfigured,
-          mode: ffmpegInstalled
-            ? 'ffmpeg_local_verified'
-            : isDockerWorkerConfigured
-              ? 'docker_worker_queued'
-              : 'timeline_manifest_persisted',
+          mode: 'timeline_manifest_persisted',
+          clientWebCodecsRecommended: true,
           capcutSupported: true,
           message: ffmpegInstalled
-            ? `Đã lưu Timeline Master #${jobTaskId} (${manifestRecord.clipCount} phân cảnh) và xác nhận FFmpeg sẵn sàng trên máy chủ.`
-            : `Đã lưu thật Master Timeline Manifest (${manifestRecord.clipCount} phân cảnh) trên máy chủ. FFmpeg headless chưa cài đặt — đề xuất xuất gói dự án CapCut hoặc kết nối trình ghép trình duyệt WebCodecs.`,
+            ? `Đã lưu Master Timeline Manifest #${jobTaskId} (${manifestRecord.clipCount} phân cảnh) ở định dạng JSON. Để xuất video MP4/WebM hoàn chỉnh hãy dùng trình ghép trực tiếp trên trình duyệt (WebCodecs) hoặc gói dự án CapCut.`
+            : `Đã lưu Master Timeline Manifest (${manifestRecord.clipCount} phân cảnh). Hãy dùng trình ghép trực tiếp trên trình duyệt (WebCodecs MP4) hoặc xuất gói dự án CapCut.`,
           timestamp: now,
         })
       );
@@ -7297,8 +7244,110 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
   };
 
   const writeJsonRegistry = (filePath, data) => {
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+    writeJsonAtomic(filePath, data);
+  };
+
+  const resolveValidGoogleOAuthTokenForUser = async (userCode, platform = 'youtube') => {
+    const channelsReg = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
+    const driveReg = readJsonRegistry(DRIVE_REGISTRY_FILE, {});
+    const rec =
+      platform === 'drive'
+        ? channelsReg[userCode]?.drive || driveReg[userCode]
+        : channelsReg[userCode]?.[platform];
+
+    if (!rec || !rec.encryptedOAuthToken) {
+      return { ok: false, statusCode: 400, reason: `Chưa có OAuth Token cho ${platform.toUpperCase()}.` };
+    }
+
+    let accessToken = decryptSecretAes256Gcm(rec.encryptedOAuthToken);
+    let check = accessToken
+      ? await fetchGoogleTokenInfoAndProfile(accessToken, platform)
+      : { valid: false, statusCode: 401, reason: 'Không giải mã được OAuth Access Token.' };
+
+    if (!check.valid && rec.encryptedRefreshToken) {
+      const refreshToken = decryptSecretAes256Gcm(rec.encryptedRefreshToken);
+      const clientId = String(process.env.GOOGLE_CLIENT_ID || rec.oauthClientId || '').trim();
+      const clientSecret = String(
+        process.env.GOOGLE_CLIENT_SECRET ||
+          (rec.encryptedClientSecret ? decryptSecretAes256Gcm(rec.encryptedClientSecret) : '')
+      ).trim();
+      const refreshed = await refreshGoogleOAuthAccessToken({ refreshToken, clientId, clientSecret });
+      if (refreshed.ok && refreshed.access_token) {
+        accessToken = refreshed.access_token;
+        rec.encryptedOAuthToken = encryptSecretAes256Gcm(accessToken);
+        rec.maskedToken =
+          accessToken.length > 10 ? `${accessToken.slice(0, 6)}...${accessToken.slice(-4)}` : '****';
+        rec.tokenLength = accessToken.length;
+        check = await fetchGoogleTokenInfoAndProfile(accessToken, platform);
+        if (check.valid) {
+          if (channelsReg[userCode]?.[platform]) {
+            channelsReg[userCode][platform] = { ...channelsReg[userCode][platform], ...rec };
+            await withFileLock(CHANNELS_REGISTRY_FILE, () => writeJsonAtomic(CHANNELS_REGISTRY_FILE, channelsReg));
+          }
+          if (platform === 'drive' && driveReg[userCode]) {
+            driveReg[userCode] = { ...driveReg[userCode], ...rec };
+            await withFileLock(DRIVE_REGISTRY_FILE, () => writeJsonAtomic(DRIVE_REGISTRY_FILE, driveReg));
+          }
+        }
+      }
+    }
+
+    if (!check.valid) {
+      return {
+        ok: false,
+        statusCode: check.statusCode || 401,
+        reason: check.reason || 'Google OAuth Token không hợp lệ hoặc đã hết hạn.',
+      };
+    }
+
+    return { ok: true, accessToken, grantedScopes: check.grantedScopes || [], profile: check.profile || {} };
+  };
+
+  const uploadJsonToGoogleDriveV3 = async (accessToken, fileName, jsonContent) => {
+    const boundary = `synapes_drive_${crypto.randomBytes(8).toString('hex')}`;
+    const metadataPart = JSON.stringify({
+      name: fileName,
+      mimeType: 'application/json',
+    });
+    const multipartBody = [
+      `--${boundary}`,
+      'Content-Type: application/json; charset=UTF-8',
+      '',
+      metadataPart,
+      `--${boundary}`,
+      'Content-Type: application/json; charset=UTF-8',
+      '',
+      jsonContent,
+      `--${boundary}--`,
+      '',
+    ].join('\r\n');
+
+    const res = await safeOutboundFetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': `multipart/related; boundary=${boundary}`,
+        },
+        body: multipartBody,
+        timeoutMs: 15000,
+      }
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.id) {
+      return {
+        ok: false,
+        statusCode: res.status,
+        error: String(data?.error?.message || `Google Drive API HTTP ${res.status}`),
+      };
+    }
+    return {
+      ok: true,
+      fileId: String(data.id),
+      fileName: String(data.name || fileName),
+      webViewLink: String(data.webViewLink || `https://drive.google.com/file/d/${data.id}/view`),
+    };
   };
 
   const serializePublicChannelRecord = (rec) => {
@@ -7574,11 +7623,11 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         tokenParams.set('client_secret', pending.clientSecret);
       }
 
-      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      const tokenRes = await safeOutboundFetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: tokenParams.toString(),
-        signal: AbortSignal.timeout(8000),
+        timeoutMs: 8000,
       });
       const tokenJson = await tokenRes.json().catch(() => ({}));
       if (!tokenRes.ok || !tokenJson?.access_token) {
@@ -7625,9 +7674,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         'Kênh Google đã xác thực';
       const resolvedHandle = profile.handleOrUrl || resolvedEmail || pf;
 
-      const registry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
-      if (!registry[pending.userCode]) registry[pending.userCode] = {};
-      registry[pending.userCode][pf] = {
+      const channelRecordPayload = {
         platform: pf,
         channelName: resolvedName,
         handleOrUrl: resolvedHandle,
@@ -7655,24 +7702,31 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
           viewCount: Number(profile.viewCount || 0),
         },
       };
-      writeJsonRegistry(CHANNELS_REGISTRY_FILE, registry);
+      await withFileLock(CHANNELS_REGISTRY_FILE, () => {
+        const registry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
+        if (!registry[pending.userCode]) registry[pending.userCode] = {};
+        registry[pending.userCode][pf] = channelRecordPayload;
+        writeJsonRegistry(CHANNELS_REGISTRY_FILE, registry);
+      });
 
       if (pf === 'drive' && resolvedEmail) {
-        const driveReg = readJsonRegistry(DRIVE_REGISTRY_FILE, {});
-        driveReg[pending.userCode] = {
-          email: resolvedEmail,
-          accountName: resolvedName,
-          folderUrl: '',
-          maskedToken: masked,
-          encryptedOAuthToken: encryptSecretAes256Gcm(accessToken),
-          verificationMode: 'google_oauth2_pkce_verified',
-          connectedAt: nowIso,
-          connected: true,
-        };
-        writeJsonRegistry(DRIVE_REGISTRY_FILE, driveReg);
+        await withFileLock(DRIVE_REGISTRY_FILE, () => {
+          const driveReg = readJsonRegistry(DRIVE_REGISTRY_FILE, {});
+          driveReg[pending.userCode] = {
+            email: resolvedEmail,
+            accountName: resolvedName,
+            folderUrl: '',
+            maskedToken: masked,
+            encryptedOAuthToken: encryptSecretAes256Gcm(accessToken),
+            verificationMode: 'google_oauth2_pkce_verified',
+            connectedAt: nowIso,
+            connected: true,
+          };
+          writeJsonRegistry(DRIVE_REGISTRY_FILE, driveReg);
+        });
       }
 
-      const publicChannel = serializePublicChannelRecord(registry[pending.userCode][pf]);
+      const publicChannel = serializePublicChannelRecord(channelRecordPayload);
       const okMsg = profile.hasYouTubeChannel
         ? `Đã đăng nhập Google (${resolvedEmail}) và đồng bộ kênh YouTube "${resolvedName}" (${resolvedHandle}).`
         : profile.warning || `Đã đăng nhập Google (${resolvedEmail}) qua OAuth 2.0 PKCE.`;
@@ -7771,9 +7825,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       const expiresAt = tokenCheck.expiresIn
         ? new Date(Date.now() + Number(tokenCheck.expiresIn) * 1000).toISOString()
         : '';
-      const registry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
-      if (!registry[userCode]) registry[userCode] = {};
-      registry[userCode][platform] = {
+      const channelEntry = {
         platform,
         channelName,
         handleOrUrl,
@@ -7799,28 +7851,35 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
             }
           : undefined,
       };
-      writeJsonRegistry(CHANNELS_REGISTRY_FILE, registry);
+      await withFileLock(CHANNELS_REGISTRY_FILE, () => {
+        const registry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
+        if (!registry[userCode]) registry[userCode] = {};
+        registry[userCode][platform] = channelEntry;
+        writeJsonRegistry(CHANNELS_REGISTRY_FILE, registry);
+      });
 
       if (platform === 'drive' && emailOrId) {
-        const driveReg = readJsonRegistry(DRIVE_REGISTRY_FILE, {});
-        driveReg[userCode] = {
-          email: emailOrId,
-          accountName: channelName,
-          folderUrl: '',
-          maskedToken: tokenCheck.masked,
-          encryptedOAuthToken: encryptSecretAes256Gcm(tokenCheck.token),
-          verificationMode: tokenCheck.verificationMode,
-          connectedAt: nowIso,
-          connected: true,
-        };
-        writeJsonRegistry(DRIVE_REGISTRY_FILE, driveReg);
+        await withFileLock(DRIVE_REGISTRY_FILE, () => {
+          const driveReg = readJsonRegistry(DRIVE_REGISTRY_FILE, {});
+          driveReg[userCode] = {
+            email: emailOrId,
+            accountName: channelName,
+            folderUrl: '',
+            maskedToken: tokenCheck.masked,
+            encryptedOAuthToken: encryptSecretAes256Gcm(tokenCheck.token),
+            verificationMode: tokenCheck.verificationMode,
+            connectedAt: nowIso,
+            connected: true,
+          };
+          writeJsonRegistry(DRIVE_REGISTRY_FILE, driveReg);
+        });
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(
         JSON.stringify({
           success: true,
-          ...serializePublicChannelRecord(registry[userCode][platform]),
+          ...serializePublicChannelRecord(channelEntry),
           message: profile.warning
             ? `Đã xác thực Google (${tokenCheck.masked}), lưu ý: ${profile.warning}`
             : `Đã xác thực OAuth và mã hóa AES-256-GCM kết nối ${platform.toUpperCase()} (${tokenCheck.masked}).`,
@@ -7842,10 +7901,21 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       if (!auth) return true;
       const userCode = auth.userCode;
       const platform = String(body.platform || '').trim().toLowerCase();
-      const registry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
-      if (registry[userCode] && registry[userCode][platform]) {
-        delete registry[userCode][platform];
-        writeJsonRegistry(CHANNELS_REGISTRY_FILE, registry);
+      await withFileLock(CHANNELS_REGISTRY_FILE, () => {
+        const registry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
+        if (registry[userCode] && registry[userCode][platform]) {
+          delete registry[userCode][platform];
+          writeJsonRegistry(CHANNELS_REGISTRY_FILE, registry);
+        }
+      });
+      if (platform === 'drive') {
+        await withFileLock(DRIVE_REGISTRY_FILE, () => {
+          const driveReg = readJsonRegistry(DRIVE_REGISTRY_FILE, {});
+          if (driveReg[userCode]) {
+            delete driveReg[userCode];
+            writeJsonRegistry(DRIVE_REGISTRY_FILE, driveReg);
+          }
+        });
       }
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ success: true, disconnected: true, platform }));
@@ -7910,7 +7980,16 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
 
         if (!liveCheck.valid) {
           rec.status = 'reauth_needed';
-          writeJsonRegistry(CHANNELS_REGISTRY_FILE, registry);
+          await withFileLock(CHANNELS_REGISTRY_FILE, () => {
+            const freshRegistry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
+            if (freshRegistry[userCode]?.[platform]) {
+              freshRegistry[userCode][platform] = {
+                ...freshRegistry[userCode][platform],
+                status: 'reauth_needed',
+              };
+              writeJsonRegistry(CHANNELS_REGISTRY_FILE, freshRegistry);
+            }
+          });
           res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(
             JSON.stringify({
@@ -7942,7 +8021,12 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
             viewCount: Number(p.viewCount || 0),
           };
         }
-        writeJsonRegistry(CHANNELS_REGISTRY_FILE, registry);
+        await withFileLock(CHANNELS_REGISTRY_FILE, () => {
+          const freshRegistry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
+          if (!freshRegistry[userCode]) freshRegistry[userCode] = {};
+          freshRegistry[userCode][platform] = rec;
+          writeJsonRegistry(CHANNELS_REGISTRY_FILE, freshRegistry);
+        });
 
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(
@@ -7992,6 +8076,205 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
     }
   }
 
+  // --------------------------------------------------------------------------
+  // REAL YOUTUBE DATA API V3 RESUMABLE UPLOAD & SCHEDULED PUBLISH (/api/channels/publish-youtube)
+  // --------------------------------------------------------------------------
+  if (cleanUrl === '/api/channels/publish-youtube' && req.method === 'POST') {
+    try {
+      const body = (await readJsonBody(req, 65 * 1024 * 1024)) || {};
+      const requestedUserCode = String(body.userCode || '').trim().toUpperCase();
+      const auth = requireUserAuth(req, res, requestedUserCode, rawUrl);
+      if (!auth) return true;
+      const userCode = auth.userCode;
+
+      const title = String(body.title || '').trim().slice(0, 100);
+      const description = String(body.description || '').trim().slice(0, 5000);
+      const tags = Array.isArray(body.tags)
+        ? body.tags.map((t) => String(t || '').trim()).filter(Boolean).slice(0, 15)
+        : [];
+      const rawPrivacy = String(body.privacyStatus || 'private').trim().toLowerCase();
+      const privacyStatus = ['public', 'unlisted', 'private'].includes(rawPrivacy) ? rawPrivacy : 'private';
+      const rawPublishAt = String(body.publishAt || '').trim();
+      let publishAtIso = '';
+      if (rawPublishAt) {
+        const parsedMs = Date.parse(rawPublishAt);
+        if (!Number.isFinite(parsedMs) || parsedMs <= Date.now() + 60 * 1000) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(
+            JSON.stringify({
+              success: false,
+              code: 'INVALID_PUBLISH_AT',
+              error: 'Thời điểm hẹn giờ YouTube (publishAt) phải là mốc ISO UTC ở tương lai.',
+            })
+          );
+          return true;
+        }
+        publishAtIso = new Date(parsedMs).toISOString();
+      }
+
+      const rawVideo = String(body.videoBase64 || '').trim();
+      const base64Match = /^data:(video\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=\s]+)$/i.exec(rawVideo);
+      const mimeType = String(body.mimeType || (base64Match ? base64Match[1] : 'video/webm')).toLowerCase();
+      const base64Payload = (base64Match ? base64Match[2] : rawVideo).replace(/\s+/g, '');
+
+      if (!title) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, error: 'Thiếu tiêu đề video YouTube.' }));
+        return true;
+      }
+      if (!base64Payload || base64Payload.length < 128) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            code: 'MISSING_VIDEO_BINARY',
+            error: 'Thiếu dữ liệu video (.webm/.mp4) đã xuất để tải lên YouTube Data API v3.',
+          })
+        );
+        return true;
+      }
+
+      const videoBuffer = Buffer.from(base64Payload, 'base64');
+      if (videoBuffer.length < 512 || videoBuffer.length > 48 * 1024 * 1024) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            error: `Kích thước tệp video không hợp lệ (${videoBuffer.length} bytes, tối đa 48MB).`,
+          })
+        );
+        return true;
+      }
+
+      const tokenRes = await resolveValidGoogleOAuthTokenForUser(userCode, 'youtube');
+      if (!tokenRes.ok) {
+        res.writeHead(tokenRes.statusCode || 401, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            code: 'YOUTUBE_OAUTH_REQUIRED',
+            error: tokenRes.reason,
+          })
+        );
+        return true;
+      }
+
+      const metadata = {
+        snippet: {
+          title,
+          description: description || `${title}\n\nXuất bản từ SYNAPES Studio`,
+          tags,
+          categoryId: '22',
+        },
+        status: publishAtIso
+          ? { privacyStatus: 'private', publishAt: publishAtIso }
+          : { privacyStatus },
+      };
+
+      const initRes = await safeOutboundFetch(
+        'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${tokenRes.accessToken}`,
+            'Content-Type': 'application/json; charset=UTF-8',
+            'X-Upload-Content-Length': String(videoBuffer.length),
+            'X-Upload-Content-Type': mimeType,
+          },
+          body: JSON.stringify(metadata),
+          timeoutMs: 20000,
+        }
+      );
+
+      if (!initRes.ok) {
+        const initErr = await initRes.json().catch(() => ({}));
+        res.writeHead(initRes.status >= 400 ? initRes.status : 502, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            code: 'YOUTUBE_UPLOAD_INIT_FAILED',
+            error: String(initErr?.error?.message || `YouTube Resumable Init HTTP ${initRes.status}`),
+          })
+        );
+        return true;
+      }
+
+      const uploadUrl = initRes.headers.get('location');
+      if (!uploadUrl) {
+        res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, error: 'YouTube API không trả về Resumable Upload Location.' }));
+        return true;
+      }
+
+      const putRes = await safeOutboundFetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${tokenRes.accessToken}`,
+          'Content-Type': mimeType,
+          'Content-Length': String(videoBuffer.length),
+        },
+        body: videoBuffer,
+        timeoutMs: 60000,
+      });
+      const ytVideoData = await putRes.json().catch(() => ({}));
+      if (!putRes.ok || !ytVideoData?.id) {
+        res.writeHead(putRes.status >= 400 ? putRes.status : 502, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            code: 'YOUTUBE_UPLOAD_PUT_FAILED',
+            error: String(ytVideoData?.error?.message || `YouTube Upload thất bại (HTTP ${putRes.status})`),
+          })
+        );
+        return true;
+      }
+
+      const videoId = String(ytVideoData.id);
+      const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(
+        JSON.stringify({
+          success: true,
+          platform: 'youtube',
+          videoId,
+          watchUrl,
+          privacyStatus: publishAtIso ? 'private' : privacyStatus,
+          scheduledPublishAt: publishAtIso || null,
+          publishedAt: new Date().toISOString(),
+        })
+      );
+      return true;
+    } catch (err) {
+      const msg = String(err?.message || err);
+      res.writeHead(msg.includes('Payload Too Large') ? 413 : 500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: msg }));
+      return true;
+    }
+  }
+
+  if (cleanUrl === '/api/drive/status' && req.method === 'GET') {
+    const auth = requireUserAuth(req, res, '', rawUrl);
+    if (!auth) return true;
+    const driveReg = readJsonRegistry(DRIVE_REGISTRY_FILE, {});
+    const rec = driveReg[auth.userCode];
+    const chanDrive = readJsonRegistry(CHANNELS_REGISTRY_FILE, {})?.[auth.userCode]?.drive;
+    const connected = Boolean((rec && rec.connected) || chanDrive?.status === 'connected');
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(
+      JSON.stringify({
+        success: true,
+        connected,
+        email: rec?.email || chanDrive?.emailOrId || '',
+        accountName: rec?.accountName || chanDrive?.channelName || '',
+        folderUrl: rec?.folderUrl || chanDrive?.handleOrUrl || '',
+        maskedToken: rec?.maskedToken || chanDrive?.maskedToken || '',
+        verificationMode: rec?.verificationMode || chanDrive?.verificationMode || '',
+        connectedAt: rec?.connectedAt || chanDrive?.connectedAt || '',
+      })
+    );
+    return true;
+  }
+
   if (cleanUrl === '/api/drive/connect' && req.method === 'POST') {
     try {
       const body = (await readJsonBody(req)) || {};
@@ -8021,18 +8304,41 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       }
 
       const nowIso = new Date().toISOString();
-      const driveReg = readJsonRegistry(DRIVE_REGISTRY_FILE, {});
-      driveReg[userCode] = {
-        email,
-        accountName,
-        folderUrl,
-        maskedToken: tokenCheck.masked,
-        encryptedOAuthToken: encryptSecretAes256Gcm(tokenCheck.token),
-        verificationMode: tokenCheck.verificationMode,
-        connectedAt: nowIso,
-        connected: true,
-      };
-      writeJsonRegistry(DRIVE_REGISTRY_FILE, driveReg);
+      const encryptedToken = encryptSecretAes256Gcm(tokenCheck.token);
+      await withFileLock(DRIVE_REGISTRY_FILE, () => {
+        const driveReg = readJsonRegistry(DRIVE_REGISTRY_FILE, {});
+        driveReg[userCode] = {
+          email,
+          accountName,
+          folderUrl,
+          maskedToken: tokenCheck.masked,
+          encryptedOAuthToken: encryptedToken,
+          verificationMode: tokenCheck.verificationMode,
+          connectedAt: nowIso,
+          connected: true,
+        };
+        writeJsonRegistry(DRIVE_REGISTRY_FILE, driveReg);
+      });
+      await withFileLock(CHANNELS_REGISTRY_FILE, () => {
+        const registry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
+        if (!registry[userCode]) registry[userCode] = {};
+        const prevDrive = registry[userCode].drive || {};
+        registry[userCode].drive = {
+          ...prevDrive,
+          platform: 'drive',
+          channelName: accountName,
+          handleOrUrl: folderUrl || email,
+          emailOrId: email,
+          grantedScopes: tokenCheck.grantedScopes || prevDrive.grantedScopes || [],
+          maskedToken: tokenCheck.masked,
+          encryptedOAuthToken: encryptedToken,
+          verificationMode: tokenCheck.verificationMode,
+          tokenLength: tokenCheck.token.length,
+          connectedAt: nowIso,
+          status: 'connected',
+        };
+        writeJsonRegistry(CHANNELS_REGISTRY_FILE, registry);
+      });
 
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(
@@ -8063,11 +8369,20 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       const auth = requireUserAuth(req, res, requestedUserCode, rawUrl);
       if (!auth) return true;
       const userCode = auth.userCode;
-      const driveReg = readJsonRegistry(DRIVE_REGISTRY_FILE, {});
-      if (driveReg[userCode]) {
-        delete driveReg[userCode];
-        writeJsonRegistry(DRIVE_REGISTRY_FILE, driveReg);
-      }
+      await withFileLock(DRIVE_REGISTRY_FILE, () => {
+        const driveReg = readJsonRegistry(DRIVE_REGISTRY_FILE, {});
+        if (driveReg[userCode]) {
+          delete driveReg[userCode];
+          writeJsonRegistry(DRIVE_REGISTRY_FILE, driveReg);
+        }
+      });
+      await withFileLock(CHANNELS_REGISTRY_FILE, () => {
+        const registry = readJsonRegistry(CHANNELS_REGISTRY_FILE, {});
+        if (registry[userCode]?.drive) {
+          delete registry[userCode].drive;
+          writeJsonRegistry(CHANNELS_REGISTRY_FILE, registry);
+        }
+      });
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ success: true, disconnected: true }));
       return true;
@@ -8114,21 +8429,15 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         return `${idx + 1}\n${formatSrtTime(start)} --> ${formatSrtTime(end)}\n${text}`;
       });
 
-      const isCloudConnected = Boolean(userDrive?.connected);
-      const storageMode = isCloudConnected && userDrive?.folderUrl
-        ? 'google_drive_oauth_and_server_aes256'
-        : 'server_aes256_archive';
-
-      const archive = {
+      const plainArchive = {
         projectId: safeId,
         ownerUserCode: userCode,
-        storageMode,
         title: String(project.title || safeId),
         format: project.platformFormat || project.videoGenre || project.templateId || project.format || 'youtube',
         aspectRatio: project.aspectRatio || '16:9',
         syncedAt: new Date().toISOString(),
         driveEmail: userDrive?.email || body.driveEmail || '',
-        externalFolderUrl: isCloudConnected ? (userDrive?.folderUrl || '') : '',
+        externalFolderUrl: '',
         thumbnailUrl: project.thumbnailUrl || '',
         hasCustomAudio: Boolean(project.customAudioUrl),
         sceneCount: scenes.length,
@@ -8143,19 +8452,61 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         })),
       };
 
-      fs.mkdirSync(DRIVE_ARCHIVES_DIR, { recursive: true });
-      fs.writeFileSync(path.join(DRIVE_ARCHIVES_DIR, `${safeId}.json`), JSON.stringify(archive, null, 2), 'utf8');
+      // Thử upload thật lên Google Drive API v3 khi tài khoản đã cấp quyền OAuth drive.file/drive
+      let isCloudDriveSynced = false;
+      let googleDriveFileId = '';
+      let externalFolderUrl = '';
+      let cloudSyncNote = '';
+      const driveTokenCheck = await resolveValidGoogleOAuthTokenForUser(userCode, 'drive');
+      if (driveTokenCheck.ok) {
+        const uploadRes = await uploadJsonToGoogleDriveV3(
+          driveTokenCheck.accessToken,
+          `${safeId}_synapes_backup.json`,
+          JSON.stringify(plainArchive, null, 2)
+        );
+        if (uploadRes.ok) {
+          isCloudDriveSynced = true;
+          googleDriveFileId = uploadRes.fileId;
+          externalFolderUrl = uploadRes.webViewLink;
+        } else {
+          cloudSyncNote = uploadRes.error;
+        }
+      } else {
+        cloudSyncNote = driveTokenCheck.reason;
+      }
+
+      const storageMode = isCloudDriveSynced ? 'google_drive_api_v3' : 'local_server_json_encrypted';
+      plainArchive.storageMode = storageMode;
+      plainArchive.externalFolderUrl = externalFolderUrl;
+      if (googleDriveFileId) plainArchive.googleDriveFileId = googleDriveFileId;
+
+      const archiveFilePath = path.join(DRIVE_ARCHIVES_DIR, `${safeId}.json`);
+      const encryptedEnvelope = {
+        projectId: safeId,
+        ownerUserCode: userCode,
+        storageMode,
+        encrypted: true,
+        algorithm: 'aes-256-gcm',
+        syncedAt: plainArchive.syncedAt,
+        encryptedPayload: encryptSecretAes256Gcm(JSON.stringify(plainArchive)),
+      };
+      await withFileLock(archiveFilePath, () => {
+        writeJsonAtomic(archiveFilePath, encryptedEnvelope);
+      });
 
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(
         JSON.stringify({
           success: true,
           storageMode,
-          isCloudDriveSynced: isCloudConnected,
+          isCloudDriveSynced,
+          encryptedAtRest: true,
+          googleDriveFileId: googleDriveFileId || undefined,
+          cloudSyncNote: !isCloudDriveSynced ? cloudSyncNote : undefined,
           archiveUrl: `/api/drive/archive/${encodeURIComponent(safeId)}`,
-          externalFolderUrl: isCloudConnected ? (userDrive?.folderUrl || '') : '',
-          syncedAt: archive.syncedAt,
-          archive,
+          externalFolderUrl,
+          syncedAt: plainArchive.syncedAt,
+          archive: plainArchive,
         })
       );
       return true;
@@ -8194,14 +8545,33 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         res.end(JSON.stringify({ success: false, error: 'Không tìm thấy gói lưu trữ cho dự án này.' }));
         return true;
       }
-      const archive = JSON.parse(fs.readFileSync(archivePath, 'utf8'));
-      if (archive.ownerUserCode && String(archive.ownerUserCode).toUpperCase() !== auth.userCode) {
+      const rawRecord = JSON.parse(fs.readFileSync(archivePath, 'utf8'));
+      if (!rawRecord.ownerUserCode || String(rawRecord.ownerUserCode).toUpperCase() !== auth.userCode) {
         res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ success: false, code: 'FORBIDDEN_CROSS_USER', error: 'Không có quyền truy cập gói lưu trữ của tài khoản khác.' }));
         return true;
       }
+
+      let archive = rawRecord;
+      if (rawRecord.encrypted && rawRecord.encryptedPayload) {
+        const decryptedText = decryptSecretAes256Gcm(rawRecord.encryptedPayload);
+        if (!decryptedText) {
+          res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, error: 'Không giải mã được bản lưu trữ AES-256-GCM.' }));
+          return true;
+        }
+        archive = JSON.parse(decryptedText);
+      }
+
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ success: true, archive }));
+      res.end(
+        JSON.stringify({
+          success: true,
+          encryptedAtRest: Boolean(rawRecord.encrypted),
+          storageMode: rawRecord.storageMode || archive.storageMode || 'local_server_json_encrypted',
+          archive,
+        })
+      );
       return true;
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -8260,28 +8630,31 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
 
       fs.mkdirSync(USER_PROFILES_DIR, { recursive: true });
       const filePath = path.join(USER_PROFILES_DIR, `${safeCode}.json`);
-      const existing = readJsonRegistry(filePath, {});
-      const prevHistory = Array.isArray(existing.backupHistory) ? existing.backupHistory : [];
-      const nextHistory = [
-        {
-          timestamp: nowIso,
-          checksum: sha256Checksum,
-          encryptedAtRest: true,
-          projectCount: Array.isArray(encryptedProfile.projects) ? encryptedProfile.projects.length : 0,
-          channelCount: Array.isArray(encryptedProfile.channels) ? encryptedProfile.channels.length : 0,
-        },
-        ...prevHistory,
-      ].slice(0, 8);
+      const nextHistory = await withFileLock(filePath, () => {
+        const existing = readJsonRegistry(filePath, {});
+        const prevHistory = Array.isArray(existing.backupHistory) ? existing.backupHistory : [];
+        const updatedHistory = [
+          {
+            timestamp: nowIso,
+            checksum: sha256Checksum,
+            encryptedAtRest: true,
+            projectCount: Array.isArray(encryptedProfile.projects) ? encryptedProfile.projects.length : 0,
+            channelCount: Array.isArray(encryptedProfile.channels) ? encryptedProfile.channels.length : 0,
+          },
+          ...prevHistory,
+        ].slice(0, 8);
 
-      const snapshotRecord = {
-        userCode: safeCode,
-        updatedAt: nowIso,
-        sha256Checksum,
-        encryptionAlgorithm: 'aes-256-gcm',
-        profile: encryptedProfile,
-        backupHistory: nextHistory,
-      };
-      fs.writeFileSync(filePath, JSON.stringify(snapshotRecord, null, 2), 'utf8');
+        const snapshotRecord = {
+          userCode: safeCode,
+          updatedAt: nowIso,
+          sha256Checksum,
+          encryptionAlgorithm: 'aes-256-gcm',
+          profile: encryptedProfile,
+          backupHistory: updatedHistory,
+        };
+        writeJsonAtomic(filePath, snapshotRecord);
+        return updatedHistory;
+      });
 
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(
@@ -8398,28 +8771,30 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       };
 
       if (workerUrl && /^https:\/\//i.test(workerUrl)) {
-        const ctl = new AbortController();
-        const t = setTimeout(() => ctl.abort(), 30000);
         try {
           const workerToken = String(body.workerToken || '').trim();
-          const wRes = await fetch(`${workerUrl.replace(/\/$/, '')}/prompt`, {
+          const wRes = await safeOutboundFetch(`${workerUrl.replace(/\/$/, '')}/prompt`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               ...(workerToken ? { Authorization: `Bearer ${workerToken}` } : {}),
             },
             body: JSON.stringify({ prompt: body.workflow || { text: prompt }, client_id: jobId }),
-            signal: ctl.signal,
+            timeoutMs: 30000,
           });
-          clearTimeout(t);
           if (wRes.ok) {
             const wJson = await wRes.json().catch(() => ({}));
             jobRecord.status = 'processing';
             jobRecord.upstreamPromptId = wJson.prompt_id || '';
           }
         } catch (workerErr) {
-          clearTimeout(t);
-          jobRecord.workerError = String(workerErr?.message || workerErr);
+          const errMsg = String(workerErr?.message || workerErr);
+          if (errMsg.includes('SSRF_BLOCKED')) {
+            res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ success: false, code: 'SSRF_BLOCKED_WORKER_URL', error: errMsg }));
+            return true;
+          }
+          jobRecord.workerError = errMsg;
         }
       }
 
@@ -8450,6 +8825,35 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ success: false, code: 'FORBIDDEN_CROSS_USER', error: 'Không có quyền xem tiến độ render của tài khoản khác.' }));
       return true;
+    }
+    if (record.workerUrl && record.upstreamPromptId && record.status === 'processing' && /^https:\/\//i.test(record.workerUrl)) {
+      try {
+        const histRes = await safeOutboundFetch(
+          `${record.workerUrl.replace(/\/$/, '')}/history/${encodeURIComponent(record.upstreamPromptId)}`,
+          { method: 'GET', timeoutMs: 5000 }
+        );
+        if (histRes.ok) {
+          const histJson = await histRes.json().catch(() => ({}));
+          const entry = histJson?.[record.upstreamPromptId];
+          const outputs = entry?.outputs && typeof entry.outputs === 'object' ? Object.values(entry.outputs) : [];
+          for (const out of outputs) {
+            const mediaList = [...(out?.gifs || []), ...(out?.videos || []), ...(out?.images || [])];
+            const firstMedia = mediaList[0];
+            if (firstMedia?.filename) {
+              const q = new URLSearchParams({
+                filename: String(firstMedia.filename),
+                ...(firstMedia.subfolder ? { subfolder: String(firstMedia.subfolder) } : {}),
+                ...(firstMedia.type ? { type: String(firstMedia.type) } : {}),
+              });
+              record.status = 'completed';
+              record.videoUrl = `${record.workerUrl.replace(/\/$/, '')}/view?${q.toString()}`;
+              break;
+            }
+          }
+        }
+      } catch {
+        // keep current processing state on transient worker poll error
+      }
     }
     const { workerUrl: _internalWorkerUrl, ...publicRecord } = record;
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -8537,14 +8941,15 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         return true;
       }
 
-      const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 8000);
       const t0 = Date.now();
       try {
         const headers = { Accept: 'application/json' };
         if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-        const hRes = await fetch(`${workerUrl}/health`, { method: 'GET', headers, signal: ctl.signal });
-        clearTimeout(timer);
+        const hRes = await safeOutboundFetch(`${workerUrl}/health`, {
+          method: 'GET',
+          headers,
+          timeoutMs: 8000,
+        });
         const latencyMs = Date.now() - t0;
         if (!hRes.ok) {
           const errTxt = await hRes.text().catch(() => '');
@@ -8565,14 +8970,15 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         res.end(JSON.stringify({ success: true, healthy: true, latencyMs, worker: workerInfo }));
         return true;
       } catch (netErr) {
-        clearTimeout(timer);
-        res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+        const errMsg = String(netErr?.message || netErr);
+        const isSsrf = errMsg.includes('SSRF_BLOCKED');
+        res.writeHead(isSsrf ? 403 : 502, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(
           JSON.stringify({
             success: false,
             healthy: false,
-            code: 'WORKER_UNREACHABLE',
-            error: `Không kết nối được tới ${workerUrl}/health (${String(netErr?.message || netErr)})`,
+            code: isSsrf ? 'SSRF_BLOCKED_WORKER_URL' : 'WORKER_UNREACHABLE',
+            error: isSsrf ? errMsg : `Không kết nối được tới ${workerUrl}/health (${errMsg})`,
           })
         );
         return true;
@@ -8610,11 +9016,11 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         return true;
       }
 
-      const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 25000);
       try {
-        const upstream = await fetch(manifest.glbUrl, { signal: ctl.signal });
-        clearTimeout(timer);
+        const upstream = await safeOutboundFetch(manifest.glbUrl, {
+          timeoutMs: 25000,
+          maxBytes: 64 * 1024 * 1024,
+        });
         if (!upstream.ok) {
           res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ success: false, error: `Upstream GLB trả về HTTP ${upstream.status}` }));
@@ -8641,8 +9047,8 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         res.end(buf);
         return true;
       } catch (fetchErr) {
-        clearTimeout(timer);
-        res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+        const msg = String(fetchErr?.message || fetchErr);
+        res.writeHead(msg.includes('SSRF_BLOCKED') ? 403 : 502, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ success: false, error: `Lỗi tải .GLB: ${String(fetchErr?.message || fetchErr)}` }));
         return true;
       }
@@ -8742,19 +9148,16 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         return true;
       }
 
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 60000);
       try {
-        const upstreamRes = await fetch(endpoint, {
+        const upstreamRes = await safeOutboundFetch(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${apiKey}`,
           },
           body: JSON.stringify(body.payload || {}),
-          signal: controller.signal,
+          timeoutMs: 60000,
         });
-        clearTimeout(timer);
         if (upstreamRes.ok) {
           const upstreamData = await upstreamRes.json().catch(() => ({}));
           const jobId = upstreamData?.jobId || upstreamData?.task_id || `job_${Date.now()}`;
@@ -8794,15 +9197,16 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         );
         return true;
       } catch (netErr) {
-        clearTimeout(timer);
-        res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+        const netMsg = String(netErr?.message || netErr);
+        const isSsrf = netMsg.includes('SSRF_BLOCKED');
+        res.writeHead(isSsrf ? 403 : 502, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(
           JSON.stringify({
             success: false,
             dispatched: false,
-            mode: 'network_error',
+            mode: isSsrf ? 'ssrf_blocked' : 'network_error',
             provider,
-            message: `Upstream timeout/network: ${String(netErr?.message || netErr)}`,
+            message: isSsrf ? netMsg : `Upstream timeout/network: ${netMsg}`,
           })
         );
         return true;
@@ -8833,17 +9237,13 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       const isOpenAiKey = /^sk-(proj-)?[A-Za-z0-9_-]{20,}$/.test(apiKey) && !/^sk_[a-f0-9]{40,64}$/i.test(apiKey);
       const isGeminiKey = /^AIza[A-Za-z0-9_-]{20,}$/.test(apiKey);
 
-      const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 10000);
-
       try {
         if (isElevenLabsKey) {
-          const probeRes = await fetch('https://api.elevenlabs.io/v1/models', {
+          const probeRes = await safeOutboundFetch('https://api.elevenlabs.io/v1/models', {
             method: 'GET',
             headers: { 'xi-api-key': apiKey, Accept: 'application/json' },
-            signal: ctl.signal,
+            timeoutMs: 10000,
           });
-          clearTimeout(timer);
           const data = await probeRes.json().catch(() => null);
           if (probeRes.ok && Array.isArray(data)) {
             const models = data.map((m) => ({
@@ -8894,12 +9294,11 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         }
 
         if (isOpenAiKey) {
-          const probeRes = await fetch('https://api.openai.com/v1/models', {
+          const probeRes = await safeOutboundFetch('https://api.openai.com/v1/models', {
             method: 'GET',
             headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
-            signal: ctl.signal,
+            timeoutMs: 10000,
           });
-          clearTimeout(timer);
           const data = await probeRes.json().catch(() => null);
           if (probeRes.ok && Array.isArray(data?.data)) {
             const models = data.data.slice(0, 20).map((m) => ({
@@ -8931,12 +9330,11 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         }
 
         if (isGeminiKey) {
-          const probeRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+          const probeRes = await safeOutboundFetch('https://generativelanguage.googleapis.com/v1beta/models', {
             method: 'GET',
             headers: { 'x-goog-api-key': apiKey, Accept: 'application/json' },
-            signal: ctl.signal,
+            timeoutMs: 10000,
           });
-          clearTimeout(timer);
           const data = await probeRes.json().catch(() => null);
           if (probeRes.ok && Array.isArray(data?.models)) {
             const models = data.models.slice(0, 20).map((m) => ({
@@ -8971,17 +9369,15 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
           const baseOrigin = new URL(rawEndpoint).origin;
           const safety = await resolveAndValidateSafeUrl(baseOrigin);
           if (!safety.ok) {
-            clearTimeout(timer);
             res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
             res.end(JSON.stringify({ success: false, vendor: 'Blocked', models: [], message: `Endpoint bị chặn bởi SSRF (${safety.reason}).` }));
             return true;
           }
-          const probeRes = await fetch(`${baseOrigin}/v1/models`, {
+          const probeRes = await safeOutboundFetch(`${baseOrigin}/v1/models`, {
             method: 'GET',
             headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
-            signal: ctl.signal,
+            timeoutMs: 10000,
           });
-          clearTimeout(timer);
           const data = await probeRes.json().catch(() => null);
           const arr = Array.isArray(data?.models) ? data.models : Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
           if (probeRes.ok && arr.length > 0) {
@@ -9014,7 +9410,6 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
           return true;
         }
 
-        clearTimeout(timer);
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({
           success: false,
@@ -9024,13 +9419,14 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         }));
         return true;
       } catch (netErr) {
-        clearTimeout(timer);
-        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        const netMsg = String(netErr?.message || netErr);
+        const isSsrf = netMsg.includes('SSRF_BLOCKED');
+        res.writeHead(isSsrf ? 403 : 200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({
           success: false,
-          vendor: isElevenLabsKey ? 'ElevenLabs' : 'Plugin API',
+          vendor: isSsrf ? 'Blocked' : isElevenLabsKey ? 'ElevenLabs' : 'Plugin API',
           models: [],
-          message: `Lỗi kết nối tới API nhà phát triển: ${String(netErr?.message || netErr)}`,
+          message: isSsrf ? netMsg : `Lỗi kết nối tới API nhà phát triển: ${netMsg}`,
         }));
         return true;
       }
@@ -9135,10 +9531,12 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
     const fbBoostSum = slotBoosts.facebook.reduce((a, b) => a + b, 0);
     const ytBoostSum = slotBoosts.youtube.reduce((a, b) => a + b, 0);
 
-    // Trung thực tuyệt đối: CHỈ tính lưu lượng cá nhân khi người dùng đã kết nối thật kênh (YouTube / TikTok / Facebook)
-    const hasTtPersonal = isTtConnected || ttBoostSum > 0;
-    const hasFbPersonal = isFbConnected || fbBoostSum > 0;
-    const hasYtPersonal = isYtConnected || ytBoostSum > 0;
+    const ytRealViews = isYtConnected ? Math.max(0, Number(userChannels.youtube?.stats?.viewCount || 0)) : 0;
+
+    // Trung thực tuyệt đối (FAKE-04): Không bao giờ nội suy số lượt xem từ số lượng dự án.
+    const hasTtPersonal = ttBoostSum > 0;
+    const hasFbPersonal = fbBoostSum > 0;
+    const hasYtPersonal = ytBoostSum > 0 || ytRealViews > 0;
     const connectedChannelsCount = [isTtConnected, isFbConnected, isYtConnected].filter(Boolean).length;
 
     const benchmarkSeries = slots.map((slot, idx) => {
@@ -9153,19 +9551,15 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         youtube,
         total: tiktok + facebook + youtube,
         isCurrentHour: idx === currentHour,
+        isBenchmarkOnly: true,
       };
     });
 
     const series = slots.map((slot, idx) => {
-      const tiktok = hasTtPersonal
-        ? Math.round(slotBoosts.tiktok[idx] + (isTtConnected ? (ttVideos * 18 + 24) * baseWeights.tiktok[idx] : 0))
-        : 0;
-      const facebook = hasFbPersonal
-        ? Math.round(slotBoosts.facebook[idx] + (isFbConnected ? (fbVideos * 15 + 20) * baseWeights.facebook[idx] : 0))
-        : 0;
-      const youtube = hasYtPersonal
-        ? Math.round(slotBoosts.youtube[idx] + (isYtConnected ? (ytVideos * 20 + 28) * baseWeights.youtube[idx] : 0))
-        : 0;
+      const tiktok = slotBoosts.tiktok[idx] > 0 ? Math.round(slotBoosts.tiktok[idx]) : 0;
+      const facebook = slotBoosts.facebook[idx] > 0 ? Math.round(slotBoosts.facebook[idx]) : 0;
+      const youtubeLiveAtCurrent = isYtConnected && ytBoostSum === 0 && ytRealViews > 0 && idx === currentHour ? ytRealViews : 0;
+      const youtube = Math.round(slotBoosts.youtube[idx] + youtubeLiveAtCurrent);
       return {
         slot,
         hour: idx,
@@ -9186,9 +9580,15 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
     const benchmarkPeakPoint = [...benchmarkSeries].sort((a, b) => b.total - a.total)[0] || benchmarkSeries[20];
     const peakPoint = grandTotal > 0 ? ([...series].sort((a, b) => b.total - a.total)[0] || benchmarkPeakPoint) : benchmarkPeakPoint;
 
+    const ttEventCount = events.filter((e) => e.platform === 'tiktok').length;
+    const fbEventCount = events.filter((e) => e.platform === 'facebook').length;
+    const ytEventCount = events.filter((e) => e.platform === 'youtube').length;
+
     return {
       success: true,
       hasPersonalData: grandTotal > 0,
+      dataSource: ytRealViews > 0 ? 'youtube_data_api_v3' : events.length > 0 ? 'recorded_events' : 'none',
+      benchmarkDisclaimer: 'Đường benchmark chỉ mang tính tham khảo khung giờ chung, không phải lượt xem thật của kênh.',
       scanIntervalMinutes: 180,
       nextScanAt: new Date(Date.now() + 180 * 60 * 1000).toISOString(),
       connectedChannelsCount,
@@ -9209,7 +9609,7 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       activeVideos: {
         tiktok: isTtConnected ? ttVideos : 0,
         facebook: isFbConnected ? fbVideos : 0,
-        youtube: isYtConnected ? ytVideos : 0,
+        youtube: isYtConnected ? Number(userChannels.youtube?.stats?.videoCount || ytVideos) : 0,
       },
       connectedFlags: {
         tiktok: isTtConnected,
@@ -9217,9 +9617,9 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
         youtube: isYtConnected,
       },
       engagementRate: {
-        tiktok: hasTtPersonal ? +(4.5 + Math.min(4.5, ttVideos * 0.6 + events.filter((e) => e.platform === 'tiktok').length * 0.25)).toFixed(1) : 0,
-        facebook: hasFbPersonal ? +(3.8 + Math.min(4.0, fbVideos * 0.5 + events.filter((e) => e.platform === 'facebook').length * 0.2)).toFixed(1) : 0,
-        youtube: hasYtPersonal ? +(4.2 + Math.min(4.8, ytVideos * 0.65 + events.filter((e) => e.platform === 'youtube').length * 0.28)).toFixed(1) : 0,
+        tiktok: hasTtPersonal && ttEventCount > 0 ? +Math.min(9.5, ttEventCount * 0.45).toFixed(1) : 0,
+        facebook: hasFbPersonal && fbEventCount > 0 ? +Math.min(9.5, fbEventCount * 0.4).toFixed(1) : 0,
+        youtube: hasYtPersonal && ytEventCount > 0 ? +Math.min(9.5, ytEventCount * 0.45).toFixed(1) : 0,
       },
       peakWindow: peakPoint.slot,
       peakTraffic: grandTotal > 0 ? peakPoint.total : 0,
@@ -9261,33 +9661,36 @@ BẮT BUỘC TRẢ VỀ DUY NHẤT JSON HỢP LỆ:
       const auth = requireUserAuth(req, res, body.userCode || '', rawUrl);
       if (!auth) return true;
 
-      const store = readJsonRegistry(PLATFORM_TRAFFIC_FILE, { events: [] });
-      if (!Array.isArray(store.events)) store.events = [];
-
-      const platforms = Array.isArray(body.platforms)
-        ? body.platforms
-        : [String(body.platform || 'youtube')];
-
       const geoInfo = await resolveClientGeoAndTime(req);
       const hourNow = geoInfo.hour;
 
-      for (const pfRaw of platforms) {
-        const pf = String(pfRaw || '').toLowerCase();
-        if (!['tiktok', 'facebook', 'youtube'].includes(pf)) continue;
-        store.events.push({
-          userCode: auth.userCode,
-          platform: pf,
-          eventType: String(body.eventType || 'project_activity').slice(0, 60),
-          projectId: String(body.projectId || '').slice(0, 64),
-          viewsDelta: Math.min(2500, Math.max(15, Number(body.viewsDelta) || 85)),
-          hourSlot: hourNow,
-          slotIndex: hourNow,
-          timestamp: new Date().toISOString(),
-        });
-      }
-      store.events = store.events.slice(-400);
-      store.updatedAt = new Date().toISOString();
-      writeJsonRegistry(PLATFORM_TRAFFIC_FILE, store);
+      const store = await withFileLock(PLATFORM_TRAFFIC_FILE, () => {
+        const lockedStore = readJsonRegistry(PLATFORM_TRAFFIC_FILE, { events: [] });
+        if (!Array.isArray(lockedStore.events)) lockedStore.events = [];
+
+        const platforms = Array.isArray(body.platforms)
+          ? body.platforms
+          : [String(body.platform || 'youtube')];
+
+        for (const pfRaw of platforms) {
+          const pf = String(pfRaw || '').toLowerCase();
+          if (!['tiktok', 'facebook', 'youtube'].includes(pf)) continue;
+          lockedStore.events.push({
+            userCode: auth.userCode,
+            platform: pf,
+            eventType: String(body.eventType || 'project_activity').slice(0, 60),
+            projectId: String(body.projectId || '').slice(0, 64),
+            viewsDelta: Math.min(2500, Math.max(15, Number(body.viewsDelta) || 85)),
+            hourSlot: hourNow,
+            slotIndex: hourNow,
+            timestamp: new Date().toISOString(),
+          });
+        }
+        lockedStore.events = lockedStore.events.slice(-400);
+        lockedStore.updatedAt = new Date().toISOString();
+        writeJsonRegistry(PLATFORM_TRAFFIC_FILE, lockedStore);
+        return lockedStore;
+      });
 
       const summary = buildRealTrafficSummary(store, { userCode: auth.userCode }, geoInfo);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });

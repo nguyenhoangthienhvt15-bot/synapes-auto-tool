@@ -15,6 +15,7 @@ import { PROVIDERS } from './aiModelDiscoveryService';
 import { SYSTEM_CORE_VIDEO_REPOS } from '../data/mockData';
 import { getSavedClonedVoiceProfiles } from './voiceStudioService';
 import { getAuthHeaders } from './userProfileService';
+import { TRANSITION_PRESET_CATALOG } from '../utils/glTransitionCompositor';
 
 export function getActiveCoreVideoRepos(): CoreVideoRepo[] {
   try {
@@ -99,6 +100,7 @@ export interface GenerateScriptParams {
   attachedImageName?: string;
   attachedAudioUrl?: string;
   attachedAudioName?: string;
+  writersRoomDirective?: string;
   signal?: AbortSignal;
   onProgress?: (stepText: string, percent: number) => void;
 }
@@ -806,8 +808,8 @@ export function buildAiSceneImageUrl(
 
   // Nếu người dùng bấm "Render lại ảnh" (sceneIndex > 15), gọi sinh ảnh AI Pollinations theo đúng visualPrompt
   if (sceneIndex > 15 && visualPrompt) {
-    const w = aspectRatio === '9:16' ? 720 : 1280;
-    const h = aspectRatio === '9:16' ? 1280 : 720;
+    const w = aspectRatio === '9:16' ? 720 : aspectRatio === '4:5' ? 864 : 1280;
+    const h = aspectRatio === '9:16' ? 1280 : aspectRatio === '4:5' ? 1080 : 720;
     const aiGenUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
       visualPrompt.slice(0, 260)
     )}?width=${w}&height=${h}&seed=${sceneIndex * 37}&nologo=true`;
@@ -938,9 +940,10 @@ function buildDirectorSystemPrompt(
   aspectRatio: AspectRatio,
   targetDurationMin: number,
   platformFormatLabel?: string,
-  hasAttachedImage?: boolean
+  hasAttachedImage?: boolean,
+  writersRoomDirective?: string
 ): string {
-  const isShort = aspectRatio === '9:16';
+  const isShort = aspectRatio === '9:16' || aspectRatio === '4:5';
   const isCountingSong = /đếm\s*số|1\s*đến\s*10|một\s*đến\s*mười|counting/i.test(`${rawPrompt} ${coreSubject}`);
   const targetTotalSec = Math.round((targetDurationMin || 1) * 60);
   const sceneCount =
@@ -990,16 +993,20 @@ function buildDirectorSystemPrompt(
           .join(' • ')}. Hãy thiết kế cảnh hỗ trợ HUD số liệu, ngắt câu phụ đề chuẩn điện ảnh và chuyển động camera mượt.`
       : '';
 
+  const writersRoomBlock = writersRoomDirective?.trim()
+    ? `\n[CHỈ ĐẠO ĐỒNG BỘ TỪ 4-AGENT WRITERS ROOM]:\n${writersRoomDirective.trim().slice(0, 900)}`
+    : '';
+
   return `${roleInstruction}
 
 NHIỆM VỤ: Biên soạn kịch bản video hoàn chỉnh gồm đúng ${sceneCount} phân cảnh về chủ đề: "${coreSubject}" (Yêu cầu gốc của người dùng: "${rawPrompt}").
-- Định dạng xuất bản mục tiêu: ${platformFormatLabel || (isShort ? '9:16 (Shorts / Reels / TikTok)' : `16:9 (Video dài ${targetDurationMin} phút)`)}
+- Định dạng xuất bản mục tiêu: ${platformFormatLabel || (aspectRatio === '4:5' ? '4:5 (Chân dung Feed 1080x1350)' : isShort ? '9:16 (Shorts / Reels / TikTok)' : `16:9 (Video dài ${targetDurationMin} phút)`)}
 - Lĩnh vực phân loại: ${domain.toUpperCase()} | Thể loại đồ họa: ${videoGenre.toUpperCase()}
 - Bộ Skill: "${skill?.name || 'Biên kịch Chuyên nghiệp'}" (${skill?.tone || 'Chính xác, cuốn hút'})
-- Khung hình: ${isShort ? '9:16 (Dọc 1080x1920)' : `16:9 (Ngang 1920x1080, mục tiêu ${targetDurationMin} phút)`}
+- Khung hình: ${aspectRatio === '4:5' ? '4:5 (Chân dung 1080x1350)' : isShort ? '9:16 (Dọc 1080x1920)' : `16:9 (Ngang 1920x1080, mục tiêu ${targetDurationMin} phút)`}
 ${liveNewsBlock}
 ${wikiBlock}
-${attachmentNote}${coreRepoBlock}
+${attachmentNote}${coreRepoBlock}${writersRoomBlock}
 
 QUY TẮC NGHIÊM NGẶT (BẮT BUỘC TUÂN THỦ 100%):
 1. TUYỆT ĐỐI KHÔNG lặp lại nguyên văn mệnh lệnh của người dùng (như "Tạo bản tin về...", "Làm video về...") trong "title", "headline" hay "voiceover".
@@ -1414,7 +1421,7 @@ function generateBespokeMultiGenreScript(
           name: 'Bé Diệu Linh (Giọng Ca Thiếu Nhi 126BPM)',
           roleDescription: 'Giọng hát trẻ con trong trẻo, lưu loát dẫn dắt bài ca 12 con giáp mùa xuân',
           avatarUrl: '/zodiac-3d/zodiac_scene_01.jpg',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voiceName: 'Bé Diệu Linh (Thiếu Nhi Trong Trẻo +23% Pitch)',
           voiceSpeed: 1.08,
           voicePitch: 1.24,
@@ -1426,7 +1433,7 @@ function generateBespokeMultiGenreScript(
           name: 'Bạn Tý (Chuột Khăn Đỏ) & Bạn Sửu (Trâu Chuông Vàng)',
           roleDescription: 'Chuột xám quàng khăn đỏ ôm phô mai vàng và Trâu con đeo chuông vàng gặm cỏ xanh',
           avatarUrl: '/zodiac-3d/zodiac_scene_02.jpg',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voiceName: 'Đồng Ca Thiếu Nhi • Tý & Sửu',
           voiceSpeed: 1.08,
           voicePitch: 1.22,
@@ -1438,7 +1445,7 @@ function generateBespokeMultiGenreScript(
           name: 'Bạn Thìn (Rồng Đỏ Vàng) & Bạn Tỵ (Rắn Xanh Đội Mũ)',
           roleDescription: 'Rồng con đỏ vàng bay trên mây ngũ sắc và Rắn xanh hiền lành đội mũ lưỡi trai đỏ vàng',
           avatarUrl: '/zodiac-3d/zodiac_scene_04.jpg',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voiceName: 'Đồng Ca Thiếu Nhi • Thìn & Tỵ',
           voiceSpeed: 1.07,
           voicePitch: 1.21,
@@ -1450,7 +1457,7 @@ function generateBespokeMultiGenreScript(
           name: 'Bạn Tuất (Cún Đốm) & Bạn Hợi (Heo Hồng Yếm Đỏ)',
           roleDescription: 'Cún con đốm vàng đeo vòng cổ đỏ và Heo hồng mặc áo yếm đỏ cười tít mắt',
           avatarUrl: '/zodiac-3d/zodiac_scene_07.jpg',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voiceName: 'Đồng Ca Thiếu Nhi • Tuất & Hợi',
           voiceSpeed: 1.08,
           voicePitch: 1.23,
@@ -1469,7 +1476,7 @@ function generateBespokeMultiGenreScript(
           durationSec: 8,
           voiceover:
             'La la la! Hoa đào hoa mai nở thắm mùa xuân sang! Cùng bé hát vang bài ca mười hai con giáp thật rộn ràng, bạn nào cũng xinh xắn và đáng yêu quá đi thôi!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.24,
           voiceSpeed: 1.08,
           visualPrompt:
@@ -1489,7 +1496,7 @@ function generateBespokeMultiGenreScript(
           durationSec: 10,
           voiceover:
             'Số một bạn Tý, chú chuột nhỏ quàng khăn đỏ xinh, tay ôm miếng phô mai vàng thơm nức mũi chít chít kêu vui! Số hai bạn Sửu, chú trâu ngoan đeo chuông vàng leng keng, chăm chỉ gặm cỏ xanh trên đồng quê!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.22,
           voiceSpeed: 1.08,
           visualPrompt:
@@ -1509,7 +1516,7 @@ function generateBespokeMultiGenreScript(
           durationSec: 8,
           voiceover:
             'Số ba bạn Dần, chú hổ cam vằn đen đáng yêu, giơ hai bàn tay múa ca rộn rã! Số bốn bạn Mão, mèo vàng má hồng vẫy tay chào bé meo meo thật dịu dàng!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.23,
           voiceSpeed: 1.08,
           visualPrompt:
@@ -1529,7 +1536,7 @@ function generateBespokeMultiGenreScript(
           durationSec: 8,
           voiceover:
             'Số năm bạn Thìn, rồng đỏ râu vàng bay lượn trên mây ngũ sắc lấp lánh! Số sáu bạn Tỵ, rắn xanh hiền lành đội mũ lưỡi trai đỏ vàng cười tươi ơi là tươi!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.21,
           voiceSpeed: 1.07,
           visualPrompt:
@@ -1549,7 +1556,7 @@ function generateBespokeMultiGenreScript(
           durationSec: 8,
           voiceover:
             'Số bảy bạn Ngọ, ngựa nâu phi nước đại lộc cộc hí vang giữa đồi hoa! Số tám bạn Mùi, dê trắng lông xù như mây bông, nhai lá non xanh mướt be be thật ngoan!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.24,
           voiceSpeed: 1.08,
           visualPrompt:
@@ -1569,7 +1576,7 @@ function generateBespokeMultiGenreScript(
           durationSec: 8,
           voiceover:
             'Số chín bạn Thân, khỉ nâu tinh nghịch nháy mắt cầm quả chuối chín vàng ươm! Số mười bạn Dậu, gà trống đuôi cầu vồng rực rỡ cất tiếng gáy ò ó o đánh thức ông mặt trời!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.22,
           voiceSpeed: 1.08,
           visualPrompt:
@@ -1589,7 +1596,7 @@ function generateBespokeMultiGenreScript(
           durationSec: 8,
           voiceover:
             'Mười một bạn Tuất, cún con đốm vàng đeo vòng cổ đỏ gâu gâu vẫy tay thân thiện! Mười hai bạn Hợi, bé heo hồng má phúng phính mặc áo yếm đỏ cười tít mắt thật dễ thương!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.23,
           voiceSpeed: 1.08,
           visualPrompt:
@@ -1609,7 +1616,7 @@ function generateBespokeMultiGenreScript(
           durationSec: 9,
           voiceover:
             'Tý, Sửu, Dần, Mão, Thìn, Tỵ, Ngọ, Mùi, Thân, Dậu, Tuất, Hợi! Mười hai con giáp nắm tay nhau nhảy múa dưới hoa đào hoa mai, chúc bé luôn vui khỏe và học ngoan mỗi ngày nhé!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.25,
           voiceSpeed: 1.06,
           visualPrompt:
@@ -1641,7 +1648,7 @@ function generateBespokeMultiGenreScript(
           name: 'Vịt Mẹ Trắng (Chóp Cánh Xanh Ngọc)',
           roleDescription: 'Vịt mẹ thân trắng, vòng cổ & chóp cánh xanh ngọc, ngậm lá hướng dẫn đàn con tập thể dục',
           avatarUrl: '',
-          voiceId: 'vi-gentle-female',
+          voiceId: 'vi-hn-female-1',
           voiceName: 'Giọng Ca Vịt Mẹ Dịu Dàng (HoaiMy Chuẩn)',
           voiceSpeed: 1.02,
           voicePitch: 1.08,
@@ -1653,7 +1660,7 @@ function generateBespokeMultiGenreScript(
           name: '5 Chú Vịt Con Lông Vàng',
           roleDescription: '5 chú vịt con bầu bĩnh 3 chỏm lông đầu, chú đầu đàn đội mũ hoa đỏ cuống xanh',
           avatarUrl: '',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voiceName: 'Đồng Ca Thiếu Nhi Vịt Con (HoaiMy +30% Pitch)',
           voiceSpeed: 1.08,
           voicePitch: 1.3,
@@ -1665,7 +1672,7 @@ function generateBespokeMultiGenreScript(
           name: 'Gà Trống Ngũ Sắc',
           roleDescription: 'Gà trống đứng trên mái ngói đỏ gáy báo thức bình minh',
           avatarUrl: '',
-          voiceId: 'vi-mature-male',
+          voiceId: 'vi-doc-quoc-bao',
           voiceName: 'Giọng Gà Trống Khỏe Khoắn',
           voiceSpeed: 1.0,
           voicePitch: 0.98,
@@ -1683,7 +1690,7 @@ function generateBespokeMultiGenreScript(
           headline: '01. THỨC DẬY TRONG RỔ MÂY NHÀ GỖ VÒM',
           durationSec: 5,
           voiceover: 'Bình minh rạng rỡ rồi, chú vịt con đội mũ hoa đỏ vươn vai thức dậy trong rổ mây ấm áp!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.28,
           voiceSpeed: 1.05,
           visualPrompt: '3D yellow duckling with red green flower hat waking in wicker basket inside wooden coop arch, Glow Studios style',
@@ -1701,7 +1708,7 @@ function generateBespokeMultiGenreScript(
           headline: '02. GÀ TRỐNG GÁY SÁNG TRÊN MÁI NGÓI ĐỎ',
           durationSec: 5,
           voiceover: 'Ò ó o! Ông mặt trời lên cao, gà trống ngũ sắc cất tiếng gáy vang gọi cả xóm nhỏ ra sân!',
-          voiceId: 'vi-mature-male',
+          voiceId: 'vi-doc-quoc-bao',
           voicePitch: 0.98,
           voiceSpeed: 1.02,
           visualPrompt: '3D colorful rooster crowing on stepped terracotta red tiled roof against bright sunlit sky',
@@ -1719,7 +1726,7 @@ function generateBespokeMultiGenreScript(
           headline: '03. MỘT HAI MỘT HAI — THỂ DỤC PHÀNH PHẠCH',
           durationSec: 6,
           voiceover: 'Vịt mẹ xòe mỏ gọi đàn con nhỏ, thể dục nhanh nhanh! Một hai, một hai! Giơ chân lên nào, vẫy cho đều phạch phành phạch!',
-          voiceId: 'vi-gentle-female',
+          voiceId: 'vi-hn-female-1',
           voicePitch: 1.1,
           voiceSpeed: 1.06,
           visualPrompt: 'Over shoulder 3D white Mother Duck with cyan wingtips standing on mossy daisy rock leading 5 yellow ducklings wing exercise',
@@ -1737,7 +1744,7 @@ function generateBespokeMultiGenreScript(
           headline: '04. LON TON XUỐNG CẦU GỖ BÊN CHÚ ONG VÀNG',
           durationSec: 5,
           voiceover: 'Đàn vịt lon ton chạy theo vịt mẹ qua cầu ván gỗ cong, bên cạnh chú ong vàng vỗ cánh vo ve thật vui!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.28,
           voiceSpeed: 1.06,
           visualPrompt: '3D yellow ducklings waddling down curved wooden plank bridge over turquoise pond with flying striped cartoon bee',
@@ -1755,7 +1762,7 @@ function generateBespokeMultiGenreScript(
           headline: '05. KHUA NƯỚC BƠI ĐI CHÂN NHƯ MÁI CHÈO',
           durationSec: 6,
           voiceover: 'Ùm xuống ao sâu tắm mát thật thích! Cạp cạp cạp! Đàn vịt khua nước bơi đi chân như mái chèo giữa hoa lục bình!',
-          voiceId: 'vi-gentle-female',
+          voiceId: 'vi-hn-female-1',
           voicePitch: 1.12,
           voiceSpeed: 1.05,
           visualPrompt: '3D ducklings swimming across bright cyan pond surrounded by lily pads and purple hyacinths',
@@ -1773,7 +1780,7 @@ function generateBespokeMultiGenreScript(
           headline: '06. VÒNG ĐU QUAY ĐỎ RỰC RỠ KẾT MÀN VUI NHỘN',
           durationSec: 6,
           voiceover: 'Hoan hô! Cả đàn vịt con cùng ngồi trên khoang đỏ vòng đu quay khổng lồ vẫy cánh hát vang bài ca thiếu nhi!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.24,
           voiceSpeed: 1.05,
           visualPrompt: '3D white steel-spoked Ferris wheel with glossy red capsule gondolas carrying happy ducklings above green hills',
@@ -1804,7 +1811,7 @@ function generateBespokeMultiGenreScript(
           name: 'Cậu Bé Tí (Chăn Bò)',
           roleDescription: 'Cậu bé chăn bò mặc áo bà ba nâu, đội nón lá, tính tình hay quên đóng then chuồng',
           avatarUrl: '',
-          voiceId: 'vi-child-male',
+          voiceId: 'vi-sg-male-1',
           voiceName: 'Bé Trai Lanh Lợi (NamMinh +20% Pitch)',
           voiceSpeed: 1.06,
           voicePitch: 1.2,
@@ -1816,7 +1823,7 @@ function generateBespokeMultiGenreScript(
           name: 'Thỏ Trắng Bun',
           roleDescription: 'Bạn thỏ tinh anh sống gần rặng tre, nhắc Tí gia cố cửa chuồng gỗ',
           avatarUrl: '',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voiceName: 'Bé Gái Trong Trẻo (HoaiMy +26% Pitch)',
           voiceSpeed: 1.04,
           voicePitch: 1.26,
@@ -1828,7 +1835,7 @@ function generateBespokeMultiGenreScript(
           name: 'Đàn Gà Con Mới Nở',
           roleDescription: '5 chú gà con vàng rực nhảy múa quanh gà mẹ bên bờ suối xanh',
           avatarUrl: '',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voiceName: 'Đàn Gà Con Líu Lo (HoaiMy +38% Pitch)',
           voiceSpeed: 1.12,
           voicePitch: 1.38,
@@ -1840,7 +1847,7 @@ function generateBespokeMultiGenreScript(
           name: 'Bò Vàng & Người Kể Chuyện',
           roleDescription: 'Chú bò vàng đeo chuông đồng hiền lành và lời dẫn câu chuyện ngụ ngôn',
           avatarUrl: '',
-          voiceId: 'vi-mature-male',
+          voiceId: 'vi-doc-quoc-bao',
           voiceName: 'Người Kể Chuyện Ấm Áp (NamMinh Chuẩn)',
           voiceSpeed: 1.0,
           voicePitch: 0.96,
@@ -1858,7 +1865,7 @@ function generateBespokeMultiGenreScript(
           headline: '01. BÌNH MINH LÀNG QUÊ YÊN Ả',
           durationSec: 4,
           voiceover: 'Sáng sớm bên rặng tre xanh, chuông bò leng keng vang khắp triền đê ngập tràn nắng vàng.',
-          voiceId: 'vi-mature-male',
+          voiceId: 'vi-doc-quoc-bao',
           voicePitch: 0.96,
           voiceSpeed: 1.0,
           visualPrompt: 'Pixar 3D stylized Vietnamese countryside meadow morning golden light, wooden barn, calf, chicks by creek, 8k',
@@ -1876,7 +1883,7 @@ function generateBespokeMultiGenreScript(
           headline: '02. ĐÀN GÀ CON MỚI NỞ VUI ĐÙA',
           durationSec: 4,
           voiceover: 'Chiếp chiếp chiếp! Đàn gà con lông vàng óng ánh tung tăng nhảy múa theo điệu nhạc ban mai!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.38,
           voiceSpeed: 1.12,
           visualPrompt: 'Cute 3D baby yellow chicks flapping wings hopping happily beside mother hen, Glow Studios inspired, 8k',
@@ -1894,7 +1901,7 @@ function generateBespokeMultiGenreScript(
           headline: '03. THỎ BUN NHẮC CỬA CHUỒNG LỎNG LẺO',
           durationSec: 4,
           voiceover: 'Anh Tí ơi! Cánh cửa chuồng bò bị tuột đinh kìa, lát trưa gió to là bò đi lạc mất đấy!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.26,
           voiceSpeed: 1.04,
           visualPrompt: '3D white bunny in blue vest pointing excitedly at loose wooden barn door warning shepherd boy Be Ti, 8k',
@@ -1912,7 +1919,7 @@ function generateBespokeMultiGenreScript(
           headline: '04. MẢI CHƠI QUÊN CHỐT CỬA — BÒ ĐI LẠC',
           durationSec: 4,
           voiceover: 'Ôi không! Tí mải thả diều nên quên sửa chuồng, Bò Vàng đẩy tung cửa gỗ đi tuốt ra đồng xa mất rồi!',
-          voiceId: 'vi-child-male',
+          voiceId: 'vi-sg-male-1',
           voicePitch: 1.2,
           voiceSpeed: 1.06,
           visualPrompt: 'Over shoulder 3D shot of Be Ti shocked seeing empty barn gate and golden cow wandering across meadow hills, 8k',
@@ -1930,7 +1937,7 @@ function generateBespokeMultiGenreScript(
           headline: '05. CÙNG BẠN BÈ TÌM BÒ & RÚT RA BÀI HỌC',
           durationSec: 4,
           voiceover: 'Đừng lo anh Tí ơi! Thỏ và đàn gà con thấy dấu chân bên suối rồi, mình dắt Bò Vàng về sửa chuồng ngay nhé!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.26,
           voiceSpeed: 1.05,
           visualPrompt: '3D reverse shot bunny and chicks guiding Be Ti toward creek wooden path, warm teamwork, 8k',
@@ -1948,7 +1955,7 @@ function generateBespokeMultiGenreScript(
           headline: '06. ĐÓNG VÁN CHẮC CHẮN — KHÔNG ĐỂ MẤT BÒ NỮA',
           durationSec: 4,
           voiceover: 'Cốc cốc cốc! Tí đóng lại ba thanh gỗ thật chắc, từ nay nhớ làm chuồng trước chứ không đợi mất bò mới lo!',
-          voiceId: 'vi-child-male',
+          voiceId: 'vi-sg-male-1',
           voicePitch: 1.18,
           voiceSpeed: 1.05,
           visualPrompt: '3D two-shot Be Ti hammering new solid planks onto barn fence while bunny hands nails, sunny glow, 8k',
@@ -1966,7 +1973,7 @@ function generateBespokeMultiGenreScript(
           headline: '07. ĐOẠN KẾT VUI TƯƠI BÊN LÀNG QUÊ XANH',
           durationSec: 4,
           voiceover: 'Hoan hô! Phòng bệnh hơn chữa bệnh, cẩn thận từ đầu để ngày nào đồng quê cũng rộn rã tiếng cười vui!',
-          voiceId: 'vi-mature-male',
+          voiceId: 'vi-doc-quoc-bao',
           voicePitch: 1.02,
           voiceSpeed: 1.04,
           visualPrompt: 'Pixar 3D wide celebration shot of Be Ti, golden cow inside sturdy barn, dancing chicks and bunny singing together, 8k',
@@ -1997,7 +2004,7 @@ function generateBespokeMultiGenreScript(
           name: 'Thỏ Con (Pink Bunny)',
           roleDescription: 'Bé thỏ hồng đáng yêu, bị đau bụng ôm lọ thuốc mếu máo',
           avatarUrl: '/3d_dialogue_clinic_stage.jpg',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voiceName: 'Giọng Bé Gái Mếu Máo (Pitch +35%)',
           voiceSpeed: 1.05,
           voicePitch: 1.35,
@@ -2009,7 +2016,7 @@ function generateBespokeMultiGenreScript(
           name: 'Cừu Bông (Fluffy Sheep)',
           roleDescription: 'Bạn cừu lông xoăn trắng lanh lợi, lo lắng khuyên bạn',
           avatarUrl: '/3d_dialogue_clinic_stage.jpg',
-          voiceId: 'vi-child-male',
+          voiceId: 'vi-sg-male-1',
           voiceName: 'Giọng Bé Trai Lanh Lợi (Pitch +18%)',
           voiceSpeed: 1.1,
           voicePitch: 1.18,
@@ -2021,7 +2028,7 @@ function generateBespokeMultiGenreScript(
           name: 'Mèo Con Nơ Hồng (Cute Kitten)',
           roleDescription: 'Bạn mèo con cài nơ ngọt ngào, động viên Thỏ uống thuốc',
           avatarUrl: '/3d_dialogue_clinic_stage.jpg',
-          voiceId: 'vi-gentle-female',
+          voiceId: 'vi-hn-female-1',
           voiceName: 'Giọng Bé Gái Dịu Dàng (Pitch +25%)',
           voiceSpeed: 1.02,
           voicePitch: 1.25,
@@ -2033,7 +2040,7 @@ function generateBespokeMultiGenreScript(
           name: 'Bác Sĩ Gấu (Doctor Bear)',
           roleDescription: 'Bác sĩ thú y hiền từ, ân cần dặn dò ăn chín uống sôi',
           avatarUrl: '/3d_dialogue_clinic_stage.jpg',
-          voiceId: 'vi-mature-male',
+          voiceId: 'vi-doc-quoc-bao',
           voiceName: 'Giọng Trầm Ấm Ân Cần (Pitch -10%)',
           voiceSpeed: 0.96,
           voicePitch: 0.9,
@@ -2051,7 +2058,7 @@ function generateBespokeMultiGenreScript(
           headline: '01. THỎ CON ÔM BỤNG ĐAU — MẾU MÁO',
           durationSec: 4,
           voiceover: 'Oa oa... Mẹ ơi con đau bụng quá, thuốc đắng lắm con không muốn uống đâu!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.35,
           voiceSpeed: 1.05,
           visualPrompt: 'Pixar 3D animation cute pink rabbit sitting on nursery floor crying holding medicine bottle, soft yellow room lighting, 8k',
@@ -2069,7 +2076,7 @@ function generateBespokeMultiGenreScript(
           headline: '02. CỪU BÔNG LO LẮNG HỎI THĂM',
           durationSec: 4,
           voiceover: 'Bạn Thỏ ơi đừng khóc nữa mà! Bạn ăn quả xanh uống nước lã nên mới bị đau bụng đấy!',
-          voiceId: 'vi-child-male',
+          voiceId: 'vi-sg-male-1',
           voicePitch: 1.18,
           voiceSpeed: 1.1,
           visualPrompt: 'Pixar 3D animation fluffy white sheep with big expressive eyes gesturing with concern in cozy clinic room, 8k',
@@ -2087,7 +2094,7 @@ function generateBespokeMultiGenreScript(
           headline: '03. MÈO CON DỊU DÀNG KHUYÊN BẠN',
           durationSec: 4,
           voiceover: 'Đúng rồi đó Thỏ con ơi! Ngoan ngoãn uống một thìa si-rô ngọt này là hết đau ngay thôi!',
-          voiceId: 'vi-gentle-female',
+          voiceId: 'vi-hn-female-1',
           voicePitch: 1.25,
           voiceSpeed: 1.02,
           visualPrompt: 'Pixar 3D animation cute peach kitten wearing pink ribbon bow smiling warmly encouraging friend, 8k',
@@ -2105,7 +2112,7 @@ function generateBespokeMultiGenreScript(
           headline: '04. BÁC SĨ ÂN CẦN DẶN DÒ',
           durationSec: 4,
           voiceover: 'Bác sĩ dặn nhé: Từ nay Thỏ con phải nhớ ăn chín, uống sôi, rửa sạch tay trước khi ăn nhé!',
-          voiceId: 'vi-mature-male',
+          voiceId: 'vi-doc-quoc-bao',
           voicePitch: 0.9,
           voiceSpeed: 0.96,
           visualPrompt: 'Pixar 3D animation gentle doctor holding small spoon and medicine, warm clinic atmosphere, 8k',
@@ -2123,7 +2130,7 @@ function generateBespokeMultiGenreScript(
           headline: '05. THỎ CON UỐNG THUỐC — CƯỜI TƯƠI',
           durationSec: 4,
           voiceover: 'Dạ vâng ạ! Thuốc ngọt như kẹo dâu ấy! Con hết đau bụng rồi, khỏe re rồi nè!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.3,
           voiceSpeed: 1.08,
           visualPrompt: 'Pixar 3D animation cute pink rabbit happily clapping paws smiling wide, bright sparkling eyes, 8k',
@@ -2141,7 +2148,7 @@ function generateBespokeMultiGenreScript(
           headline: '06. CÙNG NHAU RA VƯỜN HOA NHẢY MÚA',
           durationSec: 4,
           voiceover: 'Hoan hô! Thỏ con khỏi ốm rồi! Chúng mình cùng ra vườn hoa bắt bướm nhảy múa thôi nào!',
-          voiceId: 'vi-child-female',
+          voiceId: 'vi-kids-bao-an',
           voicePitch: 1.25,
           voiceSpeed: 1.1,
           visualPrompt: 'Pixar 3D animation wide shot of pink bunny, white sheep and peach kitten dancing joyfully together in a sunny flower meadow, 8k',
@@ -3207,6 +3214,7 @@ export async function generateAiVideoScript(
     attachedImages = [],
     attachedAudioUrl,
     attachedAudioName,
+    writersRoomDirective,
     signal,
     onProgress,
   } = params;
@@ -3251,6 +3259,7 @@ export async function generateAiVideoScript(
       audUrl: attachedAudioUrl ? `${attachedAudioUrl.slice(0, 48)}_${attachedAudioUrl.length}` : '',
       pr: creationSpeedMode === 'turbo' ? 'turbo' : provider,
       md: creationSpeedMode === 'turbo' ? 'turbo' : model,
+      wr: writersRoomDirective ? writersRoomDirective.slice(0, 120) : '',
     })
     : '';
 
@@ -3344,7 +3353,8 @@ export async function generateAiVideoScript(
     aspectRatio,
     resolvedDurationSec / 60,
     platformFormatLabel,
-    attachedImageList.length > 0
+    attachedImageList.length > 0,
+    writersRoomDirective
   );
 
   let rawJson: any = null;
@@ -3760,12 +3770,15 @@ export async function generateAiVideoScript(
         skill
           ? skillDirectives.sfxList[idx % skillDirectives.sfxList.length]
           : sc.sfx || skillDirectives.sfxList[idx % skillDirectives.sfxList.length],
-      transition:
-        skill
-          ? skillDirectives.preferredTransition
-          : sc.transition === 'fade' || sc.transition === 'dissolve'
-            ? sc.transition
-            : skillDirectives.preferredTransition,
+      transition: (() => {
+        const knownGl = new Set(TRANSITION_PRESET_CATALOG.map((p) => p.id.toLowerCase()));
+        const rawTr = String(sc.transition || '').trim();
+        if (rawTr && knownGl.has(rawTr.toLowerCase())) {
+          return TRANSITION_PRESET_CATALOG.find((p) => p.id.toLowerCase() === rawTr.toLowerCase())!.id;
+        }
+        if (skill && idx === 0) return skillDirectives.preferredTransition;
+        return TRANSITION_PRESET_CATALOG[idx % TRANSITION_PRESET_CATALOG.length].id;
+      })(),
       voiceId: useExplicitNarratorVoice ? preferredVoice!.id : sc.voiceId || defaultVoice.id,
       voiceLanguage: 'vi',
       voiceSpeed: useExplicitNarratorVoice

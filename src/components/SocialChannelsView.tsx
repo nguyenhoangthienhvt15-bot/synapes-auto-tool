@@ -316,6 +316,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
     }
 
     fetch('/api/channels/status', {
+      credentials: 'include',
       headers: { ...getAuthHeaders(currentUser.code) },
     })
       .then((r) => (r.ok ? r.json() : null))
@@ -325,6 +326,29 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
         for (const rec of Object.values(d.channels) as ServerChannelRecord[]) {
           next = mergeServerChannelRecord(next, rec);
         }
+        setChannels(next);
+        onUpdateChannelsRef.current?.(next);
+      })
+      .catch(() => {});
+
+    fetch('/api/drive/status', {
+      credentials: 'include',
+      headers: { ...getAuthHeaders(currentUser.code) },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d?.success) return;
+        const driveRec: ServerChannelRecord = {
+          platform: 'drive',
+          channelName: d.accountName || (d.email ? `Google Drive (${d.email})` : 'Google Drive Storage'),
+          handleOrUrl: d.folderUrl || d.email || 'Chưa liên kết Google Drive',
+          emailOrId: d.email || '',
+          maskedToken: d.maskedToken || '',
+          verificationMode: d.verificationMode || '',
+          connectedAt: d.connectedAt || '',
+          status: d.connected ? 'connected' : 'disconnected',
+        };
+        const next = mergeServerChannelRecord(channelsRef.current, driveRec);
         setChannels(next);
         onUpdateChannelsRef.current?.(next);
       })
@@ -429,6 +453,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
     try {
       const resp = await fetch('/api/oauth/google/start', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...getAuthHeaders(currentUser?.code),
@@ -501,6 +526,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
     try {
       const resp = await fetch('/api/channels/connect', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...getAuthHeaders(currentUser?.code),
@@ -567,20 +593,30 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
     }
 
     const platformMap: Record<string, string> = { yt: 'youtube', tt: 'tiktok', fb: 'facebook', gd: 'drive' };
+    const resolvedPlatform = platformMap[channelId] || channelId;
     try {
       await fetch('/api/channels/disconnect', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...getAuthHeaders(currentUser?.code),
         },
         body: JSON.stringify({
           userCode: currentUser?.code || '',
-          platform: platformMap[channelId] || channelId,
+          platform: resolvedPlatform,
         }),
       });
     } catch {
       // ignore network error on disconnect cleanup
+    }
+    if (resolvedPlatform === 'drive') {
+      try {
+        localStorage.removeItem('synapes_drive_email');
+        localStorage.removeItem('synapes_drive_connected');
+      } catch {
+        // ignore storage error
+      }
     }
 
     const defaultCard = DEFAULT_CHANNELS.find((d) => d.id === channelId);
@@ -608,6 +644,7 @@ export const SocialChannelsView: React.FC<SocialChannelsViewProps> = ({
     try {
       const resp = await fetch('/api/channels/verify-publish', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...getAuthHeaders(currentUser?.code),

@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeJsonAtomic, withFileLock } from './atomicFileStore.mjs';
+import { safeOutboundFetch } from './safeHttpClient.mjs';
 
 export const MODEL_3D_STYLE_CATALOG_SERVER = [
   {
@@ -288,7 +290,7 @@ export async function runByokVisionConsistencyCheckServer(byokLlm, parsedImages,
           },
         })),
       ];
-      const resp = await fetch(url, {
+      const resp = await safeOutboundFetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -298,6 +300,7 @@ export async function runByokVisionConsistencyCheckServer(byokLlm, parsedImages,
           contents: [{ parts }],
           generationConfig: { maxOutputTokens: 180, temperature: 0.2 },
         }),
+        timeoutMs: 12000,
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -317,7 +320,7 @@ export async function runByokVisionConsistencyCheckServer(byokLlm, parsedImages,
         clearTimeout(timeout);
         return { note: '', warning: `Endpoint BYOK OpenAI bị chặn theo chính sách SSRF/DNS (${urlSafety.reason}).` };
       }
-      const resp = await fetch(url, {
+      const resp = await safeOutboundFetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -339,6 +342,7 @@ export async function runByokVisionConsistencyCheckServer(byokLlm, parsedImages,
             },
           ],
         }),
+        timeoutMs: 16000,
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -364,46 +368,47 @@ export async function runByokVisionConsistencyCheckServer(byokLlm, parsedImages,
   }
 }
 
-function persistAssetManifestMetadata(manifest, dataDir) {
+async function persistAssetManifestMetadata(manifest, dataDir) {
   try {
     const filePath = path.join(dataDir, 'assets_3d_manifests.json');
-    let list = [];
-    if (fs.existsSync(filePath)) {
-      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      if (Array.isArray(parsed)) list = parsed;
-    }
-    // Never write user API tokens or sensitive secrets into persistent disk manifest files
-    const cleanRecord = {
-      assetId: manifest.assetId,
-      jobId: manifest.jobId,
-      ownerUserCode: manifest.ownerUserCode || '',
-      characterId: manifest.characterId,
-      characterName: manifest.characterName,
-      styleId: manifest.styleId,
-      engine: manifest.engine,
-      provider: manifest.provider,
-      sourceViewCount: manifest.sourceViewCount,
-      sourceImageHashes: manifest.sourceImageHashes,
-      geometryConfidencePct: manifest.geometryConfidencePct,
-      glbUrl: manifest.glbUrl || '',
-      polyCount: manifest.polyCount,
-      rigBoneCount: manifest.rigBoneCount,
-      pipelineStage: manifest.pipelineStage || '',
-      progressPct: typeof manifest.progressPct === 'number' ? manifest.progressPct : undefined,
-      dinov2Scores: manifest.dinov2Scores,
-      remoteTaskId: manifest.remoteTaskId || '',
-      gradioSpaceHost: manifest.gradioSpaceHost || '',
-      gradioEventUrl: manifest.gradioEventUrl || '',
-      workerBaseUrl: manifest.workerBaseUrl || '',
-      approvalStatus: manifest.approvalStatus,
-      errorMessage: manifest.errorMessage || '',
-      qcReport: manifest.qcReport,
-      createdAt: manifest.createdAt,
-      updatedAt: manifest.updatedAt,
-    };
-    const next = [cleanRecord, ...list.filter((m) => m.jobId !== manifest.jobId)].slice(0, 120);
-    fs.mkdirSync(dataDir, { recursive: true });
-    fs.writeFileSync(filePath, JSON.stringify(next, null, 2), 'utf8');
+    await withFileLock(filePath, () => {
+      let list = [];
+      if (fs.existsSync(filePath)) {
+        const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        if (Array.isArray(parsed)) list = parsed;
+      }
+      // Never write user API tokens or sensitive secrets into persistent disk manifest files
+      const cleanRecord = {
+        assetId: manifest.assetId,
+        jobId: manifest.jobId,
+        ownerUserCode: manifest.ownerUserCode || '',
+        characterId: manifest.characterId,
+        characterName: manifest.characterName,
+        styleId: manifest.styleId,
+        engine: manifest.engine,
+        provider: manifest.provider,
+        sourceViewCount: manifest.sourceViewCount,
+        sourceImageHashes: manifest.sourceImageHashes,
+        geometryConfidencePct: manifest.geometryConfidencePct,
+        glbUrl: manifest.glbUrl || '',
+        polyCount: manifest.polyCount,
+        rigBoneCount: manifest.rigBoneCount,
+        pipelineStage: manifest.pipelineStage || '',
+        progressPct: typeof manifest.progressPct === 'number' ? manifest.progressPct : undefined,
+        dinov2Scores: manifest.dinov2Scores,
+        remoteTaskId: manifest.remoteTaskId || '',
+        gradioSpaceHost: manifest.gradioSpaceHost || '',
+        gradioEventUrl: manifest.gradioEventUrl || '',
+        workerBaseUrl: manifest.workerBaseUrl || '',
+        approvalStatus: manifest.approvalStatus,
+        errorMessage: manifest.errorMessage || '',
+        qcReport: manifest.qcReport,
+        createdAt: manifest.createdAt,
+        updatedAt: manifest.updatedAt,
+      };
+      const next = [cleanRecord, ...list.filter((m) => m.jobId !== manifest.jobId)].slice(0, 120);
+      writeJsonAtomic(filePath, next);
+    });
   } catch {
     // ignore disk log errors
   }
@@ -499,7 +504,7 @@ export async function dispatchByok3DReconstructionServer({
       if (apiKey.length > 0) {
         headers.Authorization = `Bearer ${apiKey}`;
       }
-      const wRes = await fetch(targetEndpoint, {
+      const wRes = await safeOutboundFetch(targetEndpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -512,6 +517,7 @@ export async function dispatchByok3DReconstructionServer({
           views: parsedImages.map((img) => ({ slot: img.slot, mime_type: img.mimeType, data_url: img.dataUrl })),
           workflow: workflowTemplate,
         }),
+        timeoutMs: 30000,
         signal: controller.signal,
       });
       clearTimeout(timer);
@@ -569,7 +575,7 @@ export async function dispatchByok3DReconstructionServer({
         saveEphemeralJobAuth(jobId, { provider, apiKey, workerBaseUrl: cleanWorkerBase });
       }
       assetsMap.set(jobId, manifest);
-      persistAssetManifestMetadata(manifest, dataDir);
+      await persistAssetManifestMetadata(manifest, dataDir);
       return {
         httpStatus: 202,
         payload: {
@@ -604,9 +610,10 @@ export async function dispatchByok3DReconstructionServer({
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 28000);
     try {
-      const authRes = await fetch(hfWhoamiUrl, {
+      const authRes = await safeOutboundFetch(hfWhoamiUrl, {
         method: 'GET',
         headers: { Authorization: `Bearer ${apiKey}` },
+        timeoutMs: 15000,
         signal: controller.signal,
       });
       if (!authRes.ok) {
@@ -629,9 +636,10 @@ export async function dispatchByok3DReconstructionServer({
         ? 'tencent/Hunyuan3D-2mv'
         : 'JeffreyXiang/TRELLIS';
 
-      const spaceRes = await fetch(`https://huggingface.co/api/spaces/${targetRepo}`, {
+      const spaceRes = await safeOutboundFetch(`https://huggingface.co/api/spaces/${targetRepo}`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${apiKey}` },
+        timeoutMs: 15000,
         signal: controller.signal,
       });
       const spaceJson = spaceRes.ok ? await spaceRes.json().catch(() => ({})) : {};
@@ -672,17 +680,25 @@ export async function dispatchByok3DReconstructionServer({
         };
       }
 
-      const form = new FormData();
+      const boundary = `----SynapesBoundary${crypto.randomBytes(8).toString('hex')}`;
+      const multipartParts = [];
       parsedImages.forEach((img, idx) => {
         const bin = Buffer.from(img.base64, 'base64');
         const ext = img.mimeType.includes('webp') ? 'webp' : img.mimeType.includes('jpeg') ? 'jpg' : 'png';
-        form.append('files', new Blob([bin], { type: img.mimeType }), `${img.slot}_${idx}.${ext}`);
+        const header = `--${boundary}\r\nContent-Disposition: form-data; name="files"; filename="${img.slot}_${idx}.${ext}"\r\nContent-Type: ${img.mimeType}\r\n\r\n`;
+        multipartParts.push(Buffer.from(header, 'utf8'), bin, Buffer.from('\r\n', 'utf8'));
       });
+      multipartParts.push(Buffer.from(`--${boundary}--\r\n`, 'utf8'));
+      const multipartBody = Buffer.concat(multipartParts);
 
-      const uploadRes = await fetch(`${spaceHost}/gradio_api/upload`, {
+      const uploadRes = await safeOutboundFetch(`${spaceHost}/gradio_api/upload`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body: form,
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        },
+        body: multipartBody,
+        timeoutMs: 28000,
         signal: controller.signal,
       });
 
@@ -743,13 +759,14 @@ export async function dispatchByok3DReconstructionServer({
             ]
           : [fileMetaBySlot.front || Object.values(fileMetaBySlot)[0], 1, 7.5, 12];
 
-      const callRes = await fetch(`${spaceHost}/gradio_api/call/${gradioFnName}`, {
+      const callRes = await safeOutboundFetch(`${spaceHost}/gradio_api/call/${gradioFnName}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({ data: callPayloadData }),
+        timeoutMs: 28000,
         signal: controller.signal,
       });
       clearTimeout(timer);
@@ -818,7 +835,7 @@ export async function dispatchByok3DReconstructionServer({
       };
       saveEphemeralJobAuth(jobId, { provider, apiKey });
       assetsMap.set(jobId, manifest);
-      persistAssetManifestMetadata(manifest, dataDir);
+      await persistAssetManifestMetadata(manifest, dataDir);
       return {
         httpStatus: 202,
         payload: {
@@ -885,13 +902,14 @@ export async function dispatchByok3DReconstructionServer({
               files: parsedImages.map((img) => ({ type: 'png', file_token: img.sha256 })),
             };
 
-    const apiRes = await fetch(upstreamUrl, {
+    const apiRes = await safeOutboundFetch(upstreamUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: authHeader,
       },
       body: JSON.stringify(bodyPayload),
+      timeoutMs: 30000,
       signal: controller.signal,
     });
     clearTimeout(timer);
@@ -936,7 +954,7 @@ export async function dispatchByok3DReconstructionServer({
     };
     saveEphemeralJobAuth(jobId, { provider, apiKey, statusUrl: String(apiData?.status_url || '') });
     assetsMap.set(jobId, manifest);
-    persistAssetManifestMetadata(manifest, dataDir);
+    await persistAssetManifestMetadata(manifest, dataDir);
     return {
       httpStatus: 202,
       payload: {
@@ -991,7 +1009,7 @@ export async function pollAsset3DJobStatusServer({
     try {
       const headers = { Accept: 'text/event-stream' };
       if (tokenToUse) headers.Authorization = `Bearer ${tokenToUse}`;
-      const sseRes = await fetch(manifest.gradioEventUrl, { headers, signal: ctl.signal });
+      const sseRes = await safeOutboundFetch(manifest.gradioEventUrl, { headers, timeoutMs: 5000, signal: ctl.signal });
       const sseText = await sseRes.text().catch(() => '');
       clearTimeout(timer);
 
@@ -1038,7 +1056,7 @@ export async function pollAsset3DJobStatusServer({
       try {
         const headers = {};
         if (tokenToUse) headers.Authorization = `Bearer ${tokenToUse}`;
-        const wRes = await fetch(jobStatusUrl, { headers, signal: ctl.signal });
+        const wRes = await safeOutboundFetch(jobStatusUrl, { headers, timeoutMs: 5000, signal: ctl.signal });
         clearTimeout(timer);
         if (wRes.ok) {
           const wData = await wRes.json().catch(() => ({}));
@@ -1073,8 +1091,9 @@ export async function pollAsset3DJobStatusServer({
       const timer = setTimeout(() => ctl.abort(), 5000);
       try {
         const authHeader = manifest.provider === 'fal-ai' ? `Key ${tokenToUse}` : `Bearer ${tokenToUse}`;
-        const pRes = await fetch(cachedCreds.statusUrl, {
+        const pRes = await safeOutboundFetch(cachedCreds.statusUrl, {
           headers: { Authorization: authHeader },
+          timeoutMs: 5000,
           signal: ctl.signal,
         });
         clearTimeout(timer);
@@ -1096,6 +1115,6 @@ export async function pollAsset3DJobStatusServer({
 
   nextManifest.updatedAt = new Date().toISOString();
   assetsMap.set(nextManifest.jobId, nextManifest);
-  persistAssetManifestMetadata(nextManifest, dataDir);
+  await persistAssetManifestMetadata(nextManifest, dataDir);
   return nextManifest;
 }

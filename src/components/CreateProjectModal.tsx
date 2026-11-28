@@ -108,7 +108,7 @@ const PLATFORM_FORMAT_PRESETS: PlatformFormatPreset[] = [
     platform: 'instagram',
     platformLabel: '4:5 Chân Dung',
     title: 'Khung Chân Dung HD • 4:5',
-    aspectRatio: '9:16',
+    aspectRatio: '4:5',
     displayRatio: '4:5',
     resolution: '1080x1350 (4:5)',
     recommendedMinutes: 1,
@@ -156,7 +156,7 @@ const STUDIO_VOICE_OPTIONS = [
   { id: 'vi-sg-female-1', label: 'Chị Diệu Thảo (Sài Gòn — Truyền cảm)' },
   { id: 'vi-dn-male-1', label: 'Anh Văn Quang (Thời sự 24h — Dõng dạc)' },
   { id: 'vi-hn-male-1', label: 'Anh Hoàng (Hà Nội — Trầm Phóng sự)' },
-  { id: 'vi-hn-female-1', label: 'Chị Mai Linh (Hà Nội — Chuẩn Mực)' },
+  { id: 'vi-hn-female-1', label: 'Chị Hoài My (Hà Nội — Chuẩn Mực)' },
   { id: 'vi-apple-keynote-male', label: 'Anh Tuấn Kiệt (Keynote Điện Ảnh)' },
 ];
 
@@ -200,7 +200,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   onUpdateAiConfig,
   onAddSkill,
 }) => {
-  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
+  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '4:5'>('16:9');
   const [selectedPlatformFormat, setSelectedPlatformFormat] =
     useState<SocialPlatformFormatId>('youtube-long-16-9');
   const [allSkills, setAllSkills] = useState<Skill[]>(initialSkills);
@@ -747,6 +747,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         endpointUrl: endpoint,
         fallbackProviders: buildConfiguredFallbackProviders(selectedProvider),
         preHarvestedResearch: harvestedResearch,
+        writersRoomDirective: writersRoomResult?.consolidatedPromptDirective,
         onProgress: (stepText, pct) => {
           if (!isMountedRef.current || controller.signal.aborted) return;
           setGenerationStep(stepText);
@@ -900,6 +901,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           endpointUrl: endpoint,
           fallbackProviders: buildConfiguredFallbackProviders(selectedProvider),
           preHarvestedResearch: harvestedResearch,
+          writersRoomDirective: writersRoomResult?.consolidatedPromptDirective,
           onProgress: (stepText, pct) => {
             if (!isMountedRef.current || controller.signal.aborted) return;
             setGenerationStep(stepText);
@@ -1074,7 +1076,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div
                   onClick={() => {
                     setAspectRatio('16:9');
@@ -1791,10 +1793,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               )}
             </div>
 
-            {/* 5. TƯ LIỆU ĐÍNH KÈM (TÁCH RIÊNG ẢNH & AUDIO) */}
+            {/* 4. TƯ LIỆU ĐÍNH KÈM (TÁCH RIÊNG ẢNH & AUDIO) */}
             <div className="space-y-2 pt-1 border-t border-black/[0.06]">
               <label className="text-zinc-800 font-semibold block text-xs">
-                5. Tư liệu đính kèm (Tùy chọn)
+                4. Tư liệu đính kèm (Tùy chọn)
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {/* 5A. Đính kèm Hình Ảnh (Tối đa 20 ảnh cùng lúc) */}
@@ -2373,7 +2375,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
                 {PLUGIN_PRESETS.filter((p) => p.id !== 'elevenlabs').map((preset) => {
                   const isChosen = selectedPluginTool === preset.id;
                   return (

@@ -1,4 +1,4 @@
-export type AspectRatio = '16:9' | '9:16';
+export type AspectRatio = '16:9' | '9:16' | '4:5';
 
 export type SocialPlatformFormatId =
   | 'youtube-long-16-9'
@@ -354,7 +354,7 @@ export interface AIProviderConfig {
   gemini: {
     apiKey: string;
     model: string;
-    ttsVoice: string;
+    ttsVoice?: string;
   };
   openai?: {
     apiKey: string;

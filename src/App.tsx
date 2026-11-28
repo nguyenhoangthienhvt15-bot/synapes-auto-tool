@@ -121,6 +121,7 @@ export function App() {
       return false;
     }
   });
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   const handleToggleSidebar = () => {
     setIsSidebarCollapsed((prev) => {
@@ -210,6 +211,7 @@ export function App() {
   };
 
   const handleNavigateView = (targetView: string) => {
+    setIsMobileMenuOpen(false);
     const cleanTarget = String(targetView || '').trim();
     if (cleanTarget === 'auth-modal') {
       if (currentUser?.isLoggedIn) {
@@ -350,6 +352,7 @@ export function App() {
     try {
       const serverAuthRes = await fetch('/api/auth/login', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: codeClean, password: passClean }),
       });
@@ -811,11 +814,55 @@ export function App() {
         }}
         isSidebarCollapsed={isSidebarCollapsed}
         onToggleSidebar={handleToggleSidebar}
+        isMobileMenuOpen={isMobileMenuOpen}
+        onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
       />
 
-      {/* Main Studio Body with Collapsible Sidebar */}
-      <div className="flex-1 flex max-w-[1600px] w-full mx-auto">
-        {/* Sliding / Collapsible Sidebar */}
+      {/* Main Studio Body with Collapsible Desktop Sidebar & Mobile Drawer */}
+      <div className="flex-1 flex max-w-[1600px] w-full mx-auto min-w-0">
+        {/* Mobile (<768px) Slide-over Sidebar Drawer */}
+        {isMobileMenuOpen && (
+          <div
+            className="fixed inset-0 z-50 md:hidden flex"
+            role="dialog"
+            aria-modal="true"
+            data-testid="mobile-sidebar-drawer"
+          >
+            <div
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+            <div className="relative z-10 h-full flex">
+              <Sidebar
+                drawerMode
+                activeView={activeView}
+                pendingCount={pendingCount}
+                userCode={currentUser?.code || ''}
+                projects={projects}
+                channels={channels}
+                selectedAiProvider={selectedAiProvider}
+                userPlanTier={effectivePlanTier}
+                isCollapsed={false}
+                onSelectAiProvider={(prov) => {
+                  setSelectedAiProvider(prov);
+                  handleUpdateAiConfig({ ...aiConfig, activeProvider: prov as any });
+                }}
+                onSelectView={handleNavigateView}
+                onOpenCreateModal={() => {
+                  setIsMobileMenuOpen(false);
+                  if (!currentUser || !currentUser.isLoggedIn) {
+                    showToast('⚠️ Vui lòng đăng nhập tài khoản để tạo và lưu dự án video.');
+                    setIsAuthModalOpen(true);
+                    return;
+                  }
+                  setIsCreateModalOpen(true);
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Sliding / Collapsible Sidebar (Desktop >=768px) */}
         <Sidebar
           activeView={activeView}
           pendingCount={pendingCount}
@@ -842,7 +889,7 @@ export function App() {
         />
 
         {/* Main Work Area with Suspense Lazy Loading & Error Boundary */}
-        <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
+        <main className="flex-1 min-w-0 p-3 sm:p-4 lg:p-6 overflow-y-auto overflow-x-hidden">
           {introOverlayState.visible && !introOverlayState.readyForReveal ? (
             <div className="min-h-[60vh]" aria-hidden="true" />
           ) : (

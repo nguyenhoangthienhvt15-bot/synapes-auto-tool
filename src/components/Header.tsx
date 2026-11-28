@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserAccount, ContractCategory } from '../types';
 import {
   Bell, KeyRound, LogOut, BookOpen, Film,
-  PanelLeftClose, PanelLeftOpen, AudioLines, CloudDownload
+  PanelLeftClose, PanelLeftOpen, AudioLines, CloudDownload, Menu, X
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -19,6 +19,8 @@ interface HeaderProps {
   onCloudBackup?: () => void;
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
+  isMobileMenuOpen?: boolean;
+  onToggleMobileMenu?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -34,6 +36,8 @@ export const Header: React.FC<HeaderProps> = ({
   onCloudBackup,
   isSidebarCollapsed = false,
   onToggleSidebar,
+  isMobileMenuOpen = false,
+  onToggleMobileMenu,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
   const [isLogoAnimating, setIsLogoAnimating] = useState<boolean>(false);
@@ -77,13 +81,25 @@ export const Header: React.FC<HeaderProps> = ({
   }, [onToggleSidebar]);
 
   return (
-    <header className="h-14 px-4 sm:px-6 bg-[#FDFCF9]/95 backdrop-blur-md border-b border-black/[0.08] flex items-center justify-between sticky top-0 z-40 select-none">
-      {/* Left: Brand, Sidebar Toggle & Studio Lockup */}
-      <div className="flex items-center gap-2.5">
+    <header className="h-14 px-2.5 sm:px-6 bg-[#FDFCF9]/95 backdrop-blur-md border-b border-black/[0.08] flex items-center justify-between gap-2 sticky top-0 z-40 select-none overflow-x-clip">
+      {/* Left: Brand, Mobile Drawer Toggle, Desktop Sidebar Toggle & Studio Lockup */}
+      <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+        {onToggleMobileMenu && (
+          <button
+            type="button"
+            onClick={onToggleMobileMenu}
+            className="md:hidden p-1.5 rounded-lg text-zinc-700 hover:text-[#141413] hover:bg-[#F1EEE7] transition cursor-pointer flex items-center justify-center flex-shrink-0"
+            title={isMobileMenuOpen ? 'Đóng menu điều hướng' : 'Mở menu điều hướng'}
+            aria-label="Mở menu điều hướng"
+            data-testid="mobile-menu-toggle-btn"
+          >
+            {isMobileMenuOpen ? <X className="w-4 h-4 text-[#141413]" /> : <Menu className="w-4 h-4 text-[#141413]" />}
+          </button>
+        )}
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
-            className="p-1.5 rounded-lg text-zinc-500 hover:text-[#141413] hover:bg-[#F1EEE7] transition cursor-pointer flex items-center justify-center mr-0.5"
+            className="hidden md:flex p-1.5 rounded-lg text-zinc-500 hover:text-[#141413] hover:bg-[#F1EEE7] transition cursor-pointer items-center justify-center mr-0.5 flex-shrink-0"
             title={isSidebarCollapsed ? "Mở rộng thanh điều hướng (Ctrl+B)" : "Thu gọn thanh điều hướng (Ctrl+B)"}
             aria-label="Toggle sidebar"
           >
@@ -103,14 +119,14 @@ export const Header: React.FC<HeaderProps> = ({
             requestAnimationFrame(() => setIsLogoAnimating(true));
             setTimeout(() => setIsLogoAnimating(false), 6100);
           }}
-          className={`flex items-center gap-2.5 text-left group cursor-pointer px-2 py-1 rounded-xl hover:bg-[#F4F1EA]/70 transition ${
+          className={`flex items-center gap-2 sm:gap-2.5 text-left group cursor-pointer px-1 sm:px-2 py-1 rounded-xl hover:bg-[#F4F1EA]/70 transition min-w-0 ${
             isLogoAnimating ? 'synapes-brand-anim' : ''
           }`}
           data-testid="synapes-brand-lockup"
           title="SYNAPES Studio — Nhấp đúp để phát hiệu ứng thương hiệu"
         >
           <span className="synapes-rgb-sweep" aria-hidden="true" />
-          <div className="synapes-logo-box relative w-8 h-8 rounded-lg bg-[#141413] border border-[#141413]/20 flex items-center justify-center p-0.5 overflow-hidden shadow-xs flex-shrink-0">
+          <div className="synapes-logo-box relative w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#141413] border border-[#141413]/20 flex items-center justify-center p-0.5 overflow-hidden shadow-xs flex-shrink-0">
             <img
               src="/logo.jpg"
               alt="SYNAPES Studio"
@@ -118,9 +134,9 @@ export const Header: React.FC<HeaderProps> = ({
             />
           </div>
 
-          <div className="flex flex-col leading-none select-none">
+          <div className="flex flex-col leading-none select-none min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="font-display font-extrabold text-[#141413] text-[14.5px] tracking-[0.04em] inline-flex">
+              <span className="font-display font-extrabold text-[#141413] text-[13px] sm:text-[14.5px] tracking-[0.04em] inline-flex">
                 {'SYNAPES'.split('').map((ch, idx) => (
                   <span
                     key={`syn-${idx}`}
@@ -132,7 +148,7 @@ export const Header: React.FC<HeaderProps> = ({
                 ))}
               </span>
               <span
-                className="px-1.5 py-0.5 rounded-md bg-[#141413] text-[#FAF8F4] text-[9px] font-mono font-bold tracking-[0.14em] uppercase inline-flex items-center shadow-2xs"
+                className="hidden sm:inline-flex px-1.5 py-0.5 rounded-md bg-[#141413] text-[#FAF8F4] text-[9px] font-mono font-bold tracking-[0.14em] uppercase items-center shadow-2xs"
                 style={{ '--char-idx': 7 } as React.CSSProperties}
               >
                 {'STUDIO'.split('').map((ch, idx) => (
@@ -247,7 +263,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Right: Studio Controls & User State */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
         {/* Notification Bell */}
         <button
           onClick={() => onSelectView('pending-approval')}
@@ -305,7 +321,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </div>
         ) : (
-          <div className="pl-2 border-l border-zinc-200 flex items-center gap-2 flex-shrink-0">
+          <div className="pl-1.5 sm:pl-2 border-l border-zinc-200 flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             {onOpenRegister && (
               <button
                 onClick={onOpenRegister}
@@ -316,7 +332,7 @@ export const Header: React.FC<HeaderProps> = ({
             )}
             <button
               onClick={onOpenLogin}
-              className="btn-primary flex items-center gap-1.5 px-3.5 py-1.5 text-xs cursor-pointer shadow-2xs whitespace-nowrap"
+              className="btn-primary flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 text-[11px] sm:text-xs cursor-pointer shadow-2xs whitespace-nowrap"
             >
               <KeyRound className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
               <span>Đăng Nhập</span>

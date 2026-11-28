@@ -122,9 +122,37 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
   const [authError, setAuthError] = useState<string | null>(null);
   const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
   const [syncedProjectsMap, setSyncedProjectsMap] = useState<Record<string, string>>({});
+  const [syncMetaMap, setSyncMetaMap] = useState<Record<string, { storageMode?: string; googleDriveFileId?: string; encryptedAtRest?: boolean }>>({});
   const [isSyncingProjectId, setIsSyncingProjectId] = useState<string | null>(null);
-  const [archiveModalData, setArchiveModalData] = useState<{ project: Project; archive: DriveArchivePayload } | null>(null);
+  const [archiveModalData, setArchiveModalData] = useState<{
+    project: Project;
+    archive: DriveArchivePayload;
+    encryptedAtRest?: boolean;
+    googleDriveFileId?: string;
+  } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!currentUser?.isLoggedIn || !currentUser?.code) return;
+    let cancelled = false;
+    fetch('/api/drive/status', {
+      method: 'GET',
+      credentials: 'include',
+      headers: { ...getAuthHeaders(currentUser.code) },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d?.success) return;
+        setIsConnected(Boolean(d.connected));
+        if (d.email) setDriveEmail(String(d.email));
+        if (d.folderUrl) setDriveFolderUrl(String(d.folderUrl));
+        onUpdateDrive?.(String(d.email || ''), Boolean(d.connected));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.isLoggedIn, currentUser?.code]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -172,6 +200,7 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
     try {
       const resp = await fetch('/api/drive/connect', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...getAuthHeaders(currentUser?.code),
@@ -214,6 +243,7 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
       try {
         await fetch('/api/drive/disconnect', {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
             ...getAuthHeaders(currentUser?.code),
@@ -234,6 +264,7 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
     try {
       const resp = await fetch('/api/drive/sync-project', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...getAuthHeaders(currentUser?.code),
@@ -247,10 +278,18 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data?.success) {
         setSyncedProjectsMap((prev) => ({ ...prev, [proj.id]: data.syncedAt || new Date().toISOString() }));
+        setSyncMetaMap((prev) => ({
+          ...prev,
+          [proj.id]: {
+            storageMode: data.storageMode,
+            googleDriveFileId: data.googleDriveFileId,
+            encryptedAtRest: Boolean(data.encryptedAtRest),
+          },
+        }));
         const storageLabel =
           data.storageMode === 'google_drive_oauth_and_server_aes256'
-            ? 'Google Drive OAuth & Kho Lưu Trữ Máy Chủ AES-256'
-            : 'Kho Lưu Trữ Máy Chủ AES-256 (Archive Cục Bộ Có Xác Thực)';
+            ? `Google Drive API v3 (ID: ${data.googleDriveFileId || 'cloud'}) & Kho máy chủ AES-256-GCM`
+            : 'Kho Lưu Trữ Máy Chủ AES-256-GCM (Chưa tải lên Google Drive Cloud — cần OAuth Drive)';
         showToast(`✅ Đã đồng bộ gói dữ liệu & phụ đề SRT của [${proj.title}] lên ${storageLabel}!`);
       } else {
         showToast(`⚠️ ${data?.error || 'Không thể đồng bộ dự án lúc này.'}`);
@@ -266,20 +305,26 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
     try {
       const resp = await fetch(`/api/drive/archive/${encodeURIComponent(proj.id)}`, {
         method: 'GET',
+        credentials: 'include',
         headers: {
           ...getAuthHeaders(currentUser?.code),
         },
       });
       const data = await resp.json().catch(() => null);
       if (resp.ok && data?.success && data.archive) {
-        setArchiveModalData({ project: proj, archive: data.archive });
+        setArchiveModalData({
+          project: proj,
+          archive: data.archive,
+          encryptedAtRest: Boolean(data.encryptedAtRest),
+          googleDriveFileId: data.archive?.googleDriveFileId,
+        });
         return;
       }
     } catch {
       // fall back to local manifest below
     }
     const localArchive = buildLocalArchiveManifest(proj, driveEmail, driveFolderUrl);
-    setArchiveModalData({ project: proj, archive: localArchive });
+    setArchiveModalData({ project: proj, archive: localArchive, encryptedAtRest: false });
   };
 
   const triggerBlobDownload = (filename: string, content: string, mimeType: string) => {
@@ -397,7 +442,7 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
             </a>
           ) : (
             <span className="text-[11px] font-mono px-2.5 py-1.5 rounded bg-zinc-100 text-zinc-600 border border-black/[0.06] self-start sm:self-auto">
-              Kho Lưu Trữ Máy Chủ AES-256
+              {isConnected ? 'Google Drive OAuth & Máy Chủ AES-256-GCM' : 'Kho Máy Chủ AES-256-GCM (Chưa Liên Kết Drive)'}
             </span>
           )}
         </div>
@@ -466,10 +511,27 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
                   </td>
                   <td className="py-3 px-4">
                     {syncedProjectsMap[proj.id] ? (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        <span>ĐÃ ĐỒNG BỘ</span>
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 w-fit">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>
+                            {syncMetaMap[proj.id]?.storageMode === 'google_drive_oauth_and_server_aes256'
+                              ? 'DRIVE API V3 + AES-256-GCM'
+                              : 'MÁY CHỦ AES-256-GCM'}
+                          </span>
+                        </span>
+                        {syncMetaMap[proj.id]?.googleDriveFileId && (
+                          <a
+                            href={`https://drive.google.com/file/d/${encodeURIComponent(syncMetaMap[proj.id]!.googleDriveFileId!)}/view`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] font-mono text-sky-700 hover:underline inline-flex items-center gap-1"
+                          >
+                            <span>Mở File Drive</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        )}
+                      </div>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono bg-zinc-100 text-zinc-600 border border-zinc-200">
                         <span>{isConnected ? 'CHỜ ĐỒNG BỘ' : 'CHƯA KẾT NỐI DRIVE'}</span>
@@ -677,9 +739,13 @@ export const DriveBackupView: React.FC<DriveBackupViewProps> = ({
                     Không có ảnh bìa
                   </div>
                 )}
-                <div className="px-3 py-2 text-[11px] text-zinc-300 bg-zinc-900 flex items-center justify-between">
-                  <span>{archiveModalData.archive.projectId}_manifest.json</span>
-                  <span className="font-mono text-emerald-400">Sẵn sàng</span>
+                <div className="px-3 py-2 text-[11px] text-zinc-300 bg-zinc-900 flex items-center justify-between gap-2">
+                  <span className="truncate">{archiveModalData.archive.projectId}_manifest.json</span>
+                  <span className="font-mono text-emerald-400 flex-shrink-0">
+                    {archiveModalData.encryptedAtRest
+                      ? 'Máy chủ AES-256-GCM'
+                      : 'Nháp JSON (chưa mã hóa)'}
+                  </span>
                 </div>
               </div>
 

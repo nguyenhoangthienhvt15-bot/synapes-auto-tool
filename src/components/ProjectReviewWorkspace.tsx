@@ -49,7 +49,7 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
   const [activeSceneId, setActiveSceneId] = useState<number | null>(
     project.storyboard[0]?.id ?? null
   );
-  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>(project.aspectRatio);
+  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '4:5'>(project.aspectRatio);
   const [showSocialMockup, setShowSocialMockup] = useState<'none' | 'tiktok' | 'youtube'>('none');
   const [editingSceneId, setEditingSceneId] = useState<number | null>(null);
   const [editingVoiceoverText, setEditingVoiceoverText] = useState('');
@@ -61,8 +61,10 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [voiceStudioTargetSceneId, setVoiceStudioTargetSceneId] = useState<number | null>(null);
   const [showSchedulePickerModal, setShowSchedulePickerModal] = useState(false);
-  const [schedulePickDate, setSchedulePickDate] = useState('2026-11-15');
+  const [schedulePickDate, setSchedulePickDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [schedulePickTime, setSchedulePickTime] = useState('20:00');
+  const youtubeUploadInputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedYoutubeVideoFile, setSelectedYoutubeVideoFile] = useState<File | null>(null);
 
   // Publishing progress modal
   const [isPublishingModalOpen, setIsPublishingModalOpen] = useState(false);
@@ -228,12 +230,22 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
     setActiveSceneId(newId);
   };
 
+  const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+  };
+
   const handleStartPublishing = async (
     isScheduled: boolean = false,
     pickedDateStr?: string,
     pickedTimeStr?: string
   ) => {
-    const dStr = pickedDateStr || schedulePickDate || '2026-11-15';
+    const dStr = pickedDateStr || schedulePickDate || new Date().toISOString().slice(0, 10);
     const tStr = pickedTimeStr || schedulePickTime || '20:00';
     const parts = dStr.split('-');
     const formattedDate = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dStr;
@@ -242,7 +254,7 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
     setIsPublishingModalOpen(true);
     setIsPublishComplete(false);
     setPublishProgress(20);
-    setPublishStepText('Đang xác thực OAuth Token kênh đích và đồng bộ gói lưu trữ máy chủ AES-256...');
+    setPublishStepText('Đang xác thực OAuth Token kênh đích & kiểm tra tệp video thực tế...');
 
     const headers = {
       'Content-Type': 'application/json',
@@ -251,11 +263,28 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
 
     const verifiedChannels: string[] = [];
     const failedChannels: string[] = [];
+    const ytUploadNotes: string[] = [];
+    const manualExportNotes: string[] = [];
     const verifiedPublishedUrls: Record<string, string> = {};
+    let ytUploadSucceeded = false;
 
     const targets = Array.isArray(project.targetChannels) && project.targetChannels.length > 0
       ? project.targetChannels
       : ['youtube'];
+
+    let localVideoBlob: Blob | null = selectedYoutubeVideoFile;
+    let localVideoMime = selectedYoutubeVideoFile?.type || 'video/mp4';
+    if (!localVideoBlob && project.videoUrl && (project.videoUrl.startsWith('blob:') || project.videoUrl.startsWith('data:video/'))) {
+      try {
+        const bRes = await fetch(project.videoUrl);
+        if (bRes.ok) {
+          localVideoBlob = await bRes.blob();
+          if (localVideoBlob.type) localVideoMime = localVideoBlob.type;
+        }
+      } catch {
+        localVideoBlob = null;
+      }
+    }
 
     for (let i = 0; i < targets.length; i++) {
       const pf = targets[i];
@@ -263,6 +292,7 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
       try {
         const resp = await fetch('/api/channels/verify-publish', {
           method: 'POST',
+          credentials: 'include',
           headers,
           body: JSON.stringify({
             platform: pf,
@@ -272,8 +302,54 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
         const data = await resp.json().catch(() => ({}));
         if (resp.ok && data?.success) {
           verifiedChannels.push(pf);
-          if (data.handleOrUrl) {
-            verifiedPublishedUrls[pf] = data.handleOrUrl;
+          if (pf === 'tiktok' || pf === 'facebook') {
+            if (data.handleOrUrl) verifiedPublishedUrls[pf] = data.handleOrUrl;
+            manualExportNotes.push(`${pf.toUpperCase()}: Cần xuất tệp MP4 để đăng thủ công`);
+          } else if (pf === 'youtube') {
+            if (localVideoBlob && localVideoBlob.size > 0 && localVideoBlob.size <= 40 * 1024 * 1024) {
+              setPublishStepText('Đang tải video lên YouTube Data API v3 (Resumable Upload)...');
+              const buf = await localVideoBlob.arrayBuffer();
+              const videoBase64 = arrayBufferToBase64(buf);
+              let publishAtIso: string | undefined;
+              if (isScheduled) {
+                const parsedDt = new Date(`${dStr}T${tStr}:00`);
+                if (!Number.isNaN(parsedDt.getTime())) publishAtIso = parsedDt.toISOString();
+              }
+              const pubResp = await fetch('/api/channels/publish-youtube', {
+                method: 'POST',
+                credentials: 'include',
+                headers,
+                body: JSON.stringify({
+                  title: project.metadata?.title || project.title,
+                  description: project.metadata?.description || project.title,
+                  tags: project.metadata?.tags || [],
+                  privacyStatus: isScheduled ? 'private' : 'public',
+                  publishAt: publishAtIso,
+                  videoBase64,
+                  mimeType: localVideoMime,
+                }),
+              });
+              const pubData = await pubResp.json().catch(() => ({}));
+              if (pubResp.ok && pubData?.success && pubData?.videoId) {
+                ytUploadSucceeded = true;
+                const watchUrl = String(pubData.watchUrl || `https://www.youtube.com/watch?v=${pubData.videoId}`);
+                verifiedPublishedUrls.youtube = watchUrl;
+                ytUploadNotes.push(
+                  isScheduled && pubData.scheduledPublishAt
+                    ? `YouTube đã nhận video & hẹn giờ phát hành (${watchUrl})`
+                    : `YouTube đã tải lên thành công (${watchUrl})`
+                );
+              } else {
+                failedChannels.push(`YOUTUBE Upload (${pubData?.error || 'Lỗi YouTube API'})`);
+              }
+            } else {
+              if (data.handleOrUrl) verifiedPublishedUrls.youtube = data.handleOrUrl;
+              ytUploadNotes.push(
+                localVideoBlob && localVideoBlob.size > 40 * 1024 * 1024
+                  ? 'Tệp video >40MB vượt giới hạn upload trực tiếp từ trình duyệt; hãy tải lên thủ công hoặc dùng Drive.'
+                  : 'Chưa có tệp MP4/WebM (hãy xuất WebCodecs MP4 hoặc chọn file video) để tự động tải lên YouTube API.'
+              );
+            }
           }
         } else {
           failedChannels.push(`${pf.toUpperCase()} (${data?.error || 'Chưa xác thực OAuth'})`);
@@ -288,6 +364,7 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
     try {
       const syncResp = await fetch('/api/drive/sync-project', {
         method: 'POST',
+        credentials: 'include',
         headers,
         body: JSON.stringify({ project }),
       });
@@ -304,32 +381,54 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
 
     if (verifiedChannels.length === 0) {
       setPublishStepText(
-        `Chưa thể xuất bản ra MXH vì chưa có kênh nào xác thực OAuth 2.0 hợp lệ (${failedChannels.join('; ')}). Dự án đã được phê duyệt nội bộ vào Kho Lưu Trữ AES-256${realArchiveUrl ? ` (${realArchiveUrl})` : ''} và chuyển sang mục "Tất cả dự án" để theo dõi.`
+        `Chưa thể xuất bản ra MXH vì chưa có kênh nào xác thực OAuth 2.0 hợp lệ (${failedChannels.join('; ')}). Dự án đã được lưu gói JSON mã hóa AES-256-GCM trên máy chủ${realArchiveUrl ? ` (${realArchiveUrl})` : ''}.`
       );
       const internallyApproved: Project = {
         ...project,
-        status: 'scheduled',
-        scheduledTime: isScheduled ? scheduledLabel : 'Đã duyệt nội bộ (Chờ xác thực OAuth MXH)',
+        status: isScheduled ? 'scheduled' : 'pending_approval',
+        scheduledTime: isScheduled ? scheduledLabel : undefined,
         driveBackupUrl: realArchiveUrl || project.driveBackupUrl || undefined,
       };
       onUpdateProject(internallyApproved);
       return;
     }
 
-    setPublishStepText(
-      isScheduled
-        ? `Đã xác thực OAuth cho [${verifiedChannels.join(', ')}] và duyệt hẹn giờ vào lúc ${tStr} ngày ${formattedDate}!`
-        : `Đã xác thực OAuth và đồng bộ xuất bản thật cho [${verifiedChannels.join(', ')}]${failedChannels.length > 0 ? `. Bỏ qua kênh chưa kết nối: ${failedChannels.join(', ')}` : ''}.`
-    );
+    const detailNotes = [...ytUploadNotes, ...manualExportNotes, ...(failedChannels.length > 0 ? [`Lỗi: ${failedChannels.join(', ')}`] : [])];
+    if (isScheduled) {
+      setPublishStepText(
+        `Đã lưu lịch phát sóng lúc ${tStr} ngày ${formattedDate} [${verifiedChannels.join(', ')}]. ${detailNotes.join(' · ')}`
+      );
+      onUpdateProject({
+        ...project,
+        status: 'scheduled',
+        scheduledTime: scheduledLabel,
+        driveBackupUrl: realArchiveUrl || undefined,
+        publishedUrls: verifiedPublishedUrls,
+      });
+      return;
+    }
 
-    const updated: Project = {
-      ...project,
-      status: isScheduled ? 'scheduled' : 'published',
-      scheduledTime: isScheduled ? scheduledLabel : undefined,
-      driveBackupUrl: realArchiveUrl || undefined,
-      publishedUrls: verifiedPublishedUrls,
-    };
-    onUpdateProject(updated);
+    if (ytUploadSucceeded) {
+      setPublishStepText(
+        `Đã tải video thật lên YouTube Data API v3! ${detailNotes.join(' · ')}`
+      );
+      onUpdateProject({
+        ...project,
+        status: 'published',
+        driveBackupUrl: realArchiveUrl || undefined,
+        publishedUrls: verifiedPublishedUrls,
+      });
+    } else {
+      setPublishStepText(
+        `Chưa đánh dấu ĐÃ ĐĂNG do chưa có video MP4 tải thành công lên YouTube/MXH. ${detailNotes.join(' · ')}`
+      );
+      onUpdateProject({
+        ...project,
+        status: 'pending_approval',
+        driveBackupUrl: realArchiveUrl || undefined,
+        publishedUrls: verifiedPublishedUrls,
+      });
+    }
   };
 
   const handleSaveSceneEdit = (sceneId: number) => {
@@ -608,6 +707,13 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                 >
                   <Smartphone className="w-3.5 h-3.5" /> 9:16 (Shorts/Reels)
                 </button>
+                <button
+                  onClick={() => setAspectRatio('4:5')}
+                  className={`studio-segmented-item flex items-center gap-1.5 cursor-pointer ${aspectRatio === '4:5' ? 'active' : ''
+                    }`}
+                >
+                  <Smartphone className="w-3.5 h-3.5" /> 4:5 (Feed)
+                </button>
               </div>
 
               {/* Mockup selector */}
@@ -874,15 +980,38 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                 </button>
               </div>
 
-              {/* Primary Approval Action Button */}
-              <button
-                onClick={() => handleStartPublishing(false)}
-                className="btn-primary cursor-pointer"
-                data-testid="btn-publish-now-bottom"
-              >
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Duyệt Đăng Ngay</span>
-              </button>
+              {/* Primary Approval Action Button + MP4 Upload Selector */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  ref={youtubeUploadInputRef}
+                  type="file"
+                  accept="video/mp4,video/webm,video/quicktime"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setSelectedYoutubeVideoFile(file);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => youtubeUploadInputRef.current?.click()}
+                  className="btn-secondary text-xs cursor-pointer"
+                  title="Chọn tệp MP4/WebM để tải lên trực tiếp qua YouTube Data API v3 (tối đa 40MB)"
+                >
+                  <Upload className="w-3.5 h-3.5 text-zinc-500" />
+                  <span className="max-w-[140px] truncate">
+                    {selectedYoutubeVideoFile ? selectedYoutubeVideoFile.name : 'Chọn MP4 YouTube'}
+                  </span>
+                </button>
+                <button
+                  onClick={() => handleStartPublishing(false)}
+                  className="btn-primary cursor-pointer"
+                  data-testid="btn-publish-now-bottom"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Duyệt Đăng Ngay</span>
+                </button>
+              </div>
             </div>
 
           </div>
@@ -1478,7 +1607,7 @@ export const ProjectReviewWorkspace: React.FC<ProjectReviewWorkspaceProps> = ({
                     }}
                     className="btn-secondary text-xs flex items-center gap-1 cursor-pointer"
                   >
-                    <span>Kho Lưu Trữ AES-256</span>
+                    <span>Kho Lưu Trữ Máy Chủ</span>
                     <ExternalLink className="w-3 h-3 text-zinc-500" />
                   </button>
                 </div>

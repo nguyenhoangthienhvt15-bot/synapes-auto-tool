@@ -61,11 +61,16 @@ import {
 import { fixWebmDuration } from '../utils/webmDurationFix';
 import {
   renderThreeDStageToCanvas,
+  loadCustomGltfAvatar,
   renderPixarCountrysideStageToCanvas,
   renderMotherDuckAndDucklings3dStageToCanvas,
   renderZodiac12Pixar3dStageToCanvas,
   renderDragonflyRainSong3dStageToCanvas,
 } from '../utils/threeDStageRenderer';
+import {
+  exportCanvasWithMediabunnyMp4,
+  isWebCodecsExportSupported,
+} from '../utils/webCodecsMp4Exporter';
 import { renderPaperArtStageToCanvas } from '../utils/paperArtStageRenderer';
 import {
   applyGlSceneTransition,
@@ -82,7 +87,7 @@ import {
 
 interface AiCinemaPlayerProps {
   project: Project;
-  aspectRatio: '16:9' | '9:16';
+  aspectRatio: '16:9' | '9:16' | '4:5';
   showSocialMockup: 'none' | 'tiktok' | 'youtube';
   activeSceneId?: number | null;
   onSelectScene?: (sceneId: number) => void;
@@ -188,6 +193,34 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
   const [isSyncingVoiceTimeline, setIsSyncingVoiceTimeline] = useState<boolean>(false);
   const [voiceSyncNotice, setVoiceSyncNotice] = useState<string>('');
   const isExportingVideoRef = useRef<boolean>(false);
+  const customGltfAvatarRef = useRef<Awaited<ReturnType<typeof loadCustomGltfAvatar>>>(null);
+
+  useEffect(() => {
+    const assets = Array.isArray(project.character3dAssets) ? project.character3dAssets : [];
+    const preferredAsset =
+      assets.find((a) => a.approvalStatus === 'approved' && (a.glbUrl || a.jobId)) ||
+      assets.find((a) => Boolean(a.glbUrl || a.jobId));
+    if (!preferredAsset) {
+      customGltfAvatarRef.current = null;
+      return;
+    }
+    const targetUrl =
+      preferredAsset.jobId
+        ? `/api/assets-3d/glb-proxy?jobId=${encodeURIComponent(preferredAsset.jobId)}`
+        : String(preferredAsset.glbUrl || '');
+    if (!targetUrl) return;
+    let active = true;
+    loadCustomGltfAvatar(targetUrl)
+      .then((group) => {
+        if (active) customGltfAvatarRef.current = group;
+      })
+      .catch(() => {
+        if (active) customGltfAvatarRef.current = null;
+      });
+    return () => {
+      active = false;
+    };
+  }, [project.character3dAssets]);
 
   useEffect(() => {
     isExportingVideoRef.current = isExportingVideo;
@@ -889,9 +922,13 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
         if (currentAudioElementRef.current) {
           currentAudioElementRef.current.pause();
         }
-        const audio = synthRef.current?.playCustomAudioBlob(scene.customAudioUrl, () => {
-          currentAudioElementRef.current = null;
-        });
+        const audio = synthRef.current?.playCustomAudioBlob(
+          scene.customAudioUrl,
+          () => {
+            currentAudioElementRef.current = null;
+          },
+          scene.voiceSpeed || 1.0
+        );
         currentAudioElementRef.current = audio || null;
         return;
       }
@@ -935,7 +972,20 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       voiceHoldStartMsRef.current = null;
       voiceFetchWaitStartMsRef.current = null;
       if (!isMuted) {
-        synthRef.current?.playSfx(activeEditSkill.sfxOnCut || 'whoosh');
+        const sfxLow = String(currentScene.sfx || '').toLowerCase();
+        const mappedSfx: 'whoosh' | 'sub-drop' | 'camera-shutter' | 'chime' | 'glitch' =
+          /glitch|cyber|static|neon|error/.test(sfxLow)
+            ? 'glitch'
+            : /drop|boom|bass|impact|thud|punch|pulse/.test(sfxLow)
+              ? 'sub-drop'
+              : /shutter|camera|flash|snap|click/.test(sfxLow)
+                ? 'camera-shutter'
+                : /chime|ding|bell|spark|magic|piano/.test(sfxLow)
+                  ? 'chime'
+                  : /whoosh|swoosh|wind|swipe|slide/.test(sfxLow)
+                    ? 'whoosh'
+                    : (activeEditSkill.sfxOnCut as any) || 'whoosh';
+        synthRef.current?.playSfx(mappedSfx);
         if (!masterAudioUrl && !isExportingVideoRef.current) {
           speakSceneVoiceover(currentScene, scenes[currentSceneIndex + 1]);
         }
@@ -3037,6 +3087,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           cameraMotion: tScene.cameraMotion || 'orbit',
           isSpeaking: isPlayingRef.current || exportScope === 'full',
           mode: 'full-stage',
+          customGltfAvatar: customGltfAvatarRef.current,
         });
         if (rendered3d) {
           targetCtx.restore();
@@ -3112,6 +3163,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
           cameraMotion: tScene.cameraMotion || 'orbit',
           isSpeaking: isPlayingRef.current,
           mode: 'full-stage',
+          customGltfAvatar: customGltfAvatarRef.current,
         });
         if (!renderedFallback3d) {
           drawEditorialBroadcastStage(targetCtx, tW, tH, tClock, tScene);
@@ -3388,6 +3440,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       progress: 0.5,
       isSpeaking: isPlayingRef.current,
       mode: 'pip-host',
+      customGltfAvatar: customGltfAvatarRef.current,
     });
     if (renderedWebGl) return;
 
@@ -4732,9 +4785,15 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
       ctx.fillStyle = 'rgba(245, 158, 11, 0.09)'; // Warm sepia tone
       ctx.fillRect(0, 0, W, H);
     } else if (lut === 'monochrome') {
-      // High-contrast B&W overlay
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+      // Desaturate genuinely using Canvas2D 'saturation' blend + mild contrast dark veil
+      ctx.save();
+      ctx.globalCompositeOperation = 'saturation';
+      ctx.fillStyle = 'hsl(0, 0%, 50%)';
       ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.14)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
     } else if (lut === 'apple-keynote') {
       // Apple Keynote Master: Deep Obsidian blacks, slight cool silver metallic tint, subtle rim-light boost
       const grad = ctx.createLinearGradient(0, 0, W, H);
@@ -4870,7 +4929,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     progress: number,
     style: SubtitleStyle,
     position: SubtitlePosition,
-    ratio: '16:9' | '9:16',
+    ratio: '16:9' | '9:16' | '4:5',
     avoidNewsLowerThird: boolean = false
   ) => {
     // Split subtitles cleanly along Vietnamese clause punctuation first (avoid mid-clause orphan chunks)
@@ -5333,6 +5392,88 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
     }
   };
 
+  const handleExportWebCodecsMp4 = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas || isExportingVideo) return;
+    if (!isWebCodecsExportSupported()) {
+      alert('Trình duyệt hiện tại chưa bật WebCodecs VideoEncoder. Vui lòng chọn "Bắt Đầu Xuất Video" (WebM) hoặc dùng Chrome/Edge bản mới.');
+      return;
+    }
+    const prevSpeed = playbackSpeedRef.current;
+    const prevPlaying = isPlaying;
+    let isCancelled = false;
+    exportCancelRef.current = () => {
+      isCancelled = true;
+    };
+    try {
+      isExportingVideoRef.current = true;
+      setIsExportingVideo(true);
+      setShowExportModal(true);
+      setIsPlaying(false);
+      setExportProgress(2);
+      setExportStatusText('Đang khởi tạo WebCodecs MP4 Exporter (H.264/AAC FastStart)...');
+
+      const startOffsetSec = exportScope === 'current' ? currentScene.startSec : 0;
+      const exportDurSec =
+        exportScope === 'current'
+          ? Math.max(2, currentScene.endSec - currentScene.startSec)
+          : Math.max(2, totalDuration);
+
+      const safeFilename = `${project.code || 'SYNAPES'}_${project.title.slice(0, 24).replace(/\s+/g, '_')}_WebCodecs.mp4`;
+      const result = await exportCanvasWithMediabunnyMp4({
+        canvas,
+        durationSec: exportDurSec,
+        fps: 24,
+        filename: safeFilename,
+        preferFileSystemPicker: false,
+        onRenderFrame: async (_frameIdx, tsSec) => {
+          if (isCancelled) throw new Error('Đã hủy kết xuất MP4.');
+          const timelineTime = Math.min(totalDuration, startOffsetSec + tsSec);
+          currentTimeRef.current = timelineTime;
+          drawCinemaCanvasRef.current(tsSec, timelineTime);
+        },
+        onProgress: (pct, msg) => {
+          if (!isCancelled) {
+            setExportProgress(pct);
+            setExportStatusText(msg);
+          }
+        },
+      });
+
+      const sizeMbText = (result.byteLength / (1024 * 1024)).toFixed(2);
+      if (result.blob) {
+        const url = URL.createObjectURL(result.blob);
+        (window as any).__SYNAPES_LAST_EXPORT = {
+          filename: safeFilename,
+          sizeBytes: result.blob.size,
+          durationMs: Math.round(exportDurSec * 1000),
+          mimeType: 'video/mp4',
+          url,
+          completedAt: new Date().toISOString(),
+        };
+        onUpdateProject?.({ ...project, videoUrl: url });
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = safeFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+      setExportProgress(100);
+      setExportStatusText(`Xuất MP4 thành công (${sizeMbText} MB)!`);
+      setTimeout(() => setShowExportModal(false), 300);
+    } catch (err) {
+      setExportStatusText('Lỗi xuất MP4 WebCodecs: ' + String((err as Error)?.message || err));
+    } finally {
+      playbackSpeedRef.current = prevSpeed;
+      isExportingVideoRef.current = false;
+      exportCancelRef.current = null;
+      setIsExportingVideo(false);
+      if (prevPlaying) setIsPlaying(true);
+    }
+  };
+
   const formatTime = (sec: number) => {
     const s = Math.max(0, Math.floor(sec));
     const m = Math.floor(s / 60);
@@ -5506,13 +5647,17 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
 
       {/* 2. MAIN VIDEO VIEWPORT (HTML5 Canvas 60fps) */}
       <div
-        className={`w-full mx-auto bg-zinc-950 rounded-2xl overflow-hidden relative border border-black/20 shadow-2xl flex items-center justify-center ${aspectRatio === '16:9' ? 'aspect-video' : 'aspect-[9/16] max-h-[520px]'
+        className={`w-full mx-auto bg-zinc-950 rounded-2xl overflow-hidden relative border border-black/20 shadow-2xl flex items-center justify-center ${aspectRatio === '16:9'
+          ? 'aspect-video'
+          : aspectRatio === '4:5'
+            ? 'aspect-[4/5] max-h-[540px]'
+            : 'aspect-[9/16] max-h-[520px]'
           }`}
       >
         <canvas
           ref={canvasRef}
           width={aspectRatio === '16:9' ? 1920 : 1080}
-          height={aspectRatio === '16:9' ? 1080 : 1920}
+          height={aspectRatio === '16:9' ? 1080 : aspectRatio === '4:5' ? 1350 : 1920}
           className="w-full h-full object-contain cursor-pointer"
           onClick={() => setIsPlaying((p) => !p)}
         />
@@ -5880,7 +6025,7 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                   <span>Âm thanh: Stereo 48kHz</span>
                 </div>
 
-                <div className="pt-2 flex justify-end gap-2 border-t border-black/[0.06]">
+                <div className="pt-2 flex flex-wrap justify-end gap-2 border-t border-black/[0.06]">
                   <button
                     type="button"
                     onClick={() => setShowExportModal(false)}
@@ -5890,11 +6035,21 @@ export const AiCinemaPlayer: React.FC<AiCinemaPlayerProps> = ({
                   </button>
                   <button
                     type="button"
+                    onClick={handleExportWebCodecsMp4}
+                    className="px-3.5 py-2 bg-zinc-900 hover:bg-black text-white rounded-lg font-bold flex items-center gap-1.5 transition cursor-pointer shadow-md"
+                    title="Kết xuất trực tiếp sang tệp MP4 H.264 bằng WebCodecs"
+                    data-testid="btn-export-webcodecs-mp4"
+                  >
+                    <Download className="w-4 h-4 text-sky-400" />
+                    <span>Xuất MP4 (WebCodecs)</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleExportFullTimelineVideo}
                     className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold flex items-center gap-1.5 transition cursor-pointer shadow-md"
                   >
                     <Download className="w-4 h-4" />
-                    <span>Bắt Đầu Xuất Video</span>
+                    <span>Bắt Đầu Xuất Video (WebM)</span>
                   </button>
                 </div>
               </div>

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { downloadCapCutDraftFile } from '../services/capcutDraftExporter';
 import { getAuthHeaders } from '../services/userProfileService';
+import { isWebCodecsExportSupported, exportCanvasWithMediabunnyMp4 } from '../utils/webCodecsMp4Exporter';
 
 interface LocalStitcherClip {
   id: string;
@@ -37,29 +38,15 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
   onClose,
   onFinishStitching,
 }) => {
-  // Chuyển đổi storyboard thành danh sách clips 10s
+  // Chuyển đổi storyboard thực tế của dự án thành danh sách clip trên Timeline (không chèn clip Unsplash giả)
   const initialClips: LocalStitcherClip[] = (project.storyboard || []).map((sc: StoryboardScene, idx: number) => ({
     id: `clip-${sc.id || idx}`,
     name: `Phân cảnh ${sc.sceneNumber || idx + 1}`,
-    thumbnailUrl: project.thumbnailUrl,
-    videoUrl: sc.clipUrl || project.videoUrl,
-    durationSec: sc.endSec && sc.startSec ? sc.endSec - sc.startSec : 10,
+    thumbnailUrl: project.thumbnailUrl || '',
+    videoUrl: sc.clipUrl || project.videoUrl || '',
+    durationSec: sc.endSec && sc.startSec ? Math.max(1, sc.endSec - sc.startSec) : 10,
     transition: sc.transition || 'cut',
   }));
-
-  // Nếu là video 16:9 nhưng số clip chưa đủ 5 phút, tự động tạo các clip kịch bản phân đoạn 10s mẫu
-  if (initialClips.length < 15 && project.aspectRatio === '16:9') {
-    for (let i = initialClips.length; i < 32; i++) {
-      initialClips.push({
-        id: `clip-gen-${i + 1}`,
-        name: `Phân cảnh nội dung #${i + 1}`,
-        thumbnailUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80',
-        videoUrl: project.videoUrl,
-        durationSec: 10,
-        transition: 'cut',
-      });
-    }
-  }
 
   const [clips, setClips] = useState<LocalStitcherClip[]>(initialClips);
   const [selectedBgm, setSelectedBgm] = useState<string>('Cyberpunk Ambient Synth (10min Commercial)');
@@ -125,6 +112,73 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
     setClips(clips.filter((c) => c.id !== id));
   };
 
+  const handleLoadLocalVideoFiles = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const loadedClips: LocalStitcherClip[] = [];
+    for (const file of Array.from(fileList)) {
+      const objectUrl = URL.createObjectURL(file);
+      let durationSec = 10;
+      let thumb = project.thumbnailUrl || '';
+      try {
+        const meta = await new Promise<{ dur: number; thumb: string }>((resolve) => {
+          const vid = document.createElement('video');
+          vid.preload = 'metadata';
+          vid.muted = true;
+          vid.playsInline = true;
+          vid.src = objectUrl;
+          const finish = (durVal: number, thumbVal: string) => {
+            vid.onloadedmetadata = null;
+            vid.onseeked = null;
+            vid.onerror = null;
+            resolve({ dur: durVal, thumb: thumbVal });
+          };
+          vid.onloadedmetadata = () => {
+            const rawDur = Number.isFinite(vid.duration) && vid.duration > 0 ? Math.round(vid.duration) : 10;
+            try {
+              vid.currentTime = Math.min(0.2, rawDur * 0.1);
+            } catch {
+              finish(rawDur, '');
+            }
+          };
+          vid.onseeked = () => {
+            let dataThumb = '';
+            try {
+              const c = document.createElement('canvas');
+              c.width = 320;
+              c.height = 180;
+              const cx = c.getContext('2d');
+              if (cx) {
+                cx.drawImage(vid, 0, 0, c.width, c.height);
+                dataThumb = c.toDataURL('image/jpeg', 0.75);
+              }
+            } catch {
+              dataThumb = '';
+            }
+            const rawDur = Number.isFinite(vid.duration) && vid.duration > 0 ? Math.round(vid.duration) : 10;
+            finish(rawDur, dataThumb);
+          };
+          vid.onerror = () => finish(10, '');
+          setTimeout(() => finish(10, ''), 2500);
+        });
+        durationSec = Math.max(1, meta.dur);
+        if (meta.thumb) thumb = meta.thumb;
+      } catch {
+        // retain defaults
+      }
+      loadedClips.push({
+        id: `clip-file-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        name: file.name.replace(/\.[^.]+$/, '') || `Clip cục bộ`,
+        thumbnailUrl: thumb,
+        videoUrl: objectUrl,
+        durationSec,
+        transition: 'cut',
+      });
+    }
+    if (loadedClips.length > 0) {
+      setClips((prev) => [...prev, ...loadedClips]);
+    }
+  };
+
   const handleAddCustomClip = (e: React.FormEvent) => {
     e.preventDefault();
     if (!customClipUrl.trim()) return;
@@ -132,7 +186,7 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
     const newClip: LocalStitcherClip = {
       id: `clip-custom-${Date.now()}`,
       name: `Clip URL #${clips.length + 1}`,
-      thumbnailUrl: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?auto=format&fit=crop&w=400&q=80',
+      thumbnailUrl: project.thumbnailUrl || '',
       videoUrl: customClipUrl.trim(),
       durationSec: Number(customClipDuration) || 10,
       transition: 'cut',
@@ -145,10 +199,9 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
 
   const handleStartStitching = async () => {
     setIsProcessing(true);
-    setProcessPercent(50);
-    setProcessStep('Đang chuẩn hóa phân cảnh và gửi tín hiệu ghép Master sang Backend Worker...');
+    setProcessPercent(10);
+    setProcessStep('Đang chuẩn bị trình kết xuất tuần tự trên trình duyệt (WebCodecs / Canvas)...');
 
-    // Cập nhật cấu trúc phân cảnh thực tế cho project
     const updatedScenes: StoryboardScene[] = clips.map((c, i) => {
       const start = clips.slice(0, i).reduce((sum, item) => sum + item.durationSec, 0);
       const end = clips.slice(0, i + 1).reduce((sum, item) => sum + item.durationSec, 0);
@@ -166,10 +219,112 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
       };
     });
 
+    const isVertical = project.aspectRatio === '9:16';
+    const canvas = document.createElement('canvas');
+    canvas.width = isVertical ? 720 : project.aspectRatio === '4:5' ? 720 : 1280;
+    canvas.height = isVertical ? 1280 : project.aspectRatio === '4:5' ? 900 : 720;
+    const ctx = canvas.getContext('2d');
+
+    const loadedVideos = new Map<string, HTMLVideoElement>();
+    const safeClips = clips.slice(0, 40);
+    for (const clip of safeClips) {
+      if (!clip.videoUrl || loadedVideos.has(clip.videoUrl)) continue;
+      if (clip.videoUrl.startsWith('blob:') || clip.videoUrl.startsWith('data:')) {
+        try {
+          const vid = document.createElement('video');
+          vid.muted = true;
+          vid.playsInline = true;
+          vid.crossOrigin = 'anonymous';
+          vid.src = clip.videoUrl;
+          await new Promise<void>((res) => {
+            const done = () => res();
+            vid.onloadeddata = done;
+            vid.onerror = done;
+            setTimeout(done, 1500);
+          });
+          if (vid.readyState >= 2) loadedVideos.set(clip.videoUrl, vid);
+        } catch {
+          // fallback to title card rendering for clip
+        }
+      }
+    }
+
+    const renderDurationSec = Math.min(Math.max(2, totalDurationSec), 60);
+    const renderStitchFrameAt = async (timestampSec: number) => {
+      if (!ctx) return;
+      ctx.fillStyle = '#09090b';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      let acc = 0;
+      let activeClip = safeClips[0];
+      let localTime = 0;
+      const scaleFactor = totalDurationSec > 0 ? totalDurationSec / renderDurationSec : 1;
+      const timelineT = timestampSec * scaleFactor;
+      for (const c of safeClips) {
+        if (timelineT <= acc + c.durationSec || c === safeClips[safeClips.length - 1]) {
+          activeClip = c;
+          localTime = Math.max(0, timelineT - acc);
+          break;
+        }
+        acc += c.durationSec;
+      }
+
+      const vid = activeClip?.videoUrl ? loadedVideos.get(activeClip.videoUrl) : undefined;
+      if (vid && vid.videoWidth > 0 && vid.videoHeight > 0) {
+        try {
+          const targetT = vid.duration > 0 ? localTime % vid.duration : 0;
+          if (Math.abs(vid.currentTime - targetT) > 0.15) {
+            vid.currentTime = targetT;
+          }
+          ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+        } catch {
+          ctx.fillStyle = '#18181b';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+      } else {
+        ctx.fillStyle = '#18181b';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#f4f4f5';
+        ctx.font = 'bold 34px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(activeClip?.name || project.title, canvas.width / 2, canvas.height / 2);
+      }
+    };
+
     let stitchFeedback = `Đã liên kết ${clips.length} phân cảnh vào Timeline Master.`;
+    if (ctx && safeClips.length > 0 && isWebCodecsExportSupported()) {
+      try {
+        const resMp4 = await exportCanvasWithMediabunnyMp4({
+          canvas,
+          durationSec: renderDurationSec,
+          fps: 24,
+          filename: `${project.id}_stitched_master.mp4`,
+          preferFileSystemPicker: false,
+          onRenderFrame: async (_frameIdx, ts) => {
+            await renderStitchFrameAt(ts);
+          },
+          onProgress: (pct, msg) => {
+            setProcessPercent(Math.min(90, Math.max(15, pct)));
+            setProcessStep(msg);
+          },
+        });
+        const sizeMbText = (resMp4.byteLength / (1024 * 1024)).toFixed(2);
+        if (resMp4.blob) {
+          const masterUrl = URL.createObjectURL(resMp4.blob);
+          project.videoUrl = masterUrl;
+        }
+        stitchFeedback = `Đã ghép & kết xuất MP4 (${sizeMbText} MB, WebCodecs) cho ${clips.length} phân cảnh.`;
+      } catch {
+        // Graceful fallback to timeline manifest persistence if browser lacks encoder codecs
+      }
+    }
+
+    setProcessPercent(92);
+    setProcessStep('Đang lưu cấu trúc Timeline Master về máy chủ...');
     try {
       const resp = await fetch('/api/video-stitch', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...getAuthHeaders(),
@@ -182,17 +337,16 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
         }),
       });
       const data = await resp.json().catch(() => ({}));
-      if (resp.ok && data?.success) {
+      if (resp.ok && data?.success && !project.videoUrl.startsWith('blob:')) {
         stitchFeedback = data.message || stitchFeedback;
       }
     } catch {
-      // Offline fallback: lưu metadata cục bộ trên Timeline
+      // keep client rendered state
     }
 
     setProcessPercent(100);
     setProcessStep(stitchFeedback);
 
-    // Lưu trữ metadata vào project
     project.storyboard = updatedScenes;
     project.duration = totalDurationSec;
 
@@ -272,7 +426,7 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
 
             <div className="pt-3 border-t border-black/[0.06] flex items-center justify-between text-[11px] text-zinc-500">
               <span>Đang kết hợp: <strong className="text-zinc-900 font-mono font-medium">{clips.length} phân cảnh</strong></span>
-              <span className="font-mono text-[10px]">FFmpeg Concat Demuxer Engine</span>
+              <span className="font-mono text-[10px]">WebCodecs MP4 / Canvas Stitcher Engine</span>
             </div>
           </div>
         </div>
@@ -346,8 +500,11 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
                   onClick={() => {
                     const input = document.createElement('input');
                     input.type = 'file';
-                    input.accept = 'video/mp4';
-                    input.onchange = () => alert('Đã nạp file video từ máy.');
+                    input.multiple = true;
+                    input.accept = 'video/mp4,video/webm,video/quicktime';
+                    input.onchange = () => {
+                      void handleLoadLocalVideoFiles(input.files);
+                    };
                     input.click();
                   }}
                   className="p-3 rounded-lg bg-zinc-50 hover:bg-zinc-100 border border-black/[0.06] text-left text-xs transition cursor-pointer"
@@ -427,8 +584,8 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
               const newC: LocalStitcherClip = {
                 id: `clip-${Date.now()}`,
                 name: `Clip mới`,
-                thumbnailUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80',
-                videoUrl: project.videoUrl,
+                thumbnailUrl: project.thumbnailUrl || '',
+                videoUrl: project.videoUrl || '',
                 durationSec: 10,
                 transition: 'cut',
               };
@@ -447,12 +604,16 @@ export const MultiClipStitcherStudio: React.FC<MultiClipStitcherStudioProps> = (
               key={clip.id}
               className="relative flex-shrink-0 w-30 bg-zinc-50 border border-black/[0.08] rounded-lg overflow-hidden group hover:border-black/20 transition"
             >
-              <div className="h-16 w-full relative bg-zinc-950">
-                <img
-                  src={clip.thumbnailUrl}
-                  alt={clip.name}
-                  className="w-full h-full object-cover opacity-90"
-                />
+              <div className="h-16 w-full relative bg-zinc-950 flex items-center justify-center">
+                {clip.thumbnailUrl ? (
+                  <img
+                    src={clip.thumbnailUrl}
+                    alt={clip.name}
+                    className="w-full h-full object-cover opacity-90"
+                  />
+                ) : (
+                  <Film className="w-5 h-5 text-zinc-500" />
+                )}
                 <span className="absolute bottom-1 right-1 px-1 py-0.2 rounded bg-black/80 font-mono text-[9px] text-emerald-400 font-medium">
                   {clip.durationSec}s
                 </span>

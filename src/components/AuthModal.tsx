@@ -60,6 +60,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const authHdrs = getAuthHeaders(code);
     if (!authHdrs.Authorization) return;
     fetch(`/api/auth/password-quota?code=${encodeURIComponent(code)}`, {
+      credentials: 'include',
       headers: authHdrs,
     })
       .then((r) => (r.ok ? r.json() : null))
