@@ -21,12 +21,49 @@ var TIMO_BANK_INFO = {
   accountHolder: "NGUYEN HOANG THIEN"
 };
 
+/**
+ * Đọc số CCCD Bên A từ ScriptProperties (không hardcode thông tin định danh cá nhân trong mã nguồn)
+ */
 function getPartyAIdNumber() {
   try {
     var val = PropertiesService.getScriptProperties().getProperty("PARTY_A_ID_NUMBER");
     if (val && String(val).trim()) return String(val).trim();
   } catch (e) {}
   return "Theo hồ sơ pháp lý Bên A";
+}
+
+/**
+ * Chỉ cho phép tên hàm JSONP callback an toàn dạng identifier chuẩn [a-zA-Z_$][0-9a-zA-Z_$]{0,63}
+ */
+function isValidJsonpCallback(cb) {
+  if (typeof cb !== "string") return false;
+  var trimmed = cb.trim();
+  return /^[a-zA-Z_$][0-9a-zA-Z_$]{0,63}$/.test(trimmed);
+}
+
+function constantTimeEqualsGas(a, b) {
+  var sa = String(a || "");
+  var sb = String(b || "");
+  if (!sa || !sb || sa.length !== sb.length) return false;
+  var diff = 0;
+  for (var i = 0; i < sa.length; i++) {
+    diff |= sa.charCodeAt(i) ^ sb.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+/**
+ * Xác thực SYNAPES_SYNC_SECRET từ ScriptProperties cho các tác vụ đặc quyền
+ */
+function isValidGasSyncSecret(payload) {
+  try {
+    var expected = String(PropertiesService.getScriptProperties().getProperty("SYNAPES_SYNC_SECRET") || "").trim();
+    if (!expected || expected.length < 16) return false;
+    var provided = String((payload && (payload.syncSecret || payload.webhookSecret || payload.secret)) || "").trim();
+    return constantTimeEqualsGas(provided, expected);
+  } catch (e) {
+    return false;
+  }
 }
 
 /**
@@ -334,6 +371,8 @@ function onOpen() {
       .addItem("5. ⚡ Duyệt TẤT CẢ hồ sơ đang chờ duyệt Lần 1", "approveAllPendingUsers")
       .addItem("6. 🔄 Đồng bộ toàn bộ tài khoản sang Quản Lý Mật Khẩu", "syncAllAccountsMenu")
       .addItem("7. 🌐 Mở trang WebApp SYNAPES Studio", "openWebAppUrl")
+      .addSeparator()
+      .addItem("8. 🔐 Cấu hình Bí mật Bảo mật (SYNC_SECRET & CCCD Bên A)", "configureSecurityPropertiesMenu")
       .addToUi();
   } catch (e) {
     Logger.log("onOpen error: " + e);
@@ -381,7 +420,7 @@ function isUsersSheet(sheet) {
   }
   try {
     if (sheet.getSheetId() === GID_USERS) return true;
-  } catch (e) {}
+  } catch (e) { }
   return false;
 }
 
@@ -440,30 +479,55 @@ function cleanUpEmptyGhostRows(sheet) {
   }
 }
 
-function installAutoEditTrigger(ss) {
+function installAutoEditTrigger(ss, forceRecreate) {
   try {
     if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
     var triggers = ScriptApp.getProjectTriggers();
+    var hasInstallableEdit = false;
+    var hasSpreadsheetFormSubmit = false;
+
     for (var i = 0; i < triggers.length; i++) {
       var fn = triggers[i].getHandlerFunction();
-      if (fn === "onInstallableEdit" || fn === "onEdit" || fn === "onSpreadsheetFormSubmit") {
+      if (fn === "onInstallableEdit") {
+        if (forceRecreate) {
+          ScriptApp.deleteTrigger(triggers[i]);
+        } else {
+          hasInstallableEdit = true;
+        }
+      } else if (fn === "onEdit") {
         ScriptApp.deleteTrigger(triggers[i]);
+      } else if (fn === "onSpreadsheetFormSubmit") {
+        if (forceRecreate) {
+          ScriptApp.deleteTrigger(triggers[i]);
+        } else {
+          hasSpreadsheetFormSubmit = true;
+        }
       }
     }
-    ScriptApp.newTrigger("onInstallableEdit")
-      .forSpreadsheet(ss)
-      .onEdit()
-      .create();
+
+    if (!hasInstallableEdit) {
+      ScriptApp.newTrigger("onInstallableEdit")
+        .forSpreadsheet(ss)
+        .onEdit()
+        .create();
+    }
 
     // Tự động cài thêm trigger cấp Bảng tính khi có Form Submit để cập nhật tức thì (0ms)
-    try {
-      ScriptApp.newTrigger("onSpreadsheetFormSubmit")
-        .forSpreadsheet(ss)
-        .onFormSubmit()
-        .create();
-    } catch (eTrig) {
-      Logger.log("Notice: onSpreadsheetFormSubmit trigger: " + eTrig);
+    if (!hasSpreadsheetFormSubmit) {
+      try {
+        ScriptApp.newTrigger("onSpreadsheetFormSubmit")
+          .forSpreadsheet(ss)
+          .onFormSubmit()
+          .create();
+      } catch (eTrig) {
+        Logger.log("Notice: onSpreadsheetFormSubmit trigger: " + eTrig);
+      }
     }
+
+    try {
+      PropertiesService.getScriptProperties().setProperty("SYNAPES_HAS_INSTALLABLE_EDIT", "1");
+      CacheService.getScriptCache().put("SYNAPES_HAS_INSTALLABLE_EDIT", "1", 21600);
+    } catch (eFlag) { }
     return true;
   } catch (err) {
     Logger.log("Không thể tự tạo Trigger: " + err);
@@ -482,7 +546,7 @@ function setupGoogleFormBridge(ss) {
 
     var form = FormApp.create("SYNAPES Studio - Cầu Nối WebApp Tự Động");
     form.setTitle("SYNAPES Studio — Kênh Nhận Dữ Liệu Đăng Ký WebApp")
-        .setDescription("Form tự động tiếp nhận hồ sơ đăng ký và hợp đồng từ WebApp.");
+      .setDescription("Form tự động tiếp nhận hồ sơ đăng ký và hợp đồng từ WebApp.");
 
     form.addTextItem().setTitle("Họ và tên khách hàng").setRequired(true);
     form.addTextItem().setTitle("Số CCCD / CMND").setRequired(true);
@@ -540,6 +604,58 @@ function parseItemResponsesToPayload(itemResponses) {
 }
 
 /**
+ * Trích xuất payload hành động đặc biệt [ACTION:...] được gửi qua trường Ghi Chú của Google Form Bridge
+ */
+function extractEmbeddedActionPayload(notesVal, fallbackPayload) {
+  var raw = String(notesVal || "").trim();
+  if (raw.indexOf("[ACTION:") !== 0) {
+    return { isAction: false };
+  }
+  var match = raw.match(/^\[ACTION:([a-zA-Z0-9_]+)\]\s*(\{[\s\S]*\})$/);
+  if (!match) {
+    return { isAction: false };
+  }
+  try {
+    var parsed = JSON.parse(match[2]);
+    if (!parsed || typeof parsed !== "object") {
+      return { isAction: false };
+    }
+    if (!parsed.action) parsed.action = match[1];
+    if (fallbackPayload) {
+      if (!parsed.email && fallbackPayload.email) parsed.email = fallbackPayload.email;
+      if (!parsed.fullName && fallbackPayload.fullName && fallbackPayload.fullName !== "SYNAPES System") parsed.fullName = fallbackPayload.fullName;
+      if (!parsed.phone && fallbackPayload.phone) parsed.phone = fallbackPayload.phone;
+    }
+    return { isAction: true, action: String(parsed.action || match[1]), data: parsed };
+  } catch (e) {
+    return { isAction: false };
+  }
+}
+
+/**
+ * Tách dữ liệu chữ ký nhúng [SIG_DATA:data:image/...] gửi qua Google Form Bridge
+ * và làm sạch chuỗi Ghi chú trước khi lưu lên bảng tính
+ */
+function extractEmbeddedSignatureAndCleanNotesGas(payload) {
+  if (!payload || typeof payload !== "object") return "";
+  var notesStr = String(payload.notes || "");
+  var sigMatch = notesStr.match(/\[SIG_DATA:(data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+)\]/i);
+  if (sigMatch && sigMatch[1]) {
+    var extractedSig = sanitizeSignatureDataUri(sigMatch[1]);
+    if (extractedSig) {
+      if (!payload.signatureImage) payload.signatureImage = extractedSig;
+      if (!payload.buyerSignature) payload.buyerSignature = extractedSig;
+      if (payload.email) {
+        saveBuyerSignature(payload.email, extractedSig);
+      }
+    }
+    payload.notes = notesStr.replace(/\s*\[SIG_DATA:data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+\]/ig, "").trim();
+    return extractedSig;
+  }
+  return "";
+}
+
+/**
  * Trigger chạy ngay lập tức khi Form có phản hồi mới từ FormApp
  */
 function onFormBridgeSubmit(e) {
@@ -548,9 +664,20 @@ function onFormBridgeSubmit(e) {
     if (e && e.response) {
       var itemResponses = e.response.getItemResponses();
       var payload = parseItemResponsesToPayload(itemResponses);
+      var extracted = extractEmbeddedActionPayload(payload && payload.notes, payload);
+      if (extracted.isAction) {
+        try {
+          var respId = e.response.getId();
+          if (respId) CacheService.getScriptCache().put("FORM_ACT_" + respId, "1", 21600);
+        } catch (ce) { }
+        processWebhookPayload(extracted.data);
+        SpreadsheetApp.flush();
+        return;
+      }
       if (payload && payload.fullName && payload.email) {
         handleUserRegistrationWebhook(ss, payload);
         SpreadsheetApp.flush();
+        try { getBuyerSignature(payload.email); } catch (ePrefetch1) { }
         return;
       }
     }
@@ -569,7 +696,7 @@ function onSpreadsheetFormSubmit(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     if (e && e.namedValues) {
       var nv = e.namedValues;
-      var getVal = function(prefix) {
+      var getVal = function (prefix) {
         for (var k in nv) {
           if (k.toLowerCase().indexOf(prefix.toLowerCase()) !== -1) {
             var arr = nv[k];
@@ -593,9 +720,16 @@ function onSpreadsheetFormSubmit(e) {
         deliveryDays: getVal("Hạn Bàn Giao"),
         notes: getVal("Ghi Chú")
       };
+      var extracted = extractEmbeddedActionPayload(payload.notes, payload);
+      if (extracted.isAction) {
+        processWebhookPayload(extracted.data);
+        SpreadsheetApp.flush();
+        return;
+      }
       if (payload.fullName && payload.email) {
         handleUserRegistrationWebhook(ss, payload);
         SpreadsheetApp.flush();
+        try { getBuyerSignature(payload.email); } catch (ePrefetch2) { }
         return;
       }
     }
@@ -620,12 +754,25 @@ function syncPendingFormBridgeResponses(maxScan) {
     var responses = form.getResponses();
     if (!responses || responses.length === 0) return 0;
 
+    var cache = CacheService.getScriptCache();
     var count = 0;
     var limit = typeof maxScan === "number" ? maxScan : 3;
     var startIdx = Math.max(0, responses.length - limit);
     for (var i = responses.length - 1; i >= startIdx; i--) {
+      var respId = "";
+      try { respId = responses[i].getId(); } catch (eId) { }
       var itemResponses = responses[i].getItemResponses();
       var payload = parseItemResponsesToPayload(itemResponses);
+      var extracted = extractEmbeddedActionPayload(payload && payload.notes, payload);
+      if (extracted.isAction) {
+        if (respId && cache.get("FORM_ACT_" + respId)) {
+          continue;
+        }
+        if (respId) cache.put("FORM_ACT_" + respId, "1", 21600);
+        processWebhookPayload(extracted.data);
+        count++;
+        continue;
+      }
       if (payload && payload.fullName && payload.email) {
         handleUserRegistrationWebhook(ss, payload);
         count++;
@@ -649,13 +796,13 @@ function autoPublishWebhookUrlToSheet(ss, customUrl) {
     if (!url) {
       try {
         url = ScriptApp.getService().getUrl();
-      } catch (e) {}
+      } catch (e) { }
     }
     if (!url) {
       try {
         var fUrl = ss.getFormUrl();
         if (fUrl) url = fUrl;
-      } catch (e2) {}
+      } catch (e2) { }
     }
 
     if (url && url.indexOf("docs.google.com/forms") !== -1) {
@@ -702,45 +849,140 @@ function handleSheetCheckboxEdit(e, canSendMail) {
   if (!e || !e.range) return;
 
   var sheet = e.range.getSheet();
-  if (!isUsersSheet(sheet)) return;
-
+  var sheetName = "";
+  try { sheetName = String(sheet.getName() || "").trim(); } catch (eName) { }
   var col = e.range.getColumn();
   var row = e.range.getRow();
+
+  // Nếu Kỹ sư chỉnh sửa trực tiếp Mã Code / Mật khẩu trên "Quản Lý Mật Khẩu" -> đồng bộ ngay lên WebApp
+  if (sheetName === SHEET_NAME_ACCOUNTS) {
+    if (canSendMail && row >= 5 && (col === 2 || col === 5 || col === 7)) {
+      try {
+        syncAuthDirectoryToWebApp(SpreadsheetApp.getActiveSpreadsheet(), "accounts_sheet_manual_edit");
+      } catch (eSyncAcc) { }
+    }
+    return;
+  }
+
+  if (!isUsersSheet(sheet)) return;
+
   if (row < 2) return;
+
+  var is20Cols = isNew20ColsSheet(sheet);
+
+  // Nếu Kỹ sư chỉnh sửa trực tiếp cột Mã Code (16) hoặc Mật Khẩu (17) trên "THÔNG TIN NGƯỜI DÙNG" -> đồng bộ sang Quản Lý Mật Khẩu & WebApp
+  if (canSendMail && is20Cols && (col === 16 || col === 17)) {
+    try {
+      var uRow = sheet.getRange(row, 1, 1, 20).getDisplayValues()[0];
+      var edCode = String(uRow[15] || "").trim().toUpperCase();
+      var edPass = String(uRow[16] || "").trim();
+      var edName = String(uRow[2] || "").trim();
+      var edMail = String(uRow[6] || "").replace(/\s+/g, "").trim();
+      var edPhone = String(uRow[7] || "").replace(/^'+/, "").trim();
+      var edAddr = String(uRow[8] || "").trim();
+      if (edCode && edCode !== "(CHỜ BÀN GIAO)" && edPass && edPass !== "(Chờ bàn giao)") {
+        syncAccountToMainSheet(edCode, edName, edMail, edPass, edPhone, edAddr, false);
+        syncAuthDirectoryToWebApp(SpreadsheetApp.getActiveSpreadsheet(), "users_sheet_manual_edit");
+      }
+    } catch (eSyncUser) { }
+    return;
+  }
 
   var isChecked = e.range.getValue();
   if (isChecked !== true && String(isChecked).toUpperCase() !== "TRUE") {
     return;
   }
 
-  var is20Cols = isNew20ColsSheet(sheet);
-
-  // 1. Duyệt Ký Lần 1 tại Cột 15 (Sheet 20 Cột)
-  if (is20Cols && col === 15) {
-    var mailStatus1 = String(sheet.getRange(row, 19).getDisplayValue() || "");
-    if (!canSendMail && (mailStatus1.indexOf("ĐÃ GỬI MAIL") !== -1 || mailStatus1.indexOf("ĐÃ GỬI GMAIL") !== -1)) {
-      return;
-    }
-    processFirstApproval(sheet, row, canSendMail);
+  if (!((is20Cols && (col === 15 || col === 18)) || (!is20Cols && col === 9))) {
     return;
   }
 
-  // 2. Duyệt Bàn Giao Lần 2 tại Cột 18 (Sheet 20 Cột)
-  if (is20Cols && col === 18) {
-    var mailStatus2 = String(sheet.getRange(row, 19).getDisplayValue() || "");
-    if (!canSendMail && mailStatus2.indexOf("ĐÃ BÀN GIAO") !== -1) {
+  var cache = CacheService.getScriptCache();
+  if (canSendMail) {
+    try {
+      cache.put("SYNAPES_INST_VERIFIED", "1", 21600);
+    } catch (eCache) { }
+  } else {
+    // Nếu Installable Trigger (onInstallableEdit) đã được kích hoạt, Simple Trigger (onEdit) nhường luồng ngay (<1ms) để không tranh LockService
+    var hasInstallable = cache.get("SYNAPES_INST_VERIFIED") === "1";
+    if (!hasInstallable) {
+      try {
+        hasInstallable = PropertiesService.getScriptProperties().getProperty("SYNAPES_HAS_INSTALLABLE_EDIT") === "1";
+      } catch (eProp) { }
+    }
+    if (hasInstallable) {
       return;
     }
-    processFinalHandoverApproval(sheet, row, canSendMail);
-    return;
   }
 
-  // 3. Tương thích ngược: Duyệt Cột 9 (Sheet 13 Cột cũ) -> Nâng cấp tức thì sang 20 cột và duyệt Lần 1
-  if (!is20Cols && col === 9) {
-    upgradeLegacySheetTo20Cols(sheet);
-    sheet.getRange(row, 15).setValue(true);
-    processFirstApproval(sheet, row, canSendMail);
-    return;
+  var lock = LockService.getScriptLock();
+  var hasLock = false;
+  try {
+    hasLock = lock.tryLock(5000);
+  } catch (lockErr) {
+    hasLock = false;
+  }
+
+  try {
+    var guardKey = "CHK_DONE_" + sheet.getSheetId() + "_" + row + "_" + col;
+
+    // Nếu Simple Trigger (onEdit) chạy sau Installable Trigger (onInstallableEdit) vừa hoàn tất gửi mail, bỏ qua để không ghi đè trạng thái
+    if (!canSendMail && cache.get(guardKey)) {
+      return;
+    }
+
+    // Kiểm tra lại ô tích phòng trường hợp vừa bỏ tích trong lúc chờ khóa
+    var latestVal = sheet.getRange(row, col).getValue();
+    if (latestVal !== true && String(latestVal).toUpperCase() !== "TRUE") {
+      return;
+    }
+
+    // 1. Duyệt Ký Lần 1 tại Cột 15 (Sheet 20 Cột)
+    if (is20Cols && col === 15) {
+      var mailStatus1 = String(sheet.getRange(row, 19).getDisplayValue() || "");
+      if (!canSendMail && (mailStatus1.indexOf("ĐÃ GỬI MAIL") !== -1 || mailStatus1.indexOf("ĐÃ GỬI GMAIL") !== -1)) {
+        return;
+      }
+      if (canSendMail) {
+        if (cache.get("MAIL_SENT_" + row + "_15")) return;
+        cache.put(guardKey, "1", 20);
+      }
+      var res1 = processFirstApproval(sheet, row, canSendMail);
+      if (canSendMail && res1) {
+        cache.put("MAIL_SENT_" + row + "_15", "1", 12);
+      }
+      return;
+    }
+
+    // 2. Duyệt Bàn Giao Lần 2 tại Cột 18 (Sheet 20 Cột)
+    if (is20Cols && col === 18) {
+      var mailStatus2 = String(sheet.getRange(row, 19).getDisplayValue() || "");
+      if (!canSendMail && mailStatus2.indexOf("ĐÃ BÀN GIAO") !== -1) {
+        return;
+      }
+      if (canSendMail) {
+        if (cache.get("MAIL_SENT_" + row + "_18")) return;
+        cache.put(guardKey, "1", 20);
+      }
+      var res2 = processFinalHandoverApproval(sheet, row, canSendMail);
+      if (canSendMail && res2) {
+        cache.put("MAIL_SENT_" + row + "_18", "1", 12);
+      }
+      return;
+    }
+
+    // 3. Tương thích ngược: Duyệt Cột 9 (Sheet 13 Cột cũ) -> Nâng cấp tức thì sang 20 cột và duyệt Lần 1
+    if (!is20Cols && col === 9) {
+      upgradeLegacySheetTo20Cols(sheet);
+      sheet.getRange(row, 15).setValue(true);
+      if (canSendMail) cache.put(guardKey, "1", 20);
+      processFirstApproval(sheet, row, canSendMail);
+      return;
+    }
+  } finally {
+    if (hasLock) {
+      try { lock.releaseLock(); } catch (relErr) { }
+    }
   }
 }
 
@@ -777,62 +1019,81 @@ function parseDobToDDMM(dobRaw, nowDate) {
 }
 
 /**
- * Đảm bảo mỗi khách hàng có một Mã Code duy nhất, không trùng lặp
+ * Đọc nhanh bản đồ Mã Code đã cấp để kiểm tra trùng O(1) (chỉ đọc cột Code thay vì toàn bộ 20 cột)
  */
-function ensureUniqueUserCode(ss, baseCode, currentUserSheetRow, currentFullName) {
-  var candidate = String(baseCode || "").trim().toUpperCase();
-  if (!candidate) return candidate;
-
-  var usedCodes = {};
-  var nameClean = String(currentFullName || "").trim().toLowerCase();
-
+function loadUsedCodesSetGas(ss) {
+  var used = { byUserRow: {}, byAccName: {} };
   var uSheet = getUsersSheet(ss, false);
   if (uSheet && uSheet.getLastRow() >= 2) {
     var is20 = isNew20ColsSheet(uSheet);
-    var codeColIdx = is20 ? 15 : 9; // 0-based index: 15 for col 16, 9 for col 10
-    var uData = uSheet.getRange(2, 1, uSheet.getLastRow() - 1, Math.max(uSheet.getLastColumn(), 20)).getDisplayValues();
-    for (var i = 0; i < uData.length; i++) {
-      var rIdx = i + 2;
-      if (rIdx === currentUserSheetRow) continue;
-      var cCode = String(uData[i][codeColIdx] || "").trim().toUpperCase();
-      if (cCode) {
-        usedCodes[cCode] = true;
+    var codeColNum = is20 ? 16 : 10;
+    var uCodes = uSheet.getRange(2, codeColNum, uSheet.getLastRow() - 1, 1).getDisplayValues();
+    for (var i = 0; i < uCodes.length; i++) {
+      var cCode = String(uCodes[i][0] || "").trim().toUpperCase();
+      if (cCode && cCode !== "(CHỜ BÀN GIAO)") {
+        used.byUserRow[cCode] = i + 2;
       }
     }
   }
 
   var accSheet = getAccountsSheet(ss);
   if (accSheet && accSheet.getLastRow() >= 5) {
-    var accData = accSheet.getRange(1, 1, accSheet.getLastRow(), 4).getDisplayValues();
-    for (var j = 4; j < accData.length; j++) {
-      var aCode = String(accData[j][1] || "").trim().toUpperCase();
-      var aName = String(accData[j][2] || "").trim().toLowerCase();
-      if (aCode && aName && aName !== nameClean) {
-        usedCodes[aCode] = true;
+    var accData = accSheet.getRange(5, 2, accSheet.getLastRow() - 4, 2).getDisplayValues();
+    for (var j = 0; j < accData.length; j++) {
+      var aCode = String(accData[j][0] || "").trim().toUpperCase();
+      var aName = String(accData[j][1] || "").trim().toLowerCase();
+      if (aCode) {
+        used.byAccName[aCode] = aName;
       }
     }
   }
+  return used;
+}
 
-  if (!usedCodes[candidate]) {
-    return candidate;
+/**
+ * Đảm bảo mỗi khách hàng có một Mã Code duy nhất, không trùng lặp
+ */
+function ensureUniqueUserCode(ss, baseCode, currentUserSheetRow, currentFullName, batchCtx) {
+  var candidate = String(baseCode || "").trim().toUpperCase();
+  if (!candidate) return candidate;
+
+  var nameClean = String(currentFullName || "").trim().toLowerCase();
+  var used = (batchCtx && batchCtx.usedCodes) ? batchCtx.usedCodes : loadUsedCodesSetGas(ss);
+  if (batchCtx && !batchCtx.usedCodes) {
+    batchCtx.usedCodes = used;
   }
 
-  var suffix = 2;
-  while (usedCodes[candidate + "_" + suffix]) {
-    suffix++;
+  var isTaken = function (codeVal) {
+    var ownerRow = used.byUserRow[codeVal];
+    if (ownerRow && ownerRow !== currentUserSheetRow) return true;
+    var ownerAccName = used.byAccName[codeVal];
+    if (ownerAccName !== undefined && ownerAccName && ownerAccName !== nameClean) return true;
+    return false;
+  };
+
+  var finalCode = candidate;
+  if (isTaken(finalCode)) {
+    var suffix = 2;
+    while (isTaken(candidate + "_" + suffix)) {
+      suffix++;
+    }
+    finalCode = candidate + "_" + suffix;
   }
-  return candidate + "_" + suffix;
+
+  if (currentUserSheetRow) used.byUserRow[finalCode] = currentUserSheetRow;
+  if (nameClean) used.byAccName[finalCode] = nameClean;
+  return finalCode;
 }
 
 /**
  * Sinh Mã Code và Mật khẩu mới an toàn
  */
-function generateCodeAndPassword(ss, fullName, dobRaw, row) {
+function generateCodeAndPassword(ss, fullName, dobRaw, row, batchCtx) {
   var now = new Date();
   var dobParsed = parseDobToDDMM(dobRaw, now);
   var yymmdd = Utilities.formatDate(now, "GMT+7", "yyMMdd");
   var baseCode = "SNP_" + yymmdd + dobParsed.ddmm;
-  var code = ensureUniqueUserCode(ss, baseCode, row, fullName);
+  var code = ensureUniqueUserCode(ss, baseCode, row, fullName, batchCtx);
 
   var randomDigits = Math.floor(100 + Math.random() * 900);
   var chars = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -854,24 +1115,50 @@ function generateCodeAndPassword(ss, fullName, dobRaw, row) {
  *   + Cập nhật Cột 19: "✅ ĐÃ GỬI MAIL ĐẶT CỌC (Hẹn giao: DD/MM/YYYY)"
  * - Nếu là Hợp đồng Thanh toán 100%:
  *   + Cấp ngay Mã Code (Cột 16) + Mật khẩu (Cột 17)
+ *   + Gửi Gmail NGAY LẬP TỨC trước khi đồng bộ phụ -> Giảm độ trễ xuống mức tối đa
  *   + Đồng bộ sang trang "Quản Lý Mật Khẩu"
- *   + Gửi Gmail cấp tài khoản + Hướng dẫn chi tiết + Bản mềm HĐ chính thức PDF có mộc đỏ + QR Code
  *   + Cập nhật Cột 19: "✅ ĐÃ GỬI GMAIL CẤP TK (DD/MM/YYYY HH:mm:ss)"
  */
-function processFirstApproval(sheet, row, canSendMail) {
-  if (canSendMail === undefined) canSendMail = true;
+function isHashedOrCustomPasswordGas(passStr) {
+  var s = String(passStr || "").trim().toUpperCase();
+  return s.indexOf("🔒") !== -1 || s.indexOf("BCRYPT$") !== -1 || s.indexOf("SHA256$") !== -1 || s.indexOf("ĐÃ MÃ HÓA") !== -1 || s.indexOf("ĐÃ ĐỔI") !== -1;
+}
 
-  var displayVals = sheet.getRange(row, 1, 1, 20).getDisplayValues()[0];
-  var rawVals = sheet.getRange(row, 1, 1, 20).getValues()[0];
+function hasGmailQuotaRemainingGas() {
+  try {
+    return MailApp.getRemainingDailyQuota() > 0;
+  } catch (e) {
+    return true;
+  }
+}
+
+function toAsciiUpperGas(str) {
+  var raw = String(str || "");
+  try {
+    if (typeof raw.normalize === "function") {
+      raw = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
+  } catch (e) { }
+  return raw
+    .replace(/[đĐ]/g, "D")
+    .replace(/[^a-zA-Z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+}
+
+function processFirstApproval(sheet, row, canSendMail, batchCtx) {
+  if (canSendMail === undefined) canSendMail = true;
+  var ctx = batchCtx || {};
+  var ss = ctx.ss || SpreadsheetApp.getActiveSpreadsheet();
+
+  var displayVals = ctx.prefetchedRow || sheet.getRange(row, 1, 1, 20).getDisplayValues()[0];
 
   var fullName = String(displayVals[2] || "").trim();
   var idCardNumber = String(displayVals[3] || "").replace(/^'+/, "").trim();
-  var dobRaw = displayVals[4] || "";
-  if (rawVals[4] instanceof Date) {
-    dobRaw = Utilities.formatDate(rawVals[4], "GMT+7", "dd/MM/yyyy");
-  }
+  var dobRaw = String(displayVals[4] || "").trim();
   var gender = String(displayVals[5] || "Nam").trim();
-  var email = String(displayVals[6] || "").trim();
+  var email = String(displayVals[6] || "").replace(/\s+/g, "").trim();
   var phone = String(displayVals[7] || "").replace(/^'+/, "").trim();
   var address = String(displayVals[8] || "").trim();
   var contractCategory = String(displayVals[9] || "Hợp đồng cá nhân hóa").trim();
@@ -882,17 +1169,27 @@ function processFirstApproval(sheet, row, canSendMail) {
 
   var existingCode = String(displayVals[15] || "").trim();
   var existingPass = String(displayVals[16] || "").trim();
-
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var isFinalDelivered = String(displayVals[17] || "").toUpperCase() === "TRUE";
+  var existingStatus19 = String(displayVals[18] || "").trim();
 
   if (!fullName || !email || email.indexOf("@") === -1) {
-    ss.toast("⚠️ Dòng " + row + " chưa có đầy đủ Họ tên hoặc Gmail hợp lệ!", "SYNAPES Studio", 6);
+    if (!ctx.quietToast) {
+      ss.toast("⚠️ Dòng " + row + " chưa có đầy đủ Họ tên hoặc Gmail hợp lệ!", "SYNAPES Studio", 6);
+    }
     return false;
+  }
+
+  // Bảo vệ hợp đồng đã bàn giao hoàn tất Lần 2: tránh Duyệt Lần 1 ghi đè ngược trạng thái hoặc gửi nhầm mail cọc
+  if (isFinalDelivered || existingStatus19.indexOf("ĐÃ BÀN GIAO") !== -1) {
+    if (!ctx.quietToast) {
+      ss.toast("ℹ️ Dòng " + row + " đã bàn giao hoàn tất (Cột 18). Để gửi lại mail bàn giao, hãy dùng Mục 4 (Duyệt Bàn Giao Lần 2).", "SYNAPES Studio", 6);
+    }
+    return true;
   }
 
   var depositAmount = parseFloat(depositStr.replace(/[^0-9]/g, "")) || 0;
   var totalAmount = parseFloat(totalStr.replace(/[^0-9]/g, "")) || 0;
-  var deliveryDays = parseInt(deliveryStr.replace(/[^0-9]/g, "")) || 0;
+  var deliveryDays = parseInt(deliveryStr.replace(/[^0-9]/g, ""), 10) || 0;
   var isDeposit = depositAmount > 0 ||
     contractPackageName.toLowerCase().indexOf("đặt cọc") !== -1 ||
     contractPackageName.toLowerCase().indexOf("deposit") !== -1;
@@ -900,26 +1197,31 @@ function processFirstApproval(sheet, row, canSendMail) {
   var now = new Date();
   var nowStr = Utilities.formatDate(now, "GMT+7", "dd/MM/yyyy HH:mm:ss");
 
-  // Xử lý HỢP ĐỒNG ĐẶT CỌC
+  // Xử lý HỢP ĐỒNG ĐẶT CỌC (Send-First)
   if (isDeposit) {
     if (deliveryDays <= 0) {
       deliveryDays = contractCategory.toLowerCase().indexOf("toàn hệ") !== -1 ? 7 : 5;
     }
     var deliveryDate = new Date(now.getTime() + deliveryDays * 24 * 60 * 60 * 1000);
     var deliveryDateStr = Utilities.formatDate(deliveryDate, "GMT+7", "dd/MM/yyyy");
-
-    // Đảm bảo không cấp mật khẩu ngay
-    if (!existingCode) {
-      sheet.getRange(row, 16).setValue("(Chờ bàn giao)").setHorizontalAlignment("center").setFontColor("#64748b");
-    }
-    if (!existingPass) {
-      sheet.getRange(row, 17).setValue("(Chờ bàn giao)").setHorizontalAlignment("center").setFontColor("#64748b");
-    }
+    var waitCode = existingCode || "(Chờ bàn giao)";
+    var waitPass = existingPass || "(Chờ bàn giao)";
 
     if (!canSendMail) {
-      sheet.getRange(row, 19).setValue("⏳ Đã duyệt ký (Bấm menu SYNAPES Studio ➔ Mục 1 để bật gửi Gmail tự động)");
-      SpreadsheetApp.flush();
+      sheet.getRange(row, 15, 1, 5).setValues([[
+        true,
+        waitCode,
+        waitPass,
+        false,
+        "⏳ Đã duyệt ký (Bấm menu SYNAPES Studio ➔ Mục 1 để bật gửi Gmail tự động)"
+      ]]);
       return true;
+    }
+
+    if (!hasGmailQuotaRemainingGas()) {
+      sheet.getRange(row, 19).setValue("⚠️ Hết hạn ngạch Gmail trong ngày (Quota = 0) — Vui lòng thử lại sau 24h").setFontColor("#b91c1c");
+      if (!ctx.quietToast) ss.toast("⚠️ Đã hết hạn ngạch gửi Gmail trong ngày (Quota = 0).", "SYNAPES Studio", 8);
+      return false;
     }
 
     var mailResult = sendDepositApprovalEmail(
@@ -939,36 +1241,68 @@ function processFirstApproval(sheet, row, canSendMail) {
     );
 
     if (mailResult.success) {
-      sheet.getRange(row, 19).setValue("✅ ĐÃ GỬI MAIL ĐẶT CỌC (Hẹn giao: " + deliveryDateStr + ")").setFontColor("#15803d").setFontWeight("bold");
-      sheet.getRange(row, 20).setValue("📄 HĐ Đặt Cọc đã ký (Hẹn giao: " + deliveryDateStr + " — Chờ duyệt Cột 18)");
-      ss.toast("✅ Đã gửi Gmail xác nhận đặt cọc (Hẹn bàn giao: " + deliveryDateStr + ") tới " + email, "🚀 SYNAPES Studio", 6);
-      SpreadsheetApp.flush();
+      sheet.getRange(row, 15, 1, 6).setValues([[
+        true,
+        waitCode,
+        waitPass,
+        false,
+        "✅ ĐÃ GỬI MAIL ĐẶT CỌC (Hẹn giao: " + deliveryDateStr + ")",
+        "📄 HĐ Đặt Cọc đã ký (Hẹn giao: " + deliveryDateStr + " — Chờ duyệt Cột 18)"
+      ]]);
+      if (!existingCode || !existingPass) {
+        sheet.getRange(row, 16, 1, 2).setHorizontalAlignment("center").setFontColor("#64748b");
+      }
+      sheet.getRange(row, 19).setFontColor("#15803d").setFontWeight("bold");
+      if (!ctx.quietToast) {
+        ss.toast("✅ Đã gửi Gmail xác nhận đặt cọc (Hẹn bàn giao: " + deliveryDateStr + ") tới " + email, "🚀 SYNAPES Studio", 6);
+      }
       return true;
     } else {
-      sheet.getRange(row, 19).setValue("⚠️ Lỗi gửi mail: " + mailResult.error).setFontColor("#b91c1c");
-      ss.toast("⚠️ Lỗi gửi Gmail: " + mailResult.error, "SYNAPES Studio", 8);
-      SpreadsheetApp.flush();
+      sheet.getRange(row, 16, 1, 4).setValues([[waitCode, waitPass, false, "⚠️ Lỗi gửi mail: " + mailResult.error]]);
+      sheet.getRange(row, 19).setFontColor("#b91c1c");
+      if (!ctx.quietToast) ss.toast("⚠️ Lỗi gửi Gmail: " + mailResult.error, "SYNAPES Studio", 8);
       return false;
     }
   }
 
-  // Xử lý HỢP ĐỒNG THANH TOÁN 100%
-  var creds = generateCodeAndPassword(ss, fullName, dobRaw, row);
+  // Xử lý HỢP ĐỒNG THANH TOÁN 100% (Send-First)
+  var creds = generateCodeAndPassword(ss, fullName, dobRaw, row, ctx);
   var code = existingCode && existingCode.indexOf("SNP_") === 0 ? existingCode : creds.code;
-  var password = existingPass && existingPass.indexOf("SNP_") === 0 ? existingPass : creds.password;
-
-  sheet.getRange(row, 16).setValue(code).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#0f172a");
-  sheet.getRange(row, 17).setValue(password).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#b91c1c");
-
-  syncAccountToMainSheet(code, fullName, email, password, phone, address, false);
-  reconcileAllApprovedUsersToAccountsSheet(ss);
+  var isCustomPass = isHashedOrCustomPasswordGas(existingPass);
+  var password = (isCustomPass || (existingPass && existingPass.indexOf("SNP_") === 0)) ? existingPass : creds.password;
 
   if (!canSendMail) {
-    sheet.getRange(row, 19).setValue("⏳ Đã tạo Mã (Bấm menu SYNAPES Studio ➔ Mục 1 để bật gửi Gmail tự động)");
-    SpreadsheetApp.flush();
+    sheet.getRange(row, 15, 1, 5).setValues([[
+      true,
+      code,
+      password,
+      displayVals[17] === "TRUE",
+      "⏳ Đã tạo Mã (Bấm menu SYNAPES Studio ➔ Mục 1 để bật gửi Gmail tự động)"
+    ]]);
+    sheet.getRange(row, 16).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#0f172a");
+    sheet.getRange(row, 17).setFontWeight("bold").setHorizontalAlignment("center").setFontColor(isCustomPass ? "#15803d" : "#b91c1c");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
     return true;
   }
 
+  if (!hasGmailQuotaRemainingGas()) {
+    sheet.getRange(row, 16, 1, 4).setValues([[
+      code,
+      password,
+      displayVals[17] === "TRUE",
+      "⚠️ Đã cấp mã " + code + " nhưng hết hạn ngạch Gmail (Quota = 0)"
+    ]]);
+    sheet.getRange(row, 19).setFontColor("#b91c1c");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
+    if (!ctx.quietToast) ss.toast("⚠️ Đã cấp mã " + code + " nhưng hết hạn ngạch Gmail trong ngày (Quota = 0).", "SYNAPES Studio", 8);
+    return false;
+  }
+
+  var emailPasswordDisplay = isCustomPass
+    ? "(Mật khẩu cá nhân Quý khách đã tự thiết lập — giữ nguyên bảo mật)"
+    : password;
+
+  // GỬI GMAIL NGAY LẬP TỨC trước khi ghi bảng tính & đồng bộ tab phụ
   var fullMailResult = sendFullApprovalEmail(
     email,
     fullName,
@@ -978,22 +1312,40 @@ function processFirstApproval(sheet, row, canSendMail) {
     phone,
     address,
     code,
-    password,
+    emailPasswordDisplay,
     contractCategory,
     contractPackageName,
     totalAmount
   );
 
   if (fullMailResult.success) {
-    sheet.getRange(row, 19).setValue("✅ ĐÃ GỬI GMAIL CẤP TK (" + nowStr + ")").setFontColor("#15803d").setFontWeight("bold");
-    sheet.getRange(row, 20).setValue("📄 HOP_DONG_SYNAPES_" + code + ".pdf (Đã cấp TK & HĐ 100%)");
-    ss.toast("✅ Đã cấp mã " + code + " và gửi Gmail kích hoạt tới " + email, "🚀 SYNAPES Studio", 6);
-    SpreadsheetApp.flush();
+    sheet.getRange(row, 15, 1, 6).setValues([[
+      true,
+      code,
+      password,
+      displayVals[17] === "TRUE",
+      "✅ ĐÃ GỬI GMAIL CẤP TK (" + nowStr + ")",
+      "📄 HOP_DONG_SYNAPES_" + code + ".pdf (Đã cấp TK & HĐ 100%)"
+    ]]);
+    sheet.getRange(row, 16).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#0f172a");
+    sheet.getRange(row, 17).setFontWeight("bold").setHorizontalAlignment("center").setFontColor(isCustomPass ? "#15803d" : "#b91c1c");
+    sheet.getRange(row, 19).setFontColor("#15803d").setFontWeight("bold");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
+    if (!ctx.quietToast) {
+      syncAuthDirectoryToWebApp(ss, "first_approval_full");
+      ss.toast("✅ Đã cấp mã " + code + " và gửi Gmail kích hoạt tới " + email, "🚀 SYNAPES Studio", 6);
+    }
     return true;
   } else {
-    sheet.getRange(row, 19).setValue("⚠️ Lỗi gửi mail: " + fullMailResult.error).setFontColor("#b91c1c");
-    ss.toast("⚠️ Lỗi gửi Gmail: " + fullMailResult.error, "SYNAPES Studio", 8);
-    SpreadsheetApp.flush();
+    sheet.getRange(row, 16, 1, 4).setValues([[
+      code,
+      password,
+      displayVals[17] === "TRUE",
+      "⚠️ Lỗi gửi mail: " + fullMailResult.error
+    ]]);
+    sheet.getRange(row, 19).setFontColor("#b91c1c");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
+    if (!ctx.quietToast) ss.toast("⚠️ Lỗi gửi Gmail: " + fullMailResult.error, "SYNAPES Studio", 8);
     return false;
   }
 }
@@ -1001,26 +1353,21 @@ function processFirstApproval(sheet, row, canSendMail) {
 /**
  * 5. XỬ LÝ PHÊ DUYỆT BÀN GIAO LẦN 2 (CỘT 18 - DUYỆT BÀN GIAO LẦN 2 TRÊN SHEET 20 CỘT)
  * - Dành cho các hợp đồng đặt cọc khi đến hạn bàn giao sản phẩm:
- *   Kỹ sư/Dev kiểm tra thanh toán đợt cuối thành công, sau đó tích chọn Cột 18 để:
- *   + Tự động sinh Mã Code và Mật khẩu (nếu chưa có)
- *   + Ghi vào Cột 16 & Cột 17 và lưu sang trang "Quản Lý Mật Khẩu"
- *   + Gửi Gmail thông báo bàn giao chính thức, cấp thông tin tài khoản đăng nhập và đính kèm bản HĐ bàn giao chính thức PDF có mộc đỏ
- *   + Cập nhật Cột 19: "✅ ĐÃ BÀN GIAO & GỬI GMAIL (DD/MM/YYYY HH:mm:ss)"
+ *   + Gửi Gmail NGAY LẬP TỨC kèm tài khoản & PDF HĐ bàn giao có mộc đỏ
+ *   + Sau đó batch-write Cột 15..20 và đồng bộ 1 dòng sang "Quản Lý Mật Khẩu"
  */
-function processFinalHandoverApproval(sheet, row, canSendMail) {
+function processFinalHandoverApproval(sheet, row, canSendMail, batchCtx) {
   if (canSendMail === undefined) canSendMail = true;
+  var ctx = batchCtx || {};
+  var ss = ctx.ss || SpreadsheetApp.getActiveSpreadsheet();
 
-  var displayVals = sheet.getRange(row, 1, 1, 20).getDisplayValues()[0];
-  var rawVals = sheet.getRange(row, 1, 1, 20).getValues()[0];
+  var displayVals = ctx.prefetchedRow || sheet.getRange(row, 1, 1, 20).getDisplayValues()[0];
 
   var fullName = String(displayVals[2] || "").trim();
   var idCardNumber = String(displayVals[3] || "").replace(/^'+/, "").trim();
-  var dobRaw = displayVals[4] || "";
-  if (rawVals[4] instanceof Date) {
-    dobRaw = Utilities.formatDate(rawVals[4], "GMT+7", "dd/MM/yyyy");
-  }
+  var dobRaw = String(displayVals[4] || "").trim();
   var gender = String(displayVals[5] || "Nam").trim();
-  var email = String(displayVals[6] || "").trim();
+  var email = String(displayVals[6] || "").replace(/\s+/g, "").trim();
   var phone = String(displayVals[7] || "").replace(/^'+/, "").trim();
   var address = String(displayVals[8] || "").trim();
   var contractCategory = String(displayVals[9] || "Hợp đồng cá nhân hóa").trim();
@@ -1034,38 +1381,55 @@ function processFinalHandoverApproval(sheet, row, canSendMail) {
   var existingCode = String(displayVals[15] || "").trim();
   var existingPass = String(displayVals[16] || "").trim();
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-
   if (!fullName || !email || email.indexOf("@") === -1) {
-    ss.toast("⚠️ Dòng " + row + " chưa có đầy đủ Họ tên hoặc Gmail hợp lệ!", "SYNAPES Studio", 6);
+    if (!ctx.quietToast) ss.toast("⚠️ Dòng " + row + " chưa có đầy đủ Họ tên hoặc Gmail hợp lệ!", "SYNAPES Studio", 6);
     return false;
   }
 
-  var creds = generateCodeAndPassword(ss, fullName, dobRaw, row);
+  var creds = generateCodeAndPassword(ss, fullName, dobRaw, row, ctx);
   var code = (existingCode && existingCode.indexOf("SNP_") === 0) ? existingCode : creds.code;
-  var password = (existingPass && existingPass.indexOf("SNP_") === 0) ? existingPass : creds.password;
-
-  sheet.getRange(row, 16).setValue(code).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#0f172a");
-  sheet.getRange(row, 17).setValue(password).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#b91c1c");
-
-  // Đảm bảo cả Cột 15 (Duyệt Ký Lần 1) và Cột 18 (Duyệt Bàn Giao Lần 2) đều được tích chọn
-  sheet.getRange(row, 15).setValue(true);
-  sheet.getRange(row, 18).setValue(true);
-
-  syncAccountToMainSheet(code, fullName, email, password, phone, address, false);
-  reconcileAllApprovedUsersToAccountsSheet(ss);
-  SpreadsheetApp.flush();
+  var isCustomPass = isHashedOrCustomPasswordGas(existingPass);
+  var password = (isCustomPass || (existingPass && existingPass.indexOf("SNP_") === 0)) ? existingPass : creds.password;
 
   var now = new Date();
   var nowStr = Utilities.formatDate(now, "GMT+7", "dd/MM/yyyy HH:mm:ss");
 
   if (!canSendMail) {
-    sheet.getRange(row, 19).setValue("⏳ Đã duyệt Bàn giao Lần 2 (Bấm menu SYNAPES Studio ➔ Mục 4 hoặc Mục 1 để gửi Gmail tức thì)");
-    ss.toast("🚀 Đã duyệt Bàn Giao Lần 2! Cần cấp quyền gửi mail: Bấm menu SYNAPES Studio ➔ Mục 4 để gửi ngay Gmail kèm HĐ hoàn chỉnh!", "SYNAPES Studio", 8);
-    SpreadsheetApp.flush();
+    sheet.getRange(row, 15, 1, 5).setValues([[
+      true,
+      code,
+      password,
+      true,
+      "⏳ Đã duyệt Bàn giao Lần 2 (Bấm menu SYNAPES Studio ➔ Mục 4 hoặc Mục 1 để gửi Gmail tức thì)"
+    ]]);
+    sheet.getRange(row, 16).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#0f172a");
+    sheet.getRange(row, 17).setFontWeight("bold").setHorizontalAlignment("center").setFontColor(isCustomPass ? "#15803d" : "#b91c1c");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
+    if (!ctx.quietToast) {
+      ss.toast("🚀 Đã duyệt Bàn Giao Lần 2! Cần cấp quyền gửi mail: Bấm menu SYNAPES Studio ➔ Mục 4 để gửi ngay Gmail kèm HĐ hoàn chỉnh!", "SYNAPES Studio", 8);
+    }
     return true;
   }
 
+  if (!hasGmailQuotaRemainingGas()) {
+    sheet.getRange(row, 15, 1, 5).setValues([[
+      true,
+      code,
+      password,
+      true,
+      "⚠️ Đã cấp mã " + code + " nhưng hết hạn ngạch Gmail (Quota = 0)"
+    ]]);
+    sheet.getRange(row, 19).setFontColor("#b91c1c");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
+    if (!ctx.quietToast) ss.toast("⚠️ Đã cấp mã " + code + " nhưng hết hạn ngạch gửi Gmail trong ngày (Quota = 0).", "SYNAPES Studio", 8);
+    return false;
+  }
+
+  var emailPasswordDisplay = isCustomPass
+    ? "(Mật khẩu cá nhân Quý khách đã tự thiết lập — giữ nguyên bảo mật)"
+    : password;
+
+  // GỬI GMAIL BÀN GIAO NGAY LẬP TỨC trước khi ghi Sheet
   var handoverMailResult = sendFinalHandoverEmail(
     email,
     fullName,
@@ -1075,7 +1439,7 @@ function processFinalHandoverApproval(sheet, row, canSendMail) {
     phone,
     address,
     code,
-    password,
+    emailPasswordDisplay,
     contractCategory,
     contractPackageName,
     totalAmount,
@@ -1084,15 +1448,34 @@ function processFinalHandoverApproval(sheet, row, canSendMail) {
   );
 
   if (handoverMailResult.success) {
-    sheet.getRange(row, 19).setValue("✅ ĐÃ BÀN GIAO & GỬI GMAIL (" + nowStr + ")").setFontColor("#15803d").setFontWeight("bold");
-    sheet.getRange(row, 20).setValue("🎉 BÀN GIAO HOÀN TẤT & TRẢ ĐỦ 100% — CẤP MÃ " + code);
-    ss.toast("✅ Đã bàn giao hệ thống và gửi tài khoản mã " + code + " kèm HĐ hoàn chỉnh tới " + email, "🚀 SYNAPES Studio", 6);
-    SpreadsheetApp.flush();
+    sheet.getRange(row, 15, 1, 6).setValues([[
+      true,
+      code,
+      password,
+      true,
+      "✅ ĐÃ BÀN GIAO & GỬI GMAIL (" + nowStr + ")",
+      "🎉 BÀN GIAO HOÀN TẤT & TRẢ ĐỦ 100% — CẤP MÃ " + code
+    ]]);
+    sheet.getRange(row, 16).setFontWeight("bold").setHorizontalAlignment("center").setFontColor("#0f172a");
+    sheet.getRange(row, 17).setFontWeight("bold").setHorizontalAlignment("center").setFontColor(isCustomPass ? "#15803d" : "#b91c1c");
+    sheet.getRange(row, 19).setFontColor("#15803d").setFontWeight("bold");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
+    if (!ctx.quietToast) {
+      syncAuthDirectoryToWebApp(ss, "final_handover_approval");
+      ss.toast("✅ Đã bàn giao hệ thống và gửi tài khoản mã " + code + " kèm HĐ hoàn chỉnh tới " + email, "🚀 SYNAPES Studio", 6);
+    }
     return true;
   } else {
-    sheet.getRange(row, 19).setValue("⚠️ Lỗi gửi mail bàn giao: " + handoverMailResult.error).setFontColor("#b91c1c");
-    ss.toast("⚠️ Lỗi gửi Gmail: " + handoverMailResult.error, "SYNAPES Studio", 8);
-    SpreadsheetApp.flush();
+    sheet.getRange(row, 15, 1, 5).setValues([[
+      true,
+      code,
+      password,
+      true,
+      "⚠️ Lỗi gửi mail bàn giao: " + handoverMailResult.error
+    ]]);
+    sheet.getRange(row, 19).setFontColor("#b91c1c");
+    syncAccountToMainSheet(code, fullName, email, password, phone, address, false, ctx);
+    if (!ctx.quietToast) ss.toast("⚠️ Lỗi gửi Gmail: " + handoverMailResult.error, "SYNAPES Studio", 8);
     return false;
   }
 }
@@ -1122,12 +1505,18 @@ function processUserApproval(sheet, row, canSendMail) {
  * - Chuẩn hóa khung chứa 600px, Typography -apple-system, Bảng kê chi tiết và Trích dẫn trang trọng của Trưởng ban
  */
 
+var __CACHED_TIMO_QR_BLOB = null;
+
 function getTimoQrBlob() {
+  if (__CACHED_TIMO_QR_BLOB) {
+    return __CACHED_TIMO_QR_BLOB;
+  }
   try {
     var commaIdx = TIMO_QR_CODE_BASE64.indexOf(",");
     var raw = commaIdx !== -1 ? TIMO_QR_CODE_BASE64.substring(commaIdx + 1) : TIMO_QR_CODE_BASE64;
     var decoded = Utilities.base64Decode(raw);
-    return Utilities.newBlob(decoded, "image/jpeg", "vietqr_timo_bvbank.jpg");
+    __CACHED_TIMO_QR_BLOB = Utilities.newBlob(decoded, "image/jpeg", "vietqr_timo_bvbank.jpg");
+    return __CACHED_TIMO_QR_BLOB;
   } catch (e) {
     Logger.log("getTimoQrBlob error: " + e);
     return null;
@@ -1195,7 +1584,7 @@ function buildPaymentQrBoxHtml(amount, transferNote) {
     : "Theo quy định hợp đồng";
 
   var qrOnlineUrl = "https://img.vietqr.io/image/970454-0983396354-compact2.png?amount=" + (amount || 0) + "&accountName=NGUYEN%20HOANG%20THIEN";
-  var noteClean = transferNote || "SYNAPES STUDIO";
+  var noteClean = escapeHtmlGas(transferNote || "SYNAPES STUDIO");
 
   return '<table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #d0d7de; border-radius: 6px; background: #ffffff; overflow: hidden;">' +
     '  <tr>' +
@@ -1250,27 +1639,35 @@ function buildPaymentQrBoxHtml(amount, transferNote) {
  */
 function sendDepositApprovalEmail(email, fullName, idCardNumber, dob, gender, phone, address, category, packageName, depositAmount, totalAmount, deliveryDays, deliveryDateStr) {
   try {
-    var subject = "[SYNAPES Studio] Xác nhận ký kết hợp đồng đặt cọc & Lịch bàn giao — " + fullName.toUpperCase();
+    var cleanFileName = String(fullName || "KHACH_HANG").trim().replace(/\s+/g, "_").replace(/[\/\\:*?"<>|]/g, "");
+    var subject = "[SYNAPES Studio] Xác nhận ký kết hợp đồng đặt cọc & Lịch bàn giao — " + String(fullName || "").toUpperCase();
+    var buyerSig = getBuyerSignature(email);
 
     var htmlContract = generateContractHtmlContent(
       fullName, dob, gender, phone, address, "DEPOSIT_" + (idCardNumber || "SNP"), email,
-      idCardNumber, packageName, depositAmount, totalAmount, deliveryDays, true
+      idCardNumber, packageName, depositAmount, totalAmount, deliveryDays, true, false, buyerSig
     );
 
-    var pdfBlob = Utilities.newBlob(htmlContract, "text/html", "HOP_DONG_DAT_COC_SYNAPES_" + fullName.replace(/s+/g, "_") + ".html")
+    var pdfBlob = Utilities.newBlob(htmlContract, "text/html", "HOP_DONG_DAT_COC_SYNAPES_" + cleanFileName + ".html")
       .getAs("application/pdf")
-      .setName("HOP_DONG_DAT_COC_SYNAPES_" + fullName.replace(/s+/g, "_") + ".pdf");
+      .setName("HOP_DONG_DAT_COC_SYNAPES_" + cleanFileName + ".pdf");
+
+    var safeFullName = escapeHtmlGas(fullName);
+    var safeIdCard = escapeHtmlGas(idCardNumber);
+    var safePackage = escapeHtmlGas(packageName);
+    var safeCategory = escapeHtmlGas(category);
+    var safeDeliveryDate = escapeHtmlGas(deliveryDateStr);
 
     var remainingAmount = Math.max(0, totalAmount - depositAmount);
     var cccdRow = idCardNumber
       ? '      <tr>' +
-        '        <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Số CCCD / CMND:</td>' +
-        '        <td style="padding: 8px 12px; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + idCardNumber + '</td>' +
-        '      </tr>'
+      '        <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Số CCCD / CMND:</td>' +
+      '        <td style="padding: 8px 12px; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + safeIdCard + '</td>' +
+      '      </tr>'
       : '';
 
     var contentHtml =
-      '<p style="margin: 0 0 14px 0; font-size: 14.5px;">Kính gửi Quý khách hàng <b>' + fullName + '</b>,</p>' +
+      '<p style="margin: 0 0 14px 0; font-size: 14.5px;">Kính gửi Quý khách hàng <b>' + safeFullName + '</b>,</p>' +
       '<p style="margin: 0 0 16px 0; font-size: 14px; color: #32383f; line-height: 1.6;">' +
       '  Hồ sơ đăng ký và <b>Hợp đồng đặt cọc dự án</b> sử dụng hệ thống <b>SYNAPES Studio</b> của Quý khách đã được <b>KS. Nguyễn Hoàng Thiện</b> (Trưởng ban Chuyển đổi số &amp; Trí tuệ nhân tạo) phê duyệt thành công.' +
       '</p>' +
@@ -1282,7 +1679,7 @@ function sendDepositApprovalEmail(email, fullName, idCardNumber, dob, gender, ph
       '  </tr>' +
       '  <tr>' +
       '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Gói dịch vụ đã ký:</td>' +
-      '    <td style="padding: 8px 12px; color: #1f2328; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + packageName + ' (' + category + ')</td>' +
+      '    <td style="padding: 8px 12px; color: #1f2328; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + safePackage + ' (' + safeCategory + ')</td>' +
       '  </tr>' +
       cccdRow +
       '  <tr>' +
@@ -1299,13 +1696,13 @@ function sendDepositApprovalEmail(email, fullName, idCardNumber, dob, gender, ph
       '  </tr>' +
       '  <tr>' +
       '    <td style="padding: 8px 12px; color: #57606a;">Dự kiến bàn giao chính thức:</td>' +
-      '    <td style="padding: 8px 12px; color: #cf222e; font-weight: 700; font-size: 14px;">' + deliveryDateStr + '</td>' +
+      '    <td style="padding: 8px 12px; color: #cf222e; font-weight: 700; font-size: 14px;">' + safeDeliveryDate + '</td>' +
       '  </tr>' +
       '</table>' +
       '<div style="background: #f6f8fa; border: 1px solid #d0d7de; border-left: 3px solid #0969da; padding: 12px 16px; border-radius: 4px; margin: 18px 0; font-size: 13px; color: #24292f; line-height: 1.6;">' +
-      '  <b>Quy trình bàn giao &amp; cấp tài khoản:</b> Đối với Hợp đồng đặt cọc, hệ thống <b>chưa cấp Mã Code và Mật khẩu đăng nhập</b> tại thời điểm này nhằm đảm bảo hoàn thiện phân hệ cá nhân hóa theo đúng tiến độ. Đúng ngày hẹn bàn giao (<b>' + deliveryDateStr + '</b>), sau khi Quý khách hoàn tất thanh toán phần còn lại và Kỹ sư đối soát thành công, hệ thống sẽ gửi tiếp thư thông báo kèm đầy đủ thông tin tài khoản và Biên bản bàn giao chính thức.' +
+      '  <b>Quy trình bàn giao &amp; cấp tài khoản:</b> Đối với Hợp đồng đặt cọc, hệ thống <b>chưa cấp Mã Code và Mật khẩu đăng nhập</b> tại thời điểm này nhằm đảm bảo hoàn thiện phân hệ cá nhân hóa theo đúng tiến độ. Đúng ngày hẹn bàn giao (<b>' + safeDeliveryDate + '</b>), sau khi Quý khách hoàn tất thanh toán phần còn lại và Kỹ sư đối soát thành công, hệ thống sẽ gửi tiếp thư thông báo kèm đầy đủ thông tin tài khoản và Biên bản bàn giao chính thức.' +
       '</div>' +
-      buildPaymentQrBoxHtml(depositAmount, (fullName.replace(/[^a-zA-Z0-9]/g, "") + " COC " + (idCardNumber || "")).trim().toUpperCase()) +
+      buildPaymentQrBoxHtml(depositAmount, (toAsciiUpperGas(fullName).replace(/\s+/g, "") + " COC " + toAsciiUpperGas(idCardNumber)).trim()) +
       buildQuoteAndThanksHtml() +
       '<p style="margin: 16px 0 0 0; font-size: 13px; color: #57606a;">' +
       '  <b>Tệp tin đính kèm:</b> Bản mềm Hợp đồng đặt cọc (PDF có đầy đủ điều khoản pháp lý và dấu mộc đỏ tròn của Trưởng ban KS. Nguyễn Hoàng Thiện) được đính kèm trực tiếp dưới thư này để Quý khách đối soát và lưu trữ.' +
@@ -1344,25 +1741,33 @@ function sendDepositApprovalEmail(email, fullName, idCardNumber, dob, gender, ph
 function sendFullApprovalEmail(email, fullName, idCardNumber, dob, gender, phone, address, code, password, category, packageName, totalAmount) {
   try {
     var subject = "[SYNAPES Studio] Thông tin tài khoản đăng nhập & Hợp đồng dịch vụ — Mã: " + code;
+    var buyerSig = getBuyerSignature(email);
 
     var htmlContract = generateContractHtmlContent(
       fullName, dob, gender, phone, address, code, email,
-      idCardNumber, packageName, 0, totalAmount, 0, false
+      idCardNumber, packageName, 0, totalAmount, 0, false, false, buyerSig
     );
 
     var pdfBlob = Utilities.newBlob(htmlContract, "text/html", "HOP_DONG_DICH_VU_SYNAPES_" + code + ".html")
       .getAs("application/pdf")
       .setName("HOP_DONG_DICH_VU_SYNAPES_" + code + ".pdf");
 
+    var safeFullName = escapeHtmlGas(fullName);
+    var safeIdCard = escapeHtmlGas(idCardNumber);
+    var safeCode = escapeHtmlGas(code);
+    var safePassword = escapeHtmlGas(password);
+    var safePackage = escapeHtmlGas(packageName);
+    var safeCategory = escapeHtmlGas(category);
+
     var cccdRow = idCardNumber
       ? '      <tr>' +
-        '        <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Số CCCD / CMND:</td>' +
-        '        <td style="padding: 8px 12px; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + idCardNumber + '</td>' +
-        '      </tr>'
+      '        <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Số CCCD / CMND:</td>' +
+      '        <td style="padding: 8px 12px; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + safeIdCard + '</td>' +
+      '      </tr>'
       : '';
 
     var contentHtml =
-      '<p style="margin: 0 0 14px 0; font-size: 14.5px;">Kính gửi Quý khách hàng <b>' + fullName + '</b>,</p>' +
+      '<p style="margin: 0 0 14px 0; font-size: 14.5px;">Kính gửi Quý khách hàng <b>' + safeFullName + '</b>,</p>' +
       '<p style="margin: 0 0 16px 0; font-size: 14px; color: #32383f; line-height: 1.6;">' +
       '  Hồ sơ đăng ký và <b>Hợp đồng dịch vụ điện tử chính thức</b> sử dụng nền tảng <b>SYNAPES Studio</b> của Quý khách đã được <b>KS. Nguyễn Hoàng Thiện</b> (Trưởng ban Chuyển đổi số &amp; Trí tuệ nhân tạo) phê duyệt thành công.' +
       '</p>' +
@@ -1384,11 +1789,11 @@ function sendFullApprovalEmail(email, fullName, idCardNumber, dob, gender, phone
       '        </tr>' +
       '        <tr>' +
       '          <td style="padding: 6px 0; color: #57606a;">Mã Code Đăng Nhập:</td>' +
-      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #0969da; background: #ddf4ff; border: 1px solid #b6e3ff; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + code + '</span></td>' +
+      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #0969da; background: #ddf4ff; border: 1px solid #b6e3ff; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + safeCode + '</span></td>' +
       '        </tr>' +
       '        <tr>' +
       '          <td style="padding: 6px 0; color: #57606a;">Mật Khẩu Mặc Định:</td>' +
-      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #cf222e; background: #ffebe9; border: 1px solid #ffcecb; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + password + '</span></td>' +
+      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #cf222e; background: #ffebe9; border: 1px solid #ffcecb; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + safePassword + '</span></td>' +
       '        </tr>' +
       '      </table>' +
       '      <div style="margin-top: 14px; text-align: center;">' +
@@ -1410,7 +1815,7 @@ function sendFullApprovalEmail(email, fullName, idCardNumber, dob, gender, phone
       '  </tr>' +
       '  <tr>' +
       '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Gói dịch vụ đã ký:</td>' +
-      '    <td style="padding: 8px 12px; color: #1f2328; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + packageName + ' (' + category + ')</td>' +
+      '    <td style="padding: 8px 12px; color: #1f2328; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + safePackage + ' (' + safeCategory + ')</td>' +
       '  </tr>' +
       cccdRow +
       '  <tr>' +
@@ -1422,7 +1827,7 @@ function sendFullApprovalEmail(email, fullName, idCardNumber, dob, gender, phone
       '    <td style="padding: 8px 12px; color: #1a7f37; font-weight: 600;">Kích hoạt vĩnh viễn &bull; Hạn mức chức năng tối đa</td>' +
       '  </tr>' +
       '</table>' +
-      buildPaymentQrBoxHtml(totalAmount, (fullName.replace(/[^a-zA-Z0-9]/g, "") + " FULL " + code).trim().toUpperCase()) +
+      buildPaymentQrBoxHtml(totalAmount, (toAsciiUpperGas(fullName).replace(/\s+/g, "") + " FULL " + toAsciiUpperGas(code)).trim()) +
       buildQuoteAndThanksHtml() +
       '<p style="margin: 16px 0 0 0; font-size: 13px; color: #57606a;">' +
       '  <b>Tệp tin đính kèm:</b> Bản mềm Hợp đồng dịch vụ điện tử chính thức (PDF có đầy đủ điều khoản pháp lý và dấu mộc đỏ tròn của Trưởng ban KS. Nguyễn Hoàng Thiện) được đính kèm trực tiếp dưới thư này để Quý khách lưu trữ.' +
@@ -1461,6 +1866,7 @@ function sendFullApprovalEmail(email, fullName, idCardNumber, dob, gender, phone
 function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phone, address, code, password, category, packageName, totalAmount, depositAmount, deliveryDays) {
   try {
     var subject = "[SYNAPES Studio] Xác nhận hoàn tất hợp đồng, thanh toán đủ 100% & Bàn giao hệ thống — Mã: " + code;
+    var buyerSig = getBuyerSignature(email);
 
     var depositVal = Number(depositAmount) || 0;
     var totalVal = Number(totalAmount) || 0;
@@ -1468,22 +1874,29 @@ function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phon
 
     var htmlContract = generateContractHtmlContent(
       fullName, dob, gender, phone, address, code, email,
-      idCardNumber, packageName, depositVal, totalVal, deliveryDays, false, true
+      idCardNumber, packageName, depositVal, totalVal, deliveryDays, false, true, buyerSig
     );
 
     var pdfBlob = Utilities.newBlob(htmlContract, "text/html", "HOP_DONG_BAN_GIAO_HOAN_CHINH_SYNAPES_" + code + ".html")
       .getAs("application/pdf")
       .setName("HOP_DONG_BAN_GIAO_HOAN_CHINH_SYNAPES_" + code + ".pdf");
 
+    var safeFullName = escapeHtmlGas(fullName);
+    var safeIdCard = escapeHtmlGas(idCardNumber);
+    var safeCode = escapeHtmlGas(code);
+    var safePassword = escapeHtmlGas(password);
+    var safePackage = escapeHtmlGas(packageName);
+    var safeCategory = escapeHtmlGas(category);
+
     var cccdRow = idCardNumber
       ? '      <tr>' +
-        '        <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Số CCCD / CMND:</td>' +
-        '        <td style="padding: 8px 12px; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + idCardNumber + '</td>' +
-        '      </tr>'
+      '        <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Số CCCD / CMND:</td>' +
+      '        <td style="padding: 8px 12px; color: #1f2328; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + safeIdCard + '</td>' +
+      '      </tr>'
       : '';
 
     var contentHtml =
-      '<p style="margin: 0 0 14px 0; font-size: 14.5px;">Kính gửi Quý khách hàng <b>' + fullName + '</b>,</p>' +
+      '<p style="margin: 0 0 14px 0; font-size: 14.5px;">Kính gửi Quý khách hàng <b>' + safeFullName + '</b>,</p>' +
       '<p style="margin: 0 0 16px 0; font-size: 14px; color: #32383f; line-height: 1.6;">' +
       '  Đội ngũ Kỹ sư/Dev <b>SYNAPES Studio</b> trân trọng thông báo: Hệ thống phần mềm tự động hóa sản xuất nội dung số của Quý khách theo Hợp đồng đặt cọc đã được hoàn tất triển khai kiểm thử toàn diện và bàn giao chính thức (chấp nhận bàn giao thành công ngay khi Kỹ sư hoàn tất trước hạn). Đồng thời, hệ thống xác nhận Bên Mua đã hoàn tất chi trả đủ 100% toàn bộ giá trị hợp đồng.' +
       '</p>' +
@@ -1505,11 +1918,11 @@ function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phon
       '        </tr>' +
       '        <tr>' +
       '          <td style="padding: 6px 0; color: #57606a;">Mã Code Đăng Nhập:</td>' +
-      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #0969da; background: #ddf4ff; border: 1px solid #b6e3ff; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + code + '</span></td>' +
+      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #0969da; background: #ddf4ff; border: 1px solid #b6e3ff; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + safeCode + '</span></td>' +
       '        </tr>' +
       '        <tr>' +
       '          <td style="padding: 6px 0; color: #57606a;">Mật Khẩu Khởi Tạo:</td>' +
-      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #cf222e; background: #ffebe9; border: 1px solid #ffcecb; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + password + '</span></td>' +
+      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #cf222e; background: #ffebe9; border: 1px solid #ffcecb; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + safePassword + '</span></td>' +
       '        </tr>' +
       '        <tr>' +
       '          <td style="padding: 6px 0; color: #57606a;">Trạng thái:</td>' +
@@ -1531,7 +1944,7 @@ function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phon
       '  </tr>' +
       '  <tr>' +
       '    <td style="padding: 8px 12px; color: #57606a; border-bottom: 1px solid #e1e4e8; width: 40%;">Gói giải pháp:</td>' +
-      '    <td style="padding: 8px 12px; color: #1f2328; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + packageName + ' (' + category + ')</td>' +
+      '    <td style="padding: 8px 12px; color: #1f2328; font-weight: 600; border-bottom: 1px solid #e1e4e8;">' + safePackage + ' (' + safeCategory + ')</td>' +
       '  </tr>' +
       cccdRow +
       (depositVal > 0 ? (
@@ -1565,7 +1978,7 @@ function sendFinalHandoverEmail(email, fullName, idCardNumber, dob, gender, phon
       '    <td style="padding: 8px 12px; color: #1f2328;">Bảo hành &amp; hỗ trợ kỹ thuật toàn thời gian</td>' +
       '  </tr>' +
       '</table>' +
-      buildPaymentQrBoxHtml(totalVal, (fullName.replace(/[^a-zA-Z0-9]/g, "") + " COMPLETED " + code).trim().toUpperCase()) +
+      buildPaymentQrBoxHtml(totalVal, (toAsciiUpperGas(fullName).replace(/\s+/g, "") + " COMPLETED " + toAsciiUpperGas(code)).trim()) +
       buildQuoteAndThanksHtml() +
       '<p style="margin: 16px 0 0 0; font-size: 13px; color: #57606a;">' +
       '  <b>Tệp tin đính kèm:</b> Bản mềm Hợp đồng bàn giao sản phẩm hoàn chỉnh &amp; Xác nhận bên mua thanh toán đủ 100% (PDF có dấu mộc đỏ tròn của Trưởng ban KS. Nguyễn Hoàng Thiện) được đính kèm trực tiếp dưới thư này.' +
@@ -1607,7 +2020,7 @@ function sendForgotPasswordEmail(email, fullName, code, newPassword) {
     var nowStr = Utilities.formatDate(new Date(), "GMT+7", "dd/MM/yyyy HH:mm:ss");
 
     var contentHtml =
-      '<p style="margin: 0 0 14px 0; font-size: 14.5px;">Kính gửi <b>' + (fullName || "Quý khách hàng") + '</b>,</p>' +
+      '<p style="margin: 0 0 14px 0; font-size: 14.5px;">Kính gửi <b>' + escapeHtmlGas(fullName || "Quý khách hàng") + '</b>,</p>' +
       '<p style="margin: 0 0 16px 0; font-size: 14px; color: #32383f; line-height: 1.6;">' +
       '  Hệ thống đã tiếp nhận yêu cầu đặt lại mật khẩu và đối soát chính xác thông tin đăng ký của bạn vào lúc <b>' + nowStr + '</b>.' +
       '</p>' +
@@ -1624,11 +2037,11 @@ function sendForgotPasswordEmail(email, fullName, code, newPassword) {
       '      <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 13.5px;">' +
       '        <tr>' +
       '          <td style="padding: 6px 0; color: #57606a; width: 140px;">Mã Code Đăng Nhập:</td>' +
-      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #0969da; background: #ddf4ff; border: 1px solid #b6e3ff; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + code + '</span></td>' +
+      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #0969da; background: #ddf4ff; border: 1px solid #b6e3ff; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + escapeHtmlGas(code) + '</span></td>' +
       '        </tr>' +
       '        <tr>' +
       '          <td style="padding: 6px 0; color: #57606a;">Mật Khẩu Mặc Định Mới:</td>' +
-      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #cf222e; background: #ffebe9; border: 1px solid #ffcecb; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + newPassword + '</span></td>' +
+      '          <td style="padding: 6px 0;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 15px; font-weight: 700; color: #cf222e; background: #ffebe9; border: 1px solid #ffcecb; padding: 2px 8px; border-radius: 4px; display: inline-block;">' + escapeHtmlGas(newPassword) + '</span></td>' +
       '        </tr>' +
       '      </table>' +
       '      <div style="margin-top: 14px; text-align: center;">' +
@@ -1669,6 +2082,140 @@ function sendForgotPasswordEmail(email, fullName, code, newPassword) {
   }
 }
 
+function escapeHtmlGas(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function sanitizeSignatureDataUri(sig) {
+  var s = String(sig || "").trim();
+  if (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/.test(s)) {
+    return s;
+  }
+  return "";
+}
+
+var __EXEC_SIG_CACHE = {};
+
+function saveBuyerSignature(email, sigDataUri) {
+  try {
+    var cleanEmail = String(email || "").trim().toLowerCase();
+    var cleanSig = sanitizeSignatureDataUri(sigDataUri);
+    if (!cleanEmail || !cleanSig) return false;
+
+    __EXEC_SIG_CACHE[cleanEmail] = cleanSig;
+    try {
+      var cache = CacheService.getScriptCache();
+      cache.remove("SIG_MISS_" + cleanEmail);
+      if (cleanSig.length < 95000) {
+        cache.put("SIG_VAL_" + cleanEmail, cleanSig, 3600);
+      }
+    } catch (cErr) { }
+
+    var props = PropertiesService.getScriptProperties();
+    var baseKey = "SIG_" + cleanEmail;
+    var maxChunk = 7500;
+    if (cleanSig.length <= maxChunk) {
+      props.setProperty(baseKey, cleanSig);
+      return true;
+    }
+
+    var totalChunks = Math.ceil(cleanSig.length / maxChunk);
+    if (totalChunks > 5) return false;
+    var toSet = {};
+    toSet[baseKey] = "__CHUNKED_" + totalChunks + "__";
+    for (var i = 0; i < totalChunks; i++) {
+      toSet[baseKey + "_" + i] = cleanSig.substring(i * maxChunk, (i + 1) * maxChunk);
+    }
+    props.setProperties(toSet);
+    return true;
+  } catch (e) {
+    Logger.log("saveBuyerSignature error: " + e);
+    return false;
+  }
+}
+
+function getBuyerSignature(email) {
+  try {
+    var cleanEmail = String(email || "").trim().toLowerCase();
+    if (!cleanEmail) return "";
+
+    if (__EXEC_SIG_CACHE[cleanEmail] !== undefined) {
+      return __EXEC_SIG_CACHE[cleanEmail];
+    }
+
+    var cache = null;
+    try {
+      cache = CacheService.getScriptCache();
+      var cachedSig = cache.get("SIG_VAL_" + cleanEmail);
+      if (cachedSig) {
+        var verifiedCached = sanitizeSignatureDataUri(cachedSig);
+        if (verifiedCached) {
+          __EXEC_SIG_CACHE[cleanEmail] = verifiedCached;
+          return verifiedCached;
+        }
+      }
+    } catch (cErr1) { }
+
+    var props = PropertiesService.getScriptProperties();
+    var baseKey = "SIG_" + cleanEmail;
+    var raw = props.getProperty(baseKey) || "";
+
+    if (raw.indexOf("data:image/") === 0) {
+      var verifiedRaw = sanitizeSignatureDataUri(raw);
+      __EXEC_SIG_CACHE[cleanEmail] = verifiedRaw;
+      if (cache && verifiedRaw && verifiedRaw.length < 95000) {
+        try { cache.put("SIG_VAL_" + cleanEmail, verifiedRaw, 3600); } catch (ePut1) { }
+      }
+      return verifiedRaw;
+    }
+
+    var chunkMatch = raw.match(/^__CHUNKED_(\d+)__$/);
+    if (chunkMatch) {
+      var n = parseInt(chunkMatch[1], 10) || 0;
+      var keys = [];
+      for (var i = 0; i < n; i++) {
+        keys.push(baseKey + "_" + i);
+      }
+      var allProps = props.getProperties();
+      var combined = "";
+      for (var k = 0; k < keys.length; k++) {
+        combined += (allProps[keys[k]] || "");
+      }
+      var verified = sanitizeSignatureDataUri(combined);
+      if (verified) {
+        __EXEC_SIG_CACHE[cleanEmail] = verified;
+        if (cache && verified.length < 95000) {
+          try { cache.put("SIG_VAL_" + cleanEmail, verified, 3600); } catch (ePut2) { }
+        }
+        return verified;
+      }
+    }
+
+    // Fallback: Lấy chữ ký từ Backend Server khi hồ sơ đăng ký gửi qua Google Form Bridge
+    try {
+      var url = "https://synapes-auto-tool-web-service.onrender.com/api/registration-signature?email=" + encodeURIComponent(cleanEmail);
+      var resp = UrlFetchApp.fetch(url, { method: "get", muteHttpExceptions: true });
+      if (resp && resp.getResponseCode() === 200) {
+        var json = JSON.parse(resp.getContentText() || "{}");
+        var fetchedSig = sanitizeSignatureDataUri(json && json.signatureImage);
+        if (fetchedSig) {
+          saveBuyerSignature(cleanEmail, fetchedSig);
+          return fetchedSig;
+        }
+      }
+    } catch (fetchErr) {
+      Logger.log("getBuyerSignature fallback fetch error: " + fetchErr);
+    }
+    __EXEC_SIG_CACHE[cleanEmail] = "";
+  } catch (e) { }
+  return "";
+}
+
 /**
  * 8. TẠO NỘI DUNG HTML HỢP ĐỒNG ĐẦY ĐỦ KÈM CON DẤU ĐỎ TRƯỞNG BAN ĐỂ XUẤT FILE PDF ĐÍNH KÈM GMAIL
  */
@@ -1686,15 +2233,24 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
   var cccd = idCardNumber || "";
   var isHandover = Boolean(isFinalHandover);
 
-  if (!buyerSignature && email) {
-    try {
-      buyerSignature = PropertiesService.getScriptProperties().getProperty("SIG_" + String(email).trim().toLowerCase()) || "";
-    } catch (e) {}
+  var safeFullName = escapeHtmlGas(fullName);
+  var safeDob = escapeHtmlGas(dob);
+  var safeGender = escapeHtmlGas(gender || "Nam");
+  var safePhone = escapeHtmlGas(phone);
+  var safeAddress = escapeHtmlGas(address);
+  var safeCode = escapeHtmlGas(code);
+  var safeEmail = escapeHtmlGas(email || "");
+  var safeCccd = escapeHtmlGas(cccd);
+  var safePkgName = escapeHtmlGas(pkgName);
+
+  var resolvedSignature = sanitizeSignatureDataUri(buyerSignature);
+  if (!resolvedSignature && email) {
+    resolvedSignature = getBuyerSignature(email);
   }
 
   var buyerSigHtml = "";
-  if (buyerSignature) {
-    buyerSigHtml = '<div style="height: 52px; margin-top: 6px; margin-bottom: 4px; text-align: center;"><img src="' + buyerSignature + '" style="max-height: 48px; max-width: 170px; object-fit: contain;" alt="Chữ ký tay Bên B" /></div>';
+  if (resolvedSignature) {
+    buyerSigHtml = '<div style="height: 56px; margin: 6px auto 2px auto; text-align: center;"><img src="' + resolvedSignature + '" height="50" style="height: 50px; width: auto; max-width: 175px; display: block; margin: 0 auto;" alt="Chữ ký tay Bên B" /></div>';
   } else {
     buyerSigHtml = '<div style="height: 18px;"></div>';
   }
@@ -1723,7 +2279,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
     var remVal = Math.max(0, totalVal - depositVal);
     financialBoxHtml = '<div class="financial-box">' +
       '  <b>XÁC NHẬN HOÀN TẤT BÀN GIAO &amp; THANH TOÁN ĐỦ 100%:</b><br/>' +
-      '  • Gói hợp đồng đã chọn: <b>' + pkgName + '</b><br/>' +
+      '  • Gói hợp đồng đã chọn: <b>' + safePkgName + '</b><br/>' +
       '  • Tổng giá trị hợp đồng toàn vẹn: <span style="color: #15803d; font-weight: bold; font-size: 11pt;">' + totalVal.toLocaleString("vi-VN") + ' VNĐ</span>' +
       (depositVal > 0 ? (' &nbsp;|&nbsp; Tiền đặt cọc (Đợt 1): <b>' + depositVal.toLocaleString("vi-VN") + ' VNĐ</b> &nbsp;|&nbsp; Tiền quyết toán đợt 2: <b>' + remVal.toLocaleString("vi-VN") + ' VNĐ</b><br/>') : '<br/>') +
       '  • Xác nhận thanh toán: <span style="color: #15803d; font-weight: bold;">BÊN MUA (BÊN B) ĐÃ THANH TOÁN ĐỦ 100% TOÀN BỘ GIÁ TRỊ HỢP ĐỒNG</span> (Bên A xác nhận đã nhận đủ tiền và hoàn tất quyết toán tài chính, không còn bất kỳ khoản công nợ hay khiếu nại nào giữa hai bên).<br/>' +
@@ -1733,7 +2289,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
   } else if (depositVal > 0 || totalVal > 0) {
     financialBoxHtml = '<div class="financial-box">' +
       '  <b>ĐIỀU KHOẢN TÀI CHÍNH & TIẾN ĐỘ BÀN GIAO:</b><br/>' +
-      '  • Gói hợp đồng đã chọn: <b>' + pkgName + '</b><br/>' +
+      '  • Gói hợp đồng đã chọn: <b>' + safePkgName + '</b><br/>' +
       (depositVal > 0 ? ('  • Tiền đặt cọc dự án: <span style="color: #15803d; font-weight: bold;">' + depositVal.toLocaleString("vi-VN") + ' VNĐ</span> &nbsp;|&nbsp; Tổng giá trị toàn vẹn: <b>' + totalVal.toLocaleString("vi-VN") + ' VNĐ</b><br/>') : ('  • Tổng giá trị hợp đồng thanh toán trọn gói: <span style="color: #15803d; font-weight: bold;">' + totalVal.toLocaleString("vi-VN") + ' VNĐ</span><br/>')) +
       (daysVal > 0 ? ('  • Thời hạn bàn giao sản phẩm: Bên A có nghĩa vụ bàn giao hệ thống đúng thời hạn trong vòng <b>' + daysVal + ' ngày</b> kể từ thời điểm ký đặt cọc.<br/>') : '') +
       '  • Phương thức thanh toán: Chuyển khoản ngân hàng <b>' + TIMO_BANK_INFO.bankName + '</b>, STK: <b>' + TIMO_BANK_INFO.accountNumber + '</b> (' + TIMO_BANK_INFO.accountHolder + ').' +
@@ -1765,7 +2321,7 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
     '<div class="title">' +
     '  <h1>' + contractTitle + '</h1>' +
     '  <h2>' + contractSubtitle + '</h2>' +
-    '  <small><i>(Mã định danh hợp đồng điện tử: ' + code + ')</i></small>' +
+    '  <small><i>(Mã định danh hợp đồng điện tử: ' + safeCode + ')</i></small>' +
     '</div>' +
     '<div class="legal">' +
     '  <b>CĂN CỨ PHÁP LÝ THI HÀNH:</b><br/>' +
@@ -1778,18 +2334,18 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
     '  <b>BÊN A: BÊN CUNG CẤP DỊCH VỤ NỀN TẢNG (SYNAPES STUDIO)</b><br/>' +
     '  • Đơn vị phát triển: Nền tảng Tự động hóa Nội dung số SYNAPES Studio<br/>' +
     '  • Đại diện giao dịch: <b>KS. NGUYỄN HOÀNG THIỆN</b> &nbsp;|&nbsp; Chức vụ: <b>Trưởng ban Chuyển đổi số & Trí tuệ nhân tạo</b><br/>' +
-    '  • Số CCCD: <b>' + getPartyAIdNumber() + '</b> &nbsp;|&nbsp; Địa chỉ thường trú: <b>Gò Vấp, TP HCM</b><br/>' +
+    '  • Số CCCD: <b>' + escapeHtmlGas(getPartyAIdNumber()) + '</b> &nbsp;|&nbsp; Địa chỉ thường trú: <b>Gò Vấp, TP HCM</b><br/>' +
     '  • Hộp thư điện tử: nguyenhoangthien.hvt.15@gmail.com &nbsp;|&nbsp; Cổng dịch vụ: https://synapes-auto-tool-web-service.onrender.com' +
     '</div>' +
     '<div class="party-box">' +
     '  <b>BÊN B: BÊN MUA HÀNG VÀ SỬ DỤNG DỊCH VỤ (KHÁCH HÀNG)</b><br/>' +
-    '  • Họ và tên khách hàng: <b>' + fullName + '</b> &nbsp;|&nbsp; ' + (cccd ? ('Số CCCD / CMND: <b>' + cccd + '</b> &nbsp;|&nbsp; ') : '') + 'Ngày sinh: ' + dob + ' &nbsp;|&nbsp; Giới tính: ' + (gender || "Nam") + '<br/>' +
-    '  • Số điện thoại: ' + phone + ' &nbsp;|&nbsp; Gmail đăng ký: ' + (email || "") + '<br/>' +
-    '  • Địa chỉ hiện tại: ' + address +
+    '  • Họ và tên khách hàng: <b>' + safeFullName + '</b> &nbsp;|&nbsp; ' + (cccd ? ('Số CCCD / CMND: <b>' + safeCccd + '</b> &nbsp;|&nbsp; ') : '') + 'Ngày sinh: ' + safeDob + ' &nbsp;|&nbsp; Giới tính: ' + safeGender + '<br/>' +
+    '  • Số điện thoại: ' + safePhone + ' &nbsp;|&nbsp; Gmail đăng ký: ' + safeEmail + '<br/>' +
+    '  • Địa chỉ hiện tại: ' + safeAddress +
     '</div>' +
     financialBoxHtml +
     '<div class="section">Điều 1. Quy chế cung cấp, quyền hạn và chức năng phần mềm SYNAPES Studio</div>' +
-    '<p>1.1. Bên A cung cấp giải pháp công nghệ tự động hóa sản xuất nội dung số SYNAPES Studio cho Bên B với Mã định danh hợp đồng <b>' + code + '</b>.</p>' +
+    '<p>1.1. Bên A cung cấp giải pháp công nghệ tự động hóa sản xuất nội dung số SYNAPES Studio cho Bên B với Mã định danh hợp đồng <b>' + safeCode + '</b>.</p>' +
     '<p>1.2. Quyền hạn và phân hệ chức năng: Tự động hóa tạo - đăng tải tuân thủ cấu trúc đa tầng; biên tập chuyên nghiệp khuôn mẫu 16:9 và 9:16 (Shorts/Reels); báo cáo đánh giá xu hướng và dữ liệu thời gian thực; hệ thống an toàn thông tin chuẩn DMCA và mã hóa AES-256; cập nhật mở rộng tính năng theo thời gian thực.</p>' +
     '<div class="section">Điều 2. Cam kết bảo mật dữ liệu cá nhân & an toàn Token API</div>' +
     '<p>2.1. Tuân thủ Nghị định 13/2023/NĐ-CP, Bên A áp dụng chuẩn mã hóa bảo vệ toàn diện dữ liệu và khóa kết nối API của Bên B; cam kết không tiết lộ cho bên thứ ba dưới mọi hình thức.</p>' +
@@ -1801,8 +2357,8 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
     '<div class="section">Điều 5. Hiệu lực hợp đồng</div>' +
     '<p>5.1. Hợp đồng điện tử này có giá trị pháp lý tương đương hợp đồng giấy theo Điều 13 và Điều 34 Luật Giao dịch điện tử số 20/2023/QH15.</p>' +
     '<table class="sign-table"><tr>' +
-    '  <td><b>ĐẠI DIỆN MUA HÀNG (BÊN B)</b><br/><i>(Đã ký xác nhận điện tử)</i><br/>' + buyerSigHtml + '<div style="border: 1px dashed #15803d; color: #15803d; display: inline-block; padding: 6px 12px; font-size: 8.5pt; font-weight: bold; margin: 8px 0;">ĐÃ KÝ XÁC NHẬN ĐIỆN TỬ<br/>Ngày: ' + dateStr + '</div><br/><b>' + fullName.toUpperCase() + '</b></td>' +
-    '  <td><b>ĐẠI DIỆN GIAO DỊCH (BÊN A)</b><br/><b>TRƯỞNG BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO</b><br/><i>(Ký, đóng dấu xác thực điện tử)</i><br/>' + stampImgHtml + '<div style="margin-top: 4px; font-weight: bold;">KS. NGUYỄN HOÀNG THIỆN</div><div style="font-size: 8pt; color: #475569; font-family: monospace;">CCCD: ' + getPartyAIdNumber() + '</div><div style="color: #b91c1c; font-size: 8.5pt; font-style: italic; margin-top: 2px;">✓ Đã ký &amp; đóng dấu Trưởng ban</div></td>' +
+    '  <td><b>ĐẠI DIỆN MUA HÀNG (BÊN B)</b><br/><i>(Đã ký xác nhận điện tử)</i><br/>' + buyerSigHtml + '<div style="border: 1px dashed #15803d; color: #15803d; display: inline-block; padding: 6px 12px; font-size: 8.5pt; font-weight: bold; margin: 8px 0;">ĐÃ KÝ XÁC NHẬN ĐIỆN TỬ<br/>Ngày: ' + dateStr + '</div><br/><b>' + safeFullName.toUpperCase() + '</b></td>' +
+    '  <td><b>ĐẠI DIỆN GIAO DỊCH (BÊN A)</b><br/><b>TRƯỞNG BAN CHUYỂN ĐỔI SỐ & TRÍ TUỆ NHÂN TẠO</b><br/><i>(Ký, đóng dấu xác thực điện tử)</i><br/>' + stampImgHtml + '<div style="margin-top: 4px; font-weight: bold;">KS. NGUYỄN HOÀNG THIỆN</div><div style="font-size: 8pt; color: #475569; font-family: monospace;">CCCD: ' + escapeHtmlGas(getPartyAIdNumber()) + '</div><div style="color: #b91c1c; font-size: 8.5pt; font-style: italic; margin-top: 2px;">✓ Đã ký &amp; đóng dấu Trưởng ban</div></td>' +
     '</tr></table>' +
     '</body></html>';
 }
@@ -1810,13 +2366,26 @@ function generateContractHtmlContent(fullName, dob, gender, phone, address, code
 /**
  * 9. ĐỒNG BỘ TÀI KHOẢN SANG TRANG TÍNH "Quản Lý Mật Khẩu" (GID = 0)
  */
-function syncAccountToMainSheet(code, name, email, password, phone, address, isReset) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = getAccountsSheet(ss);
+function syncAccountToMainSheet(code, name, email, password, phone, address, isReset, batchCtx) {
+  var ss = (batchCtx && batchCtx.ss) || SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = (batchCtx && batchCtx.accountsSheet) || getAccountsSheet(ss);
   if (!sheet) return;
 
-  var maxRow = Math.max(sheet.getLastRow(), 5);
-  var data = sheet.getRange(1, 1, maxRow, 9).getDisplayValues();
+  var data;
+  var lastCols;
+  if (batchCtx && batchCtx.accountsData) {
+    data = batchCtx.accountsData;
+    lastCols = batchCtx.accountsLastCol || Math.max(sheet.getLastColumn(), 9);
+  } else {
+    var maxRow = Math.max(sheet.getLastRow(), 5);
+    lastCols = Math.max(sheet.getLastColumn(), 9);
+    data = sheet.getRange(1, 1, maxRow, 9).getDisplayValues();
+    if (batchCtx) {
+      batchCtx.accountsSheet = sheet;
+      batchCtx.accountsData = data;
+      batchCtx.accountsLastCol = lastCols;
+    }
+  }
 
   var codeClean = String(code || "").trim().toUpperCase();
   var emailClean = String(email || "").trim().toLowerCase();
@@ -1854,37 +2423,81 @@ function syncAccountToMainSheet(code, name, email, password, phone, address, isR
       }
     }
     if (targetRow === -1) {
-      targetRow = maxRow + 1;
+      targetRow = data.length + 1;
     }
   }
 
   var nowStr = Utilities.formatDate(new Date(), "GMT+7", "dd/MM/yyyy HH:mm");
   var stt = targetRow - 4;
 
-  var statusText = isReset
-    ? "🔄 Đã cấp lại MK (" + nowStr + ")"
-    : "🟢 Hoạt động (Chờ đổi MK)";
+  var existingRowPass = foundRow !== -1 ? String(data[foundRow - 1][4] || "").trim() : "";
+  var existingRowDate = foundRow !== -1 ? String(data[foundRow - 1][5] || "").trim() : "";
+  var existingRowStatus = foundRow !== -1 ? String(data[foundRow - 1][6] || "").trim() : "";
+  var existingCustomPass = !isReset && foundRow !== -1 && (
+    isHashedOrCustomPasswordGas(existingRowPass) ||
+    existingRowStatus.indexOf("Khách đã đổi") !== -1
+  );
+
+  var finalPassword = password;
+  if (!isReset && foundRow !== -1) {
+    if (existingCustomPass && !isHashedOrCustomPasswordGas(password)) {
+      finalPassword = existingRowPass || password;
+    } else if (password === "SNP_DEFAULT" && existingRowPass) {
+      finalPassword = existingRowPass;
+    }
+  }
+
+  var finalStatus;
+  if (isReset) {
+    finalStatus = "🔄 Đã cấp lại MK (" + nowStr + ")";
+  } else if (isHashedOrCustomPasswordGas(finalPassword) || existingCustomPass) {
+    finalStatus = (existingRowStatus && existingRowStatus.indexOf("Khách đã đổi") !== -1)
+      ? existingRowStatus
+      : "🟢 Khách đã đổi pass riêng (" + nowStr + ")";
+  } else if (!isNew && existingRowStatus && (existingRowStatus.indexOf("Đã cấp lại MK") !== -1 || existingRowStatus.indexOf("🔄") !== -1)) {
+    finalStatus = existingRowStatus;
+  } else if (!isNew && existingRowStatus && existingRowStatus.indexOf("Hoạt động") !== -1) {
+    finalStatus = existingRowStatus;
+  } else {
+    finalStatus = "🟢 Hoạt động (Chờ đổi MK)";
+  }
+
+  var finalDate = (!isReset && !isNew && existingRowDate) ? existingRowDate : nowStr;
 
   var noteText = phone
     ? ("SĐT: " + phone + (address ? " | " + address : ""))
     : (address || "Đăng ký từ WebApp");
 
-  sheet.getRange(targetRow, 1).setValue(stt).setHorizontalAlignment("center");
-  sheet.getRange(targetRow, 2).setValue(codeClean).setFontWeight("bold").setHorizontalAlignment("center");
-  sheet.getRange(targetRow, 3).setValue(name);
-  sheet.getRange(targetRow, 4).setValue(email);
-  sheet.getRange(targetRow, 5).setValue(password).setFontWeight("bold");
-  sheet.getRange(targetRow, 6).setValue(nowStr).setHorizontalAlignment("center");
+  var existingRowData = foundRow !== -1 ? data[foundRow - 1] : null;
+  var colCount = lastCols >= 9 ? 9 : (lastCols >= 8 ? 8 : 7);
+  var newRowArr = colCount === 9
+    ? [stt, codeClean, name, email, finalPassword, finalDate, finalStatus, "Pro Studio", noteText]
+    : (colCount === 8
+      ? [stt, codeClean, name, email, finalPassword, finalDate, finalStatus, noteText]
+      : [stt, codeClean, name, email, finalPassword, finalDate, finalStatus]);
 
-  if (sheet.getLastColumn() >= 7) {
-    sheet.getRange(targetRow, 7).setValue(statusText);
+  var hasChange = !existingRowData;
+  if (existingRowData) {
+    for (var c = 0; c < colCount; c++) {
+      if (String(existingRowData[c] || "").trim() !== String(newRowArr[c] || "").trim()) {
+        hasChange = true;
+        break;
+      }
+    }
   }
 
-  if (sheet.getLastColumn() >= 9) {
-    sheet.getRange(targetRow, 8).setValue("Pro Studio");
-    sheet.getRange(targetRow, 9).setValue(noteText);
-  } else if (sheet.getLastColumn() >= 8) {
-    sheet.getRange(targetRow, 8).setValue(noteText);
+  if (hasChange) {
+    sheet.getRange(targetRow, 1, 1, colCount).setValues([newRowArr]);
+    if (isNew || isReset) {
+      sheet.getRange(targetRow, 1).setHorizontalAlignment("center");
+      sheet.getRange(targetRow, 2).setFontWeight("bold").setHorizontalAlignment("center");
+      sheet.getRange(targetRow, 5).setFontWeight("bold");
+      sheet.getRange(targetRow, 6).setHorizontalAlignment("center");
+    }
+    // Cập nhật ngay vào cache RAM để lần duyệt tiếp theo trong batch không bị trùng dòng
+    var padded = newRowArr.slice();
+    while (padded.length < 9) padded.push("");
+    data[targetRow - 1] = padded;
   }
 }
 
@@ -1979,9 +2592,10 @@ function previewSelectedUserContractModal() {
   var deliveryDays = parseInt(deliveryStr.replace(/[^0-9]/g, "")) || 0;
   var isDeposit = depositAmount > 0;
 
+  var buyerSig = getBuyerSignature(email);
   var htmlContent = generateContractHtmlContent(
     fullName, dob, gender, phone, address, code, email,
-    idCardNumber, packageName, depositAmount, totalAmount, deliveryDays, isDeposit
+    idCardNumber, packageName, depositAmount, totalAmount, deliveryDays, isDeposit, false, buyerSig
   );
 
   var htmlOutput = HtmlService.createHtmlOutput(htmlContent)
@@ -2015,7 +2629,6 @@ function approveSelectedUserRow() {
   if (!is20) {
     upgradeLegacySheetTo20Cols(sheet);
   }
-  sheet.getRange(row, 15).setValue(true);
   processFirstApproval(sheet, row, true);
 }
 
@@ -2044,7 +2657,6 @@ function approveSelectedFinalHandoverRow() {
   if (!is20) {
     upgradeLegacySheetTo20Cols(sheet);
   }
-  sheet.getRange(row, 18).setValue(true);
   processFinalHandoverApproval(sheet, row, true);
 }
 
@@ -2068,47 +2680,43 @@ function approveAllPendingUsers() {
 
   var maxCols = Math.max(sheet.getLastColumn(), 20);
   var data = sheet.getRange(2, 1, lastRow - 1, maxCols).getDisplayValues();
-  var count = 0;
 
+  // Pre-warm QR Blob và đọc cache dùng chung 1 lần duy nhất cho toàn bộ lô gửi Gmail
+  getTimoQrBlob();
+  var batchCtx = {
+    ss: ss,
+    usedCodes: loadUsedCodesSetGas(ss),
+    quietToast: true
+  };
+
+  var count = 0;
   for (var i = 0; i < data.length; i++) {
     var fullName = String(data[i][2] || "").trim();
-    var email = String(data[i][6] || "").trim();
+    var email = String(data[i][6] || "").replace(/\s+/g, "").trim();
     if (!fullName || !email || email.indexOf("@") === -1) continue;
 
     var mailStatus = String(data[i][18] || "").trim();
 
     if (mailStatus.indexOf("ĐÃ GỬI") === -1 && mailStatus.indexOf("ĐÃ BÀN GIAO") === -1) {
       var targetRow = i + 2;
-      sheet.getRange(targetRow, 15).setValue(true);
-      if (processFirstApproval(sheet, targetRow, true)) count++;
+      batchCtx.prefetchedRow = data[i];
+      if (processFirstApproval(sheet, targetRow, true, batchCtx)) {
+        count++;
+      }
+      if (!hasGmailQuotaRemainingGas()) {
+        break;
+      }
     }
   }
 
+  SpreadsheetApp.flush();
+  syncAuthDirectoryToWebApp(ss, "batch_approval");
   SpreadsheetApp.getUi().alert("⚡ ĐÃ DUYỆT & GỬI GMAIL TỰ ĐỘNG CHO " + count + " HỒ SƠ KHÁCH HÀNG!");
 }
 
 /**
  * 12. WEBHOOK TIẾP NHẬN DỮ LIỆU TỪ WEBAPP
  */
-function isValidJsonpCallback(name) {
-  if (!name || typeof name !== "string") return false;
-  return /^[a-zA-Z_$][0-9a-zA-Z_$]{0,63}$/.test(name);
-}
-
-function isValidGasSyncSecret(payload) {
-  var expectedSecret = "";
-  try {
-    expectedSecret = String(PropertiesService.getScriptProperties().getProperty("SYNAPES_SYNC_SECRET") || "").trim();
-  } catch (e) {}
-  var provided = String((payload && payload.syncSecret) || "").trim();
-  if (!expectedSecret || !provided || provided.length !== expectedSecret.length) return false;
-  var diff = 0;
-  for (var i = 0; i < expectedSecret.length; i++) {
-    diff |= expectedSecret.charCodeAt(i) ^ provided.charCodeAt(i);
-  }
-  return diff === 0;
-}
-
 function doGet(e) {
   var params = (e && e.parameter) ? e.parameter : {};
   if (params.payload) {
@@ -2119,15 +2727,10 @@ function doGet(e) {
           params[k] = parsedPayload[k];
         }
       }
-    } catch (ePayload) {}
+    } catch (ePayload) { }
   }
-  var callback = params.callback;
+  var callback = isValidJsonpCallback(params.callback) ? String(params.callback).trim() : "";
   var action = params.action;
-
-  if (callback && !isValidJsonpCallback(callback)) {
-    return ContentService.createTextOutput(JSON.stringify({ status: "error", error: "Invalid JSONP callback identifier" }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
 
   if (action === "ping" || action === "health") {
     var response = { status: "ok", time: new Date().toISOString(), message: "SYNAPES Apps Script is alive" };
@@ -2167,7 +2770,7 @@ function doPost(e) {
           payload[kp] = parsedPost[kp];
         }
       }
-    } catch (ePost) {}
+    } catch (ePost) { }
   }
 
   var result = processWebhookPayload(payload);
@@ -2177,71 +2780,120 @@ function doPost(e) {
 
 function processWebhookPayload(payload) {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var action = String(payload.action || "").toLowerCase().trim();
-
-    if (action === "register" || (!action && payload.email && (payload.fullName || payload.name))) {
-      return handleUserRegistrationWebhook(ss, payload);
+    if (!payload || typeof payload !== "object") {
+      return { status: "error", message: "Empty payload" };
     }
 
-    var privilegedActions = [
-      "forgot_password",
-      "reset_password",
-      "change_password",
-      "emergency_report",
-      "system_health_report",
-      "approve",
-      "approve_user",
-      "approve_first_stage",
-      "approve_final_handover"
-    ];
-    if (privilegedActions.indexOf(action) !== -1 && !isValidGasSyncSecret(payload)) {
-      return { status: "unauthorized", error: "Missing or invalid SYNAPES_SYNC_SECRET" };
+    // Luôn ưu tiên lưu chữ ký tay (nếu gói POST mang base64) trước khi lọc requestId trùng từ GET JSONP
+    var sigCandidate = payload.signatureImage || payload.buyerSignature || "";
+    if (payload.email && sigCandidate) {
+      saveBuyerSignature(payload.email, sigCandidate);
     }
 
-    if (action === "forgot_password" || action === "reset_password") {
-      return handleForgotPasswordWebhook(ss, payload);
+    var lock = LockService.getScriptLock();
+    var hasLock = false;
+    try {
+      hasLock = lock.tryLock(8000);
+    } catch (lockErr) {
+      hasLock = false;
     }
 
-    if (action === "change_password") {
-      return handleChangePasswordWebhook(ss, payload);
-    }
-
-    if (action === "emergency_report" || action === "system_health_report") {
-      return recordEmergencyReportToSheetAndDrive(ss, payload);
-    }
-
-    if (action === "approve" || action === "approve_user" || action === "approve_first_stage") {
-      var uSheet = getUsersSheet(ss, false);
-      if (uSheet) {
-        if (!isNew20ColsSheet(uSheet)) {
-          upgradeLegacySheetTo20Cols(uSheet);
+    try {
+      var reqId = String(payload.requestId || "").trim();
+      var cache = CacheService.getScriptCache();
+      if (reqId) {
+        if (cache.get("REQ_DONE_" + reqId)) {
+          return { status: "duplicate_ignored", requestId: reqId };
         }
-        var target = findOrCreateUserRowByEmail(uSheet, payload.email, payload.fullName, true);
-        if (target && target.row) {
-          uSheet.getRange(target.row, 15).setValue(true);
-          processFirstApproval(uSheet, target.row, true);
-          return { status: "success", action: "approve_first_stage", row: target.row };
+        cache.put("REQ_DONE_" + reqId, "1", 60);
+      }
+
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var action = String(payload.action || "").toLowerCase().trim();
+
+      if (action === "register" || (!action && payload.email && (payload.fullName || payload.name))) {
+        return handleUserRegistrationWebhook(ss, payload);
+      }
+
+      var isPrivilegedAction = (
+        action === "forgot_password" ||
+        action === "reset_password" ||
+        action === "change_password" ||
+        action === "verify_login" ||
+        action === "emergency_report" ||
+        action === "system_health_report" ||
+        action === "approve" ||
+        action === "approve_user" ||
+        action === "approve_first_stage" ||
+        action === "approve_final_handover" ||
+        action === "approve_second_stage"
+      );
+      if (isPrivilegedAction && !isValidGasSyncSecret(payload)) {
+        return {
+          status: "unauthorized",
+          action: action,
+          error: "Missing or invalid SYNAPES_SYNC_SECRET"
+        };
+      }
+
+      if (action === "forgot_password" || action === "reset_password") {
+        return handleForgotPasswordWebhook(ss, payload);
+      }
+
+      if (action === "change_password") {
+        return handleChangePasswordWebhook(ss, payload);
+      }
+
+      if (action === "verify_login") {
+        return handleVerifyLoginWebhook(ss, payload);
+      }
+
+      if (action === "emergency_report" || action === "system_health_report") {
+        return recordEmergencyReportToSheetAndDrive(ss, payload);
+      }
+
+      if (action === "approve" || action === "approve_user" || action === "approve_first_stage") {
+        var uSheet = getUsersSheet(ss, false);
+        if (uSheet) {
+          if (!isNew20ColsSheet(uSheet)) {
+            upgradeLegacySheetTo20Cols(uSheet);
+          }
+          var target = findOrCreateUserRowByEmail(uSheet, payload.email, payload.fullName, true);
+          if (target && target.row) {
+            if (!target.isExisting && payload.email) {
+              var regRes = handleUserRegistrationWebhook(ss, payload);
+              if (regRes && regRes.row) target.row = regRes.row;
+            }
+            processFirstApproval(uSheet, target.row, true);
+            return { status: "success", action: action, row: target.row };
+          }
         }
       }
-    }
 
-    if (action === "approve_final_handover" || action === "approve_second_stage") {
-      var uSheet = getUsersSheet(ss, false);
-      if (uSheet) {
-        if (!isNew20ColsSheet(uSheet)) {
-          upgradeLegacySheetTo20Cols(uSheet);
-        }
-        var target = findOrCreateUserRowByEmail(uSheet, payload.email, payload.fullName, true);
-        if (target && target.row) {
-          uSheet.getRange(target.row, 18).setValue(true);
-          processFinalHandoverApproval(uSheet, target.row, true);
-          return { status: "success", action: "approve_final_handover", row: target.row };
+      if (action === "approve_final_handover" || action === "approve_second_stage") {
+        var uSheet2 = getUsersSheet(ss, false);
+        if (uSheet2) {
+          if (!isNew20ColsSheet(uSheet2)) {
+            upgradeLegacySheetTo20Cols(uSheet2);
+          }
+          var target2 = findOrCreateUserRowByEmail(uSheet2, payload.email, payload.fullName, true);
+          if (target2 && target2.row) {
+            if (!target2.isExisting && payload.email) {
+              var regRes2 = handleUserRegistrationWebhook(ss, payload);
+              if (regRes2 && regRes2.row) target2.row = regRes2.row;
+            }
+            processFinalHandoverApproval(uSheet2, target2.row, true);
+            return { status: "success", action: "approve_final_handover", row: target2.row };
+          }
         }
       }
-    }
 
-    return { status: "unknown_action", action: action };
+      return { status: "unknown_action", action: action };
+    } finally {
+      if (hasLock) {
+        try { lock.releaseLock(); } catch (relErr) { }
+      }
+    }
   } catch (err) {
     Logger.log("processWebhookPayload error: " + err);
     return { status: "error", error: err.toString() };
@@ -2295,6 +2947,21 @@ function findOrCreateUserRowByEmail(sheet, email, fullName, isApprovalLookup) {
  * Ghi thông tin đăng ký người dùng vào 20 Cột Chuẩn
  */
 function handleUserRegistrationWebhook(ss, payload) {
+  // Lớp bảo vệ dự phòng nếu chuỗi [ACTION:...] đi lạc vào hàm ghi đăng ký
+  var embedded = extractEmbeddedActionPayload(payload && payload.notes, payload);
+  if (embedded.isAction) {
+    return processWebhookPayload(embedded.data);
+  }
+
+  // Tách chữ ký tay nhúng [SIG_DATA:...] từ Form Bridge (nếu có) trước khi ghi cột Ghi chú lên Sheet
+  extractEmbeddedSignatureAndCleanNotesGas(payload);
+
+  // Lưu trữ chữ ký tay khách hàng (nếu có) theo địa chỉ email
+  var sigCandidate = (payload && (payload.signatureImage || payload.buyerSignature)) || "";
+  if (payload && payload.email && sigCandidate) {
+    saveBuyerSignature(payload.email, sigCandidate);
+  }
+
   var sheet = getUsersSheet(ss, true);
   var now = new Date();
   var nowStr = Utilities.formatDate(now, "GMT+7", "dd/MM/yyyy HH:mm:ss");
@@ -2468,6 +3135,7 @@ function handleForgotPasswordWebhook(ss, payload) {
     var codeColIdx = is20 ? 15 : 9;
     var passColIdx = is20 ? 16 : 10;
     var statusColIdx = is20 ? 18 : 11;
+    var noteColIdx = is20 ? 19 : 12;
 
     for (var i = 0; i < uData.length; i++) {
       var rMail = String(uData[i][mailColIdx] || uData[i][5] || "").trim().toLowerCase();
@@ -2478,6 +3146,7 @@ function handleForgotPasswordWebhook(ss, payload) {
         if (uData[i][2]) fullName = uData[i][2];
         uSheet.getRange(rIdx, passColIdx + 1).setValue(newPassword).setFontWeight("bold").setFontColor("#b91c1c");
         uSheet.getRange(rIdx, statusColIdx + 1).setValue("🔄 Đã cấp lại MK (" + nowStr + ")");
+        uSheet.getRange(rIdx, noteColIdx + 1).setValue("Đã ký hợp đồng | 🔄 Đã cấp lại MK tạm (" + nowStr + ")");
         break;
       }
     }
@@ -2486,6 +3155,7 @@ function handleForgotPasswordWebhook(ss, payload) {
   if (code) {
     syncAccountToMainSheet(code, fullName, email, newPassword, phone, "", true);
   }
+  syncAuthDirectoryToWebApp(ss, "forgot_password");
 
   var mailRes = sendForgotPasswordEmail(email, fullName, code || "SYNAPES_USER", newPassword);
 
@@ -2591,6 +3261,8 @@ function handleChangePasswordWebhook(ss, payload) {
     }
   }
 
+  syncAuthDirectoryToWebApp(ss, "change_password");
+
   return {
     status: "success",
     action: "change_password",
@@ -2598,16 +3270,304 @@ function handleChangePasswordWebhook(ss, payload) {
   };
 }
 
+function sha256HexGas(inputStr) {
+  var rawBytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(inputStr || ""),
+    Utilities.Charset.UTF_8
+  );
+  var hex = "";
+  for (var i = 0; i < rawBytes.length; i++) {
+    var b = rawBytes[i];
+    if (b < 0) b += 256;
+    var h = b.toString(16);
+    if (h.length === 1) h = "0" + h;
+    hex += h;
+  }
+  return hex;
+}
+
+function extractGasPasswordHash(raw) {
+  if (!raw) return null;
+  var m = String(raw).match(/BCRYPT\$[A-F0-9]{16,64}/i);
+  return m ? m[0].toUpperCase() : null;
+}
+
+function computeGasPasswordHash(code, plainPassword) {
+  var codeNorm = String(code || "").trim().toUpperCase();
+  var passNorm = String(plainPassword || "").trim();
+  var existingHash = extractGasPasswordHash(passNorm);
+  if (existingHash) return existingHash;
+  var digest = sha256HexGas("SYNAPES_BCRYPT_V2::" + codeNorm + "::" + passNorm + "::PRIVATE_KEY_SALT")
+    .slice(0, 32)
+    .toUpperCase();
+  return "BCRYPT$" + digest;
+}
+
+function computePhoneVerifyHashGas(email, phoneOrNote) {
+  var emailNorm = String(email || "").trim().toLowerCase();
+  var raw = String(phoneOrNote || "");
+  var phoneMatch = raw.match(/(?:SĐT\s*:\s*|^)([+0-9][0-9\s.-]{7,14}\d)/i) || raw.match(/0\d{8,10}/);
+  var phoneCandidate = phoneMatch ? (phoneMatch[1] || phoneMatch[0]) : raw;
+  var digits = String(phoneCandidate || "").replace(/\D/g, "");
+  var tail = digits.length >= 9 ? digits.slice(-9) : digits;
+  if (!emailNorm || tail.length < 8) return "";
+  return sha256HexGas("SYNAPES_PHONE_V1::" + emailNorm + "::" + tail).toUpperCase();
+}
+
+function isPlaceholderCredentialGas(val) {
+  var s = String(val || "").trim();
+  if (!s) return true;
+  var up = s.toUpperCase();
+  return up === "(CHỜ BÀN GIAO)" || up === "(CHƯA CẤP)" || up === "(CHỜ DUYỆT)";
+}
+
+function collectSheetAuthDirectory(ss) {
+  if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
+  var merged = {};
+
+  // 1. Đọc tab "Quản Lý Mật Khẩu"
+  var accSheet = getAccountsSheet(ss);
+  if (accSheet && accSheet.getLastRow() >= 5) {
+    var accRows = accSheet.getRange(5, 1, accSheet.getLastRow() - 4, Math.max(accSheet.getLastColumn(), 9)).getDisplayValues();
+    for (var i = 0; i < accRows.length; i++) {
+      var code = String(accRows[i][1] || "").trim().toUpperCase();
+      var pass = String(accRows[i][4] || "").trim();
+      if (!code || isPlaceholderCredentialGas(code) || isPlaceholderCredentialGas(pass)) continue;
+      if (code.indexOf("MÃ CODE") !== -1) continue;
+
+      var name = String(accRows[i][2] || "Khách Hàng Studio").trim();
+      var email = String(accRows[i][3] || "").replace(/\s+/g, "").trim();
+      var statusText = String(accRows[i][6] || "").toLowerCase();
+      var noteText = String(accRows[i][8] || "");
+      var existingHash = extractGasPasswordHash(pass) || extractGasPasswordHash(noteText);
+      var isMasked = isHashedOrCustomPasswordGas(pass) || Boolean(existingHash);
+      var isResetStatus = !isMasked && (statusText.indexOf("cấp lại") !== -1 || statusText.indexOf("temp") !== -1);
+
+      var passwordHash = existingHash || computeGasPasswordHash(code, pass);
+      var passwordHashUpper = isMasked ? null : computeGasPasswordHash(code, pass.toUpperCase());
+      var accountStatus = isMasked
+        ? "custom_password_active"
+        : (isResetStatus ? "temp_password_active" : "never_changed");
+
+      merged[code] = {
+        code: code,
+        clientName: name,
+        registeredGmail: email,
+        passwordHash: passwordHash,
+        passwordHashUpper: passwordHashUpper,
+        accountStatus: accountStatus,
+        isDefaultPassword: accountStatus !== "custom_password_active",
+        phoneVerifyHash: computePhoneVerifyHashGas(email, noteText)
+      };
+    }
+  }
+
+  // 2. Đọc & hợp nhất tab "THÔNG TIN NGƯỜI DÙNG"
+  var uSheet = getUsersSheet(ss, false);
+  if (uSheet && uSheet.getLastRow() >= 2) {
+    var is20 = isNew20ColsSheet(uSheet);
+    var uCols = Math.max(uSheet.getLastColumn(), is20 ? 20 : 13);
+    var uRows = uSheet.getRange(2, 1, uSheet.getLastRow() - 1, uCols).getDisplayValues();
+    for (var j = 0; j < uRows.length; j++) {
+      var uCode = String((is20 ? uRows[j][15] : uRows[j][9]) || "").trim().toUpperCase();
+      var uPass = String((is20 ? uRows[j][16] : uRows[j][10]) || "").trim();
+      if (!uCode || isPlaceholderCredentialGas(uCode) || isPlaceholderCredentialGas(uPass)) continue;
+
+      var uName = String(uRows[j][2] || "Khách Hàng Studio").trim();
+      var uMail = String((is20 ? uRows[j][6] : uRows[j][5]) || "").replace(/\s+/g, "").trim();
+      var uPhone = String((is20 ? uRows[j][7] : uRows[j][6]) || "").trim();
+      var uStatus = String((is20 ? uRows[j][18] : uRows[j][11]) || "").toLowerCase();
+      var uNote = String((is20 ? uRows[j][19] : uRows[j][12]) || "");
+      var uExistingHash = extractGasPasswordHash(uPass) || extractGasPasswordHash(uNote);
+      var uIsMasked = isHashedOrCustomPasswordGas(uPass) || Boolean(uExistingHash);
+      var uIsReset = !uIsMasked && (uStatus.indexOf("cấp lại") !== -1 || uNote.toLowerCase().indexOf("cấp lại") !== -1);
+
+      var uPasswordHash = uExistingHash || computeGasPasswordHash(uCode, uPass);
+      var uPasswordHashUpper = uIsMasked ? null : computeGasPasswordHash(uCode, uPass.toUpperCase());
+      var uAccountStatus = uIsMasked
+        ? "custom_password_active"
+        : (uIsReset ? "temp_password_active" : "never_changed");
+      var uPhoneHash = computePhoneVerifyHashGas(uMail, uPhone);
+
+      var prev = merged[uCode];
+      if (!prev) {
+        merged[uCode] = {
+          code: uCode,
+          clientName: uName,
+          registeredGmail: uMail,
+          passwordHash: uPasswordHash,
+          passwordHashUpper: uPasswordHashUpper,
+          accountStatus: uAccountStatus,
+          isDefaultPassword: uAccountStatus !== "custom_password_active",
+          phoneVerifyHash: uPhoneHash
+        };
+      } else {
+        // Nếu 1 trong 2 tab vừa cấp lại MK tạm -> ưu tiên MK tạm mới, ngược lại ưu tiên custom hash nếu có
+        var chosen = prev;
+        if (uAccountStatus === "temp_password_active" && prev.accountStatus !== "temp_password_active") {
+          chosen = {
+            code: uCode,
+            clientName: uName || prev.clientName,
+            registeredGmail: uMail || prev.registeredGmail,
+            passwordHash: uPasswordHash,
+            passwordHashUpper: uPasswordHashUpper,
+            accountStatus: "temp_password_active",
+            isDefaultPassword: true,
+            phoneVerifyHash: uPhoneHash || prev.phoneVerifyHash
+          };
+        } else if (uIsMasked && prev.accountStatus !== "custom_password_active" && prev.accountStatus !== "temp_password_active") {
+          chosen = {
+            code: uCode,
+            clientName: uName || prev.clientName,
+            registeredGmail: uMail || prev.registeredGmail,
+            passwordHash: uPasswordHash,
+            passwordHashUpper: null,
+            accountStatus: "custom_password_active",
+            isDefaultPassword: false,
+            phoneVerifyHash: uPhoneHash || prev.phoneVerifyHash
+          };
+        } else if (uPhoneHash && !prev.phoneVerifyHash) {
+          chosen.phoneVerifyHash = uPhoneHash;
+        }
+        merged[uCode] = chosen;
+      }
+    }
+  }
+
+  var list = [];
+  for (var k in merged) {
+    if (merged.hasOwnProperty(k)) list.push(merged[k]);
+  }
+  return list;
+}
+
+function syncAuthDirectoryToWebApp(ss, triggerSource) {
+  try {
+    var accounts = collectSheetAuthDirectory(ss);
+    if (!accounts || accounts.length === 0) return false;
+    var secret = "";
+    try {
+      secret = String(PropertiesService.getScriptProperties().getProperty("SYNAPES_SYNC_SECRET") || "").trim();
+    } catch (eProp) { }
+    if (!secret || secret.length < 16) {
+      Logger.log("syncAuthDirectoryToWebApp skipped: Missing SYNAPES_SYNC_SECRET in ScriptProperties.");
+      return false;
+    }
+
+    var res = UrlFetchApp.fetch("https://synapes-auto-tool-web-service.onrender.com/api/auth/sheet-sync", {
+      method: "post",
+      contentType: "application/json",
+      headers: {
+        "X-Synapes-Sync-Secret": secret
+      },
+      payload: JSON.stringify({
+        accounts: accounts,
+        source: triggerSource || "apps_script",
+        syncedAt: new Date().toISOString()
+      }),
+      muteHttpExceptions: true,
+      validateHttpsCertificates: true
+    });
+    return res.getResponseCode() >= 200 && res.getResponseCode() < 300;
+  } catch (err) {
+    Logger.log("syncAuthDirectoryToWebApp error: " + err);
+    return false;
+  }
+}
+
+function handleVerifyLoginWebhook(ss, payload) {
+  var code = String(payload.code || "").trim().toUpperCase();
+  var passRaw = String(payload.password || "").trim();
+  var passHash = String(payload.passwordHash || "").trim().toUpperCase();
+  var passHashUpper = String(payload.passwordHashUpper || "").trim().toUpperCase();
+
+  if (!code || (!passRaw && !passHash)) {
+    return { status: "error", valid: false, message: "Missing code or password" };
+  }
+
+  var accounts = collectSheetAuthDirectory(ss);
+  var hashToCheck = passHash || computeGasPasswordHash(code, passRaw);
+  var hashUpperToCheck = passHashUpper || (passRaw ? computeGasPasswordHash(code, passRaw.toUpperCase()) : "");
+
+  for (var i = 0; i < accounts.length; i++) {
+    var acc = accounts[i];
+    if (acc.code === code) {
+      var exactOk = acc.passwordHash === hashToCheck;
+      var upperOk = Boolean(acc.passwordHashUpper) && Boolean(hashUpperToCheck) && acc.passwordHashUpper === hashUpperToCheck;
+      if (exactOk || upperOk) {
+        return {
+          status: "success",
+          action: "verify_login",
+          valid: true,
+          user: {
+            code: acc.code,
+            name: acc.clientName,
+            email: acc.registeredGmail,
+            isDefaultPassword: Boolean(acc.isDefaultPassword)
+          }
+        };
+      }
+      return { status: "success", action: "verify_login", valid: false };
+    }
+  }
+  return { status: "success", action: "verify_login", valid: false };
+}
+
 function syncToWebApp() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   reconcileAllApprovedUsersToAccountsSheet(ss);
-  SpreadsheetApp.getUi().alert("✅ Đã hoàn tất đồng bộ 2 chiều với WebApp!");
+  var synced = syncAuthDirectoryToWebApp(ss, "manual_menu_sync");
+  SpreadsheetApp.getUi().alert(
+    synced
+      ? "✅ Đã đồng bộ hoàn tất toàn bộ tài khoản & mật khẩu lên WebApp!"
+      : "✅ Đã đối soát 2 tab Sheet thành công! (WebApp sẽ tự đồng bộ ở chu kỳ kế tiếp)"
+  );
 }
 
 function openWebAppUrl() {
   var html =
     '<script>window.open("https://synapes-auto-tool-web-service.onrender.com", "_blank");google.script.host.close();</script>';
   SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html), "Đang mở SYNAPES Studio...");
+}
+
+function configureSecurityPropertiesMenu() {
+  var ui = SpreadsheetApp.getUi();
+  var props = PropertiesService.getScriptProperties();
+
+  var existingSecret = String(props.getProperty("SYNAPES_SYNC_SECRET") || "").trim();
+  var secretHint = existingSecret
+    ? ("Hiện đã có khóa (" + existingSecret.slice(0, 4) + "..." + existingSecret.slice(-4) + "). Nhập giá trị mới (>=16 ký tự) hoặc để trống để giữ nguyên:")
+    : "Nhập SYNAPES_SYNC_SECRET (khớp chính xác với biến SYNAPES_SYNC_SECRET trên Render / .env, tối thiểu 16 ký tự):";
+  var resSecret = ui.prompt("🔐 Cấu hình SYNAPES_SYNC_SECRET", secretHint, ui.ButtonSet.OK_CANCEL);
+  if (resSecret.getSelectedButton() === ui.Button.CANCEL) return;
+  var newSecret = String(resSecret.getResponseText() || "").trim();
+  if (newSecret) {
+    if (newSecret.length < 16) {
+      ui.alert("❌ SYNAPES_SYNC_SECRET phải dài tối thiểu 16 ký tự.");
+      return;
+    }
+    props.setProperty("SYNAPES_SYNC_SECRET", newSecret);
+  }
+
+  var existingPartyA = String(props.getProperty("PARTY_A_ID_NUMBER") || "").trim();
+  var partyAHint = existingPartyA
+    ? ("Hiện đã có PARTY_A_ID_NUMBER (" + existingPartyA.slice(0, 3) + "******" + existingPartyA.slice(-3) + "). Nhập số mới hoặc để trống để giữ nguyên:")
+    : "Nhập số CCCD Bên A (PARTY_A_ID_NUMBER) hiển thị trên hợp đồng PDF:";
+  var resPartyA = ui.prompt("🪪 Cấu hình PARTY_A_ID_NUMBER", partyAHint, ui.ButtonSet.OK_CANCEL);
+  if (resPartyA.getSelectedButton() === ui.Button.CANCEL) return;
+  var newPartyA = String(resPartyA.getResponseText() || "").trim();
+  if (newPartyA) {
+    props.setProperty("PARTY_A_ID_NUMBER", newPartyA);
+  }
+
+  var finalSecret = String(props.getProperty("SYNAPES_SYNC_SECRET") || "").trim();
+  var finalPartyA = String(props.getProperty("PARTY_A_ID_NUMBER") || "").trim();
+  ui.alert(
+    "✅ Đã lưu Script Properties thành công!\n\n" +
+    "• SYNAPES_SYNC_SECRET: " + (finalSecret ? ("Đã thiết lập (" + finalSecret.length + " ký tự)") : "Chưa thiết lập") + "\n" +
+    "• PARTY_A_ID_NUMBER: " + (finalPartyA ? "Đã thiết lập" : "Chưa thiết lập")
+  );
 }
 
 function recordEmergencyReportToSheetAndDrive(ss, payload) {
@@ -2636,6 +3596,17 @@ function recordEmergencyReportToSheetAndDrive(ss, payload) {
     ];
 
     sheet.getRange(nextRow, 1, 1, rowData.length).setValues([rowData]);
+
+    try {
+      MailApp.sendEmail({
+        to: "nguyenhoangthien.hvt.15@gmail.com",
+        subject: "[CẢNH BÁO SỰ CỐ KHẨN CẤP] SYNAPES Studio: " + (payload.incidentType || "AUTO_HEAL"),
+        body: payload.emailBody || payload.description || "Hệ thống ghi nhận sự cố tự phục hồi cần KS. Nguyễn Hoàng Thiện kiểm tra."
+      });
+    } catch (mailErr) {
+      Logger.log("MailApp.sendEmail alert error: " + mailErr);
+    }
+
     return { status: "success", action: "emergency_report", row: nextRow };
   } catch (err) {
     Logger.log("recordEmergencyReportToSheetAndDrive error: " + err);
@@ -2651,7 +3622,7 @@ function runCloudKeepAliveAndBackgroundCron() {
 
   for (var i = 0; i < endpoints.length; i++) {
     try {
-      var response = UrlFetchApp.fetch(endpoints[i], { muteHttpExceptions: true, validateHttpsCertificates: false });
+      var response = UrlFetchApp.fetch(endpoints[i], { muteHttpExceptions: true, validateHttpsCertificates: true });
       Logger.log("Keep-alive ping " + endpoints[i] + " -> Status: " + response.getResponseCode());
     } catch (e) {
       Logger.log("runCloudKeepAliveAndBackgroundCron ping error (" + endpoints[i] + "): " + e);
@@ -2661,6 +3632,7 @@ function runCloudKeepAliveAndBackgroundCron() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     syncPendingFormBridgeResponses();
+    syncAuthDirectoryToWebApp(ss, "cron_keepalive");
   } catch (e) {
     Logger.log("runCloudKeepAliveAndBackgroundCron bridge sync error: " + e);
   }
